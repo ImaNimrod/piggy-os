@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-void* pmm_alloc(size_t pages);
-void pmm_free(void* addr, size_t pages);
+uintptr_t pmm_alloc(size_t pages);
+void pmm_free(uintptr_t addr, size_t pages);
 
 void pmm_init(void);
 

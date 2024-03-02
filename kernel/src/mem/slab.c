@@ -1,6 +1,6 @@
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <types.h>
+#include <mem/vmm.h>
 #include <utils/math.h>
 #include <utils/string.h>
 
@@ -38,13 +38,13 @@ static inline size_t pow2_roundup(size_t a) {
 }
 
 static struct slab* cache_alloc_slab(struct cache* cache) {
-	struct slab* new_slab = (struct slab*) ((uintptr_t) pmm_alloc(cache->pages_per_slab) + KERNEL_HIGH_VMA);
+	struct slab* new_slab = (struct slab*) (pmm_alloc(cache->pages_per_slab) + HIGH_VMA);
 
     new_slab->available_objects = OBJECTS_PER_SLAB;
     new_slab->total_objects = OBJECTS_PER_SLAB;
 
 	new_slab->bitmap = (uint8_t*) ((uintptr_t) new_slab + sizeof(struct slab));
-	new_slab->buffer = (void*) (ALIGN_UP((uintptr_t) new_slab->bitmap + OBJECTS_PER_SLAB - KERNEL_HIGH_VMA, 16) + KERNEL_HIGH_VMA);
+	new_slab->buffer = (void*) (ALIGN_UP((uintptr_t) new_slab->bitmap + OBJECTS_PER_SLAB - HIGH_VMA, 16) + HIGH_VMA);
 
 	new_slab->cache = cache;
 
@@ -184,7 +184,7 @@ struct cache* cache_create(const char* name, size_t object_size, void (*ctor)(vo
     *new_cache = (struct cache) {
         .name = name,
         .object_size = object_size,
-        .pages_per_slab = DIV_CEIL(object_size * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, 4096),
+        .pages_per_slab = DIV_CEIL(object_size * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE),
         .ctor = ctor,
         .dtor = dtor,
     };
@@ -211,15 +211,15 @@ struct cache* cache_create(const char* name, size_t object_size, void (*ctor)(vo
 void cache_destroy(struct cache* cache) {
     struct slab* slab;
     for (slab = cache->empty_slabs; slab != NULL; slab = slab->next) {
-        pmm_free(slab, cache->pages_per_slab);
+        pmm_free((uintptr_t) slab, cache->pages_per_slab);
     }
 
     for (slab = cache->partial_slabs; slab != NULL; slab = slab->next) {
-        pmm_free(slab, cache->pages_per_slab);
+        pmm_free((uintptr_t) slab, cache->pages_per_slab);
     }
 
     for (slab = cache->full_slabs; slab != NULL; slab = slab->next) {
-        pmm_free(slab, cache->pages_per_slab);
+        pmm_free((uintptr_t) slab, cache->pages_per_slab);
     }
 
     cache_free_object(&cache_cache, cache);
@@ -229,7 +229,7 @@ void slab_init(void) {
     cache_cache = (struct cache) {
         .name = "cache_cache",
         .object_size = sizeof(struct cache),
-        .pages_per_slab = DIV_CEIL(sizeof(struct cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, 4096),
+        .pages_per_slab = DIV_CEIL(sizeof(struct cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE),
     };
 
     struct slab* root_slab = cache_alloc_slab(&cache_cache);

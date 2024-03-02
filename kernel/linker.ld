@@ -15,21 +15,33 @@ SECTIONS
 {
     . = 0xffffffff80000000;
 
+    text_start_addr = .;
+
     .text : {
         *(.text .text.*)
     } :text
 
+    text_end_addr = .;
+
     . += CONSTANT(MAXPAGESIZE);
+
+    rodata_start_addr = .;
 
     .rodata : {
         *(.rodata .rodata.*)
     } :rodata
 
+    rodata_end_addr = .;
+
     . += CONSTANT(MAXPAGESIZE);
+
+    data_start_addr = .;
 
     .data : {
         *(.data .data.*)
     } :data
+
+    data_end_addr = .;
 
     .dynamic : {
         *(.dynamic)
