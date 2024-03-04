@@ -1,11 +1,10 @@
-#include <limine.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
 
-static volatile struct limine_memmap_request memmap_request = {
+volatile struct limine_memmap_request memmap_request = {
     .id = LIMINE_MEMMAP_REQUEST,
     .revision = 0
 };
