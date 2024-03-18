@@ -153,8 +153,15 @@ static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 void vmm_init(void) {
     klog("[vmm] initializing virtual memory manager...\n");
 
-    kernel_pagemap.map_page = pml4_map_page;
-    kernel_pagemap.unmap_page = pml4_unmap_page;
+    uint32_t ecx = 0, unused;
+    __get_cpuid(7, &unused, &unused, &ecx, &unused);
+    if (ecx & (1 << 16)) {
+        kernel_pagemap.map_page = pml5_map_page;
+        kernel_pagemap.unmap_page = pml5_unmap_page;
+    } else {
+        kernel_pagemap.map_page = pml4_map_page;
+        kernel_pagemap.unmap_page = pml4_unmap_page;
+    }
 
     kernel_pagemap.top_level = (uint64_t*) (pmm_alloc(1) + HIGH_VMA);
 
