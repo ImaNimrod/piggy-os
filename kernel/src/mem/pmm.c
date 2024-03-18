@@ -69,7 +69,7 @@ uintptr_t pmm_alloc(size_t pages) {
     }
 
     used_pages += pages;
-
+    memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE);
     return ret;
 }
 

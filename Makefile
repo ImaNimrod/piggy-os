@@ -23,12 +23,12 @@ kernel:
 	$(MAKE) -C kernel
 
 limine:
-	git clone https://github.com/limine-bootloader/limine.git --branch=binary --depth=1
+	git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
 	$(MAKE) -C limine
 
 .PHONY: run
 run:
-	$(EMU) -M q35 -m 2G -serial stdio -enable-kvm -bios /usr/share/edk2/x64/OVMF.fd -cpu host -cdrom piggy-os.iso -display gtk
+	$(EMU) -M q35 -m 2G -serial stdio -enable-kvm -cpu host -bios /usr/share/edk2/x64/OVMF.fd -cdrom piggy-os.iso -no-reboot 
 
 .PHONY: clean
 clean:

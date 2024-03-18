@@ -41,8 +41,6 @@ SECTIONS
         *(.data .data.*)
     } :data
 
-    data_end_addr = .;
-
     .dynamic : {
         *(.dynamic)
     } :data :dynamic
@@ -51,6 +49,8 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
     } :data
+
+    data_end_addr = .;
 
     /DISCARD/ : {
         *(.eh_frame)

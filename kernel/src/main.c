@@ -7,7 +7,7 @@ void kernel_entry(void) {
     serial_init(COM1);
 
     pmm_init();
-    slab_init();
+    // slab_init();
 
     vmm_init();
 

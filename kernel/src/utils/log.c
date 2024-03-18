@@ -2,39 +2,39 @@
 #include <utils/log.h>
 
 static int itoa(long value, unsigned int radix, bool positive, char* buffer) {
-	char* buf_ptr = buffer;
-	bool negative = false;
+    char* buf_ptr = buffer;
+    bool negative = false;
 
     if (radix > 16) {
         return 0;
     }
 
-	if (value < 0 && !positive) {
-		negative = true;
-		value = -value;
-	}
-
-	do {
-		int digit = value % radix;
-		*(buf_ptr++) = (digit < 10 ? '0' + digit : 'a' + digit - 10);
-		value /= radix;
-	} while (value > 0);
-
-	if (negative) {
-		*(buf_ptr++) = '-';
+    if (value < 0 && !positive) {
+        negative = true;
+        value = -value;
     }
 
-	*(buf_ptr) = '\0';
+    do {
+        int digit = value % radix;
+        *(buf_ptr++) = (digit < 10 ? '0' + digit : 'a' + digit - 10);
+        value /= radix;
+    } while (value > 0);
 
-	size_t len = (buf_ptr - buffer);
+    if (negative) {
+        *(buf_ptr++) = '-';
+    }
 
-	for (size_t i = 0; i < len / 2; i++) {
-		char j = buffer[i];
-		buffer[i] = buffer[len-i-1];
-		buffer[len-i-1] = j;
-	}
+    *(buf_ptr) = '\0';
 
-	return len;
+    size_t len = (buf_ptr - buffer);
+
+    for (size_t i = 0; i < len / 2; i++) {
+        char j = buffer[i];
+        buffer[i] = buffer[len-i-1];
+        buffer[len-i-1] = j;
+    }
+
+    return len;
 }
 
 static void klog_internal(const char* str, va_list args) {

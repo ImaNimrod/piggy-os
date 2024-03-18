@@ -10,15 +10,15 @@ struct slab;
 struct cache {
     const char *name;
 
-	size_t object_size;
+    size_t object_size;
     size_t pages_per_slab;
 
     void (*ctor)(void*);
     void (*dtor)(void*);
 
-	struct slab* empty_slabs;
-	struct slab* partial_slabs;
-	struct slab* full_slabs;
+    struct slab* empty_slabs;
+    struct slab* partial_slabs;
+    struct slab* full_slabs;
 
     struct cache* next;
 };
