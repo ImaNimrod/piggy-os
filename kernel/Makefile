@@ -13,8 +13,8 @@ ASFLAGS := -f elf64
 LDFLAGS := -m elf_x86_64 -nostdlib -static -pie \
 		   --no-dynamic-linker -z text -z max-page-size=0x1000
 
-override CFILES := $(shell cd src && find -type f -name '*.c')
-override ASFILES := $(shell cd src && find -type f -name '*.asm')
+override CFILES := $(shell cd src && find . -type f -name '*.c')
+override ASFILES := $(shell cd src && find . -type f -name '*.asm')
 override OBJFILES := $(addprefix obj/,$(CFILES:.c=.o) $(ASFILES:.asm=.o))
 
 .PHONY: all

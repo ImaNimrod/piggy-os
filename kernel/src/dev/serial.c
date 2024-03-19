@@ -1,4 +1,4 @@
-#include <cpu/io_port.h>
+#include <cpu/asm.h>
 #include <dev/serial.h>
 
 int serial_init(uint16_t port) {
