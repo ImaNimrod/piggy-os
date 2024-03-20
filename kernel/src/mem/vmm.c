@@ -150,6 +150,10 @@ static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     return true;
 }
 
+void vmm_switch_pagemap(struct pagemap* pagemap) {
+    __asm__ volatile ("mov %0, %%cr3" :: "r" ((uintptr_t) pagemap->top_level - HIGH_VMA) : "memory");
+}
+
 void vmm_init(void) {
     klog("[vmm] initializing virtual memory manager...\n");
 
@@ -196,8 +200,4 @@ void vmm_init(void) {
 
     vmm_switch_pagemap(&kernel_pagemap);
     klog("[vmm] initialized virtual memory manager\n");
-}
-
-void vmm_switch_pagemap(struct pagemap* pagemap) {
-    __asm__ volatile ("mov %0, %%cr3" :: "r" ((uintptr_t) pagemap->top_level - HIGH_VMA) : "memory");
 }

@@ -70,6 +70,7 @@ uintptr_t pmm_alloc(size_t pages) {
 
     used_pages += pages;
     memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE);
+
     return ret;
 }
 
@@ -84,14 +85,14 @@ void pmm_free(uintptr_t addr, size_t pages) {
 }
 
 void pmm_init(void) {
-    struct limine_memmap_response* memmap = memmap_request.response;
-    struct limine_memmap_entry** entries = memmap->entries;
+    struct limine_memmap_response* memmap_response = memmap_request.response;
+    struct limine_memmap_entry** entries = memmap_response->entries;
 
     klog("[pmm] initializing physical memory manager...\n");
 
     uint64_t highest_addr = 0;
 
-    for (size_t i = 0; i < memmap->entry_count; i++) {
+    for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
         klog("[pmm] memory map entry: base=0x%lx, length=0x%lx, type: %s\n",
@@ -108,7 +109,7 @@ void pmm_init(void) {
     highest_page_index = highest_addr / PAGE_SIZE;
     uint64_t pmm_bitmap_size = ALIGN_UP(highest_page_index / 8, PAGE_SIZE);
 
-    for (size_t i = 0; i < memmap->entry_count; i++) {
+    for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
         if (entry->type != LIMINE_MEMMAP_USABLE) {
@@ -126,7 +127,7 @@ void pmm_init(void) {
         }
     }
 
-    for (size_t i = 0; i < memmap->entry_count; i++) {
+    for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
         if (entry->type != LIMINE_MEMMAP_USABLE) {

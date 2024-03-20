@@ -11,7 +11,6 @@
 char serial_getc(uint16_t port);
 void serial_putc(uint16_t port, char c);
 void serial_puts(uint16_t port, const char* s);
-
 int serial_init(uint16_t port); 
 
 #endif /* _KERNEL_SERIAL_H */

@@ -24,7 +24,7 @@ struct pagemap {
     uint64_t* top_level;
 };
 
-void vmm_init(void);
 void vmm_switch_pagemap(struct pagemap* pagemap);
+void vmm_init(void);
 
 #endif /* _KERNEL_VMM_H */
