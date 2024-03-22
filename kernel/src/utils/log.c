@@ -103,14 +103,30 @@ static void klog_internal(const char* str, va_list args) {
     }
 }
 
-void klog(const char* str, ...) {
-    if (!str) {
+void klog(const char* fmt, ...) {
+    if (!fmt) {
         return;
     }
 
     va_list args;
-
-    va_start(args, str);
-    klog_internal(str, args);
+    va_start(args, fmt);
+    klog_internal(fmt, args);
     va_end(args);
+}
+
+__attribute__((noreturn)) void kpanic(const char* fmt, ...) {
+    __asm__ volatile("cli");
+
+    klog("\n\n====== KERNEL PANIC ======\nKernel panicked due to reason: ");
+
+    va_list args;
+    va_start(args, fmt);
+    klog_internal(fmt, args);
+    va_end(args);
+
+    klog("\n==========================\n");
+
+    for (;;) {
+        __asm__ volatile("hlt");
+    }
 }

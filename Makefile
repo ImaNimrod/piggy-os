@@ -28,7 +28,7 @@ limine:
 
 .PHONY: run
 run:
-	$(EMU) -M q35 -m 2G -serial stdio -enable-kvm -cpu host -bios /usr/share/edk2/x64/OVMF.fd -cdrom piggy-os.iso -no-reboot 
+	$(EMU) -M q35 -m 2G -serial stdio -enable-kvm -cpu host -bios /usr/share/edk2/x64/OVMF.fd -cdrom piggy-os.iso -no-reboot -smp 4
 
 .PHONY: clean
 clean:

@@ -68,6 +68,10 @@ uintptr_t pmm_alloc(size_t pages) {
         ret = alloc_first_fit_from_last(pages, last);
     }
 
+    if (ret == (uintptr_t) -1) {
+        kpanic("unable to allocate %lu physical pages", pages);
+    }
+
     used_pages += pages;
     memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE);
 

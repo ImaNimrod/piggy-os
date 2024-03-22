@@ -11,6 +11,9 @@ static volatile struct limine_smp_request smp_request = {
 
 static size_t cpus_initialized = 0;
 
+static void single_cpu_init(void) {
+}
+
 // TODO: implement smp
 void smp_init(void) {
     struct limine_smp_response* smp_response = smp_request.response;
