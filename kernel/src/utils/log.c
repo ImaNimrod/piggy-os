@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <dev/serial.h>
 #include <utils/log.h>
 
@@ -127,6 +128,6 @@ __attribute__((noreturn)) void kpanic(const char* fmt, ...) {
     klog("\n==========================\n");
 
     for (;;) {
-        __asm__ volatile("hlt");
+        hlt();
     }
 }

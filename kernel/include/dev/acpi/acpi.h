@@ -1,5 +1,5 @@
-#ifndef _KERNEL_ACPI_H
-#define _KERNEL_ACPI_H
+#ifndef _KERNEL_DEV_ACPI_ACPI_H
+#define _KERNEL_DEV_ACPI_ACPI_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -15,9 +15,9 @@ struct sdt {
     uint32_t oem_revision;
     uint32_t creator_id;
     uint32_t creator_revision;
-};
+} __attribute__((packed));
 
 struct sdt* acpi_find_sdt(const char signature[static 4]);
 void acpi_init(void);
 
-#endif /* _KERNEL_ACPI_H */
+#endif /* _KERNEL_ACPI_ACPI_H */

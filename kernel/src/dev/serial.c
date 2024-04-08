@@ -21,8 +21,8 @@ int serial_init(uint16_t port) {
 }
 
 char serial_getc(uint16_t port) {
-    while (!(inb(port + 5) & 1)) {
-        __asm__ volatile("pause");
+    while (!(inb(port + 5) & 0x01)) {
+        pause();
     }
 
     return inb(port);
@@ -30,7 +30,7 @@ char serial_getc(uint16_t port) {
 
 void serial_putc(uint16_t port, char c) {
     while (inb(port + 5) & 0x80) {
-        __asm__ volatile("pause");
+        pause();
     }
 
     outb(port, c);

@@ -1,7 +1,15 @@
-#ifndef _KERNEL_ASM_H
-#define _KERNEL_ASM_H
+#ifndef _KERNEL_CPU_ASM_H
+#define _KERNEL_CPU_ASM_H
 
 #include <stdint.h>
+
+static inline void hlt(void) {
+    __asm__ volatile("hlt");
+}
+
+static inline void pause(void) {
+    __asm__ volatile("pause");
+}
 
 static inline void outb(uint16_t port, uint8_t data) {
     __asm__ volatile("outb %%al, %%dx" :: "d" (port), "a" (data));

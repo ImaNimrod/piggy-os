@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/gdt.h>
 #include <cpu/idt.h>
 #include <cpu/smp.h>
@@ -21,6 +22,6 @@ void smp_init(void) {
     klog("[smp] %lu processors detected\n", smp_response->cpu_count);
 
     while (cpus_initialized != smp_response->cpu_count) {
-        __asm__ volatile("pause");
+        pause();
     }
 }

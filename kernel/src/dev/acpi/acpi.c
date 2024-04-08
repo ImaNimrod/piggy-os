@@ -1,4 +1,5 @@
-#include <dev/acpi.h>
+#include <dev/acpi/acpi.h>
+#include <dev/acpi/madt.h>
 #include <limine.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
@@ -19,7 +20,7 @@ struct rsdp {
     uint64_t xsdt_addr;
     uint8_t ext_checksum;
     char reserved[3];
-};
+} __attribute__((packed));
 
 static struct rsdp* rsdp;
 static struct sdt* rsdt;
@@ -69,11 +70,17 @@ void acpi_init(void) {
 
     if (use_xsdt) {
         rsdt = (struct sdt*) (rsdp->xsdt_addr + HIGH_VMA);
+        if (memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt)) {
+            kpanic("XSDT corrupted or not present");
+        }
     } else {
         rsdt = (struct sdt*) (rsdp->rsdt_addr + HIGH_VMA);
+        if (memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt)) {
+            kpanic("RSDT corrupted or not present");
+        }
     }
 
-    klog("[acpi] initialized using revision: %u\n", rsdp->revision);
+    klog("[acpi] initialized using revision %s\n", use_xsdt ? "2.0" : "1.0");
 
     struct sdt* fadt = acpi_find_sdt("FACP");
     if (fadt != NULL && fadt->length >= 116) {
@@ -83,4 +90,6 @@ void acpi_init(void) {
             kpanic("unable to use reduced ACPI systems");
         }
     }
+
+    madt_init();
 }

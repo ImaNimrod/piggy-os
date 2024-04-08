@@ -7,7 +7,7 @@ struct idt_entry {
     uint8_t flags;
     uint16_t offset_mid16;
     uint32_t offset_high32;
-    uint32_t zero;
+    uint32_t : 32;
 } __attribute__((packed));
 
 struct idt_ptr {
