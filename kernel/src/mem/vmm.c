@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpuid.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
@@ -75,7 +76,7 @@ static bool pml4_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
     pml1[pml1_index] = 0;
-    __asm__ volatile("invlpg (%0)" :: "r" (vaddr) : "memory");
+    invlpg(vaddr);
 
     return true;
 }
@@ -145,7 +146,7 @@ static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
     pml1[pml1_index] = 0;
-    __asm__ volatile("invlpg (%0)" :: "r" (vaddr) : "memory");
+    invlpg(vaddr);
 
     return true;
 }

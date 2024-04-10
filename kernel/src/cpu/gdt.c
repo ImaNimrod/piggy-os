@@ -34,10 +34,30 @@ struct gdt_ptr {
     uint64_t base;
 } __attribute__((packed));
 
-static struct gdt gdt;
-static struct gdt_ptr gdt_ptr;
+static struct gdt gdt = {
+    .null = {0},
+    .kernel_code64 = {
+        .access = 0x9a,
+        .granularity = 0x20,
+    },
+    .kernel_data64 = {
+        .access = 0x92,
+    },
+    .user_code64 = {
+        .access = 0xfa,
+        .granularity = 0x20,
+    },
+    .user_data64 = {
+        .access = 0xf2,
+    },
+    .tss = {
+        .length = 104,
+        .flags1 = 0x89,
+    },
+};
 
 void gdt_reload(void) {
+    struct gdt_ptr gdtr = (struct gdt_ptr) { sizeof(gdt) - 1, (uint64_t) &gdt };
     __asm__ volatile(
         "lgdtq %0\n\t"
         "push $0x08\n\t"
@@ -52,34 +72,7 @@ void gdt_reload(void) {
         "mov %%eax, %%gs\n\t"
         "mov %%eax, %%ss\n\t"
         :
-        : "m" (gdt_ptr)
+        : "m" (gdtr)
         : "rax", "memory"
     );
-}
-
-void gdt_init(void) {
-    gdt.null = (struct gdt_descriptor) {0};
-    gdt.kernel_code64 = (struct gdt_descriptor) {
-        .access = 0x9a,
-        .granularity = 0x20,
-    };
-    gdt.kernel_data64 = (struct gdt_descriptor) {
-        .access = 0x92,
-    };
-    gdt.user_code64 = (struct gdt_descriptor) {
-        .access = 0xfa,
-        .granularity = 0x20,
-    };
-    gdt.user_data64 = (struct gdt_descriptor) {
-        .access = 0xf2,
-    };
-    gdt.tss = (struct tss_descriptor) {
-        .length = 104,
-        .flags1 = 0x89,
-    };
-
-    gdt_ptr = (struct gdt_ptr) {
-        .limit = sizeof(struct gdt) - 1,
-        .base = (uint64_t) &gdt,
-    };
 }

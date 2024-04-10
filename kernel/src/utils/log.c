@@ -115,15 +115,22 @@ void klog(const char* fmt, ...) {
     va_end(args);
 }
 
-__attribute__((noreturn)) void kpanic(const char* fmt, ...) {
-    __asm__ volatile("cli");
-
+__attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...) {
+    cli();
     klog("\n\n====== KERNEL PANIC ======\nKernel panicked due to reason: ");
 
     va_list args;
     va_start(args, fmt);
     klog_internal(fmt, args);
     va_end(args);
+
+    if (r != NULL) {
+        uint64_t cr3;
+        __asm__ volatile("mov %%cr3, %0" : "=r" (cr3));
+
+        klog("\n==========================\nRIP: 0x%lx  RFLAGS: 0x%lx\nRBP: 0x%lx  RSP: 0x%lx\nCS:  0x%x  SS: 0x%x  CR3: 0x%lx\n",
+            r->rip, r->rflags, r->rbp, r->rsp, r->cs, r->ss, cr3);
+    }
 
     klog("\n==========================\n");
 

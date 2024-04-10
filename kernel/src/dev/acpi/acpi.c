@@ -52,7 +52,7 @@ struct sdt* acpi_find_sdt(const char signature[static 4]) {
         }
 
         if (!verify_checksum(sdt)) {
-            kpanic("APCI table '%s' has an invalid checksum", signature);
+            kpanic(NULL, "APCI table '%s' has an invalid checksum", signature);
             continue;
         }
 
@@ -71,12 +71,12 @@ void acpi_init(void) {
     if (use_xsdt) {
         rsdt = (struct sdt*) (rsdp->xsdt_addr + HIGH_VMA);
         if (memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt)) {
-            kpanic("XSDT corrupted or not present");
+            kpanic(NULL, "XSDT corrupted or not present");
         }
     } else {
         rsdt = (struct sdt*) (rsdp->rsdt_addr + HIGH_VMA);
         if (memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt)) {
-            kpanic("RSDT corrupted or not present");
+            kpanic(NULL, "RSDT corrupted or not present");
         }
     }
 
@@ -87,7 +87,7 @@ void acpi_init(void) {
         uint32_t fadt_flags = *((uint32_t*) fadt + 28);
 
         if (fadt_flags & (1 << 20)) {
-            kpanic("unable to use reduced ACPI systems");
+            kpanic(NULL, "unable to use reduced ACPI systems");
         }
     }
 

@@ -1,5 +1,7 @@
 include ./config.mk
 
+EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -smp 4 -bios /usr/share/edk2/x64/OVMF.fd
+
 .PHONY: all
 all: $(IMAGE_NAME)
 
@@ -28,7 +30,10 @@ limine:
 
 .PHONY: run
 run:
-	$(EMU) -M q35 -m 2G -serial stdio -enable-kvm -cpu host -bios /usr/share/edk2/x64/OVMF.fd -cdrom piggy-os.iso -no-reboot -smp 4
+	$(EMU) $(EMUOPTS) -cdrom piggy-os.iso
+
+run-kvm:
+	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom piggy-os.iso
 
 .PHONY: clean
 clean:

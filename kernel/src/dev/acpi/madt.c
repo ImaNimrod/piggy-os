@@ -12,7 +12,7 @@ uintptr_t madt_get_lapic_addr(void) {
 void madt_init(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
     if (madt == NULL) {
-        kpanic("system does not have a MADT");
+        kpanic(NULL, "system does not have a MADT");
     }
 
     if (madt->flags & 0x01) {

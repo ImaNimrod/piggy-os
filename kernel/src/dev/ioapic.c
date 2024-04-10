@@ -98,9 +98,9 @@ static struct ioapic_device* get_ioapic_for_interrupt(uint8_t irq) {
 void ioapic_set_irq_mask(uint8_t irq, bool mask) {
     struct ioapic_device* ioapic = get_ioapic_for_interrupt(irq);
     if (!ioapic) {
-        kpanic("ioapic_set_irq_mask: no ioapic for IRQ%u", irq);
+        kpanic(NULL, "ioapic_set_irq_mask: no ioapic for IRQ%u", irq);
     }
-    
+
     union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->address, get_ioapic_rentry_index(irq)) };
     rentry.mask = mask & 1;
 
@@ -110,7 +110,7 @@ void ioapic_set_irq_mask(uint8_t irq, bool mask) {
 void ioapic_set_irq_vector(uint8_t irq, uint8_t vector) {
     struct ioapic_device* ioapic = get_ioapic_for_interrupt(irq);
     if (!ioapic) {
-        kpanic("ioapic_set_irq_vector: no ioapic for IRQ%u", irq);
+        kpanic(NULL, "ioapic_set_irq_vector: no ioapic for IRQ%u", irq);
     }
 
     union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->address, get_ioapic_rentry_index(irq)) };
@@ -122,12 +122,12 @@ void ioapic_set_irq_vector(uint8_t irq, uint8_t vector) {
 
 void ioapic_set_isa_irq_routing(uint8_t isa_irq, uint8_t vector, uint16_t flags) {
     if (isa_irq >= 16) {
-        kpanic("ioapic_set_isa_irq_routing: ISA IRQ%u out of range", isa_irq);
+        kpanic(NULL, "ioapic_set_isa_irq_routing: ISA IRQ%u out of range", isa_irq);
     }
 
     struct ioapic_device* ioapic = get_ioapic_for_interrupt(isa_irq);
     if (!ioapic) {
-        kpanic("ioapic_set_isa_irq_routing: no ioapic for IRQ%u", isa_irq);
+        kpanic(NULL, "ioapic_set_isa_irq_routing: no ioapic for IRQ%u", isa_irq);
     }
 
     union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->address, get_ioapic_rentry_index(isa_irq)) };
@@ -140,7 +140,7 @@ void ioapic_set_isa_irq_routing(uint8_t isa_irq, uint8_t vector, uint16_t flags)
     } else if (polarity == 0x01) {
         rentry.polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
     } else {
-        kpanic("ioapic_set_isa_irq_routing: invalid pin polarity %u", polarity);
+        kpanic(NULL, "ioapic_set_isa_irq_routing: invalid pin polarity %u", polarity);
     }
 
     uint8_t trigger_mode = (flags >> 2) & 0x03;
@@ -149,13 +149,18 @@ void ioapic_set_isa_irq_routing(uint8_t isa_irq, uint8_t vector, uint16_t flags)
     } else if (trigger_mode == 0x03) {
         rentry.trigger_mode = IOAPIC_TRIGGER_LEVEL;
     } else {
-        kpanic("iopaic_set_isa_irq_routing: invalid trigger mode %u", trigger_mode);
+        kpanic(NULL, "iopaic_set_isa_irq_routing: invalid trigger mode %u", trigger_mode);
     }
 
     ioapic_write64(ioapic->address, get_ioapic_rentry_index(isa_irq), rentry.raw);
 }
 
 void register_ioapic(uint8_t id, uintptr_t address, uint32_t gsi_base) {
+    if (get_ioapic_by_id(id) != NULL) {
+        klog("[ioapic] duplicate ioapic with id #%u found... skipping initialization\n", id);
+        return;
+    }
+
     klog("[ioapic] initializing ioapic #%u (address=0x%lx, GSI base=%u)\n", id, address, gsi_base);
 
     struct ioapic_device* ioapic = kmalloc(sizeof(struct ioapic_device));

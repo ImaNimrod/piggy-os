@@ -23,13 +23,13 @@ static struct heap_chunk* last_chunk;
 
 static void* kmalloc_internal(size_t size, size_t alignment) {
     if (alignment == 0 || (alignment & (alignment - 1)) != 0) {
-        kpanic("invalid alignment given: %lu\n", alignment);
+        kpanic(NULL, "invalid alignment given: %lu\n", alignment);
     }
 
     if (size == 0) {
         return NULL;
     } else if (size > CHUNK_MAX_SIZE) {
-        kpanic("kmalloc requested allocation too large (%lu)", size);
+        kpanic(NULL, "kmalloc requested allocation too large (%lu)", size);
     }
 
     size = ALIGN_UP(MAX(size, 8), 8);
@@ -83,7 +83,7 @@ static void* kmalloc_internal(size_t size, size_t alignment) {
     }
 
     if (aligned_mem + size > heap_base + heap_size) {
-        kpanic("kmalloc out of memory");
+        kpanic(NULL, "kmalloc out of memory");
     }
 
     struct heap_chunk* chunk = (struct heap_chunk*) aligned_chunk;
@@ -128,15 +128,15 @@ void kfree(void* ptr) {
 
     struct heap_chunk* chunk = (struct heap_chunk*) ((uintptr_t) ptr - sizeof(struct heap_chunk));
     if (chunk->magic != CHUNK_MAGIC) {
-        kpanic("kfree - invalid pointer");
+        kpanic(NULL, "kfree - invalid heap pointer");
         return;
     } else if (chunk->free) {
-        kpanic("kfree - already freed chunk");
+        kpanic(NULL, "kfree - already freed chunk");
         return;
     }
 
     if (!(chunk->list.next == NULL && chunk->list.prev == NULL)) {
-        kpanic("kfree - chunk linked to other chunks");
+        kpanic(NULL, "kfree - chunk linked to other chunks");
     }
 
     chunk->free = true;
@@ -170,7 +170,7 @@ void* krealloc(void* ptr, size_t size) {
 
     struct heap_chunk* chunk = (struct heap_chunk*) ((uintptr_t) ptr - sizeof(struct heap_chunk));
     if (chunk->magic != CHUNK_MAGIC) {
-        kpanic("krealloc - invalid pointer");
+        kpanic(NULL, "krealloc - invalid heap pointer");
         return NULL;
     } else if (chunk->size >= size) {
         return ptr;

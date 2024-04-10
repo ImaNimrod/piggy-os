@@ -1,5 +1,4 @@
 #include <cpu/asm.h>
-#include <cpu/gdt.h>
 #include <cpu/idt.h>
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
@@ -9,10 +8,9 @@
 #include <mem/vmm.h>
 
 void kernel_entry(void) {
-    serial_init(COM1);
+    cli();
 
-    gdt_init();
-    idt_init();
+    serial_init(COM1);
 
     pmm_init();
     vmm_init();
@@ -22,7 +20,7 @@ void kernel_entry(void) {
 
     smp_init();
 
-    __asm__ volatile ("sti");
+    sti();
     for (;;) {
         hlt();
     }
