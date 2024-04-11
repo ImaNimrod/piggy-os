@@ -64,6 +64,11 @@ void isr_handler(struct registers* r) {
     }
 
     uint8_t int_number = r->int_number & 0xff;
+    if (isr_handlers[int_number] != NULL) {
+        isr_handlers[int_number](r);
+        return;
+    }
+
     if (int_number < 32) {
         kpanic(r, "EXCEPTION TRIGGERED: %s", exception_messages[int_number]);
 

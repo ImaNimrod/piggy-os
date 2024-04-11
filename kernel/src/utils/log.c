@@ -1,6 +1,9 @@
 #include <cpu/asm.h>
 #include <dev/serial.h>
 #include <utils/log.h>
+#include <utils/spinlock.h>
+
+static spinlock_t print_lock = {0};
 
 static int itoa(long value, unsigned int radix, bool positive, char* buffer) {
     char* buf_ptr = buffer;
@@ -40,6 +43,8 @@ static int itoa(long value, unsigned int radix, bool positive, char* buffer) {
 
 static void klog_internal(const char* str, va_list args) {
     char buf[24] = {0};
+
+    spinlock_acquire(&print_lock);
 
     while (*str != '\0') {
         if (*str != '%') {
@@ -102,6 +107,8 @@ static void klog_internal(const char* str, va_list args) {
 
         str++;
     }
+
+    spinlock_release(&print_lock);
 }
 
 void klog(const char* fmt, ...) {

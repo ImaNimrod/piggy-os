@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <utils/spinlock.h>
 
 #define HIGH_VMA (hhdm_request.response->offset)
 
@@ -21,9 +22,10 @@
 extern volatile struct limine_hhdm_request hhdm_request;
 
 struct pagemap {
+    uint64_t* top_level;
     bool (*map_page)(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
     bool (*unmap_page)(struct pagemap* pagemap, uintptr_t vaddr);
-    uint64_t* top_level;
+    spinlock_t lock;
 };
 
 struct pagemap* vmm_get_kernel_pagemap(void);

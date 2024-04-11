@@ -4,6 +4,7 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/spinlock.h>
 #include <utils/string.h>
 
 #define CHUNK_MAGIC 0xeacefe32
@@ -18,6 +19,7 @@ struct heap_chunk {
 };
 
 static uintptr_t heap_base, heap_size;
+static spinlock_t heap_lock = {0};
 static LIST_HEAD(struct heap_chunk) chunks;
 static struct heap_chunk* last_chunk;
 
@@ -31,6 +33,8 @@ static void* kmalloc_internal(size_t size, size_t alignment) {
     } else if (size > CHUNK_MAX_SIZE) {
         kpanic(NULL, "kmalloc requested allocation too large (%lu)", size);
     }
+
+    spinlock_acquire(&heap_lock);
 
     size = ALIGN_UP(MAX(size, 8), 8);
 
@@ -95,6 +99,7 @@ static void* kmalloc_internal(size_t size, size_t alignment) {
 
     last_chunk = chunk;
 
+    spinlock_release(&heap_lock);
     return (void*) ((uintptr_t) chunk + sizeof(struct heap_chunk));
 }
 
@@ -135,12 +140,16 @@ void kfree(void* ptr) {
         return;
     }
 
+    spinlock_acquire(&heap_lock);
+
     if (!(chunk->list.next == NULL && chunk->list.prev == NULL)) {
         kpanic(NULL, "kfree - chunk linked to other chunks");
     }
 
     chunk->free = true;
     LIST_ADD_FRONT(&chunks, chunk, list);
+
+    spinlock_release(&heap_lock);
 }
 
 void* kcalloc(size_t nmemb, size_t size) {

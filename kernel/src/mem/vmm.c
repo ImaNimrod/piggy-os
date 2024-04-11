@@ -24,6 +24,8 @@ static volatile struct limine_kernel_address_request kaddr_request = {
 static struct pagemap kernel_pagemap;
 
 static bool pml4_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
+    spinlock_acquire(&pagemap->lock);
+
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
     size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
@@ -51,10 +53,14 @@ static bool pml4_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t pa
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
     pml1[pml1_index] = paddr | flags;
+
+    spinlock_release(&pagemap->lock);
     return true;
 }
 
 static bool pml4_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
+    spinlock_acquire(&pagemap->lock);
+
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
     size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
@@ -78,10 +84,13 @@ static bool pml4_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     pml1[pml1_index] = 0;
     invlpg(vaddr);
 
+    spinlock_release(&pagemap->lock);
     return true;
 }
 
 static bool pml5_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
+    spinlock_acquire(&pagemap->lock);
+
     size_t pml5_index = (vaddr & (0x1ffull << 48)) >> 48;
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
@@ -115,10 +124,14 @@ static bool pml5_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t pa
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
     pml1[pml1_index] = paddr | flags;
+
+    spinlock_release(&pagemap->lock);
     return true;
 }
 
 static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
+    spinlock_acquire(&pagemap->lock);
+
     size_t pml5_index = (vaddr & (0x1ffull << 48)) >> 48;
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
@@ -148,6 +161,7 @@ static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     pml1[pml1_index] = 0;
     invlpg(vaddr);
 
+    spinlock_release(&pagemap->lock);
     return true;
 }
 
@@ -173,6 +187,7 @@ void vmm_init(void) {
     }
 
     kernel_pagemap.top_level = (uint64_t*) (pmm_alloc(1) + HIGH_VMA);
+    kernel_pagemap.lock = (spinlock_t) {0};
 
     for (uintptr_t i = 0x1000; i < 0x100000000; i += PAGE_SIZE) {
         kernel_pagemap.map_page(&kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);

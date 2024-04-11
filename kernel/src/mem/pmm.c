@@ -2,6 +2,7 @@
 #include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/spinlock.h>
 #include <utils/string.h>
 
 volatile struct limine_memmap_request memmap_request = {
@@ -10,11 +11,10 @@ volatile struct limine_memmap_request memmap_request = {
 };
 
 static uint8_t* pmm_bitmap = NULL;
-
+static spinlock_t pmm_lock = {0};
 static size_t usable_pages = 0;
 static size_t reserved_pages = 0;
 static size_t used_pages = 0;
-
 static size_t last_used_index = 0;
 static size_t highest_page_index = 0;
 
@@ -60,6 +60,8 @@ static uintptr_t alloc_first_fit_from_last(size_t pages, uint64_t last_limit) {
 }
 
 uintptr_t pmm_alloc(size_t pages) {
+    spinlock_acquire(&pmm_lock);
+
     size_t last = last_used_index;
     uintptr_t ret = alloc_first_fit_from_last(pages, highest_page_index);
 
@@ -75,10 +77,12 @@ uintptr_t pmm_alloc(size_t pages) {
     used_pages += pages;
     memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE);
 
+    spinlock_release(&pmm_lock);
     return ret;
 }
 
 void pmm_free(uintptr_t addr, size_t pages) {
+    spinlock_acquire(&pmm_lock);
     size_t page = (uint64_t) addr / PAGE_SIZE;
 
     for (size_t i = page; i < page + pages; i++) {
@@ -86,6 +90,7 @@ void pmm_free(uintptr_t addr, size_t pages) {
     }
 
     used_pages -= pages;
+    spinlock_release(&pmm_lock);
 }
 
 void pmm_init(void) {

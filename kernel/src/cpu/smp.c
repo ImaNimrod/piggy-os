@@ -69,8 +69,8 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     wrmsr(MSR_EFER, efer);
     
-    initialized_cpus++;
     klog("[smp] processor #%lu online\n", percpu->cpu_number);
+    __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
 
     if (percpu->lapic_id != bsp_lapic_id) {
         sti();
