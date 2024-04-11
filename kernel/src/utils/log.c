@@ -125,11 +125,8 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
     va_end(args);
 
     if (r != NULL) {
-        uint64_t cr3;
-        __asm__ volatile("mov %%cr3, %0" : "=r" (cr3));
-
         klog("\n==========================\nRIP: 0x%lx  RFLAGS: 0x%lx\nRBP: 0x%lx  RSP: 0x%lx\nCS:  0x%x  SS: 0x%x  CR3: 0x%lx\n",
-            r->rip, r->rflags, r->rbp, r->rsp, r->cs, r->ss, cr3);
+            r->rip, r->rflags, r->rbp, r->rsp, r->cs, r->ss, read_cr3());
     }
 
     klog("\n==========================\n");

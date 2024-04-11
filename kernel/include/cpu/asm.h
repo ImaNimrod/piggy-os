@@ -4,7 +4,11 @@
 #include <stdint.h>
 
 #define MSR_LAPIC_BASE  0x1b
-#define MSR_MSR_EFER    0xc0000080
+#define MSR_EFER        0xc0000080
+#define MSR_STAR        0xc0000081
+#define MSR_LSTAR       0xc0000082
+#define MSR_CSTAR       0xc0000083
+#define MSR_SFMASK      0xc0000084
 #define MSR_FS_BASE     0xc0000101
 #define MSR_KERNEL_GS   0xc0000101
 #define MSR_USER_GS     0xc0000102
@@ -61,6 +65,46 @@ static inline uint32_t inl(uint16_t port) {
     uint32_t ret;
     __asm__ volatile("inl %%dx, %%eax" : "=a" (ret) : "d" (port));
     return ret;
+}
+
+static inline uint64_t read_cr0(void) {
+    uint64_t ret;
+    __asm__ volatile ("mov %%cr0, %0" : "=r" (ret) :: "memory");
+    return ret;
+}
+
+static inline uint64_t read_cr2(void) {
+    uint64_t ret;
+    __asm__ volatile ("mov %%cr2, %0" : "=r" (ret) :: "memory");
+    return ret;
+}
+
+static inline uint64_t read_cr3(void) {
+    uint64_t ret;
+    __asm__ volatile ("mov %%cr3, %0" : "=r" (ret) :: "memory");
+    return ret;
+}
+
+static inline uint64_t read_cr4(void) {
+    uint64_t ret;
+    __asm__ volatile ("mov %%cr4, %0" : "=r" (ret) :: "memory");
+    return ret;
+}
+
+static inline void write_cr0(uint64_t value) {
+    __asm__ volatile ("mov %0, %%cr0" :: "r" (value) : "memory");
+}
+
+static inline void write_cr2(uint64_t value) {
+    __asm__ volatile ("mov %0, %%cr2" :: "r" (value) : "memory");
+}
+
+static inline void write_cr3(uint64_t value) {
+    __asm__ volatile ("mov %0, %%cr3" :: "r" (value) : "memory");
+}
+
+static inline void write_cr4(uint64_t value) {
+    __asm__ volatile ("mov %0, %%cr4" :: "r" (value) : "memory");
 }
 
 static inline uint64_t rdmsr(uint32_t msr) {

@@ -156,7 +156,7 @@ struct pagemap* vmm_get_kernel_pagemap(void) {
 }
 
 void vmm_switch_pagemap(struct pagemap* pagemap) {
-    __asm__ volatile ("mov %0, %%cr3" :: "r" ((uintptr_t) pagemap->top_level - HIGH_VMA) : "memory");
+    write_cr3((uintptr_t) pagemap->top_level - HIGH_VMA);
 }
 
 void vmm_init(void) {
