@@ -33,7 +33,7 @@ typedef void (*isr_handler_t)(struct registers*);
 
 extern void isr_handler(struct registers* r);
 
-uint8_t isr_alloc_vector(isr_handler_t handler);
-void isr_free_vector(uint8_t vector);
+void isr_install_handler(uint8_t vector, isr_handler_t handler);
+void isr_uninstall_handler(uint8_t vector);
 
 #endif /* _KERNEL_CPU_ISR_H */

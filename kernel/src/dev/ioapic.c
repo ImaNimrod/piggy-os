@@ -180,3 +180,10 @@ void register_ioapic(uint8_t id, uintptr_t address, uint32_t gsi_base) {
 
     LIST_ADD_FRONT(&ioapics, ioapic, list);
 }
+
+/* TODO: do external IRQS correctly
+ *  get the maximum number of irqs from all ioapics,
+ *  correctly set up ISA overrides,
+ *  make a irq handler registering system that reflects the real number of IRQS from ioapics,
+ *
+ */

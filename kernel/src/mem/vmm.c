@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <cpuid.h>
+#include <mem/heap.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
@@ -19,7 +20,8 @@ static volatile struct limine_kernel_address_request kaddr_request = {
     .revision = 0
 };
 
-#define MASKED_PTE_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
+#define MASKED_PTE_FLAGS    ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
+#define PAGE_FAULT          14
 
 static struct pagemap kernel_pagemap;
 
@@ -86,6 +88,33 @@ static bool pml4_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 
     spinlock_release(&pagemap->lock);
     return true;
+}
+
+static uint64_t* pml4_lowest_level(struct pagemap* pagemap, uintptr_t vaddr) {
+    spinlock_acquire(&pagemap->lock);
+
+    size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
+    size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
+    size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
+    size_t pml1_index = (vaddr & (0x1ffull << 12)) >> 12;
+
+    if (!(pagemap->top_level[pml4_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml3 = (uint64_t*) ((pagemap->top_level[pml4_index] & ~(0xfff)) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~(0xfff)) + HIGH_VMA);
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
+    spinlock_release(&pagemap->lock);
+    return pml1 + pml1_index;
 }
 
 static bool pml5_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
@@ -165,8 +194,71 @@ static bool pml5_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     return true;
 }
 
+static uint64_t* pml5_lowest_level(struct pagemap* pagemap, uintptr_t vaddr) {
+    spinlock_acquire(&pagemap->lock);
+
+    size_t pml5_index = (vaddr & (0x1ffull << 48)) >> 48;
+    size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
+    size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
+    size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
+    size_t pml1_index = (vaddr & (0x1ffull << 12)) >> 12;
+
+    if (!(pagemap->top_level[pml5_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~(0xfff)) + HIGH_VMA);
+    if (!(pml4[pml4_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~(0xfff)) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~(0xfff)) + HIGH_VMA);
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
+        return NULL;
+    }
+
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
+    spinlock_release(&pagemap->lock);
+    return pml1 + pml1_index;
+}
+
+static void page_fault_handler(struct registers* r) {
+    (void) r;
+    kpanic(r, "PAGE FAULT");
+}
+
 struct pagemap* vmm_get_kernel_pagemap(void) {
     return &kernel_pagemap;
+}
+
+struct pagemap* vmm_new_pagemap(void) {
+    struct pagemap* pagemap = kmalloc_align(sizeof(struct pagemap), PAGE_SIZE);
+
+    uint32_t ecx = 0, unused;
+    __get_cpuid(7, &unused, &unused, &ecx, &unused);
+    if (ecx & (1 << 16)) {
+        kernel_pagemap.map_page = pml5_map_page;
+        kernel_pagemap.unmap_page = pml5_unmap_page;
+        kernel_pagemap.lowest_level = pml5_lowest_level;
+    } else {
+        kernel_pagemap.map_page = pml4_map_page;
+        kernel_pagemap.unmap_page = pml4_unmap_page;
+        kernel_pagemap.lowest_level = pml4_lowest_level;
+    }
+
+    pagemap->top_level = (uint64_t*) (pmm_alloc(1) + HIGH_VMA);
+    pagemap->lock = (spinlock_t) {0};
+
+	for (size_t i = 256; i < 512; i++) {
+		pagemap->top_level[i] = kernel_pagemap.top_level[i];
+    }
+
+    return pagemap;
 }
 
 void vmm_switch_pagemap(struct pagemap* pagemap) {
@@ -181,13 +273,19 @@ void vmm_init(void) {
     if (ecx & (1 << 16)) {
         kernel_pagemap.map_page = pml5_map_page;
         kernel_pagemap.unmap_page = pml5_unmap_page;
+        kernel_pagemap.lowest_level = pml5_lowest_level;
     } else {
         kernel_pagemap.map_page = pml4_map_page;
         kernel_pagemap.unmap_page = pml4_unmap_page;
+        kernel_pagemap.lowest_level = pml4_lowest_level;
     }
 
     kernel_pagemap.top_level = (uint64_t*) (pmm_alloc(1) + HIGH_VMA);
     kernel_pagemap.lock = (spinlock_t) {0};
+    
+    for (uint64_t i = 256; i < 512; i++) {
+        kernel_pagemap.top_level[i] = (uint64_t) pmm_alloc(1) | PTE_PRESENT | PTE_WRITABLE;
+    }
 
     for (uintptr_t i = 0x1000; i < 0x100000000; i += PAGE_SIZE) {
         kernel_pagemap.map_page(&kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
@@ -219,5 +317,7 @@ void vmm_init(void) {
     }
 
     vmm_switch_pagemap(&kernel_pagemap);
+    isr_install_handler(PAGE_FAULT, page_fault_handler);
+
     klog("[vmm] initialized virtual memory manager\n");
 }

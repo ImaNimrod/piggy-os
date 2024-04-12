@@ -50,16 +50,19 @@ void madt_init(void) {
     }
 
     if (madt->flags & 0x01) {
-        for (uint32_t isa_irq = 0; isa_irq < 16; isa_irq++) {
+        for (uint8_t isa_irq = 0; isa_irq < 16; isa_irq++) {
             iso = isa_irq_overrides[isa_irq];
-            if (iso == NULL) {
-                continue;
+            if (iso != NULL) {
+                uint8_t dest_irq = iso->gsi;
+                if (isa_irq != dest_irq) {
+                    klog("[acpi] ISA IRQ%u remapped to IRQ%u\n", isa_irq, dest_irq);
+                }
+
+                ioapic_set_isa_irq_routing(isa_irq, dest_irq + 32, iso->flags);
+            } else {
+                ioapic_set_irq_vector(isa_irq, isa_irq + 32);
             }
 
-            uint8_t dest_irq = iso->gsi;
-            if (isa_irq != dest_irq) {
-                klog("[acpi] ISA IRQ%u remapped to IRQ%u\n", isa_irq, dest_irq);
-            }
         }
     }
 }

@@ -43,18 +43,11 @@ static const char* exception_messages[] = {
 
 static isr_handler_t isr_handlers[256] = {0};
 
-uint8_t isr_alloc_vector(isr_handler_t handler) {
-    for (size_t i = 0; i < SIZEOF_ARRAY(isr_handlers); i++) {
-        if (!isr_handlers[i]) {
-            isr_handlers[i] = handler;
-            return i;
-        }
-    }
-
-    return (uint8_t) -1;
+void isr_install_handler(uint8_t vector, isr_handler_t handler) {
+    isr_handlers[vector] = handler;
 }
 
-void isr_free_vector(uint8_t vector) {
+void isr_uninstall_handler(uint8_t vector) {
     isr_handlers[vector] = NULL;
 }
 
@@ -70,11 +63,8 @@ void isr_handler(struct registers* r) {
     }
 
     if (int_number < 32) {
-        kpanic(r, "EXCEPTION TRIGGERED: %s", exception_messages[int_number]);
-
-        cli();
-        for (;;) {
-            hlt();
+        if (!(r->cs & 0x03)) {
+            kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
         }
     }
 

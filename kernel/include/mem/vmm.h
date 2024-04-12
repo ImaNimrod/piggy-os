@@ -25,10 +25,12 @@ struct pagemap {
     uint64_t* top_level;
     bool (*map_page)(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
     bool (*unmap_page)(struct pagemap* pagemap, uintptr_t vaddr);
+    uint64_t* (*lowest_level)(struct pagemap* pagemap, uintptr_t vaddr);
     spinlock_t lock;
 };
 
 struct pagemap* vmm_get_kernel_pagemap(void);
+struct pagemap* vmm_new_pagemap(void);
 void vmm_switch_pagemap(struct pagemap* pagemap);
 void vmm_init(void);
 
