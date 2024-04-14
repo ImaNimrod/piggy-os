@@ -4,10 +4,14 @@
 #include <cpu/idt.h>
 #include <cpu/percpu.h>
 #include <cpu/smp.h>
+#include <dev/lapic.h>
 #include <limine.h>
 #include <mem/heap.h>
+#include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
+
+#define CPU_STACK_SIZE 0x8000
 
 static volatile struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
@@ -19,18 +23,24 @@ static size_t cpu_count = 0;
 static size_t initialized_cpus = 0;
 
 static void single_cpu_init(struct limine_smp_info* smp_info) {
+    struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
+
     gdt_reload();
     idt_reload();
 
+    gdt_load_tss(&percpu->tss);
+
     vmm_switch_pagemap(vmm_get_kernel_pagemap());
 
-    struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
     wrmsr(MSR_KERNEL_GS, (uint64_t) percpu);
     wrmsr(MSR_USER_GS, (uint64_t) percpu);
 
+    percpu->tss.rsp0 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
+    percpu->tss.ist1 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
+
     uint32_t ecx = 0, edx = 0, unused;
     __get_cpuid(7, &unused, &unused, &ecx, &unused);
-    __get_cpuid(1, &unused, &unused, &unused, &edx);
+    __get_cpuid(1, &unused, &unused, &ecx, &edx);
 
     /* enable SSE/SSE2 instructions */
     uint64_t cr0 = read_cr0();
@@ -52,12 +62,12 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     write_cr4(cr4);
 
-    // TODO: enable SYSCALL/SYSRET instructions
+    // TODO: actually setup SYSCALL/SYSRET instructions
     uint64_t efer = rdmsr(MSR_EFER);
     efer |= (1 << 0);
 
     /* enable hardware FXSR instructions if supported */
-    if (edx & (1 << 24)) {
+    if ((edx & (1 << 24)) && !(ecx & (1 << 31))) {
         efer |= (1 << 14);
     }
 
@@ -68,6 +78,8 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     }
 
     wrmsr(MSR_EFER, efer);
+    
+    lapic_init(percpu->lapic_id);
     
     klog("[smp] processor #%lu online\n", percpu->cpu_number);
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);

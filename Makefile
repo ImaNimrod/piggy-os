@@ -33,7 +33,7 @@ run:
 	$(EMU) $(EMUOPTS) -cdrom piggy-os.iso
 
 run-kvm:
-	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom piggy-os.iso
+	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom piggy-os.iso -d int
 
 .PHONY: clean
 clean:

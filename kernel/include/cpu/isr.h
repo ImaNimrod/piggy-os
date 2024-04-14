@@ -1,8 +1,13 @@
 #ifndef _KERNEL_CPU_ISR_H
 #define _KERNEL_CPU_ISR_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#define ISR_EXCEPTION_NUM   32
+#define ISR_IRQ_VECTOR_BASE 32
+#define ISR_HANDLER_NUM     256
 
 struct registers {
 	uint64_t r15;
@@ -33,7 +38,8 @@ typedef void (*isr_handler_t)(struct registers*);
 
 extern void isr_handler(struct registers* r);
 
-void isr_install_handler(uint8_t vector, isr_handler_t handler);
+bool isr_install_exception_handler(uint8_t exception_number, isr_handler_t handler);
+bool isr_install_interrupt_handler(uint8_t irq_number, isr_handler_t handler);
 void isr_uninstall_handler(uint8_t vector);
 
 #endif /* _KERNEL_CPU_ISR_H */

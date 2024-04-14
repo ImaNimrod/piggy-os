@@ -1,41 +1,5 @@
 extern isr_handler
 
-%macro pushall 0
-    push r15
-    push r14
-    push r13
-    push r12
-    push r11
-    push r10
-    push r9
-    push r8
-    push rbp
-    push rsi
-    push rdi
-    push rdx
-    push rcx
-    push rbx
-    push rax
-%endmacro
-
-%macro popall 0
-    pop rax
-    pop rbx
-    pop rcx
-    pop rdx
-    pop rdi
-    pop rsi
-    pop rbp
-    pop r8
-    pop r9
-    pop r10
-    pop r11
-    pop r12
-    pop r13
-    pop r14
-    pop r15
-%endmacro
-
 %macro interrupt_stub 1
     %%start:
     %if !(i == 8 || (i >= 10 && i <= 14) || i == 17 || i == 21 || i == 29 || i == 30)
@@ -55,14 +19,42 @@ idt_stubs:
     %endrep
 
 interrupt_handler:
-    pushall
+    push r15
+    push r14
+    push r13
+    push r12
+    push r11
+    push r10
+    push r9
+    push r8
+    push rbp
+    push rsi
+    push rdi
+    push rdx
+    push rcx
+    push rbx
+    push rax
 
     mov rdi, rsp
 	xor rbp, rbp
     cld
     call isr_handler
 
-    popall
+    pop rax
+    pop rbx
+    pop rcx
+    pop rdx
+    pop rdi
+    pop rsi
+    pop rbp
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
 
-    add rsp, 8
+    add rsp, 16
     iretq

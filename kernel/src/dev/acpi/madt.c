@@ -1,7 +1,10 @@
+#include <cpu/isr.h>
 #include <dev/acpi/madt.h>
-#include <dev/apic.h>
 #include <dev/ioapic.h>
+#include <dev/lapic.h>
 #include <utils/log.h>
+
+#define ISA_IRQ_NUM 16
 
 static uintptr_t lapic_addr;
 
@@ -31,7 +34,7 @@ void madt_init(void) {
             case MADT_LAPIC_ENTRY: break;
             case MADT_IOAPIC_ENTRY:
                 ioapic = (struct madt_ioapic*) entry;
-                if (ioapic->gsi_base < 256) {
+                if (ioapic->gsi_base < ISR_HANDLER_NUM) {
                     register_ioapic(ioapic->apic_id, (uintptr_t) ioapic->address, ioapic->gsi_base);
                 } else { 
                     klog("[acpi] ioapic #%u GSI base out of range\n", ioapic->apic_id);
@@ -39,7 +42,7 @@ void madt_init(void) {
                 break;
             case MADT_ISO_ENTRY:
                 iso = (struct madt_iso*) entry;
-                if (iso->gsi < 16 && iso->bus_source == 0) {
+                if (iso->gsi < ISA_IRQ_NUM && iso->bus_source == 0) {
                     isa_irq_overrides[iso->irq_source] = iso;
                 }
                 break;
@@ -50,19 +53,19 @@ void madt_init(void) {
     }
 
     if (madt->flags & 0x01) {
-        for (uint8_t isa_irq = 0; isa_irq < 16; isa_irq++) {
+        for (uint8_t isa_irq = 0; isa_irq < ISA_IRQ_NUM; isa_irq++) {
             iso = isa_irq_overrides[isa_irq];
-            if (iso != NULL) {
-                uint8_t dest_irq = iso->gsi;
-                if (isa_irq != dest_irq) {
-                    klog("[acpi] ISA IRQ%u remapped to IRQ%u\n", isa_irq, dest_irq);
-                }
-
-                ioapic_set_isa_irq_routing(isa_irq, dest_irq + 32, iso->flags);
-            } else {
-                ioapic_set_irq_vector(isa_irq, isa_irq + 32);
+            if (iso == NULL) {
+                ioapic_set_irq_vector(isa_irq, isa_irq + ISR_IRQ_VECTOR_BASE);
+                continue;
             }
 
+            uint8_t dest_irq = iso->gsi;
+            if (isa_irq != dest_irq) {
+                klog("[acpi] ISA IRQ%u remapped to IRQ%u\n", isa_irq, dest_irq);
+            }
+
+            ioapic_set_isa_irq_routing(isa_irq, dest_irq + ISR_IRQ_VECTOR_BASE, iso->flags);
         }
     }
 }

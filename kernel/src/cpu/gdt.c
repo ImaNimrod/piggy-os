@@ -1,4 +1,5 @@
 #include <cpu/gdt.h>
+#include <utils/spinlock.h>
 
 struct gdt_descriptor {
     uint16_t limit;
@@ -17,7 +18,7 @@ struct tss_descriptor {
     uint8_t flags2;
     uint8_t base_high8;
     uint32_t base_upper32;
-    uint32_t reserved;
+    uint32_t : 32;
 } __attribute__((packed));
 
 struct gdt {
@@ -51,10 +52,31 @@ static struct gdt gdt = {
         .access = 0xf2,
     },
     .tss = {
-        .length = 104,
+        .length = sizeof(struct tss),
         .flags1 = 0x89,
     },
 };
+
+static spinlock_t gdt_lock = {0};
+
+void gdt_load_tss(struct tss* tss) {
+    uintptr_t tss_addr = (uintptr_t) tss;
+
+    spinlock_acquire(&gdt_lock);
+
+    gdt.tss = (struct tss_descriptor) {
+        .length = sizeof(struct tss),
+        .base_low16 = (uint16_t) tss_addr,
+        .base_mid8 = (uint8_t) (tss_addr >> 16),
+        .flags1 = 0x89,
+        .base_high8   = (uint8_t) (tss_addr >> 24),
+        .base_upper32 = (uint32_t) (tss_addr >> 32)
+    };
+
+    __asm__ volatile("ltrw %0" :: "rm" ((uint16_t) 0x28) : "memory");
+
+    spinlock_release(&gdt_lock);
+}
 
 void gdt_reload(void) {
     struct gdt_ptr gdtr = (struct gdt_ptr) { sizeof(gdt) - 1, (uint64_t) &gdt };

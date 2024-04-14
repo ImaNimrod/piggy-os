@@ -95,6 +95,20 @@ static struct ioapic_device* get_ioapic_for_interrupt(uint8_t irq) {
     return NULL;
 }
 
+size_t ioapic_get_max_external_irqs(void) {
+    size_t max_external_irqs = 0;
+
+    struct ioapic_device* ioapic;
+    LIST_FOREACH(ioapic, &ioapics, list) {
+        size_t irq_max = (size_t) ioapic->gsi_base + ioapic->max_rentry;
+        if (irq_max > max_external_irqs) {
+            max_external_irqs = irq_max;
+        }
+    }
+
+    return max_external_irqs;
+}
+
 void ioapic_set_irq_mask(uint8_t irq, bool mask) {
     struct ioapic_device* ioapic = get_ioapic_for_interrupt(irq);
     if (!ioapic) {
@@ -180,10 +194,3 @@ void register_ioapic(uint8_t id, uintptr_t address, uint32_t gsi_base) {
 
     LIST_ADD_FRONT(&ioapics, ioapic, list);
 }
-
-/* TODO: do external IRQS correctly
- *  get the maximum number of irqs from all ioapics,
- *  correctly set up ISA overrides,
- *  make a irq handler registering system that reflects the real number of IRQS from ioapics,
- *
- */

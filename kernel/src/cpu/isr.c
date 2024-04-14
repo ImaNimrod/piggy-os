@@ -1,5 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
+#include <dev/ioapic.h>
+#include <dev/lapic.h>
 #include <utils/log.h>
 #include <utils/math.h>
 
@@ -41,10 +43,28 @@ static const char* exception_messages[] = {
     "FPU error",
 };
 
-static isr_handler_t isr_handlers[256] = {0};
+static isr_handler_t isr_handlers[ISR_HANDLER_NUM] = {0};
 
-void isr_install_handler(uint8_t vector, isr_handler_t handler) {
+bool isr_install_exception_handler(uint8_t exception_number, isr_handler_t handler) {
+    if (exception_number >= ISR_EXCEPTION_NUM) {
+        return false;
+    } 
+
+    isr_handlers[exception_number] = handler;
+    return true;
+}
+
+bool isr_install_interrupt_handler(uint8_t irq_number, isr_handler_t handler) {
+    uint8_t vector = irq_number + ISR_IRQ_VECTOR_BASE;
+
+    if (irq_number <= ioapic_get_max_external_irqs()) {
+        if (irq_number >= ISA_IRQ_NUM) {
+            ioapic_set_irq_vector(irq_number, vector);
+        }
+    }
+
     isr_handlers[vector] = handler;
+    return true;
 }
 
 void isr_uninstall_handler(uint8_t vector) {
@@ -56,13 +76,15 @@ void isr_handler(struct registers* r) {
         swapgs();
     }
 
+    lapic_eoi();
+
     uint8_t int_number = r->int_number & 0xff;
     if (isr_handlers[int_number] != NULL) {
         isr_handlers[int_number](r);
         return;
     }
 
-    if (int_number < 32) {
+    if (int_number < ISR_EXCEPTION_NUM) {
         if (!(r->cs & 0x03)) {
             kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
         }
