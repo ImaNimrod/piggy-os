@@ -11,7 +11,7 @@
 #define MADT_LAPIC_ADDR_OVERRIDE_ENTRY  5
 
 struct madt {
-    struct sdt;
+    struct acpi_sdt;
     uint32_t lapic_addr;
     uint32_t flags;
     char entries_data[];

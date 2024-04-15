@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
+#include <dev/acpi/madt.h>
 #include <dev/ioapic.h>
 #include <dev/lapic.h>
 #include <utils/log.h>
@@ -54,13 +55,15 @@ bool isr_install_exception_handler(uint8_t exception_number, isr_handler_t handl
     return true;
 }
 
-bool isr_install_interrupt_handler(uint8_t irq_number, isr_handler_t handler) {
+bool isr_install_external_irq_handler(uint8_t irq_number, isr_handler_t handler) {
+    if (irq_number > ioapic_get_max_external_irqs()) {
+        return false;
+    } 
+
     uint8_t vector = irq_number + ISR_IRQ_VECTOR_BASE;
 
-    if (irq_number <= ioapic_get_max_external_irqs()) {
-        if (irq_number >= ISA_IRQ_NUM) {
-            ioapic_set_irq_vector(irq_number, vector);
-        }
+    if (irq_number > 15) {
+        ioapic_set_irq_vector(irq_number, vector);
     }
 
     isr_handlers[vector] = handler;
@@ -85,9 +88,7 @@ void isr_handler(struct registers* r) {
     }
 
     if (int_number < ISR_EXCEPTION_NUM) {
-        if (!(r->cs & 0x03)) {
-            kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
-        }
+        kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
     }
 
     if (r->cs & 0x03) {

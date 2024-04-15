@@ -2,6 +2,7 @@
 #include <cpu/idt.h>
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
+#include <dev/hpet.h>
 #include <dev/serial.h>
 #include <mem/heap.h>
 #include <mem/pmm.h>
@@ -17,6 +18,7 @@ void kernel_entry(void) {
     heap_init();
 
     acpi_init();
+    hpet_init();
 
     smp_init();
 

@@ -16,6 +16,7 @@ void madt_init(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
     if (madt == NULL) {
         kpanic(NULL, "system does not have a MADT");
+        __builtin_unreachable();
     }
 
     if (madt->flags & 0x01) {

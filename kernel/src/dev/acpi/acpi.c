@@ -23,10 +23,10 @@ struct rsdp {
 } __attribute__((packed));
 
 static struct rsdp* rsdp;
-static struct sdt* rsdt;
+static struct acpi_sdt* rsdt;
 static bool use_xsdt;
 
-static bool verify_checksum(struct sdt* sdt) {
+static bool verify_checksum(struct acpi_sdt* sdt) {
     uint8_t sum = 0;
 
     for (size_t i = 0; i < sdt->length; i++) {
@@ -36,15 +36,15 @@ static bool verify_checksum(struct sdt* sdt) {
     return sum == 0;
 }
 
-struct sdt* acpi_find_sdt(const char signature[static 4]) {
-    struct sdt* sdt = NULL;
-    size_t entry_count = (rsdt->length - sizeof(struct sdt)) / (use_xsdt ? 8 : 4);
+struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
+    struct acpi_sdt* sdt = NULL;
+    size_t entry_count = (rsdt->length - sizeof(struct acpi_sdt)) / (use_xsdt ? 8 : 4);
 
     for (size_t i = 0; i < entry_count; i++) {
         if (use_xsdt) {
-            sdt = (struct sdt*) (*((uint64_t*) (rsdt + 1) + i) + HIGH_VMA);
+            sdt = (struct acpi_sdt*) (*((uint64_t*) (rsdt + 1) + i) + HIGH_VMA);
         } else {
-            sdt = (struct sdt*) (*((uint32_t*) (rsdt + 1) + i) + HIGH_VMA);
+            sdt = (struct acpi_sdt*) (*((uint32_t*) (rsdt + 1) + i) + HIGH_VMA);
         }
 
         if (memcmp(sdt->signature, signature, 4)) {
@@ -69,12 +69,12 @@ void acpi_init(void) {
     use_xsdt = rsdp->revision >= 2 && rsdp->xsdt_addr;
 
     if (use_xsdt) {
-        rsdt = (struct sdt*) (rsdp->xsdt_addr + HIGH_VMA);
+        rsdt = (struct acpi_sdt*) (rsdp->xsdt_addr + HIGH_VMA);
         if (memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt)) {
             kpanic(NULL, "XSDT corrupted or not present");
         }
     } else {
-        rsdt = (struct sdt*) (rsdp->rsdt_addr + HIGH_VMA);
+        rsdt = (struct acpi_sdt*) (rsdp->rsdt_addr + HIGH_VMA);
         if (memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt)) {
             kpanic(NULL, "RSDT corrupted or not present");
         }
@@ -82,12 +82,13 @@ void acpi_init(void) {
 
     klog("[acpi] initialized using revision %s\n", use_xsdt ? "2.0" : "1.0");
 
-    struct sdt* fadt = acpi_find_sdt("FACP");
+    struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (fadt != NULL && fadt->length >= 116) {
         uint32_t fadt_flags = *((uint32_t*) fadt + 28);
 
         if (fadt_flags & (1 << 20)) {
             kpanic(NULL, "unable to use reduced ACPI systems");
+            __builtin_unreachable();
         }
     }
 

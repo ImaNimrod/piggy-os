@@ -105,6 +105,8 @@ void smp_init(void) {
         struct limine_smp_info* cpu = smp_response->cpus[i];
 
 		cpu->extra_argument = (uint64_t) &percpus[i];
+
+        percpus[i].self = &percpus[i];
         percpus[i].cpu_number = i;
         percpus[i].lapic_id = i;
 
