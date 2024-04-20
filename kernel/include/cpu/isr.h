@@ -9,6 +9,8 @@
 #define ISR_IRQ_VECTOR_BASE 32
 #define ISR_HANDLER_NUM     256
 
+#define IRQ(irq) ((irq) + ISR_IRQ_VECTOR_BASE)
+
 struct registers {
 	uint64_t r15;
 	uint64_t r14;
@@ -38,8 +40,7 @@ typedef void (*isr_handler_t)(struct registers*);
 
 extern void isr_handler(struct registers* r);
 
-bool isr_install_exception_handler(uint8_t exception_number, isr_handler_t handler);
-bool isr_install_external_irq_handler(uint8_t irq_number, isr_handler_t handler);
+bool isr_install_handler(uint8_t vector, bool external_irq, isr_handler_t handler);
 void isr_uninstall_handler(uint8_t vector);
 
 #endif /* _KERNEL_CPU_ISR_H */

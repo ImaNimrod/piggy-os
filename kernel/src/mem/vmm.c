@@ -317,7 +317,7 @@ void vmm_init(void) {
     }
 
     vmm_switch_pagemap(&kernel_pagemap);
-    isr_install_exception_handler(PAGE_FAULT, page_fault_handler);
+    isr_install_handler(PAGE_FAULT, false, page_fault_handler);
 
     klog("[vmm] initialized virtual memory manager\n");
 }

@@ -46,24 +46,16 @@ static const char* exception_messages[] = {
 
 static isr_handler_t isr_handlers[ISR_HANDLER_NUM] = {0};
 
-bool isr_install_exception_handler(uint8_t exception_number, isr_handler_t handler) {
-    if (exception_number >= ISR_EXCEPTION_NUM) {
-        return false;
-    } 
+bool isr_install_handler(uint8_t vector, bool external_irq, isr_handler_t handler) {
+    if (external_irq) {
+        uint8_t irq_number = vector - ISR_IRQ_VECTOR_BASE;
+        if (irq_number > ioapic_get_max_external_irqs()) {
+            return false;
+        }
 
-    isr_handlers[exception_number] = handler;
-    return true;
-}
-
-bool isr_install_external_irq_handler(uint8_t irq_number, isr_handler_t handler) {
-    if (irq_number > ioapic_get_max_external_irqs()) {
-        return false;
-    } 
-
-    uint8_t vector = irq_number + ISR_IRQ_VECTOR_BASE;
-
-    if (irq_number > 15) {
-        ioapic_set_irq_vector(irq_number, vector);
+        if (irq_number > 15) {
+            ioapic_set_irq_vector(irq_number, vector);
+        }
     }
 
     isr_handlers[vector] = handler;
