@@ -299,6 +299,8 @@ void vmm_init(void) {
     uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE),
               data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE);
 
+    klog("[vmm] creating kernel virtual memory mappings...\n");
+
     struct limine_kernel_address_response* kaddr_response = kaddr_request.response;
 
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
@@ -317,6 +319,8 @@ void vmm_init(void) {
     }
 
     vmm_switch_pagemap(&kernel_pagemap);
+    klog("[vmm] loaded new kernel pagemap\n");
+
     isr_install_handler(PAGE_FAULT, false, page_fault_handler);
 
     klog("[vmm] initialized virtual memory manager\n");

@@ -30,10 +30,10 @@ limine:
 
 .PHONY: run
 run:
-	$(EMU) $(EMUOPTS) -cdrom piggy-os.iso
+	$(EMU) $(EMUOPTS) -cdrom $(IMAGE_NAME)
 
 run-kvm:
-	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom piggy-os.iso -d int
+	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom $(IMAGE_NAME)
 
 .PHONY: clean
 clean:
