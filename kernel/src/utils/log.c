@@ -132,8 +132,8 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
     va_end(args);
 
     if (r != NULL) {
-        klog("\n==========================\nRIP: 0x%lx  RFLAGS: 0x%lx\nRBP: 0x%lx  RSP: 0x%lx\nCS:  0x%x  SS: 0x%x  CR3: 0x%lx\n",
-            r->rip, r->rflags, r->rbp, r->rsp, r->cs, r->ss, read_cr3());
+        klog("\n==========================\nRIP: 0x%x%x  RFLAGS: 0x%lx\nRBP: 0x%lx  RSP: 0x%x%x\nCS:  0x%x  SS: 0x%x  CR3: 0x%lx\n",
+            r->rip >> 32, (uint32_t) r->rip, r->rflags, r->rbp, r->rsp >> 32, (uint32_t) r->rsp, r->cs, r->ss, read_cr3());
     }
 
     klog("\n==========================\n");

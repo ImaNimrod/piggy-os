@@ -7,10 +7,16 @@
 #include <mem/heap.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
+#include <sys/sched.h>
+#include <sys/thread.h>
+
+static void kernel_main(void) {
+    for (;;) {
+        //klog("bruh\n");
+    }
+}
 
 void kernel_entry(void) {
-    cli();
-
     serial_init(COM1);
 
     pmm_init();
@@ -20,10 +26,10 @@ void kernel_entry(void) {
     acpi_init();
     hpet_init();
 
+    sched_init();
     smp_init();
 
-    sti();
-    for (;;) {
-        hlt();
-    }
+    struct thread* kthread = thread_create_kernel((uintptr_t) &kernel_main, NULL);
+    sched_enqueue_thread(kthread);
+    sched_await();
 }

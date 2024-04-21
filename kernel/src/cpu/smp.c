@@ -9,9 +9,14 @@
 #include <mem/heap.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
+#include <sys/sched.h>
 #include <utils/log.h>
 
 #define CPU_STACK_SIZE 0x8000
+
+size_t fpu_storage_size = 0;
+void (*fpu_save)(void*) = NULL;
+void (*fpu_restore)(void*) = NULL;
 
 static volatile struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
@@ -78,17 +83,20 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     }
 
     wrmsr(MSR_EFER, efer);
-    
+
+    percpu->fpu_storage_size = 512;
+    percpu->fpu_save = fxsave;
+    percpu->fpu_restore = fxrstor;
+
+    percpu->current_thread = NULL;
+
     lapic_init(percpu->lapic_id);
-    
-    klog("[smp] processor #%lu online\n", percpu->cpu_number);
+
+    klog("[smp] processor #%lu online%s\n", percpu->cpu_number, (percpu->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
 
     if (percpu->lapic_id != bsp_lapic_id) {
-        sti();
-        for (;;) {
-            hlt();
-        }
+        sched_await();
     }
 }
 
@@ -104,7 +112,7 @@ void smp_init(void) {
     for (size_t i = 0; i < cpu_count; i++) {
         struct limine_smp_info* cpu = smp_response->cpus[i];
 
-		cpu->extra_argument = (uint64_t) &percpus[i];
+        cpu->extra_argument = (uint64_t) &percpus[i];
 
         percpus[i].self = &percpus[i];
         percpus[i].cpu_number = i;
@@ -122,5 +130,5 @@ void smp_init(void) {
         pause();
     }
 
-    klog("[smp] initialized %lu cpus\n", initialized_cpus);
+    klog("[smp] initialized %lu cpu%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));
 }

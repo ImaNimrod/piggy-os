@@ -19,60 +19,42 @@ idt_stubs:
     %endrep
 
 interrupt_handler:
-    cmp qword [rsp + 16], 0x4b
-    jne .no_switch1
-    swapgs
-.no_switch1:
-
-    push r15
-    push r14
-    push r13
-    push r12
-    push r11
-    push r10
-    push r9
-    push r8
-    push rbp
-    push rsi
-    push rdi
-    push rdx
-    push rcx
+    push rax
     push rbx
-    push rax
-    mov eax, es
-    push rax
-    mov eax, ds
-    push rax
+    push rcx
+    push rdx
+    push rbp
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
 
     mov rdi, rsp
 	xor rbp, rbp
     cld
     call isr_handler
 
-    pop rax
-    mov ds, eax
-    pop rax
-    mov es, eax
-    pop rax
-    pop rbx
-    pop rcx
-    pop rdx
-    pop rdi
-    pop rsi
-    pop rbp
-    pop r8
-    pop r9
-    pop r10
-    pop r11
-    pop r12
-    pop r13
-    pop r14
     pop r15
-
-    cmp qword [rsp + 16], 0x4b
-    jne .no_switch2
-    swapgs
-.no_switch2:
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rbp
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
 
     add rsp, 16
     iretq

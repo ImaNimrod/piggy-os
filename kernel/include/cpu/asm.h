@@ -1,6 +1,7 @@
 #ifndef _KERNEL_CPU_ASM_H
 #define _KERNEL_CPU_ASM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define MSR_LAPIC_BASE  0x1b
@@ -21,6 +22,12 @@ static inline void sti(void) {
     __asm__ volatile("sti");
 }
 
+static inline bool interrupt_state(void) {
+    uint64_t flags;
+    asm volatile ("pushfq; pop %0" : "=rm" (flags) :: "memory");
+    return flags & (1 << 9);
+}
+
 static inline void hlt(void) {
     __asm__ volatile("hlt");
 }
@@ -35,6 +42,14 @@ static inline void swapgs(void) {
 
 static inline void invlpg(uintptr_t vaddr) {
 	__asm__ volatile("invlpg %0" :: "m" ((*((int(*)[])((void*) vaddr)))) : "memory");
+}
+
+static inline void fxsave(void* ctx) {
+    __asm__ volatile("fxsave (%0)" :: "r"(ctx) : "memory");
+}
+
+static inline void fxrstor(void* ctx) {
+    __asm__ volatile ("fxrstor (%0)" :: "r"(ctx) : "memory");
 }
 
 static inline void outb(uint16_t port, uint8_t data) {

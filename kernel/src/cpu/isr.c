@@ -63,6 +63,10 @@ void isr_uninstall_handler(uint8_t vector) {
 }
 
 void isr_handler(struct registers* r) {
+	if (r->cs & 0x3) {
+		swapgs();
+    }
+
     uint8_t int_number = r->int_number & 0xff;
     if (isr_handlers[int_number] != NULL) {
         isr_handlers[int_number](r);
@@ -71,5 +75,9 @@ void isr_handler(struct registers* r) {
 
     if (int_number < ISR_EXCEPTION_NUM) {
         kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
+    }
+
+	if (r->cs & 0x3) {
+		swapgs();
     }
 } 

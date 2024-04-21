@@ -27,8 +27,6 @@ struct registers {
 	uint64_t rcx;
 	uint64_t rbx;
 	uint64_t rax;
-    uint64_t ds;
-    uint64_t es;
 	uint64_t int_number;
 	uint64_t error_code;
 	uint64_t rip;

@@ -5,13 +5,18 @@
 #include <cpu/gdt.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/thread.h>
 
 struct percpu {
     struct percpu* self;
     size_t cpu_number;
     uintptr_t kernel_stack;
     uintptr_t user_stack;
+    struct thread* current_thread;
 	struct tss tss;
+    size_t fpu_storage_size;
+    void (*fpu_save)(void*);
+    void (*fpu_restore)(void*);
     uint32_t lapic_id;
     uint32_t lapic_frequency;
 };

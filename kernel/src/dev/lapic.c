@@ -55,6 +55,22 @@ void lapic_eoi(void) {
     lapic_write(LAPIC_REG_EOI, 0);
 }
 
+void lapic_timer_oneshot(uint8_t vector, uint64_t us) {
+    bool prev_int = interrupt_state();
+    cli();
+
+    lapic_timer_stop();
+
+    uint64_t ticks = us * (this_cpu()->lapic_frequency / 1000000);
+    lapic_write(LAPIC_REG_LVT_TIMER, vector);
+    lapic_write(LAPIC_REG_TIMER_DIV, 0);
+    lapic_write(LAPIC_REG_TIMER_INITCNT, ticks);
+
+    if (prev_int) {
+        sti();
+    }
+}
+
 void lapic_timer_stop(void) {
     lapic_write(LAPIC_REG_TIMER_INITCNT, 0);
     lapic_write(LAPIC_REG_LVT_TIMER, 0x10000);
@@ -75,7 +91,6 @@ void lapic_init(uint8_t lapic_id) {
     lapic_timer_calibrate();
 
     lapic_write(LAPIC_REG_TPR, 0);
-
 }
 
 void disable_pic(void) {
