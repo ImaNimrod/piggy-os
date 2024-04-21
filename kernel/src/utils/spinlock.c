@@ -3,7 +3,7 @@
 
 void spinlock_acquire(spinlock_t* lock) {
     if (!lock) {
-        return false;
+        return;
     }
 
     while (!spinlock_test_and_acquire(lock)) {

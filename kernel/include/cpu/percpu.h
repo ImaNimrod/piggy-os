@@ -5,7 +5,7 @@
 #include <cpu/gdt.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/thread.h>
+#include <sys/process.h>
 
 struct percpu {
     struct percpu* self;

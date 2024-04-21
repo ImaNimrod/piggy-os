@@ -1,35 +1,39 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <dev/hpet.h>
 #include <dev/lapic.h>
-#include <sys/process.h>
 #include <sys/sched.h>
 #include <utils/log.h>
+#include <utils/spinlock.h>
 
 #define DEFAULT_TIMESLICE 20000
 
 struct process* kernel_process;
 
-static struct process* process_list;
-static struct thread* thread_list;
+static struct process* processes = NULL;
+static struct thread* runnable_threads = NULL;
+static struct thread* sleeping_threads = NULL;
 
-static bool add_thread_to_list(struct thread** list, struct thread* thread) {
+static spinlock_t thread_lock = {0};
+
+static bool add_thread_to_list(struct thread** list, struct thread* t) {
     struct thread* iter = *list;
     if (!iter) {
-        *list = thread;
+        *list = t;
         return true;
     }
 
     while (iter->next) {
         iter = iter->next;
     }
-    iter->next = thread;
+    iter->next = t;
     return true;
 }
 
-static bool remove_thread_from_list(struct thread** list, struct thread* thread) {
+static bool remove_thread_from_list(struct thread** list, struct thread* t) {
 	struct thread* iter = *list;
-	if (iter == thread) {
+	if (iter == t) {
 		*list = iter->next;
 		return true;
 	}
@@ -37,7 +41,7 @@ static bool remove_thread_from_list(struct thread** list, struct thread* thread)
     struct thread* next = NULL;
 	while (iter) {
 		next = iter->next;
-		if (next == thread) {
+		if (next == t) {
 			iter->next = next->next;
 			next->next = NULL;
 			return true;
@@ -53,7 +57,7 @@ static struct thread* get_next_thread(struct thread* current) {
     if (current) {
         iter = current->next;
     } else {
-        iter = thread_list;
+        iter = runnable_threads;
     }
 
 	while (iter) {
@@ -61,6 +65,7 @@ static struct thread* get_next_thread(struct thread* current) {
 			iter = iter->next;
 			continue;
 		}
+
 		if (spinlock_test_and_acquire(&iter->lock)) {
 			return iter;
         }
@@ -70,7 +75,23 @@ static struct thread* get_next_thread(struct thread* current) {
 	return NULL;
 }
 
-static void schedule(struct registers* r) {
+static void wakeup_sleeping_threads(void) {
+    struct thread* iter = sleeping_threads;
+    while (iter) {
+        if (iter->sleep_until <= hpet_count()) {
+            iter->state = THREAD_READY_TO_RUN;
+            iter->sleep_until = 0;
+
+            remove_thread_from_list(&sleeping_threads, iter);
+            add_thread_to_list(&runnable_threads, iter);
+        }
+        iter = iter->next;
+    }
+}
+
+__attribute__((noreturn)) static void schedule(struct registers* r) {
+    wakeup_sleeping_threads();
+
     struct thread* current = this_cpu()->current_thread;
     struct thread* next = get_next_thread(current);
 
@@ -110,7 +131,7 @@ static void schedule(struct registers* r) {
         vmm_switch_pagemap(next->process->pagemap);
     }
 
-    klog("running thread: %d\n", next->tid);
+    // klog("running thread #%d on cpu #%u\n", next->tid, this_cpu()->cpu_number);
 
 	__asm__ volatile(
 		"mov %0, %%rsp\n\t"
@@ -133,6 +154,7 @@ static void schedule(struct registers* r) {
 		"iretq\n\t"
 		:: "r" (&next->ctx)
 	);
+    __builtin_unreachable();
 }
 
 __attribute__((noreturn)) void sched_await(void) {
@@ -144,16 +166,25 @@ __attribute__((noreturn)) void sched_await(void) {
     __builtin_unreachable();
 }
 
-struct process* sched_get_kernel_process(void) {
-    return kernel_process;
+bool sched_enqueue_thread(struct thread* t) {
+    return add_thread_to_list(&runnable_threads, t);
 }
 
-bool sched_enqueue_thread(struct thread* thread) {
-    return add_thread_to_list(&thread_list, thread);
+bool sched_dequeue_thread(struct thread* t) {
+    return remove_thread_from_list(&runnable_threads, t);
 }
 
-bool sched_dequeue_thread(struct thread* thread) {
-    return remove_thread_from_list(&thread_list, thread);
+void sched_thread_sleep(struct thread* t, uint64_t ns) {
+    spinlock_acquire(&thread_lock);
+
+    t->state = THREAD_SLEEPING;
+    t->sleep_until = HPET_CALC_SLEEP_NS(ns);
+
+    remove_thread_from_list(&runnable_threads, t);
+    add_thread_to_list(&sleeping_threads, t);
+
+    spinlock_release(&thread_lock);
+    sched_resched_now();
 }
 
 void sched_init(void) {

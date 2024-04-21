@@ -24,7 +24,7 @@ static inline void sti(void) {
 
 static inline bool interrupt_state(void) {
     uint64_t flags;
-    asm volatile ("pushfq; pop %0" : "=rm" (flags) :: "memory");
+    __asm__ volatile("pushfq; pop %0" : "=rm" (flags) :: "memory");
     return flags & (1 << 9);
 }
 

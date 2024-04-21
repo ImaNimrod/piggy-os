@@ -1,6 +1,6 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -smp 4 -bios /usr/share/edk2/x64/OVMF.fd
+EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd
 
 .PHONY: all
 all: $(IMAGE_NAME)

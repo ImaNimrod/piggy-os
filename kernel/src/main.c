@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/idt.h>
+#include <cpu/percpu.h>
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
 #include <dev/hpet.h>
@@ -7,12 +8,13 @@
 #include <mem/heap.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
+#include <sys/process.h>
 #include <sys/sched.h>
-#include <sys/thread.h>
 
 static void kernel_main(void) {
     for (;;) {
-        //klog("bruh\n");
+        klog("bruh\n");
+        sched_thread_sleep(this_cpu()->current_thread, 1e9);
     }
 }
 

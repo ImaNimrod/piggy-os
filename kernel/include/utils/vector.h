@@ -12,7 +12,7 @@
     size_t capacity; \
 }
 
-#define VECTOR_ENSURE_LENGTH(VEC, LENGTH) { \
+#define VECTOR_ENSURE_LENGTH(VEC, LENGTH) do { \
     __auto_type VECTOR_ENSURE_LENGTH_vec = VEC; \
     if ((LENGTH) >= VECTOR_ENSURE_LENGTH_vec->capacity) { \
         if (!VECTOR_ENSURE_LENGTH_vec->capacity) { \
@@ -52,14 +52,14 @@
 
 #define VECTOR_PUSH_FRONT(VEC, VALUE) VECTOR_INSERT(VEC, 0, VALUE)
 
-#define VECTOR_PUSH_BACK(VEC, VALUE) ({ \
+#define VECTOR_PUSH_BACK(VEC, VALUE) __extension__ ({ \
     __auto_type VECTOR_PUSH_BACK_vec = VEC; \
     VECTOR_ENSURE_LENGTH(VEC, VECTOR_PUSH_BACK_vec->length); \
     VECTOR_PUSH_BACK_vec->data[VECTOR_PUSH_BACK_vec->length++] = VALUE; \
     VECTOR_PUSH_BACK_vec->length - 1; \
 })
 
-#define VECTOR_ITEM(VEC, IDX) ({ \
+#define VECTOR_ITEM(VEC, IDX) __extension__ ({ \
     size_t VECTOR_ITEM_idx = IDX; \
     __auto_type VECTOR_ITEM_vec = VEC; \
     __auto_type VECTOR_ITEM_result = (typeof(*VECTOR_ITEM_vec->data)) VECTOR_INVALID_INDEX; \
@@ -69,7 +69,7 @@
     VECTOR_ITEM_result; \
 })
 
-#define VECTOR_FIND(VEC, VALUE) ({ \
+#define VECTOR_FIND(VEC, VALUE) __extension__ ({ \
     __auto_type VECTOR_FIND_vec = VEC; \
     ssize_t VECTOR_FIND_result = VECTOR_INVALID_INDEX; \
     for (size_t VECTOR_FIND_i = 0; VECTOR_FIND_i < VECTOR_FIND_vec->length; VECTOR_FIND_i++) { \

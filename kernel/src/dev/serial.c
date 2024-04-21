@@ -10,7 +10,7 @@ int serial_init(uint16_t port) {
     outb(port + 1, 0x01);
     outb(port + 3, 0x80);
 
-    outb(port + 0, 0x03);
+    outb(port + 0, 0x01);
     outb(port + 1, 0x00);
 
     outb(port + 3, 0x03);
