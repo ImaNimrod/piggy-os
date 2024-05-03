@@ -55,6 +55,11 @@ void lapic_eoi(void) {
     lapic_write(LAPIC_REG_EOI, 0);
 }
 
+void lapic_send_ipi(uint32_t lapic_id, uint32_t vector) {
+    lapic_write(LAPIC_REG_ICR1, lapic_id << 24);
+    lapic_write(LAPIC_REG_ICR0, vector);
+}
+
 void lapic_timer_oneshot(uint8_t vector, uint64_t us) {
     bool prev_int = interrupt_state();
     cli();

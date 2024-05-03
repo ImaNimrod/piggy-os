@@ -25,7 +25,6 @@ struct process {
 };
 
 struct thread {
-    struct thread* self;
     uint64_t errno;
 
     tid_t tid;
@@ -46,7 +45,8 @@ struct thread {
     struct thread* next;
 };
 
-struct process* process_create(struct pagemap* pagemap);
+struct process* process_create(const char* name, struct pagemap* pagemap);
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
+void thread_destroy(struct thread* t);
 
 #endif /* _KERNEL_SYS_PROCESS_H */

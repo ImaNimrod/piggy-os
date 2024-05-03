@@ -12,7 +12,7 @@ struct percpu {
     size_t cpu_number;
     uintptr_t kernel_stack;
     uintptr_t user_stack;
-    struct thread* current_thread;
+    struct thread* running_thread;
 	struct tss tss;
     size_t fpu_storage_size;
     void (*fpu_save)(void*);

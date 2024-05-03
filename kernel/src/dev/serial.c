@@ -2,15 +2,15 @@
 #include <dev/serial.h>
 
 int serial_init(uint16_t port) {
-    outb(port + 7, 0xaa);
-    if (inb(port + 7) != 0xaa) {
+    outb(port + 7, 0xae);
+    if (inb(port + 7) != 0xae) {
         return 1;
     }
 
     outb(port + 1, 0x01);
     outb(port + 3, 0x80);
 
-    outb(port + 0, 0x01);
+    outb(port + 0, 0x03);
     outb(port + 1, 0x00);
 
     outb(port + 3, 0x03);

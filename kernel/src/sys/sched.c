@@ -92,7 +92,7 @@ static void wakeup_sleeping_threads(void) {
 __attribute__((noreturn)) static void schedule(struct registers* r) {
     wakeup_sleeping_threads();
 
-    struct thread* current = this_cpu()->current_thread;
+    struct thread* current = this_cpu()->running_thread;
     struct thread* next = get_next_thread(current);
 
     if (current) {
@@ -110,13 +110,13 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     if (!next) {
-        this_cpu()->current_thread = NULL;
+        this_cpu()->running_thread = NULL;
         vmm_switch_pagemap(vmm_get_kernel_pagemap());
         lapic_eoi();
         sched_await();
     }
 
-    this_cpu()->current_thread = next;
+    this_cpu()->running_thread = next;
     next->state = THREAD_NORMAL;
 
     if (next->ctx.cs & 0x3) {
@@ -154,6 +154,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 		"iretq\n\t"
 		:: "r" (&next->ctx)
 	);
+
     __builtin_unreachable();
 }
 
@@ -174,6 +175,17 @@ bool sched_dequeue_thread(struct thread* t) {
     return remove_thread_from_list(&runnable_threads, t);
 }
 
+__attribute__((noreturn)) void sched_kill_self(void) {
+    cli();
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    sched_dequeue_thread(current_thread);
+    thread_destroy(current_thread);
+    sched_yield();
+
+    __builtin_unreachable();
+}
+
 void sched_thread_sleep(struct thread* t, uint64_t ns) {
     spinlock_acquire(&thread_lock);
 
@@ -187,9 +199,23 @@ void sched_thread_sleep(struct thread* t, uint64_t ns) {
     sched_resched_now();
 }
 
+__attribute__((noreturn)) void sched_yield(void) {
+    cli();
+
+    lapic_timer_stop();
+    lapic_send_ipi(this_cpu()->lapic_id, SCHED_VECTOR);
+
+    sti();
+    for (;;) {
+        hlt();
+    }
+
+    __builtin_unreachable();
+}
+
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, false, schedule);
-    kernel_process = process_create(vmm_get_kernel_pagemap());
+    kernel_process = process_create("kernel_process", vmm_get_kernel_pagemap());
 
     klog("[sched] intialized scheduler and created kernel process\n");
 }

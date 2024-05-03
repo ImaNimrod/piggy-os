@@ -88,7 +88,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     percpu->fpu_save = fxsave;
     percpu->fpu_restore = fxrstor;
 
-    percpu->current_thread = NULL;
+    percpu->running_thread = NULL;
 
     lapic_init(percpu->lapic_id);
 

@@ -10,11 +10,12 @@
 #include <mem/vmm.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <utils/log.h>
 
 static void kernel_main(void) {
     for (;;) {
         klog("bruh\n");
-        sched_thread_sleep(this_cpu()->current_thread, 1e9);
+        sched_thread_sleep(this_cpu()->running_thread, 1e9);
     }
 }
 
