@@ -1,0 +1,9 @@
+Inital TODO list (5/2/24)
+
+The goal is to get the kernel to load and run a static ELF binary from a limine module.
+By this point, the process and thread functionality should be implemented such that following
+syscalls are correctly implemented:
+    - fork, exit, yield, getpid, gettid, thread_create, thread_sleep, thread_exit
+
+All functionality regarding the VFS and filesystem drivers will be taken care of later.
+The same can be said for a grand unified timer abstraction/API and a network stack.
