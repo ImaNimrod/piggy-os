@@ -58,3 +58,65 @@ interrupt_handler:
 
     add rsp, 16
     iretq
+
+global syscall_entry
+syscall_entry:
+    swapgs
+	;mov qword [gs:0024], rsp
+	;mov rsp, qword [gs:0016]
+
+	push 0x1b
+	push qword [gs:024]
+	push r11
+	push 0x23
+	push rcx
+
+    push qword 0
+    push qword 0
+
+    push rax
+    push rbx
+    push qword 0
+    push rdx
+    push rbp
+    push rdi
+    push rsi
+    push r8
+    push r9
+    push r10
+    push qword 0
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov rdi, rsp
+	xor rbp, rbp
+    extern syscall_handler
+    call syscall_handler
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    add rsp, 8
+    pop r10
+    pop r9
+    pop r8
+    pop rsi
+    pop rdi
+    pop rbp
+    pop rdx
+    add rsp, 8
+    pop rbx
+    pop rax
+
+    add rsp, 16
+
+    pop rcx
+    add rsp, 8
+    pop r11
+    pop rsp
+
+    swapgs
+    o64 sysret

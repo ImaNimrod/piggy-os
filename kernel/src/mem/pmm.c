@@ -32,21 +32,17 @@ static char* memmap_type_str(uint64_t type) {
     }
 }
 
-#define PMM_BITMAP_SET(bit) (pmm_bitmap[(bit) / 8] |= (1 << ((bit) % 8)))
-#define PMM_BITMAP_RESET(bit) (pmm_bitmap[(bit) / 8] &= ~(1 << ((bit) % 8)))
-#define PMM_BITMAP_TEST(bit) (pmm_bitmap[(bit) / 8] & (1 << ((bit) % 8)))
-
 static uintptr_t alloc_first_fit_from_last(size_t pages, uint64_t last_limit) {
     size_t p = 0;
 
     while (last_used_index < last_limit) {
         last_used_index++;
-        if (!PMM_BITMAP_TEST(last_used_index)) {
+        if (!BITMAP_TEST(pmm_bitmap, last_used_index)) {
             if (++p == pages) {
                 size_t page = last_used_index - pages;
 
                 for (size_t i = page; i < last_used_index; i++) {
-                    PMM_BITMAP_SET(i);
+                    BITMAP_SET(pmm_bitmap, i);
                 }
 
                 return page * PAGE_SIZE;
@@ -75,9 +71,14 @@ uintptr_t pmm_alloc(size_t pages) {
     }
 
     used_pages += pages;
-    memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE);
 
     spinlock_release(&pmm_lock);
+    return ret;
+}
+
+uintptr_t pmm_allocz(size_t pages) {
+    uintptr_t ret = pmm_alloc(pages);
+    memset((void*) (ret + HIGH_VMA), 0, PAGE_SIZE * pages);
     return ret;
 }
 
@@ -86,7 +87,7 @@ void pmm_free(uintptr_t addr, size_t pages) {
     size_t page = (uint64_t) addr / PAGE_SIZE;
 
     for (size_t i = page; i < page + pages; i++) {
-        PMM_BITMAP_RESET(i);
+        BITMAP_CLEAR(pmm_bitmap, i);
     }
 
     used_pages -= pages;
@@ -144,7 +145,7 @@ void pmm_init(void) {
         }
 
         for (uint64_t j = 0; j < entry->length; j += PAGE_SIZE) {
-            PMM_BITMAP_RESET((entry->base + j) / PAGE_SIZE);
+            BITMAP_CLEAR(pmm_bitmap, (entry->base + j) / PAGE_SIZE);
         }
     }
 

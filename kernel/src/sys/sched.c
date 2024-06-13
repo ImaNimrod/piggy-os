@@ -11,10 +11,9 @@
 
 struct process* kernel_process;
 
-static struct process* processes = NULL;
 static struct thread* runnable_threads = NULL;
-static struct thread* sleeping_threads = NULL;
 
+static spinlock_t process_lock = {0};
 static spinlock_t thread_lock = {0};
 
 static bool add_thread_to_list(struct thread** list, struct thread* t) {
@@ -75,32 +74,15 @@ static struct thread* get_next_thread(struct thread* current) {
 	return NULL;
 }
 
-static void wakeup_sleeping_threads(void) {
-    struct thread* iter = sleeping_threads;
-    while (iter) {
-        if (iter->sleep_until <= hpet_count()) {
-            iter->state = THREAD_READY_TO_RUN;
-            iter->sleep_until = 0;
-
-            remove_thread_from_list(&sleeping_threads, iter);
-            add_thread_to_list(&runnable_threads, iter);
-        }
-        iter = iter->next;
-    }
-}
-
 __attribute__((noreturn)) static void schedule(struct registers* r) {
-    wakeup_sleeping_threads();
-
     struct thread* current = this_cpu()->running_thread;
     struct thread* next = get_next_thread(current);
 
     if (current) {
 		current->ctx = *r;
 
-        if (current->ctx.cs & 0x3) {
-            this_cpu()->fpu_save(current->fpu_storage);
-        }
+        current->fs_base = rdmsr(MSR_FS_BASE);
+        current->gs_base = rdmsr(MSR_KERNEL_GS);
 
         if (current->state == THREAD_NORMAL) {
             current->state = THREAD_READY_TO_RUN;
@@ -117,21 +99,25 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     this_cpu()->running_thread = next;
+    this_cpu()->tss.rsp0 = next->kernel_stack;
+    this_cpu()->tss.ist2 = next->page_fault_stack;
+    this_cpu()->user_stack = next->stack;
+    this_cpu()->kernel_stack = next->kernel_stack;
     next->state = THREAD_NORMAL;
-
-    if (next->ctx.cs & 0x3) {
-        swapgs();
-        this_cpu()->fpu_restore(next->fpu_storage);
-    }
 
     lapic_eoi();
     lapic_timer_oneshot(SCHED_VECTOR, next->timeslice);
+
+    wrmsr(MSR_FS_BASE, next->fs_base);
+    if (next->ctx.cs & 3) {
+        wrmsr(MSR_KERNEL_GS, next->gs_base);
+    }
 
     if (!current || current->process != next->process) {
         vmm_switch_pagemap(next->process->pagemap);
     }
 
-    // klog("running thread #%d on cpu #%u\n", next->tid, this_cpu()->cpu_number);
+    //klog("running thread #%d on cpu #%u\n", next->tid, this_cpu()->cpu_number);
 
 	__asm__ volatile(
 		"mov %0, %%rsp\n\t"
@@ -151,10 +137,10 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 		"pop %%rbx\n\t"
 		"pop %%rax\n\t"
 		"addq $16, %%rsp\n\t"
+        "swapgs\n\t"
 		"iretq\n\t"
 		:: "r" (&next->ctx)
 	);
-
     __builtin_unreachable();
 }
 
@@ -167,36 +153,20 @@ __attribute__((noreturn)) void sched_await(void) {
     __builtin_unreachable();
 }
 
-bool sched_enqueue_thread(struct thread* t) {
-    return add_thread_to_list(&runnable_threads, t);
+bool sched_thread_enqueue(struct thread* t) {
+    bool ret = add_thread_to_list(&runnable_threads, t);
+    return ret;
 }
 
-bool sched_dequeue_thread(struct thread* t) {
-    return remove_thread_from_list(&runnable_threads, t);
+bool sched_thread_dequeue(struct thread* t) {
+    bool ret = remove_thread_from_list(&runnable_threads, t);
+    return ret;
 }
 
-__attribute__((noreturn)) void sched_kill_self(void) {
-    cli();
-
-    struct thread* current_thread = this_cpu()->running_thread;
-    sched_dequeue_thread(current_thread);
-    thread_destroy(current_thread);
-    sched_yield();
-
-    __builtin_unreachable();
-}
-
-void sched_thread_sleep(struct thread* t, uint64_t ns) {
-    spinlock_acquire(&thread_lock);
-
-    t->state = THREAD_SLEEPING;
-    t->sleep_until = HPET_CALC_SLEEP_NS(ns);
-
-    remove_thread_from_list(&runnable_threads, t);
-    add_thread_to_list(&sleeping_threads, t);
-
-    spinlock_release(&thread_lock);
-    sched_resched_now();
+void sched_thread_destroy(struct thread* t) {
+    vector_remove_by_value(t->process->threads, t);
+    sched_thread_dequeue(t);
+    thread_destroy(t);
 }
 
 __attribute__((noreturn)) void sched_yield(void) {
@@ -209,7 +179,6 @@ __attribute__((noreturn)) void sched_yield(void) {
     for (;;) {
         hlt();
     }
-
     __builtin_unreachable();
 }
 

@@ -25,8 +25,8 @@ struct gdt {
     struct gdt_descriptor null;
     struct gdt_descriptor kernel_code64;
     struct gdt_descriptor kernel_data64;
-    struct gdt_descriptor user_code64;
     struct gdt_descriptor user_data64;
+    struct gdt_descriptor user_code64;
     struct tss_descriptor tss;
 } __attribute__((packed));
 
@@ -44,12 +44,12 @@ static struct gdt gdt = {
     .kernel_data64 = {
         .access = 0x92,
     },
+    .user_data64 = {
+        .access = 0xf2,
+    },
     .user_code64 = {
         .access = 0xfa,
         .granularity = 0x20,
-    },
-    .user_data64 = {
-        .access = 0xf2,
     },
     .tss = {
         .length = sizeof(struct tss),

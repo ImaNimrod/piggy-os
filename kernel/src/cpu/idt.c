@@ -45,10 +45,20 @@ void idt_set_gate(uint8_t vector, void* handler, uint8_t ist) {
     idt[vector].offset_high32 = (uint32_t) (ptr >> 32);
 }
 
+void idt_set_ist(uint8_t vector, uint8_t ist) {
+    idt[vector].ist = ist;
+}
+
 void idt_init(void) {
     void* idt_stub = (void*) &idt_stubs;
     for (size_t i = 0; i < 256; i++) {
         idt_set_gate(i, idt_stub, 0);
         idt_stub = (void*) ((uintptr_t) idt_stub + 32);
     }
+	idt_set_ist(1, 1);
+	idt_set_ist(2, 1);
+	idt_set_ist(8, 1);
+	idt_set_ist(14, 2);
+	idt_set_ist(18, 1);
+	idt_set_ist(48, 1);
 }

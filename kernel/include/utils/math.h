@@ -10,6 +10,10 @@
 #define ALIGN_DOWN(VALUE, ALIGN) (((VALUE) / (ALIGN)) * (ALIGN))
 #define IS_ALIGNED(VALUE, ALIGN) (((VALUE) & ((ALIGN) - 1)) == 0)
 
+#define BITMAP_SET(a, b) ((a)[(b) / 8] |= (1 << ((b) % 8)))
+#define BITMAP_CLEAR(a, b) ((a)[(b) / 8] &= ~(1 << ((b) % 8)))
+#define BITMAP_TEST(a, b) ((a)[(b) / 8] & (1 << ((b) % 8)))
+
 #define SIZEOF_ARRAY(XS) (sizeof(XS) / sizeof(XS[0]))
 
 #endif /* _KERNEL_UTILS_MATH_H */

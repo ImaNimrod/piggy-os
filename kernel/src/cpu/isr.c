@@ -19,7 +19,7 @@ static const char* exception_messages[ISR_EXCEPTION_NUM] = {
     "Invalid TSS",
     "Segment not present",
     "Stack-Segment Fault",
-    "GPF",
+    "General Protection Fault",
     "Page Fault",
     "Reserved",
     "x87 Floating Point Exception",
@@ -63,21 +63,19 @@ void isr_uninstall_handler(uint8_t vector) {
 }
 
 void isr_handler(struct registers* r) {
-	if (r->cs & 0x3) {
+	if (r->cs & 3) {
 		swapgs();
     }
 
     uint8_t int_number = r->int_number & 0xff;
     if (isr_handlers[int_number] != NULL) {
         isr_handlers[int_number](r);
+    } else if (int_number < ISR_EXCEPTION_NUM) {
+        kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
         return;
     }
 
-    if (int_number < ISR_EXCEPTION_NUM) {
-        kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
-    }
-
-	if (r->cs & 0x3) {
+	if (r->cs & 3) {
 		swapgs();
     }
 } 

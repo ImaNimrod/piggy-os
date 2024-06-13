@@ -10,9 +10,9 @@
 #define MSR_LSTAR       0xc0000082
 #define MSR_CSTAR       0xc0000083
 #define MSR_SFMASK      0xc0000084
-#define MSR_FS_BASE     0xc0000101
-#define MSR_KERNEL_GS   0xc0000101
-#define MSR_USER_GS     0xc0000102
+#define MSR_FS_BASE     0xc0000100
+#define MSR_USER_GS     0xc0000101
+#define MSR_KERNEL_GS   0xc0000102
 
 static inline void cli(void) {
     __asm__ volatile("cli");

@@ -1,6 +1,6 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd -smp 2
+EMUOPTS=-M q35 -m 256M -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd -smp 2
 
 .PHONY: all
 all: $(IMAGE_NAME)
@@ -32,8 +32,14 @@ limine:
 run:
 	$(EMU) $(EMUOPTS) -cdrom $(IMAGE_NAME)
 
+.PHONY: run-kvm
 run-kvm:
 	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom $(IMAGE_NAME)
+
+.PHONY: todolist
+todolist:
+	@echo "List of todos and fixme in sources: "
+	-@grep -FHr -e TODO -e FIXME --exclude-dir=.git --exclude-dir=limine --exclude=Makefile
 
 .PHONY: clean
 clean:

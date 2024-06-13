@@ -10,14 +10,10 @@
 
 extern struct process* kernel_process;
 
-static inline void sched_resched_now(void) {
-    __asm__ volatile("cli; int $%P0" :: "p" (SCHED_VECTOR));
-}
-
 __attribute__((noreturn)) void sched_await(void);
-bool sched_enqueue_thread(struct thread* t);
-bool sched_dequeue_thread(struct thread* t);
-void sched_thread_sleep(struct thread* t, uint64_t ns);
+bool sched_thread_enqueue(struct thread* t);
+bool sched_thread_dequeue(struct thread* t);
+void sched_thread_destroy(struct thread* t);
 __attribute__((noreturn)) void sched_yield(void);
 void sched_init(void);
 

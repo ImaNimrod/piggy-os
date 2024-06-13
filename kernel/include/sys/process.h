@@ -19,8 +19,15 @@ struct thread;
 struct process {
     pid_t pid;
     char name[256];
+    uint8_t exit_code;
+
     struct pagemap* pagemap;
-    VECTOR_TYPE(struct thread*) threads;
+    uintptr_t thread_stack_top;
+
+    struct process* parent;
+    vector_t* children;
+    vector_t* threads;
+
     struct process* next;
 };
 
@@ -35,18 +42,18 @@ struct thread {
     spinlock_t lock;
 
     struct registers ctx;
-    void* fpu_storage;
     uintptr_t kernel_stack;
     uintptr_t page_fault_stack;
     uintptr_t stack;
     uint64_t fs_base;
-	uint64_t gs_base;
+    uint64_t gs_base;
 
     struct thread* next;
 };
 
 struct process* process_create(const char* name, struct pagemap* pagemap);
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
+struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp);
 void thread_destroy(struct thread* t);
 
 #endif /* _KERNEL_SYS_PROCESS_H */

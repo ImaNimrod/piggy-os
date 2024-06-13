@@ -1,5 +1,5 @@
 #include <dev/ioapic.h>
-#include <mem/heap.h>
+#include <mem/slab.h>
 #include <utils/list.h>
 #include <utils/log.h>
 

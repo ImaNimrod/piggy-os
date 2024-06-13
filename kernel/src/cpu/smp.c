@@ -6,8 +6,8 @@
 #include <cpu/smp.h>
 #include <dev/lapic.h>
 #include <limine.h>
-#include <mem/heap.h>
 #include <mem/pmm.h>
+#include <mem/slab.h>
 #include <mem/vmm.h>
 #include <sys/sched.h>
 #include <utils/log.h>
@@ -26,6 +26,8 @@ static volatile struct limine_smp_request smp_request = {
 static uint32_t bsp_lapic_id = 0;
 static size_t cpu_count = 0;
 static size_t initialized_cpus = 0;
+
+extern void syscall_entry(void);
 
 static void single_cpu_init(struct limine_smp_info* smp_info) {
     struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
@@ -67,7 +69,6 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     write_cr4(cr4);
 
-    // TODO: actually setup SYSCALL/SYSRET instructions
     uint64_t efer = rdmsr(MSR_EFER);
     efer |= (1 << 0);
 
@@ -83,6 +84,10 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     }
 
     wrmsr(MSR_EFER, efer);
+
+    wrmsr(MSR_STAR, 0x13000800000000);
+    wrmsr(MSR_LSTAR, (uint64_t) syscall_entry);
+    wrmsr(MSR_SFMASK, (uint32_t) 0x700);
 
     percpu->fpu_storage_size = 512;
     percpu->fpu_save = fxsave;
@@ -107,7 +112,7 @@ void smp_init(void) {
 
     klog("[smp] %lu processors detected\n", cpu_count);
 
-    struct percpu* percpus = kcalloc(cpu_count, sizeof(struct percpu));
+    struct percpu* percpus = kmalloc(sizeof(struct percpu) * cpu_count);
 
     for (size_t i = 0; i < cpu_count; i++) {
         struct limine_smp_info* cpu = smp_response->cpus[i];
