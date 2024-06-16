@@ -32,6 +32,10 @@ limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
 	$(MAKE) -C limine
 
+.PHONY: userspace
+userspace:
+	$(MAKE) -C userspace
+
 .PHONY: run
 run:
 	$(EMU) $(EMUOPTS) -cdrom $(IMAGE_NAME)
@@ -49,6 +53,7 @@ todolist:
 clean:
 	$(RM) -r $(IMAGE_NAME) $(RAMDISK_NAME) iso_root
 	$(MAKE) -C kernel clean
+	$(MAKE) -C userspace clean
 
 .PHONY: distclean
 distclean:

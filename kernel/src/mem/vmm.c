@@ -245,13 +245,13 @@ struct pagemap* vmm_new_pagemap(void) {
     uint32_t ecx = 0, unused;
     __get_cpuid(7, &unused, &unused, &ecx, &unused);
     if (ecx & (1 << 16)) {
-        kernel_pagemap.map_page = pml5_map_page;
-        kernel_pagemap.unmap_page = pml5_unmap_page;
-        kernel_pagemap.lowest_level = pml5_lowest_level;
+        pagemap->map_page = pml5_map_page;
+        pagemap->unmap_page = pml5_unmap_page;
+        pagemap->lowest_level = pml5_lowest_level;
     } else {
-        kernel_pagemap.map_page = pml4_map_page;
-        kernel_pagemap.unmap_page = pml4_unmap_page;
-        kernel_pagemap.lowest_level = pml4_lowest_level;
+        pagemap->map_page = pml4_map_page;
+        pagemap->unmap_page = pml4_unmap_page;
+        pagemap->lowest_level = pml4_lowest_level;
     }
 
     pagemap->top_level = (uint64_t*) (pmm_allocz(1) + HIGH_VMA);

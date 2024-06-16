@@ -62,17 +62,16 @@ interrupt_handler:
 global syscall_entry
 syscall_entry:
     swapgs
-	;mov qword [gs:0024], rsp
-	;mov rsp, qword [gs:0016]
+    mov qword [gs:0024], rsp
+    mov rsp, qword [gs:0016]
 
-	push 0x1b
-	push qword [gs:024]
-	push r11
-	push 0x23
-	push rcx
+    push 0x1b
+    push qword [gs:024]
+    push r11
+    push 0x23
+    push rcx
 
-    push qword 0
-    push qword 0
+    sub rsp, 16
 
     push rax
     push rbx
@@ -91,7 +90,7 @@ syscall_entry:
     push r15
 
     mov rdi, rsp
-	xor rbp, rbp
+    xor rbp, rbp
     extern syscall_handler
     call syscall_handler
 
@@ -118,5 +117,7 @@ syscall_entry:
     pop r11
     pop rsp
 
+    mov rsp, qword [gs:0024]
     swapgs
+
     o64 sysret

@@ -18,8 +18,7 @@ extern void syscall_exit_thread(struct registers* r);
 static void syscall_test(struct registers* r) {
     (void) r;
     klog("syscall test\n");
-    cli();
-    hlt();
+    r->rax = 69420;
 }
 
 static struct syscall_handle syscall_table[] = {

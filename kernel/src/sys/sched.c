@@ -81,6 +81,8 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     if (current) {
 		current->ctx = *r;
 
+        this_cpu()->fpu_save(current->fpu_storage);
+
         current->fs_base = rdmsr(MSR_FS_BASE);
         current->gs_base = rdmsr(MSR_KERNEL_GS);
 
@@ -111,6 +113,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     wrmsr(MSR_FS_BASE, next->fs_base);
     if (next->ctx.cs & 3) {
         wrmsr(MSR_KERNEL_GS, next->gs_base);
+        this_cpu()->fpu_restore(next->fpu_storage);
     }
 
     if (!current || current->process != next->process) {

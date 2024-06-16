@@ -48,6 +48,7 @@ struct thread {
     uintptr_t kernel_stack;
     uintptr_t page_fault_stack;
     uintptr_t stack;
+    void* fpu_storage;
     uint64_t fs_base;
     uint64_t gs_base;
 

@@ -14,10 +14,6 @@
 
 #define CPU_STACK_SIZE 0x8000
 
-size_t fpu_storage_size = 0;
-void (*fpu_save)(void*) = NULL;
-void (*fpu_restore)(void*) = NULL;
-
 static volatile struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
     .revision = 0
