@@ -257,8 +257,8 @@ struct pagemap* vmm_new_pagemap(void) {
     pagemap->top_level = (uint64_t*) (pmm_allocz(1) + HIGH_VMA);
     pagemap->lock = (spinlock_t) {0};
 
-	for (size_t i = 256; i < 512; i++) {
-		pagemap->top_level[i] = kernel_pagemap.top_level[i];
+    for (size_t i = 256; i < 512; i++) {
+        pagemap->top_level[i] = kernel_pagemap.top_level[i];
     }
 
     return pagemap;
@@ -285,12 +285,10 @@ void vmm_init(void) {
 
     kernel_pagemap.top_level = (uint64_t*) (pmm_allocz(1) + HIGH_VMA);
     kernel_pagemap.lock = (spinlock_t) {0};
-    
-    /*
+
     for (uint64_t i = 256; i < 512; i++) {
         kernel_pagemap.top_level[i] = pmm_allocz(1) | PTE_PRESENT | PTE_WRITABLE;
     }
-    */
 
     for (uintptr_t i = 0x1000; i < 0x100000000; i += PAGE_SIZE) {
         kernel_pagemap.map_page(&kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);

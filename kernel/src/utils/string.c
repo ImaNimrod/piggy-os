@@ -1,3 +1,4 @@
+#include <mem/slab.h>
 #include <utils/string.h>
 
 int memcmp(const void* ptr1, const void* ptr2, size_t n) {
@@ -74,4 +75,70 @@ void* memmove(void* dest, const void* src, size_t n) {
 void* memset(void* dest, int c, size_t n) {
     __asm__ volatile("cld; rep stosb" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
     return dest;
+}
+
+int strcmp(const char* str1, const char* str2) {
+    for (size_t i = 0; ; i++) {
+        char c1 = str1[i];
+        char c2 = str2[i];
+
+        if (c1 != c2) {
+            return c1 - c2;
+        }
+
+        if (c1 == '\0') {
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+int strncmp(const char* str1, const char* str2, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        char c1 = str1[i];
+        char c2 = str2[i];
+
+        if (c1 != c2) {
+            return c1 - c2;
+        }
+
+        if (c1 == '\0') {
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+char* strdup(const char* str) {
+    size_t len = strlen(str);
+    char* dup = kmalloc(len + 1);
+    if (!dup) {
+        return NULL;
+    }
+    memcpy(dup, str, len + 1);
+    return dup;
+}
+
+size_t strlen(const char* str) {
+    const char* s = str;
+    while (*s) {
+        s++;
+    }
+    return (size_t) s - (size_t) str;
+}
+
+char* basename(char* str) {
+    if (str == NULL || !*str) {
+        return ".";
+    }
+
+    size_t i = strlen(str) - 1;
+    for (; i && str[i] == '/'; i--) {
+        str[i] = '\0';
+    }
+
+    for (; i && str[i - 1] != '/'; i--);
+    return str + i;
 }

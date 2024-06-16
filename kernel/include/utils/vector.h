@@ -3,9 +3,8 @@
 
 #include <stddef.h>
 
-#define VECTOR_GROWTH_RATE 2 
 #define VECTOR_INITIAL_CAPACITY 4
-#define VECTOR_INVALID_INDEX (-1)
+#define VECTOR_RESIZE_FACTOR 2 
 
 typedef struct {
     size_t elem_size;
@@ -14,7 +13,7 @@ typedef struct {
     void** data;
 } vector_t;
 
-vector_t* vector_new(size_t elem_size);
+vector_t* vector_create(size_t elem_size);
 void vector_destroy(vector_t* v);
 void* vector_get(vector_t* v, size_t index);
 bool vector_set(vector_t* v, size_t index, void* value);

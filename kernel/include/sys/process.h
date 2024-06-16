@@ -2,6 +2,7 @@
 #define _KERNEL_SYS_PROCESS_H
 
 #include <cpu/isr.h>
+#include <fs/vfs.h>
 #include <mem/vmm.h>
 #include <stdint.h>
 #include <types.h>
@@ -23,6 +24,8 @@ struct process {
 
     struct pagemap* pagemap;
     uintptr_t thread_stack_top;
+
+    struct vfs_node* cwd;
 
     struct process* parent;
     vector_t* children;

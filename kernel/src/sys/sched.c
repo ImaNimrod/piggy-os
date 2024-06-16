@@ -154,12 +154,16 @@ __attribute__((noreturn)) void sched_await(void) {
 }
 
 bool sched_thread_enqueue(struct thread* t) {
+    spinlock_acquire(&thread_lock);
     bool ret = add_thread_to_list(&runnable_threads, t);
+    spinlock_release(&thread_lock);
     return ret;
 }
 
 bool sched_thread_dequeue(struct thread* t) {
+    spinlock_acquire(&thread_lock);
     bool ret = remove_thread_from_list(&runnable_threads, t);
+    spinlock_release(&thread_lock);
     return ret;
 }
 

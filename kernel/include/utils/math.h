@@ -6,7 +6,7 @@
 
 #define DIV_CEIL(VALUE, DIV) (((VALUE) + ((DIV) - 1)) / (DIV))
 
-#define ALIGN_UP(VALUE, ALIGN) (DIV_CEIL((VALUE), (ALIGN)) * ALIGN)
+#define ALIGN_UP(VALUE, ALIGN) (DIV_CEIL((VALUE), (ALIGN)) * (ALIGN))
 #define ALIGN_DOWN(VALUE, ALIGN) (((VALUE) / (ALIGN)) * (ALIGN))
 #define IS_ALIGNED(VALUE, ALIGN) (((VALUE) & ((ALIGN) - 1)) == 0)
 

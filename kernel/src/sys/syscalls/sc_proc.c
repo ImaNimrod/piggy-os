@@ -31,6 +31,7 @@ void syscall_thread_create(struct registers* r) {
 }
 
 void syscall_thread_exit(struct registers* r) {
+    (void) r;
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();
 }

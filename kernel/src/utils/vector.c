@@ -2,8 +2,12 @@
 #include <utils/string.h>
 #include <utils/vector.h>
 
-vector_t* vector_new(size_t elem_size) {
+vector_t* vector_create(size_t elem_size) {
     vector_t* v = kmalloc(sizeof(vector_t));
+    if (v == NULL) {
+        return NULL;
+    }
+
     v->elem_size = elem_size;
     v->size = 0;
     v->capacity = VECTOR_INITIAL_CAPACITY;
@@ -12,12 +16,14 @@ vector_t* vector_new(size_t elem_size) {
 }
 
 void vector_destroy(vector_t* v) {
-    if (v != NULL) {
-        if (v->data != NULL) {
-            kfree(v->data);
-        }
-        kfree(v);
+    if (!v) {
+        return;
     }
+
+    if (v->data != NULL) {
+        kfree(v->data);
+    }
+    kfree(v);
 }
 
 void* vector_get(vector_t* v, size_t index) {
@@ -73,7 +79,7 @@ bool vector_push_back(vector_t* v, void* value) {
     }
 
     if (v->size == v->capacity) {
-        v->capacity *= VECTOR_GROWTH_RATE;
+        v->capacity *= VECTOR_RESIZE_FACTOR;
         v->data = krealloc(v->data, v->capacity * v->elem_size);
     }
 

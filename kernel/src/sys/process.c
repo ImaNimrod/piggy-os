@@ -14,14 +14,18 @@ static tid_t next_tid = 0;
 struct process* process_create(const char* name, struct pagemap* pagemap) {
     struct process* p = kmalloc(sizeof(struct process));
 
-    p->pid = next_pid++;
+    p->pid = next_pid;
+    __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
+
     memcpy(p->name, name, sizeof(p->name) - 1);
 
     p->pagemap = pagemap;
     p->thread_stack_top = 0x70000000000;
 
-    p->children = vector_new(sizeof(struct process*));
-    p->threads = vector_new(sizeof(struct thread*));
+    p->cwd = vfs_get_root();
+
+    p->children = vector_create(sizeof(struct process*));
+    p->threads = vector_create(sizeof(struct thread*));
 
     return p;
 }
@@ -29,7 +33,9 @@ struct process* process_create(const char* name, struct pagemap* pagemap) {
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     struct thread* t = kmalloc(sizeof(struct thread));
 
-    t->tid = next_tid++;
+    t->tid = next_tid;
+    __atomic_add_fetch(&next_tid, 1, __ATOMIC_SEQ_CST);
+
     t->state = THREAD_READY_TO_RUN;
     t->process = kernel_process;
     t->sleep_until = 0;
@@ -63,7 +69,9 @@ struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg,
 
     struct thread* t = kmalloc(sizeof(struct thread));
 
-    t->tid = next_tid++;
+    t->tid = next_tid;
+    __atomic_add_fetch(&next_tid, 1, __ATOMIC_SEQ_CST);
+
     t->state = THREAD_READY_TO_RUN;
     t->process = p;
     t->sleep_until = 0;
