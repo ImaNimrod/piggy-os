@@ -32,6 +32,13 @@ struct process* process_create(const char* name, struct pagemap* pagemap) {
     return p;
 }
 
+void process_destroy(struct process* p) {
+    // TODO: properly destroy vmm pagemaps 
+    vector_destroy(p->children);
+    vector_destroy(p->threads);
+    kfree(p);
+}
+
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     struct thread* t = kmalloc(sizeof(struct thread));
 
@@ -121,11 +128,13 @@ struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg,
     t->ctx.rip = entry;
     t->ctx.rdi = (uint64_t) arg;
 
-    t->fpu_storage = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE)) + HIGH_VMA);
+    t->fpu_storage = (void*) (pmm_allocz(DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE)) + HIGH_VMA);
 
     this_cpu()->fpu_restore(t->fpu_storage);
     uint16_t default_fcw = 0x33f;
-    __asm__ volatile("fldcw %0" :: "m" (default_fcw) : "memory");
+    __asm__ volatile ("fldcw %0" :: "m" (default_fcw) : "memory");
+    uint32_t default_mxcsr = 0x1f80;
+    __asm__ volatile ("ldmxcsr %0" :: "m" (default_mxcsr) : "memory");
     this_cpu()->fpu_save(t->fpu_storage);
 
     t->fs_base = 0;

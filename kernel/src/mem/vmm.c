@@ -6,9 +6,14 @@
 #include <utils/log.h>
 #include <utils/math.h>
 
+#define MASKED_PTE_FLAGS    ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
+#define PAGE_FAULT          14
+
 extern uint8_t text_start_addr[], text_end_addr[];
 extern uint8_t rodata_start_addr[], rodata_end_addr[];
 extern uint8_t data_start_addr[], data_end_addr[];
+
+struct pagemap kernel_pagemap;
 
 volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST,
@@ -19,11 +24,6 @@ static volatile struct limine_kernel_address_request kaddr_request = {
     .id = LIMINE_KERNEL_ADDRESS_REQUEST,
     .revision = 0
 };
-
-#define MASKED_PTE_FLAGS    ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
-#define PAGE_FAULT          14
-
-static struct pagemap kernel_pagemap;
 
 static bool pml4_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
     spinlock_acquire(&pagemap->lock);
@@ -233,10 +233,6 @@ static void page_fault_handler(struct registers* r) {
     klog("rip: 0x%x%x\n", (r->rip >> 32), (uint32_t) r->rip);
     klog("rsp: 0x%x%x\n", (r->rsp >> 32), (uint32_t) r->rsp);
     kpanic(r, "PAGE FAULT");
-}
-
-struct pagemap* vmm_get_kernel_pagemap(void) {
-    return &kernel_pagemap;
 }
 
 struct pagemap* vmm_new_pagemap(void) {

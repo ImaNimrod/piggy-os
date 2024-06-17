@@ -20,6 +20,7 @@
 #define PTE_NX          (1ull << 63ull)
 
 extern volatile struct limine_hhdm_request hhdm_request;
+extern struct pagemap kernel_pagemap;
 
 struct pagemap {
     uint64_t* top_level;
@@ -29,7 +30,6 @@ struct pagemap {
     spinlock_t lock;
 };
 
-struct pagemap* vmm_get_kernel_pagemap(void);
 struct pagemap* vmm_new_pagemap(void);
 void vmm_switch_pagemap(struct pagemap* pagemap);
 void vmm_init(void);

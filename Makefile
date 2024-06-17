@@ -5,7 +5,7 @@ EMUOPTS=-M q35 -m 1G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd 
 .PHONY: all
 all: $(IMAGE_NAME)
 
-$(IMAGE_NAME): limine kernel initrd
+$(IMAGE_NAME): limine kernel initrd userspace
 	rm -rf iso_root
 	mkdir -p iso_root
 	cp -v kernel/bin/$(KERNEL_NAME) $(RAMDISK_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/

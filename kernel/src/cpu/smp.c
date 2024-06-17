@@ -33,7 +33,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     gdt_load_tss(&percpu->tss);
 
-    vmm_switch_pagemap(vmm_get_kernel_pagemap());
+    vmm_switch_pagemap(&kernel_pagemap);
 
     wrmsr(MSR_KERNEL_GS, (uint64_t) percpu);
     wrmsr(MSR_USER_GS, (uint64_t) percpu);
@@ -47,8 +47,8 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     /* enable SSE/SSE2 instructions */
     uint64_t cr0 = read_cr0();
-    cr0 |= (1 << 1);
     cr0 &= ~(1 << 2);
+    cr0 |= (1 << 1);
     write_cr0(cr0);
 
     uint64_t cr4 = read_cr4();
@@ -65,20 +65,9 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     write_cr4(cr4);
 
+    /* enable SYSCALL/SYSRET instructions */
     uint64_t efer = rdmsr(MSR_EFER);
     efer |= (1 << 0);
-
-    /* enable hardware FXSR instructions if supported */
-    if ((edx & (1 << 24)) && !(ecx & (1 << 31))) {
-        efer |= (1 << 14);
-    }
-
-    /* enable NX paging bit if supported */
-    __get_cpuid(0x80000007, &unused, &unused, &unused, &edx);
-    if (edx & (1 << 20)) {
-        efer |= (1 << 14);
-    }
-
     wrmsr(MSR_EFER, efer);
 
     wrmsr(MSR_STAR, 0x13000800000000);

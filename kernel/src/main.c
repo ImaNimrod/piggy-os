@@ -22,7 +22,6 @@ static void kernel_main(void) {
 
     initramfs_init();
 
-    /*
     struct vfs_node* init_node = vfs_get_node(vfs_get_root(), "/bin/init");
     struct pagemap* init_pagemap = vmm_new_pagemap();
 
@@ -34,7 +33,6 @@ static void kernel_main(void) {
 
     struct process* init_process = process_create("init", init_pagemap);
     sched_thread_enqueue(thread_create_user(init_process, entry, NULL, argv, envp));
-    */
 
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();

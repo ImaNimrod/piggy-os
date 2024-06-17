@@ -1,17 +1,28 @@
 bits 64
 
+extern main
+
 section .text
 
-global _start
 global syscall0
+global syscall1
+global _start
 
 syscall0:
     mov rax, rdi
     syscall
     ret
 
+syscall1:
+    mov rax, rdi
+    mov rdi, rsi
+    syscall
+    ret
+
 _start:
-    extern main
     call main
-.loop:
-    jmp .loop
+
+    mov rax, 2
+    syscall
+
+    jmp $

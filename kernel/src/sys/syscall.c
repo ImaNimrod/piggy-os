@@ -13,7 +13,8 @@ extern void syscall_exit(struct registers* r);
 extern void syscall_yield(struct registers* r);
 extern void syscall_getpid(struct registers* r);
 extern void syscall_gettid(struct registers* r);
-extern void syscall_exit_thread(struct registers* r);
+extern void syscall_thread_create(struct registers* r);
+extern void syscall_thread_exit(struct registers* r);
 
 static void syscall_test(struct registers* r) {
     (void) r;
@@ -28,6 +29,8 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_yield, .name = "yield" },
     { .handler = syscall_getpid, .name = "getpid" },
     { .handler = syscall_gettid, .name = "gettid" },
+    { .handler = syscall_thread_create, .name = "thread_create" },
+    { .handler = syscall_thread_exit, .name = "thread_exit" },
 };
 
 void syscall_handler(struct registers* r) {
@@ -43,7 +46,7 @@ void syscall_handler(struct registers* r) {
         kpanic(r, "null syscall %s\n", syscall.name);
     } else {
         klog("[syscall] running syscall %s (pid %d, tid %d)\n",
-                syscall.name, this_cpu()->running_thread->tid, this_cpu()->running_thread->process->pid);
+                syscall.name, this_cpu()->running_thread->process->pid, this_cpu()->running_thread->tid);
         syscall.handler(r);
     }
 }

@@ -56,6 +56,7 @@ struct thread {
 };
 
 struct process* process_create(const char* name, struct pagemap* pagemap);
+void process_destroy(struct process* p);
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp);
 void thread_destroy(struct thread* t);

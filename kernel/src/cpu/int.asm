@@ -1,4 +1,5 @@
 extern isr_handler
+extern syscall_handler
 
 %macro interrupt_stub 1
     %%start:
@@ -91,7 +92,6 @@ syscall_entry:
 
     mov rdi, rsp
     xor rbp, rbp
-    extern syscall_handler
     call syscall_handler
 
     pop r15

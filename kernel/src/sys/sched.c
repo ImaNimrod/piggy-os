@@ -13,7 +13,6 @@ struct process* kernel_process;
 
 static struct thread* runnable_threads = NULL;
 
-static spinlock_t process_lock = {0};
 static spinlock_t thread_lock = {0};
 
 static bool add_thread_to_list(struct thread** list, struct thread* t) {
@@ -81,7 +80,9 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     if (current) {
 		current->ctx = *r;
 
-        this_cpu()->fpu_save(current->fpu_storage);
+        if (current->ctx.cs & 3) {
+            this_cpu()->fpu_save(current->fpu_storage);
+        }
 
         current->fs_base = rdmsr(MSR_FS_BASE);
         current->gs_base = rdmsr(MSR_KERNEL_GS);
@@ -95,7 +96,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 
     if (!next) {
         this_cpu()->running_thread = NULL;
-        vmm_switch_pagemap(vmm_get_kernel_pagemap());
+        vmm_switch_pagemap(&kernel_pagemap);
         lapic_eoi();
         sched_await();
     }
@@ -112,8 +113,8 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 
     wrmsr(MSR_FS_BASE, next->fs_base);
     if (next->ctx.cs & 3) {
-        wrmsr(MSR_KERNEL_GS, next->gs_base);
         this_cpu()->fpu_restore(next->fpu_storage);
+        wrmsr(MSR_KERNEL_GS, next->gs_base);
     }
 
     if (!current || current->process != next->process) {
@@ -191,7 +192,7 @@ __attribute__((noreturn)) void sched_yield(void) {
 
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, false, schedule);
-    kernel_process = process_create("kernel_process", vmm_get_kernel_pagemap());
+    kernel_process = process_create("kernel_process", &kernel_pagemap);
 
     klog("[sched] intialized scheduler and created kernel process\n");
 }
