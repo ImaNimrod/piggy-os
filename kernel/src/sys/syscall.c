@@ -16,14 +16,14 @@ extern void syscall_gettid(struct registers* r);
 extern void syscall_thread_create(struct registers* r);
 extern void syscall_thread_exit(struct registers* r);
 
-static void syscall_test(struct registers* r) {
-    (void) r;
-    klog("syscall test\n");
-    r->rax = 69420;
+static void syscall_debug(struct registers* r) {
+    const char* msg = (const char*) r->rdi;
+    klog("%s", msg);
+    r->rax = 0;
 }
 
 static struct syscall_handle syscall_table[] = {
-    { .handler = syscall_test, .name = "test" },
+    { .handler = syscall_debug, .name = "debug" },
     { .handler = syscall_fork, .name = "fork" },
     { .handler = syscall_exit, .name = "exit" },
     { .handler = syscall_yield, .name = "yield" },

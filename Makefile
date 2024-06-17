@@ -5,7 +5,7 @@ EMUOPTS=-M q35 -m 1G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd 
 .PHONY: all
 all: $(IMAGE_NAME)
 
-$(IMAGE_NAME): limine kernel initrd userspace
+$(IMAGE_NAME): limine kernel userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root
 	cp -v kernel/bin/$(KERNEL_NAME) $(RAMDISK_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
@@ -20,10 +20,6 @@ $(IMAGE_NAME): limine kernel initrd userspace
 	./limine/limine bios-install $@
 	rm -rf iso_root
 
-.PHONY: initrd
-initrd:
-	@cd initrd; tar -cf ../$(RAMDISK_NAME) *
-
 .PHONY: kernel
 kernel:
 	$(MAKE) -C kernel
@@ -31,6 +27,10 @@ kernel:
 limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
 	$(MAKE) -C limine
+
+.PHONY: initrd
+initrd:
+	cd initrd; tar -cvf ../$(RAMDISK_NAME) *
 
 .PHONY: userspace
 userspace:

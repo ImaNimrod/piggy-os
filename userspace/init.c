@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#define SYS_TEST            0
+#define SYS_DEBUG           0
 #define SYS_FORK            1
 #define SYS_EXIT            2
 #define SYS_YIELD           3
@@ -13,7 +13,8 @@ extern uint64_t syscall0(uint64_t syscall_number);
 extern uint64_t syscall1(uint64_t syscall_number, uint64_t arg1);
 
 static void entry(void) {
-    syscall0(SYS_TEST);
+    const char* message = "hello, world!\n";
+    syscall1(SYS_DEBUG, (uint64_t) message);
 
     for (;;) {
         __asm__ volatile("pause");
@@ -21,7 +22,9 @@ static void entry(void) {
 }
 
 int main(void) {
-    syscall1(SYS_THREAD_CREATE, (uint64_t) entry);
+    for (int i = 0; i < 5; i++) {
+        syscall1(SYS_THREAD_CREATE, (uint64_t) entry);
+    }
 
     for (;;) {
         __asm__ volatile("pause");
