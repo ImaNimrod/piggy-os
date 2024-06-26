@@ -7,3 +7,44 @@ syscalls are correctly implemented:
 
 All functionality regarding the VFS and filesystem drivers will be taken care of later.
 The same can be said for a grand unified timer abstraction/API and a network stack.
+
+===================================================================================================
+
+Revised TODO list (6/26/24)
+
+The new goal is to have a good chunk of the standard UNIX syscalls for process/thread
+management and file system operations present. These should be implemented correctly and have
+full input validation for security.
+
+List of syscalls:
+    - exit
+    - fork
+    - exec
+    - yield                 (DONE 6/26/24)
+    - getpid                (DONE 6/26/24)
+    - gettid                (DONE 6/26/24)
+    - thread_create         (DONE 6/26/24)
+    - thread_exit           (DONE 6/26/24)
+    - sleep
+    - open
+    - close
+    - read
+    - write
+    - ioctl
+    - seek
+    - chdir                 (DONE 6/26/24)
+    - getcwd                (DONE 6/26/24)
+
+Other things that need to happen:
+    - syscall pointer argument validation (is the memory userspace, not NULL, etc.)
+    - create a basic devfs (in memory filesystem like tmpfs)
+    - create framebuffer device (/dev/fb0) that has working read, write, and ioctl
+    - create streams (/dev/null, /dev/zero)
+    - create a function for destroying vmm pagemaps
+    - implement errno system (errno is the absolute value of a negative syscall return value)
+    - write userspace programs that try to break things and fix the small things from there
+
+End goal:
+    - boot the OS on real hardware; the kernel will initialize everything and launch
+        the init process from an ELF file (/bin/init) contained on the initrd; the init process
+        will write a cool pattern to the framebuffer (/dev/fb0) in an infinite loop.

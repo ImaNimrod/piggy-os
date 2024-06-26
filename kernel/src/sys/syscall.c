@@ -3,6 +3,8 @@
 #include <utils/log.h>
 #include <utils/math.h>
 
+// TODO: validation for pointer arguments in ALL syscalls
+
 struct syscall_handle {
     void (*handler)(struct registers* r);
     const char* name;
