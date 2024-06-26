@@ -32,6 +32,7 @@ static void kernel_main(void) {
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create("init", init_pagemap);
+    vfs_get_pathname(vfs_get_root(), init_process->name, sizeof(init_process->name) - 1);
     sched_thread_enqueue(thread_create_user(init_process, entry, NULL, argv, envp));
 
     sched_thread_destroy(this_cpu()->running_thread);

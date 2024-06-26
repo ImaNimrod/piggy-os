@@ -8,6 +8,8 @@
 #include <utils/hashmap.h>
 #include <utils/spinlock.h>
 
+#define PATH_MAX 4096
+
 #define VFS_NODE_REGULAR    0
 #define VFS_NODE_DIRECTORY  1
 
@@ -20,6 +22,7 @@ struct vfs_node {
     char* name;
     int type;
     ssize_t size;
+    size_t refcount;
     struct vfs_node* parent;
     struct vfs_node* mountpoint;
     struct vfs_node* link;
@@ -34,9 +37,18 @@ struct vfs_node {
     bool (*truncate)(struct vfs_node*, off_t);
 };
 
+struct file_descriptor {
+    struct vfs_node* node;
+    off_t offset;
+    size_t refcount;
+    spinlock_t lock;
+};
+
 struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
+struct vfs_node* vfs_reduce_node(struct vfs_node* node);
 void vfs_destroy_node(struct vfs_node* node);
 struct vfs_node* vfs_get_node(struct vfs_node* parent, const char* path);
+size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len);
 struct vfs_node* vfs_get_root(void);
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name);
 struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, int type);

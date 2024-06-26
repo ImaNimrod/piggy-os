@@ -2,7 +2,6 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <types.h>
-#include <utils/log.h>
 #include <utils/string.h>
 
 struct tmpfs_metadata {

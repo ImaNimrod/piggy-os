@@ -1,6 +1,7 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
 #include <mem/vmm.h>
+#include <sys/elf.h>
 #include <sys/sched.h>
 #include <types.h>
 #include <utils/log.h>
@@ -11,11 +12,9 @@ void syscall_fork(struct registers* r) {
 }
 
 void syscall_exit(struct registers* r) {
-    (void) r;
+    uint8_t status = r->rdi;
 
     struct process* p = this_cpu()->running_thread->process;
-
-    // TODO: use exit code argument in some way
 
     if (p->pid < 2) {
         kpanic(NULL, "tried to exit init process");
@@ -45,7 +44,53 @@ void syscall_exit(struct registers* r) {
     }
     */
 
+    p->exit_code = status;
+
     process_destroy(p);
+    sched_yield();
+}
+
+// TODO: shebang support
+void syscall_exec(struct registers* r) {
+    const char* path = (char*) r->rdi;
+    const char** argv = (const char**) r->rsi;
+    const char** envp = (const char**) r->rdx;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    struct pagemap* new_pagemap = vmm_new_pagemap();
+    struct vfs_node* node = vfs_get_node(current_process->cwd, path);
+    uintptr_t entry;
+
+    if (node == NULL || !elf_load(node, new_pagemap, 0, &entry)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    // TODO: destroy old pagemap and kill old threads
+
+    current_process->pagemap = new_pagemap;
+    current_process->thread_stack_top = 0x70000000000;
+
+    for (size_t i = 0; i < current_process->threads->size; i++) {
+        sched_thread_destroy(current_process->threads->data[i]);
+    }
+
+    vector_destroy(current_process->threads);
+    current_process->threads = vector_create(sizeof(struct thread*));
+
+    vfs_get_pathname(node, current_process->name, sizeof(current_process->name) - 1);
+
+    struct thread* new_thread = thread_create_user(current_process, entry, NULL, argv, envp);
+    if (new_thread == NULL) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    vmm_switch_pagemap(&kernel_pagemap);
+
+    sched_thread_enqueue(new_thread);
     sched_yield();
 }
 

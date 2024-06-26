@@ -6,6 +6,8 @@ section .text
 
 global syscall0
 global syscall1
+global syscall2
+global syscall3
 global _start
 
 syscall0:
@@ -19,10 +21,26 @@ syscall1:
     syscall
     ret
 
+syscall2:
+    mov rax, rdi
+    mov rdi, rsi
+    mov rsi, rdx
+    syscall
+    ret
+
+syscall3:
+    mov rax, rdi
+    mov rdi, rsi
+    mov rsi, rdx
+    mov rdx, rcx
+    syscall
+    ret
+
 _start:
     call main
 
-    mov rax, 2
+    mov rdi, rax
+    mov rax, 1
     syscall
 
     jmp $

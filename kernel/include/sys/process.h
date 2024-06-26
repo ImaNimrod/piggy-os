@@ -9,6 +9,8 @@
 #include <utils/string.h>
 #include <utils/vector.h>
 
+#define MAX_FDS 16
+
 enum thread_state {
     THREAD_NORMAL = 0,
     THREAD_READY_TO_RUN,
@@ -26,6 +28,8 @@ struct process {
     uintptr_t thread_stack_top;
 
     struct vfs_node* cwd;
+    spinlock_t fd_lock;
+    struct file_descriptor* file_descriptors[MAX_FDS];
 
     struct process* parent;
     vector_t* children;

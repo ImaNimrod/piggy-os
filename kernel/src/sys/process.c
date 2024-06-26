@@ -11,7 +11,6 @@
 #define STACK_SIZE 0x40000
 
 static pid_t next_pid = 0;
-static tid_t next_tid = 0;
 
 struct process* process_create(const char* name, struct pagemap* pagemap) {
     struct process* p = kmalloc(sizeof(struct process));
@@ -42,9 +41,6 @@ void process_destroy(struct process* p) {
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     struct thread* t = kmalloc(sizeof(struct thread));
 
-    t->tid = next_tid;
-    __atomic_add_fetch(&next_tid, 1, __ATOMIC_SEQ_CST);
-
     t->state = THREAD_READY_TO_RUN;
     t->process = kernel_process;
     t->sleep_until = 0;
@@ -74,6 +70,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     t->fs_base = rdmsr(MSR_FS_BASE);
     t->gs_base = rdmsr(MSR_KERNEL_GS);
 
+    t->tid = kernel_process->threads->size;
     vector_push_back(kernel_process->threads, t);
 
     return t;
@@ -84,9 +81,6 @@ struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg,
     (void) envp;
 
     struct thread* t = kmalloc(sizeof(struct thread));
-
-    t->tid = next_tid;
-    __atomic_add_fetch(&next_tid, 1, __ATOMIC_SEQ_CST);
 
     t->state = THREAD_READY_TO_RUN;
     t->process = p;
@@ -184,6 +178,7 @@ struct thread* thread_create_user(struct process* p, uintptr_t entry, void* arg,
         t->ctx.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
     }
 
+    t->tid = p->threads->size;
     vector_push_back(p->threads, t);
 
     return t;

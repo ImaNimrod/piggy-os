@@ -54,18 +54,6 @@ static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {
     hashmap_set(node->children, "..", 2, dotdot);
 }
 
-static struct vfs_node* reduce_node(struct vfs_node* node) {
-    if (node->link) {
-        return reduce_node(node->link);
-    }
-
-    if (node->mountpoint) {
-        return reduce_node(node->mountpoint);
-    }
-
-    return node;
-}
-
 static struct path2node_res path2node(struct vfs_node* parent, const char* path) {
     if (!path || strlen(path) == 0) {
         return (struct path2node_res) {0};
@@ -75,10 +63,10 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
     bool ask_for_dir = path[path_len - 1] == '/';
 
     size_t index = 0;
-    struct vfs_node* current_node = reduce_node(parent);
+    struct vfs_node* current_node = vfs_reduce_node(parent);
 
     if (path[index] == '/') {
-        current_node = reduce_node(vfs_root);
+        current_node = vfs_reduce_node(vfs_root);
         while (path[index] == '/') {
             if (index == path_len - 1) {
                 return (struct path2node_res) { current_node, current_node };
@@ -105,7 +93,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
         char* elem_str = kmalloc(elem_len + 1);
         memcpy(elem_str, elem, elem_len);
 
-        current_node = reduce_node(current_node);
+        current_node = vfs_reduce_node(current_node);
 
         struct vfs_node* new_node = hashmap_get(current_node->children, elem_str, strlen(elem_str));
         if (!new_node) {
@@ -115,9 +103,9 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
             return (struct path2node_res) {0};
         }
 
-        new_node = reduce_node(new_node);
+        new_node = vfs_reduce_node(new_node);
         if (last) {
-            if (ask_for_dir && !(new_node->type == VFS_NODE_DIRECTORY)) {
+            if (ask_for_dir && new_node->type != VFS_NODE_DIRECTORY) {
                 return (struct path2node_res) { current_node, NULL };
             }
             return (struct path2node_res) { current_node, new_node };
@@ -125,7 +113,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
 
         current_node = new_node;
 
-        if (!(current_node->type == VFS_NODE_DIRECTORY)) {
+        if (current_node->type != VFS_NODE_DIRECTORY) {
             return (struct path2node_res) {0};
         }
     }
@@ -156,6 +144,18 @@ struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* par
     return node;
 }
 
+struct vfs_node* vfs_reduce_node(struct vfs_node* node) {
+    if (node->link) {
+        return vfs_reduce_node(node->link);
+    }
+
+    if (node->mountpoint) {
+        return vfs_reduce_node(node->mountpoint);
+    }
+
+    return node;
+}
+
 void vfs_destroy_node(struct vfs_node* node) {
     kfree(node->name);
 
@@ -177,6 +177,33 @@ struct vfs_node* vfs_get_node(struct vfs_node* parent, const char* path) {
 
     spinlock_release(&vfs_lock);
     return r.node;
+}
+
+size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len) {
+    if (node == vfs_root) {
+        char* pathname = vfs_reduce_node(node)->name;
+        size_t path_len = strlen(pathname);
+        strncpy(buffer, pathname, len);
+        return path_len;
+    }
+
+    size_t offset = 0;
+
+    if (node->parent != vfs_root && node->parent != NULL) {
+        struct vfs_node* parent = vfs_reduce_node(node->parent);
+
+        if (parent != vfs_root && parent != NULL) {
+            offset += vfs_get_pathname(parent, buffer, len - offset - 1);
+            buffer[offset++] = '/';
+        }
+    }
+
+    if (strcmp(node->name, "/") != 0) {
+        strncpy(buffer + offset, node->name, len - offset);
+        return strlen(node->name) + offset;
+    }
+
+    return offset;
 }
 
 struct vfs_node* vfs_get_root(void) {
@@ -274,14 +301,14 @@ struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, int type)
 
 bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs) {
     spinlock_acquire(&vfs_lock);
-	bool ret = hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), fs);
+    bool ret = hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), fs);
     spinlock_release(&vfs_lock);
     return ret;
 }
 
 bool vfs_unregister_filesystem(const char* fs_name) {
     spinlock_acquire(&vfs_lock);
-	bool ret = hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
+    bool ret = hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
     spinlock_release(&vfs_lock);
     return ret;
 }

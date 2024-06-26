@@ -8,13 +8,22 @@ struct syscall_handle {
     const char* name;
 };
 
-extern void syscall_fork(struct registers* r);
 extern void syscall_exit(struct registers* r);
+extern void syscall_fork(struct registers* r);
+extern void syscall_exec(struct registers* r);
 extern void syscall_yield(struct registers* r);
 extern void syscall_getpid(struct registers* r);
 extern void syscall_gettid(struct registers* r);
 extern void syscall_thread_create(struct registers* r);
 extern void syscall_thread_exit(struct registers* r);
+extern void syscall_open(struct registers* r);
+extern void syscall_close(struct registers* r);
+extern void syscall_read(struct registers* r);
+extern void syscall_write(struct registers* r);
+extern void syscall_ioctl(struct registers* r);
+extern void syscall_seek(struct registers* r);
+extern void syscall_chdir(struct registers* r);
+extern void syscall_getcwd(struct registers* r);
 
 static void syscall_debug(struct registers* r) {
     const char* msg = (const char*) r->rdi;
@@ -24,13 +33,22 @@ static void syscall_debug(struct registers* r) {
 
 static struct syscall_handle syscall_table[] = {
     { .handler = syscall_debug, .name = "debug" },
-    { .handler = syscall_fork, .name = "fork" },
     { .handler = syscall_exit, .name = "exit" },
+    { .handler = syscall_fork, .name = "fork" },
+    { .handler = syscall_exec, .name = "exec" },
     { .handler = syscall_yield, .name = "yield" },
     { .handler = syscall_getpid, .name = "getpid" },
     { .handler = syscall_gettid, .name = "gettid" },
     { .handler = syscall_thread_create, .name = "thread_create" },
     { .handler = syscall_thread_exit, .name = "thread_exit" },
+    { .handler = syscall_open, .name = "open" },
+    { .handler = syscall_close, .name = "close" },
+    { .handler = syscall_read, .name = "read" },
+    { .handler = syscall_write, .name = "write" },
+    { .handler = syscall_ioctl, .name = "ioctl" },
+    { .handler = syscall_seek, .name = "seek" },
+    { .handler = syscall_chdir, .name = "chdir" },
+    { .handler = syscall_getcwd, .name = "getcwd" },
 };
 
 void syscall_handler(struct registers* r) {
