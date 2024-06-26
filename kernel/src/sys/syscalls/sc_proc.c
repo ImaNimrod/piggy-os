@@ -1,22 +1,20 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <mem/slab.h>
 #include <mem/vmm.h>
 #include <sys/elf.h>
 #include <sys/sched.h>
 #include <types.h>
 #include <utils/log.h>
 
-// TODO: implement fork
-void syscall_fork(struct registers* r) {
-    r->rax = (uint64_t) -1;
-}
+// TODO: refactor file descriptor management code into its own file/api
 
 void syscall_exit(struct registers* r) {
     uint8_t status = r->rdi;
 
-    struct process* p = this_cpu()->running_thread->process;
+    struct process* current_process = this_cpu()->running_thread->process;
 
-    if (p->pid < 2) {
+    if (current_process->pid < 2) {
         kpanic(NULL, "tried to exit init process");
     }
 
@@ -25,29 +23,44 @@ void syscall_exit(struct registers* r) {
 
     cli();
 
-    for (size_t i = 0; i < p->threads->size; i++) {
-        sched_thread_destroy(p->threads->data[i]);
+    spinlock_acquire(&current_process->fd_lock);
+
+    struct file_descriptor* fd;
+    for (size_t i = 0; i < MAX_FDS; i++) {
+        fd = current_process->file_descriptors[i];
+
+        if (fd != NULL) {
+            fd->node->refcount--;
+
+            if (fd->refcount-- == 1) {
+                kfree(fd);
+            }
+
+            current_process->file_descriptors[i] = NULL;
+        }
     }
 
-	if (p->parent) {
-		vector_remove_by_value(p->parent->children, p);
-	}
+    spinlock_release(&current_process->fd_lock);
+
+    for (size_t i = 0; i < current_process->threads->size; i++) {
+        sched_thread_destroy(current_process->threads->data[i]);
+    }
+
+    if (current_process->parent) {
+        vector_remove_by_value(current_process->parent->children, current_process);
+    }
 
     // TODO: reparent process children to init process
-    /*
-    struct process* init = process_list->next;
 
-    for (size_t i = 0; i < p->children->size; i++) {
-        struct process* child = p->children->data[i];
-        child->parent = init;
-        vector_push(init->children, child);
-    }
-    */
+    current_process->exit_code = status;
 
-    p->exit_code = status;
-
-    process_destroy(p);
+    process_destroy(current_process);
     sched_yield();
+}
+
+// TODO: implement fork
+void syscall_fork(struct registers* r) {
+    r->rax = (uint64_t) -1;
 }
 
 // TODO: shebang support
@@ -72,6 +85,25 @@ void syscall_exec(struct registers* r) {
 
     current_process->pagemap = new_pagemap;
     current_process->thread_stack_top = 0x70000000000;
+
+    spinlock_acquire(&current_process->fd_lock);
+
+    struct file_descriptor* fd;
+    for (size_t i = 0; i < MAX_FDS; i++) {
+        fd = current_process->file_descriptors[i];
+
+        if (fd != NULL && fd->flags & O_CLOEXEC) {
+            fd->node->refcount--;
+
+            if (fd->refcount-- == 1) {
+                kfree(fd);
+            }
+
+            current_process->file_descriptors[i] = NULL;
+        }
+    }
+
+    spinlock_release(&current_process->fd_lock);
 
     for (size_t i = 0; i < current_process->threads->size; i++) {
         sched_thread_destroy(current_process->threads->data[i]);

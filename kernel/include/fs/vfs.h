@@ -39,6 +39,7 @@ struct vfs_node {
 
 struct file_descriptor {
     struct vfs_node* node;
+    int flags;
     off_t offset;
     size_t refcount;
     spinlock_t lock;

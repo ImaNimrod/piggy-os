@@ -28,10 +28,10 @@ List of syscalls:
     - sleep
     - open
     - close
-    - read
-    - write
-    - ioctl
-    - seek
+    - read                  (DONE 6/26/24)
+    - write                 (DONE 6/26/24)
+    - ioctl                 (DONE 6/26/24)
+    - seek                  (DONE 6/26/24)
     - chdir                 (DONE 6/26/24)
     - getcwd                (DONE 6/26/24)
 
@@ -43,6 +43,7 @@ Other things that need to happen:
     - create a function for destroying vmm pagemaps
     - implement errno system (errno is the absolute value of a negative syscall return value)
     - write userspace programs that try to break things and fix the small things from there
+    - refactor file descriptor creation/deletion/management into its own file/api
 
 End goal:
     - boot the OS on real hardware; the kernel will initialize everything and launch

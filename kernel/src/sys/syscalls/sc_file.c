@@ -4,7 +4,6 @@
 #include <mem/slab.h>
 #include <stdbool.h>
 #include <types.h>
-#include <utils/log.h>
 
 // TODO: implement errno system
 
@@ -57,18 +56,18 @@ static struct file_descriptor* fd_from_fdnum(struct process* p, int fdnum) {
 
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
-    int flags = r->rsi; // TODO: implement open flags
+    int flags = r->rsi;
 
     struct process* current_process = this_cpu()->running_thread->process;
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
-    if (node == NULL) {
-        if ((flags & O_CREAT) != 0) {
-            node = vfs_create(current_process->cwd, path, VFS_NODE_REGULAR);
-        } else {
-            r->rax = (uint64_t) -1;
-            return;
-        }
+    if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    if (node == NULL && (flags & O_CREAT)) {
+        node = vfs_create(current_process->cwd, path, VFS_NODE_REGULAR);
     }
 
     if (node == NULL) {
@@ -101,6 +100,10 @@ void syscall_open(struct registers* r) {
     if (fdnum == -1) {
         kfree(fd);
         node->refcount--;
+    }
+
+    if (flags & O_APPEND) {
+        current_process->file_descriptors[fdnum]->offset = node->size;
     }
 
     r->rax = fdnum;
@@ -148,6 +151,12 @@ void syscall_read(struct registers* r) {
         return;
     }
 
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH || acc_mode & ~O_RDWR) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
     struct vfs_node* node = fd->node;
 
     ssize_t read = node->read(node, buf, fd->offset, count);
@@ -171,6 +180,12 @@ void syscall_write(struct registers* r) {
         return;
     }
 
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH || acc_mode & ~(O_RDWR | O_WRONLY)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
     struct vfs_node* node = fd->node;
 
     ssize_t written = node->write(node, buf, fd->offset, count);
@@ -190,6 +205,12 @@ void syscall_ioctl(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(this_cpu()->running_thread->process, fdnum);
     if (fd == NULL) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH) {
         r->rax = (uint64_t) -1;
         return;
     }
