@@ -14,7 +14,6 @@
 enum thread_state {
     THREAD_NORMAL = 0,
     THREAD_READY_TO_RUN,
-    THREAD_SLEEPING,
 };
 
 struct thread;

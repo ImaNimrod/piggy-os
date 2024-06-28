@@ -105,7 +105,7 @@ void pmm_init(void) {
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
-        klog("[pmm] memory map entry: base=0x%lx, length=0x%lx, type: %s\n",
+        klog("[pmm] memory map entry: base=0x%016lx, length=0x%016lx, type: %s\n",
                 entry->base, entry->length, memmap_type_str(entry->type));
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {

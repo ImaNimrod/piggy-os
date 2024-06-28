@@ -23,7 +23,7 @@ struct process* process_create(const char* name, struct pagemap* pagemap) {
     p->pagemap = pagemap;
     p->thread_stack_top = 0x70000000000;
 
-    p->cwd = vfs_get_root();
+    p->cwd = vfs_root;
 
     p->children = vector_create(sizeof(struct process*));
     p->threads = vector_create(sizeof(struct thread*));
@@ -43,7 +43,6 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
 
     t->state = THREAD_READY_TO_RUN;
     t->process = kernel_process;
-    t->sleep_until = 0;
     t->timeslice = 5000;
     t->lock = (spinlock_t) {0};
 

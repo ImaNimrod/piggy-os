@@ -35,10 +35,3 @@ void serial_putc(uint16_t port, char c) {
 
     outb(port, c);
 }
-
-void serial_puts(uint16_t port, const char* s) {
-    while (*s) {
-        serial_putc(port, *s);
-        s++;
-    }
-}

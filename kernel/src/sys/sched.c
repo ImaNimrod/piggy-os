@@ -74,6 +74,8 @@ static struct thread* get_next_thread(struct thread* current) {
 }
 
 __attribute__((noreturn)) static void schedule(struct registers* r) {
+    lapic_timer_stop();
+
     struct thread* current = this_cpu()->running_thread;
     struct thread* next = get_next_thread(current);
 
@@ -120,8 +122,6 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     if (!current || current->process != next->process) {
         vmm_switch_pagemap(next->process->pagemap);
     }
-
-    //klog("running thread #%d on cpu #%u\n", next->tid, this_cpu()->cpu_number);
 
 	__asm__ volatile(
 		"mov %0, %%rsp\n\t"

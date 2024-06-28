@@ -10,9 +10,10 @@ struct path2node_res {
 };
 
 static struct cache* vfs_node_cache;
-static struct vfs_node* vfs_root;
 static spinlock_t vfs_lock = {0};
 static hashmap_t* vfs_filesystems;
+
+struct vfs_node* vfs_root;
 
 static ssize_t read_stub(struct vfs_node* node, void* buf, off_t offset, size_t count) {
     (void) node;
@@ -204,10 +205,6 @@ size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len) {
     }
 
     return offset;
-}
-
-struct vfs_node* vfs_get_root(void) {
-    return vfs_root;
 }
 
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name) {

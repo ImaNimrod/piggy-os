@@ -4,10 +4,12 @@
 #include <mem/slab.h>
 #include <stdbool.h>
 #include <types.h>
+#include <utils/spinlock.h>
+#include <utils/string.h>
 
 // TODO: implement errno system
 
-static struct file_descriptor* alloc_file_descriptor(struct vfs_node* node) {
+static struct file_descriptor* alloc_file_descriptor(struct vfs_node* node, int flags) {
     node->refcount++;
 
     struct file_descriptor* fd = kmalloc(sizeof(struct file_descriptor));
@@ -17,6 +19,8 @@ static struct file_descriptor* alloc_file_descriptor(struct vfs_node* node) {
     }
 
     fd->node = node;
+    fd->flags = flags;
+    fd->offset = 0;
     fd->refcount = 1;
     fd->lock = (spinlock_t) {0};
 
@@ -86,7 +90,7 @@ void syscall_open(struct registers* r) {
         return;
     }
 
-    struct file_descriptor* fd = alloc_file_descriptor(node);
+    struct file_descriptor* fd = alloc_file_descriptor(node, flags);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -152,7 +156,7 @@ void syscall_read(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || acc_mode & ~O_RDWR) {
+    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_RDONLY)) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -181,7 +185,7 @@ void syscall_write(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || acc_mode & ~(O_RDWR | O_WRONLY)) {
+    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -230,7 +234,7 @@ void syscall_seek(struct registers* r) {
         return;
     }
 
-    if (fd->node->type != VFS_NODE_REGULAR) {
+    if (fd->node->type == VFS_NODE_REGULAR) {
         r->rax = (uint64_t) -1;
         return;
     }

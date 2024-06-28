@@ -81,7 +81,7 @@ void syscall_exec(struct registers* r) {
         return;
     }
 
-    // TODO: destroy old pagemap and kill old threads
+    // TODO: destroy old pagemap
 
     current_process->pagemap = new_pagemap;
     current_process->thread_stack_top = 0x70000000000;

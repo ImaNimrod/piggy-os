@@ -1,25 +1,26 @@
-#include <fs/tmpfs.h>
-#include <fs/vfs.h>
+#include <fs/devfs.h>
 #include <mem/slab.h>
-#include <types.h>
+#include <utils/log.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
-struct tmpfs_metadata {
+struct devfs_metadata {
     size_t capacity;
     void* data;
 };
 
-static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
-static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
+static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
+static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
 
-static struct vfs_filesystem tmpfs = {
-    .mount = tmpfs_mount,
-    .create = tmpfs_create,
+static struct vfs_node* devfs_root;
+
+static struct vfs_filesystem devfs = {
+    .mount = devfs_mount,
+    .create = devfs_create,
 };
 
-static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+static ssize_t devfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
 
     spinlock_acquire(&node->lock);
 
@@ -34,8 +35,8 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
     return actual_count;
 }
 
-static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+static ssize_t devfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
 
     spinlock_acquire(&node->lock);
 
@@ -65,8 +66,8 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
     return count;
 }
 
-static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+static bool devfs_truncate(struct vfs_node* node, off_t length) {
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
 
     spinlock_acquire(&node->lock);
 
@@ -94,26 +95,28 @@ static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
     return true;
 }
 
-static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
+
+static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
+    (void) parent;
     (void) source;
-    struct vfs_filesystem* new_fs = &tmpfs;
-    return new_fs->create(new_fs, parent, name, VFS_NODE_DIRECTORY);
+    (void) name;
+    return devfs_root;
 }
 
-static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type) {
+static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type) {
     struct vfs_node* new_node = vfs_create_node(fs, parent, name, type);
     if (new_node == NULL) {
         return NULL;
     }
 
     if (type == VFS_NODE_REGULAR) {
-        new_node->device = kmalloc(sizeof(struct tmpfs_metadata));
+        new_node->device = kmalloc(sizeof(struct devfs_metadata));
         if (new_node->device == NULL) {
             vfs_destroy_node(new_node);
             return NULL;
         }
 
-        struct tmpfs_metadata* metadata = new_node->device;
+        struct devfs_metadata* metadata = new_node->device;
 
         metadata->capacity = 4096;
         metadata->data = kmalloc(metadata->capacity);
@@ -127,14 +130,42 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
 
     new_node->size = 0;
 
-    new_node->read = tmpfs_read;
-    new_node->write = tmpfs_write;
-    new_node->truncate = tmpfs_truncate;
+    new_node->read = devfs_read;
+    new_node->write = devfs_write;
+    new_node->truncate = devfs_truncate;
 
     return new_node;
 }
 
+bool devfs_add_device(struct device* device) {
+    if (vfs_get_node(devfs_root, device->name) != NULL) {
+        return false;
+    }
 
-void tmpfs_init(void) {
-    vfs_register_filesystem("tmpfs", &tmpfs);
+    struct vfs_node* dev_node = vfs_create_node(&devfs, devfs_root, device->name, device->type);
+    if (dev_node == NULL) {
+        kpanic(NULL, "failed to create devfs node");
+    }
+
+    dev_node->device = device->private;
+
+    if (device->read) {
+        dev_node->read = device->read;
+    }
+    if (device->write) {
+        dev_node->write = device->write;
+    }
+    if (device->ioctl) {
+        dev_node->ioctl = device->ioctl;
+    }
+
+    spinlock_acquire(&devfs_root->lock);
+    hashmap_set(devfs_root->children, dev_node->name, strlen(dev_node->name), dev_node);
+    spinlock_release(&devfs_root->lock);
+    return true;
+}
+
+void devfs_init(void) {
+    devfs_root = devfs.create(&devfs, NULL, "", VFS_NODE_DIRECTORY);
+    vfs_register_filesystem("devfs", &devfs);
 }

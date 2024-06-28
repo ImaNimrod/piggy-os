@@ -12,6 +12,10 @@
 
 #define VFS_NODE_REGULAR    0
 #define VFS_NODE_DIRECTORY  1
+#define VFS_NODE_CHARDEV    2
+#define VFS_NODE_BLOCKDEV   3
+
+extern struct vfs_node* vfs_root;
 
 struct vfs_filesystem {
     struct vfs_node *(*mount)(struct vfs_node*, struct vfs_node*, const char*);

@@ -14,6 +14,7 @@ __attribute__((noreturn)) void sched_await(void);
 bool sched_thread_enqueue(struct thread* t);
 bool sched_thread_dequeue(struct thread* t);
 void sched_thread_destroy(struct thread* t);
+void sched_thread_sleep(struct thread* t, uint64_t ms);
 __attribute__((noreturn)) void sched_yield(void);
 void sched_init(void);
 
