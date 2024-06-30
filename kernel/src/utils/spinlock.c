@@ -8,9 +8,9 @@ void spinlock_acquire(spinlock_t* lock) {
     }
 
     size_t count = 0;
-    
-	for (;;) {
-		if (spinlock_test_and_acquire(lock)) {
+
+    for (;;) {
+        if (spinlock_test_and_acquire(lock)) {
             break;
         }
 
@@ -20,7 +20,7 @@ void spinlock_acquire(spinlock_t* lock) {
         }
 
         pause();
-	}
+    }
 }
 
 void spinlock_release(spinlock_t* lock) {

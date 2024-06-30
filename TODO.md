@@ -25,9 +25,8 @@ List of syscalls:
     - gettid                (DONE 6/26/24)
     - thread_create         (DONE 6/26/24)
     - thread_exit           (DONE 6/26/24)
-    - sleep
-    - open
-    - close
+    - open                  (DONE 6/28/24)
+    - close                 (DONE 6/28/24)
     - read                  (DONE 6/26/24)
     - write                 (DONE 6/26/24)
     - ioctl                 (DONE 6/26/24)
@@ -37,13 +36,13 @@ List of syscalls:
 
 Other things that need to happen:
     - syscall pointer argument validation (is the memory userspace, not NULL, etc.)
-    - create a basic devfs (in memory filesystem like tmpfs)
-    - create framebuffer device (/dev/fb0) that has working read, write, and ioctl
-    - create streams (/dev/null, /dev/zero)
-    - create a function for destroying vmm pagemaps
+    - create a basic devfs (in memory filesystem like tmpfs) (DONE 6/27/24)
+    - create framebuffer device (/dev/fb0) that has working read, write, and ioctl (DONE 6/27/24)
+    - create streams (/dev/null, /dev/zero) (DONE 6/28/24)
+    - create a function for destroying vmm pagemaps (DONE 6/29/24)
     - implement errno system (errno is the absolute value of a negative syscall return value)
     - write userspace programs that try to break things and fix the small things from there
-    - refactor file descriptor creation/deletion/management into its own file/api
+    - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)
 
 End goal:
     - boot the OS on real hardware; the kernel will initialize everything and launch

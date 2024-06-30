@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define MAX_FDS 16
+#define PATH_MAX 4096
+
 #define O_PATH      0200
 #define O_RDONLY    0000
 #define O_WRONLY    0001

@@ -2,6 +2,7 @@
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
 #include <dev/char/fbdev.h>
+#include <dev/char/streams.h>
 #include <dev/hpet.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
@@ -14,7 +15,6 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
-#include <utils/log.h>
 
 static void kernel_main(void) {
     vfs_init();
@@ -27,6 +27,7 @@ static void kernel_main(void) {
     vfs_mount(vfs_root, NULL, "/dev", "devfs");
 
     fbdev_init();
+    streams_init();
 
     initrd_unpack();
 
@@ -39,9 +40,9 @@ static void kernel_main(void) {
     const char* argv[] = { "/bin/init", NULL };
     const char* envp[] = { NULL };
 
-    struct process* init_process = process_create("init", init_pagemap);
+    struct process* init_process = process_create(NULL, init_pagemap);
     vfs_get_pathname(vfs_root, init_process->name, sizeof(init_process->name) - 1);
-    sched_thread_enqueue(thread_create_user(init_process, entry, NULL, argv, envp));
+    sched_thread_enqueue(thread_create(init_process, entry, NULL, argv, envp, true));
 
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();
@@ -60,7 +61,7 @@ void kernel_entry(void) {
     sched_init();
     smp_init();
 
-    struct thread* kthread = thread_create_kernel((uintptr_t) &kernel_main, NULL);
+    struct thread* kthread = thread_create(kernel_process, (uintptr_t) &kernel_main, NULL, NULL, NULL, false);
     sched_thread_enqueue(kthread);
     sched_await();
 }

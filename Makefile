@@ -1,6 +1,6 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd -smp 4
+EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd
 
 .PHONY: all
 all: $(IMAGE_NAME)
@@ -46,8 +46,8 @@ run-kvm:
 
 .PHONY: todolist
 todolist:
-	@echo "List of todos and fixme in sources: "
-	-@grep -FHr -e TODO -e FIXME --exclude-dir=.git --exclude-dir=limine --exclude=Makefile
+	@echo -e "List of todos and fixme in sources: \n"
+	-@grep -FHr -e TODO -e FIXME kernel userspace
 
 .PHONY: clean
 clean:

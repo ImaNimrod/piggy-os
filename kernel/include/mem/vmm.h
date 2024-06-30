@@ -24,14 +24,16 @@ extern struct pagemap kernel_pagemap;
 
 struct pagemap {
     uint64_t* top_level;
-    bool (*map_page)(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
-    bool (*unmap_page)(struct pagemap* pagemap, uintptr_t vaddr);
-    uint64_t* (*lowest_level)(struct pagemap* pagemap, uintptr_t vaddr);
+    bool has_level5;
     spinlock_t lock;
 };
 
 struct pagemap* vmm_new_pagemap(void);
+void vmm_destroy_pagemap(struct pagemap* pagemap);
+struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap);
 void vmm_switch_pagemap(struct pagemap* pagemap);
+bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
+bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr);
 void vmm_init(void);
 
 #endif /* _KERNEL_MEM_VMM_H */

@@ -8,8 +8,6 @@
 #include <utils/hashmap.h>
 #include <utils/spinlock.h>
 
-#define PATH_MAX 4096
-
 #define VFS_NODE_REGULAR    0
 #define VFS_NODE_DIRECTORY  1
 #define VFS_NODE_CHARDEV    2
@@ -39,14 +37,6 @@ struct vfs_node {
     ssize_t (*write)(struct vfs_node*, const void*, off_t, size_t);
     int (*ioctl)(struct vfs_node*, uint64_t, void*);
     bool (*truncate)(struct vfs_node*, off_t);
-};
-
-struct file_descriptor {
-    struct vfs_node* node;
-    int flags;
-    off_t offset;
-    size_t refcount;
-    spinlock_t lock;
 };
 
 struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);

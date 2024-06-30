@@ -126,12 +126,14 @@ char* strncpy(char* dest, const char* src, size_t n) {
 }
 
 char* strdup(const char* str) {
-    size_t len = strlen(str);
-    char* dup = kmalloc(len + 1);
+    size_t len = strlen(str) + 1;
+
+    char* dup = kmalloc(len);
     if (!dup) {
         return NULL;
     }
-    memcpy(dup, str, len + 1);
+
+    memcpy(dup, str, len);
     return dup;
 }
 

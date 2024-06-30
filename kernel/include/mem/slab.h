@@ -28,7 +28,6 @@ bool cache_free_object(struct cache* cache, void* object);
 struct cache* slab_cache_create(const char* name, size_t object_size);
 void slab_init(void);
 
-// TODO: kmalloc implementation using slab allocator
 void* kmalloc(size_t size);
 void* krealloc(void* ptr, size_t size);
 void kfree(void* ptr);

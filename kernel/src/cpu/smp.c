@@ -72,7 +72,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     wrmsr(MSR_STAR, 0x13000800000000);
     wrmsr(MSR_LSTAR, (uint64_t) syscall_entry);
-    wrmsr(MSR_SFMASK, (uint32_t) 0x700);
+    wrmsr(MSR_SFMASK, (uint64_t) ~((uint32_t) 2));
 
     percpu->fpu_storage_size = 512;
     percpu->fpu_save = fxsave;
@@ -95,7 +95,7 @@ void smp_init(void) {
     bsp_lapic_id = smp_response->bsp_lapic_id;
     cpu_count = smp_response->cpu_count;
 
-    klog("[smp] %lu processors detected\n", cpu_count);
+    klog("[smp] %lu processor%c detected\n", cpu_count, (cpu_count == 1 ? '\0' : 's'));
 
     struct percpu* percpus = kmalloc(sizeof(struct percpu) * cpu_count);
 

@@ -27,11 +27,11 @@ void vector_destroy(vector_t* v) {
 }
 
 void* vector_get(vector_t* v, size_t index) {
-	if (!v || !v->data || index >= v->size) {
-		return NULL;
+    if (!v || !v->data || index >= v->size) {
+        return NULL;
     }
 
-	return &v->data[v->elem_size * index];
+    return &v->data[v->elem_size * index];
 }
 
 bool vector_set(vector_t* v, size_t index, void* value) {
@@ -39,7 +39,7 @@ bool vector_set(vector_t* v, size_t index, void* value) {
         return false;
     }
 
-	v->data[v->elem_size * index] = value;
+    v->data[v->elem_size * index] = value;
     return true;
 }
 
@@ -88,8 +88,8 @@ bool vector_push_back(vector_t* v, void* value) {
 }
 
 void* vector_pop_back(vector_t* v) {
-	if (!v || !v->data) {
-		return NULL;
+    if (!v || !v->data) {
+        return NULL;
     }
 
     return &v->data[v->elem_size * v->size--];

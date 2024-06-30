@@ -1,5 +1,6 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <fs/fd.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <stdbool.h>
@@ -8,55 +9,6 @@
 #include <utils/string.h>
 
 // TODO: implement errno system
-
-static struct file_descriptor* alloc_file_descriptor(struct vfs_node* node, int flags) {
-    node->refcount++;
-
-    struct file_descriptor* fd = kmalloc(sizeof(struct file_descriptor));
-    if (fd == NULL) {
-        node->refcount--;
-        return NULL;
-    }
-
-    fd->node = node;
-    fd->flags = flags;
-    fd->offset = 0;
-    fd->refcount = 1;
-    fd->lock = (spinlock_t) {0};
-
-    return fd;
-}
-
-static int alloc_fdnum(struct process* p, struct file_descriptor* fd) {
-    spinlock_acquire(&p->fd_lock);
-
-    for (int i = 0; i < MAX_FDS; i++) {
-        if (p->file_descriptors[i] == NULL) {
-            p->file_descriptors[i] = fd;
-            spinlock_release(&p->fd_lock);
-            return i;
-        }
-    }
-
-    spinlock_release(&p->fd_lock);
-    return -1;
-}
-
-static struct file_descriptor* fd_from_fdnum(struct process* p, int fdnum) {
-    if (fdnum < 0 || fdnum > MAX_FDS) {
-        return NULL;
-    }
-
-    spinlock_acquire(&p->fd_lock);
-
-    struct file_descriptor* fd = p->file_descriptors[fdnum];
-    if (fd != NULL) {
-        fd->refcount++;
-    }
-
-    spinlock_release(&p->fd_lock);
-    return fd;
-}
 
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
@@ -90,7 +42,7 @@ void syscall_open(struct registers* r) {
         return;
     }
 
-    struct file_descriptor* fd = alloc_file_descriptor(node, flags);
+    struct file_descriptor* fd = fd_create(node, flags);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -100,7 +52,7 @@ void syscall_open(struct registers* r) {
         node->truncate(node, 0);
     }
 
-    int fdnum = alloc_fdnum(current_process, fd);
+    int fdnum = fd_alloc_fdnum(current_process, fd);
     if (fdnum == -1) {
         kfree(fd);
         node->refcount--;
@@ -116,32 +68,13 @@ void syscall_open(struct registers* r) {
 void syscall_close(struct registers* r) {
     int fdnum = r->rdi;
 
-    if (fdnum < 0 || fdnum >= MAX_FDS) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
-
     struct process* current_process = this_cpu()->running_thread->process;
 
-    spinlock_acquire(&current_process->fd_lock);
-
-    struct file_descriptor* fd = current_process->file_descriptors[fdnum];
-    if (fd == NULL) {
-        spinlock_release(&current_process->fd_lock);
-        r->rax = (uint64_t) -1;
-        return;
+    if (fd_close(current_process, fdnum)) {
+        r->rax = 0;
+    } else {
+        r->rax = -1;
     }
-
-    fd->node->refcount--;
-
-    if (fd->refcount-- == 1) {
-        kfree(fd);
-    }
-
-    current_process->file_descriptors[fdnum] = NULL;
-
-    spinlock_release(&current_process->fd_lock);
-    r->rax = 0;
 }
 
 void syscall_read(struct registers* r) {
@@ -316,6 +249,6 @@ void syscall_getcwd(struct registers* r) {
         return;
     }
 
-    memcpy(buffer, temp_buffer, len);
+    strncpy(buffer, temp_buffer, len);
     r->rax = 0;
 }

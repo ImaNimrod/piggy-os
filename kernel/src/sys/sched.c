@@ -12,8 +12,9 @@
 struct process* kernel_process;
 
 static struct thread* runnable_threads = NULL;
-
 static spinlock_t thread_lock = {0};
+
+// TODO: use actual tree data structure for processes
 
 static bool add_thread_to_list(struct thread** list, struct thread* t) {
     struct thread* iter = *list;
@@ -104,11 +105,12 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     this_cpu()->running_thread = next;
+    next->state = THREAD_NORMAL;
+
     this_cpu()->tss.rsp0 = next->kernel_stack;
     this_cpu()->tss.ist2 = next->page_fault_stack;
     this_cpu()->user_stack = next->stack;
     this_cpu()->kernel_stack = next->kernel_stack;
-    next->state = THREAD_NORMAL;
 
     lapic_eoi();
     lapic_timer_oneshot(SCHED_VECTOR, next->timeslice);
@@ -192,7 +194,7 @@ __attribute__((noreturn)) void sched_yield(void) {
 
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, false, schedule);
-    kernel_process = process_create("kernel_process", &kernel_pagemap);
+    kernel_process = process_create(NULL, &kernel_pagemap);
 
     klog("[sched] intialized scheduler and created kernel process\n");
 }

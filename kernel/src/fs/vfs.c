@@ -1,6 +1,5 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
-#include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/string.h>
 

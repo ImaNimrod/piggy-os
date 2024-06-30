@@ -53,6 +53,7 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
     return actual_count;
 }
 
+// TODO: implement framebuffer device ioctl
 static int fbdev_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     (void) node;
     (void) request;

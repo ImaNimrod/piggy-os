@@ -62,6 +62,9 @@ void syscall_handler(struct registers* r) {
 
     struct syscall_handle syscall = syscall_table[r->rax];
 
+	this_cpu()->running_thread->ctx = *r;
+	this_cpu()->running_thread->stack = this_cpu()->user_stack;
+
     if (!syscall.handler) {
         kpanic(r, "null syscall %s\n", syscall.name);
     } else {

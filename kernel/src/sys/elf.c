@@ -50,7 +50,7 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t load_bas
         for (size_t j = 0; j < page_count; j++) {
             uintptr_t vaddr = load_base + pheader.p_vaddr + (j * PAGE_SIZE);
             uintptr_t paddr = phys_pages + (j * PAGE_SIZE);
-            pagemap->map_page(pagemap, vaddr, paddr, vmm_flags);
+            vmm_map_page(pagemap, vaddr, paddr, vmm_flags);
         }
 
         if (node->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_offset, pheader.p_filesz) < 0) {

@@ -16,7 +16,6 @@ static inline uint32_t hash_function(const void * _key) {
 hashmap_t* hashmap_create(size_t size) {
 	hashmap_t* map = kmalloc(sizeof(hashmap_t));
     if (map == NULL) {
-        klog("bruh\n");
         return NULL;
     }
 

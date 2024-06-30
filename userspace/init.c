@@ -32,13 +32,8 @@ extern uint64_t syscall1(uint64_t syscall_number, uint64_t arg1);
 extern uint64_t syscall2(uint64_t syscall_number, uint64_t arg1, uint64_t arg2);
 extern uint64_t syscall3(uint64_t syscall_number, uint64_t arg1, uint64_t arg2, uint64_t arg3);
 
+/*
 static uint32_t buf[800 * 600];
-
-static void hang(void) {
-    for (;;) {
-        __asm__ volatile("pause");
-    }
-}
 
 void* memset32(void* dest, uint32_t c, size_t n) {
     uint32_t* buf = dest;
@@ -65,12 +60,27 @@ long write(int fd, const void* buf, size_t count) {
 long seek(int fd, long offset, int whence) {
     return syscall3(SYS_SEEK, fd, offset, whence);
 }
+*/
+
+int fork(void) {
+    return syscall0(SYS_FORK);
+}
+
+void hang(void) {
+    for (;;) {
+        __asm__ volatile("pause");
+    }
+}
 
 void puts(const char* str) {
     syscall1(SYS_DEBUG, (uint64_t) str);
 }
 
 int main(void) {
+    fork();
+    puts("bruh\n");
+
+    /*
     int fb = open("/dev/fb0", O_WRONLY);
     if (fb < 0) {
         puts("failed to open framebuffer device");
@@ -107,6 +117,7 @@ int main(void) {
     }
 
     close(fb);
+    */
 
     hang();
     return 0;

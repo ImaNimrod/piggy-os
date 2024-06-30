@@ -1,3 +1,5 @@
+section .text
+
 extern isr_handler
 extern syscall_handler
 
@@ -36,9 +38,9 @@ interrupt_handler:
     push r14
     push r15
 
+    cld
     mov rdi, rsp
 	xor rbp, rbp
-    cld
     call isr_handler
 
     pop r15
@@ -66,8 +68,11 @@ syscall_entry:
     mov qword [gs:0024], rsp
     mov rsp, qword [gs:0016]
 
+    sti
+    cld
+
     push 0x1b
-    push qword [gs:024]
+    push qword [gs:0024]
     push r11
     push 0x23
     push rcx
@@ -76,7 +81,7 @@ syscall_entry:
 
     push rax
     push rbx
-    push qword 0
+    push rcx
     push rdx
     push rbp
     push rdi
@@ -84,7 +89,7 @@ syscall_entry:
     push r8
     push r9
     push r10
-    push qword 0
+    push r11
     push r12
     push r13
     push r14
@@ -98,7 +103,7 @@ syscall_entry:
     pop r14
     pop r13
     pop r12
-    add rsp, 8
+    pop r11
     pop r10
     pop r9
     pop r8
@@ -106,16 +111,13 @@ syscall_entry:
     pop rdi
     pop rbp
     pop rdx
-    add rsp, 8
+    pop rcx
     pop rbx
     pop rax
 
     add rsp, 16
 
-    pop rcx
-    add rsp, 8
-    pop r11
-    pop rsp
+    cli
 
     mov rsp, qword [gs:0024]
     swapgs
