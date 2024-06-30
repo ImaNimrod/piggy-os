@@ -17,14 +17,15 @@ management and file system operations present. These should be implemented corre
 full input validation for security.
 
 List of syscalls:
-    - exit
-    - fork
-    - exec
+    - exit                  (DONE 6/30/24)
+    - fork                  (DONE 6/30/24)
+    - exec                  (DONE 6/30/24)
     - yield                 (DONE 6/26/24)
     - getpid                (DONE 6/26/24)
     - gettid                (DONE 6/26/24)
     - thread_create         (DONE 6/26/24)
     - thread_exit           (DONE 6/26/24)
+    - sbrk                  (DONE 6/30/24 not originally planned)
     - open                  (DONE 6/28/24)
     - close                 (DONE 6/28/24)
     - read                  (DONE 6/26/24)

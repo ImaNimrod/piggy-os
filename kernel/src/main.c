@@ -15,6 +15,7 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <utils/log.h>
 
 static void kernel_main(void) {
     vfs_init();
@@ -31,18 +32,9 @@ static void kernel_main(void) {
 
     initrd_unpack();
 
-    struct vfs_node* init_node = vfs_get_node(vfs_root, "/bin/init");
-    struct pagemap* init_pagemap = vmm_new_pagemap();
-
-    uintptr_t entry;
-    elf_load(init_node, init_pagemap, 0, &entry);
-
-    const char* argv[] = { "/bin/init", NULL };
-    const char* envp[] = { NULL };
-
-    struct process* init_process = process_create(NULL, init_pagemap);
-    vfs_get_pathname(vfs_root, init_process->name, sizeof(init_process->name) - 1);
-    sched_thread_enqueue(thread_create(init_process, entry, NULL, argv, envp, true));
+    if (!process_create_init()) {
+        kpanic(NULL, "failed to create init process");
+    }
 
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();
@@ -58,10 +50,11 @@ void kernel_entry(void) {
     acpi_init();
     hpet_init();
 
+    process_init();
     sched_init();
     smp_init();
 
-    struct thread* kthread = thread_create(kernel_process, (uintptr_t) &kernel_main, NULL, NULL, NULL, false);
-    sched_thread_enqueue(kthread);
+    struct thread* main_thread = thread_create(kernel_process, (uintptr_t) &kernel_main, NULL, NULL, NULL, false);
+    sched_thread_enqueue(main_thread);
     sched_await();
 }

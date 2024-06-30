@@ -33,7 +33,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     gdt_load_tss(&percpu->tss);
 
-    vmm_switch_pagemap(&kernel_pagemap);
+    vmm_switch_pagemap(kernel_pagemap);
 
     wrmsr(MSR_KERNEL_GS, (uint64_t) percpu);
     wrmsr(MSR_USER_GS, (uint64_t) percpu);
@@ -72,7 +72,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     wrmsr(MSR_STAR, 0x13000800000000);
     wrmsr(MSR_LSTAR, (uint64_t) syscall_entry);
-    wrmsr(MSR_SFMASK, (uint64_t) ~((uint32_t) 2));
+    wrmsr(MSR_SFMASK, (uint64_t) ((1 << 9) | (1 << 10)));
 
     percpu->fpu_storage_size = 512;
     percpu->fpu_save = fxsave;
@@ -80,7 +80,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     percpu->running_thread = NULL;
 
-    lapic_init(percpu->lapic_id);
+    lapic_init();
 
     klog("[smp] processor #%lu online%s\n", percpu->cpu_number, (percpu->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);

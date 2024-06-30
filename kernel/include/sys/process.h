@@ -12,6 +12,9 @@
 #include <utils/string.h>
 #include <utils/vector.h>
 
+#define PROCESS_BRK_BASE            0x60000000000
+#define PROCESS_THREAD_STACK_TOP    0x70000000000
+
 enum process_state {
     PROCESS_RUNNING,
     PROCESS_ZOMBIE,
@@ -31,6 +34,7 @@ struct process {
     uint8_t exit_code;
 
     struct pagemap* pagemap;
+    uintptr_t brk;
     uintptr_t thread_stack_top;
 
     struct vfs_node* cwd;
@@ -63,10 +67,14 @@ struct thread {
 };
 
 struct process* process_create(struct process* old, struct pagemap* pagemap);
+bool process_create_init(void);
 void process_destroy(struct process* p, int status);
+void* process_sbrk(struct process* p, intptr_t size);
 
 struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp, bool is_user);
 struct thread* thread_fork(struct process* forked, struct thread* old_thread);
 void thread_destroy(struct thread* t);
+
+void process_init(void);
 
 #endif /* _KERNEL_SYS_PROCESS_H */

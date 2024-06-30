@@ -2,6 +2,7 @@
 #include <cpu/percpu.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
 #include <utils/log.h>
@@ -10,39 +11,111 @@
 
 #define STACK_SIZE 0x40000
 
+static struct cache* process_cache;
+static struct cache* thread_cache;
+
+static const char* init_path = "/bin/init";
 static pid_t next_pid = 0;
 
 struct process* process_create(struct process* old, struct pagemap* pagemap) {
-    struct process* new = kmalloc(sizeof(struct process));
+    struct process* new = cache_alloc_object(process_cache);
     if (new == NULL) {
         return NULL;
     }
 
     new->children = vector_create(sizeof(struct process*));
+    if (new->children == NULL) {
+        cache_free_object(process_cache, new);
+        return NULL;
+    }
+
     new->threads = vector_create(sizeof(struct thread*));
+    if (new->threads == NULL) {
+        kfree(new->children);
+        cache_free_object(process_cache, new);
+        return NULL;
+    }
 
     new->pid = next_pid;
     __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
 
     new->state = PROCESS_RUNNING;
 
-    // TODO: dup file descriptors
     if (old != NULL) {
         strncpy(new->name, old->name, sizeof(new->name));
 
-        new->pagemap = old->pagemap;
+        new->pagemap = vmm_fork_pagemap(old->pagemap);
+        if (new->pagemap == NULL) {
+            kfree(new->children);
+            kfree(new->threads);
+            cache_free_object(process_cache, new);
+            return NULL;
+        }
+
+        new->brk = old->brk;
         new->thread_stack_top = old->thread_stack_top;
         new->cwd = old->cwd;
         new->parent = old;
 
+        for (int i = 0; i < MAX_FDS; i++) {
+            if (old->file_descriptors[i] == NULL) {
+                continue;
+            }
+
+            if (!fd_dup(old, i, new, i)) {
+                vmm_destroy_pagemap(new->pagemap);
+                kfree(new->children);
+                kfree(new->threads);
+                cache_free_object(process_cache, new);
+                return NULL;
+            }
+        }
+
         vector_push_back(old->children, new);
     } else {
         new->pagemap = pagemap;
-        new->thread_stack_top = 0x70000000000;
+        new->brk = PROCESS_BRK_BASE;
+        new->thread_stack_top = PROCESS_THREAD_STACK_TOP;
         new->cwd = vfs_root;
     }
 
     return new;
+}
+
+bool process_create_init(void) {
+    klog("[process] creating init process (pid = 1) using %s\n", init_path);
+    struct vfs_node* init_node = vfs_get_node(vfs_root, init_path);
+    if (init_node == NULL) {
+        return false;
+    }
+
+    struct pagemap* init_pagemap = vmm_new_pagemap();
+
+    uintptr_t entry;
+    if (!elf_load(init_node, init_pagemap, 0, &entry)) {
+        vmm_destroy_pagemap(init_pagemap);
+        return false;
+    }
+
+    const char* argv[] = { init_path, NULL };
+    const char* envp[] = { NULL };
+
+    struct process* init_process = process_create(NULL, init_pagemap);
+    if (init_process == NULL) {
+        vmm_destroy_pagemap(init_pagemap);
+        return false;
+    }
+
+    vfs_get_pathname(vfs_root, init_process->name, sizeof(init_process->name) - 1);
+
+    struct thread* init_thread = thread_create(init_process, entry, NULL, argv, envp, true);
+    if (init_thread == NULL) {
+        process_destroy(init_process, -1);
+        return false;
+    }
+
+    sched_thread_enqueue(init_thread);
+    return true;
 }
 
 void process_destroy(struct process* p, int status) {
@@ -72,8 +145,50 @@ void process_destroy(struct process* p, int status) {
     vmm_destroy_pagemap(p->pagemap);
 }
 
+void* process_sbrk(struct process* p, intptr_t size) {
+    uintptr_t end = p->brk;
+
+    ptrdiff_t remaining_bytes = (end % PAGE_SIZE) ? (PAGE_SIZE - (PAGE_SIZE % 0x1000)) : 0;
+    if (size > 0) {
+        if (remaining_bytes < size) {
+            size_t page_count = DIV_CEIL(size - remaining_bytes, 0x1000);
+
+            uintptr_t paddr = pmm_alloc(page_count);
+            if (paddr == 0) {
+                return NULL;
+            }
+
+            for (size_t i = 0; i < page_count; i++) {
+                if (!vmm_map_page(p->pagemap, end + (i * PAGE_SIZE), paddr + (i * PAGE_SIZE), PTE_PRESENT | PTE_WRITABLE | PTE_USER)) {
+                    pmm_free(paddr, page_count);
+                    return NULL;
+                }
+            }
+        }
+    } else if (size < 0) {
+        if (end + size < PROCESS_BRK_BASE) {
+            return NULL;
+        }
+
+        ptrdiff_t taken = PAGE_SIZE - remaining_bytes;
+        if (taken + size < 0) {
+            size_t page_count = DIV_CEIL((size_t) (taken - size), PAGE_SIZE);
+            uintptr_t vaddr = end - (end % PAGE_SIZE);
+
+            for (size_t i = 0; i < page_count; i++) {
+                if (!vmm_unmap_page(p->pagemap, vaddr - (i * PAGE_SIZE))) {
+                    return NULL;
+                }
+            }
+        }
+    }
+
+    p->brk += size;
+    return (void*) end;
+}
+
 struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp, bool is_user) {
-    struct thread* t = kmalloc(sizeof(struct thread));
+    struct thread* t = cache_alloc_object(thread_cache);
     if (t == NULL) {
         return NULL;
     }
@@ -101,7 +216,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             bool ret = vmm_map_page(p->pagemap,
                     (p->thread_stack_top - STACK_SIZE) + (i * PAGE_SIZE),
                     stack_paddr + (i * PAGE_SIZE),
-                    PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
+                    PTE_PRESENT | PTE_WRITABLE | PTE_USER);
 
             if (!ret) {
                 pmm_free(stack_paddr, STACK_SIZE / PAGE_SIZE);
@@ -110,8 +225,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             }
         }
 
-        t->stack = stack_paddr;
-        t->ctx.rsp = p->thread_stack_top;
+        t->ctx.rsp = t->stack = p->thread_stack_top;
         p->thread_stack_top -= STACK_SIZE;
 
         t->page_fault_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
@@ -195,7 +309,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
 }
 
 struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
-    struct thread* new_thread = kmalloc(sizeof(struct thread));
+    struct thread* new_thread = cache_alloc_object(thread_cache);
     if (new_thread == NULL) {
         return NULL;
     }
@@ -204,20 +318,36 @@ struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
     new_thread->process = forked;
     new_thread->lock = (spinlock_t) {0};
     new_thread->timeslice = old_thread->timeslice;
-    
+
     new_thread->kernel_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
+    if (!new_thread->kernel_stack) {
+        cache_free_object(thread_cache, new_thread);
+        return NULL;
+    }
     new_thread->kernel_stack += STACK_SIZE + HIGH_VMA;
 
     new_thread->page_fault_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
+    if (!new_thread->page_fault_stack) {
+        pmm_free(new_thread->kernel_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
+        cache_free_object(thread_cache, new_thread);
+        return NULL;
+    }
     new_thread->page_fault_stack += STACK_SIZE + HIGH_VMA;
+
+    new_thread->stack = old_thread->stack;
 
     new_thread->ctx = old_thread->ctx;
     new_thread->ctx.rax = 0;
-    new_thread->ctx.rbx = 0;
 
-    new_thread->stack = new_thread->ctx.rsp;
+    new_thread->fpu_storage = (void*) pmm_alloc(DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE));
+    if (new_thread->fpu_storage == NULL) {
+        pmm_free(new_thread->kernel_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
+        pmm_free(new_thread->page_fault_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
+        cache_free_object(thread_cache, new_thread);
+        return NULL;
+    }
 
-    new_thread->fpu_storage = (void*) (pmm_allocz(DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE)) + HIGH_VMA);
+    new_thread->fpu_storage = (void*) ((uintptr_t) new_thread->fpu_storage + HIGH_VMA);
     memcpy(new_thread->fpu_storage, old_thread->fpu_storage, this_cpu()->fpu_storage_size);
 
     new_thread->fs_base = old_thread->fs_base;
@@ -232,10 +362,22 @@ struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
 void thread_destroy(struct thread* t) {
     pmm_free(t->kernel_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
 
-    if (t->ctx.cs & 0x3) {
+    if (t->ctx.cs & 3) {
         pmm_free(t->page_fault_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
         pmm_free((uintptr_t) t->fpu_storage - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE));
     }
 
-    kfree(t);
+    cache_free_object(thread_cache, t);
+}
+
+void process_init(void) {
+    process_cache = slab_cache_create("process cache", sizeof(struct process));
+    if (process_cache == NULL) {
+        kpanic(NULL, "failed to initialize object cache for process structures");
+    }
+
+    thread_cache = slab_cache_create("thread cache", sizeof(struct thread));
+    if (thread_cache == NULL) {
+        kpanic(NULL, "failed to initialize object cache for thread structures");
+    }
 }

@@ -165,6 +165,9 @@ bool cache_free_object(struct cache* cache, void* object) {
 
 struct cache* slab_cache_create(const char* name, size_t object_size) {
     struct cache* new_cache = cache_alloc_object(&root_cache);
+    if (new_cache == NULL) {
+        return NULL;
+    }
 
     new_cache->name = name;
     new_cache->object_size = object_size;

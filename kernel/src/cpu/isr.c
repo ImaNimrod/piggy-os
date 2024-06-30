@@ -71,7 +71,7 @@ void isr_handler(struct registers* r) {
     if (isr_handlers[int_number] != NULL) {
         isr_handlers[int_number](r);
     } else if (int_number < ISR_EXCEPTION_NUM) {
-        kpanic(r, "Unhandled Exception: %s", exception_messages[int_number]);
+        kpanic(r, "unhandled %s", exception_messages[int_number]);
         return;
     }
 

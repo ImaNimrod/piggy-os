@@ -18,9 +18,10 @@
 #define PTE_SIZE        (1ull << 7ull)
 #define PTE_GLOBAL      (1ull << 8ull)
 #define PTE_NX          (1ull << 63ull)
+#define PTE_FLAG_MASK   ((uint64_t) 0x8000000000000fff)
 
 extern volatile struct limine_hhdm_request hhdm_request;
-extern struct pagemap kernel_pagemap;
+extern struct pagemap* kernel_pagemap;
 
 struct pagemap {
     uint64_t* top_level;

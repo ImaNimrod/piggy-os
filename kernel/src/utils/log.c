@@ -87,9 +87,6 @@ static int klog_internal(const char* str, va_list args) {
     char buf[24];
     char buf2[24];
     char c;
-
-    spinlock_acquire(&print_lock);
-
     int n;
 
     while ((c = *(str++))) {
@@ -191,7 +188,6 @@ static int klog_internal(const char* str, va_list args) {
         }
     }
 
-    spinlock_release(&print_lock);
     return n;
 }
 
@@ -200,10 +196,14 @@ void klog(const char* fmt, ...) {
         return;
     }
 
+    spinlock_acquire(&print_lock);
+
     va_list args;
     va_start(args, fmt);
     klog_internal(fmt, args);
     va_end(args);
+
+    spinlock_release(&print_lock);
 }
 
 __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...) {
@@ -219,11 +219,14 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
     va_end(args);
 
     if (r != NULL) {
-        klog("\n==========================\nRIP: 0x%lx RFLAGS: 0x%lx\nRBP: 0x%lx  RSP: 0x%lx\nCS:  0x%x  SS: 0x%x  CR3: 0x%lx ERROR: 0x%x\n",
-            r->rip, r->rflags, r->rbp, r->rsp, r->cs, r->ss, read_cr3(), r->error_code);
+        klog("\n==========================\n\n");
+        klog("RIP: 0x%08x%08x RFLAGS: 0x%08x\n", r->rip >> 32, r->rip, r->rflags);
+        klog("RSP: 0x%08x%08x RBP: 0x%08x%08x\n", r->rsp >> 32, r->rsp, r->rbp >> 32, r->rbp);
+        klog("CS: 0x%04x SS: 0x%04x CR3: 0x%08x%08x\n", r->cs, r->ss, read_cr3() >> 32, read_cr3());
+        klog("ERROR CODE: 0x%08x", r->error_code);
     }
 
-    klog("\n==========================\n");
+    klog_internal("\n==========================\n", NULL);
 
     for (;;) {
         hlt();

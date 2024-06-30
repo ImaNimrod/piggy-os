@@ -7,8 +7,6 @@
 #include <utils/log.h>
 #include <utils/spinlock.h>
 
-#define DEFAULT_TIMESLICE 20000
-
 struct process* kernel_process;
 
 static struct thread* runnable_threads = NULL;
@@ -31,23 +29,23 @@ static bool add_thread_to_list(struct thread** list, struct thread* t) {
 }
 
 static bool remove_thread_from_list(struct thread** list, struct thread* t) {
-	struct thread* iter = *list;
-	if (iter == t) {
-		*list = iter->next;
-		return true;
-	}
+    struct thread* iter = *list;
+    if (iter == t) {
+        *list = iter->next;
+        return true;
+    }
 
     struct thread* next = NULL;
-	while (iter) {
-		next = iter->next;
-		if (next == t) {
-			iter->next = next->next;
-			next->next = NULL;
-			return true;
-		}
+    while (iter) {
+        next = iter->next;
+        if (next == t) {
+            iter->next = next->next;
+            next->next = NULL;
+            return true;
+        }
 
-		iter = next;
-	}
+        iter = next;
+    }
     return false;
 }
 
@@ -59,19 +57,19 @@ static struct thread* get_next_thread(struct thread* current) {
         iter = runnable_threads;
     }
 
-	while (iter) {
-		if (iter->state != THREAD_READY_TO_RUN) {
-			iter = iter->next;
-			continue;
-		}
-
-		if (spinlock_test_and_acquire(&iter->lock)) {
-			return iter;
+    while (iter) {
+        if (iter->state != THREAD_READY_TO_RUN) {
+            iter = iter->next;
+            continue;
         }
-		iter = iter->next;
-	}
 
-	return NULL;
+        if (spinlock_test_and_acquire(&iter->lock)) {
+            return iter;
+        }
+        iter = iter->next;
+    }
+
+    return NULL;
 }
 
 __attribute__((noreturn)) static void schedule(struct registers* r) {
@@ -81,7 +79,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     struct thread* next = get_next_thread(current);
 
     if (current) {
-		current->ctx = *r;
+        current->ctx = *r;
 
         if (current->ctx.cs & 3) {
             this_cpu()->fpu_save(current->fpu_storage);
@@ -99,7 +97,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 
     if (!next) {
         this_cpu()->running_thread = NULL;
-        vmm_switch_pagemap(&kernel_pagemap);
+        vmm_switch_pagemap(kernel_pagemap);
         lapic_eoi();
         sched_await();
     }
@@ -125,33 +123,33 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
         vmm_switch_pagemap(next->process->pagemap);
     }
 
-	__asm__ volatile(
-		"mov %0, %%rsp\n\t"
-		"pop %%r15\n\t"
-		"pop %%r14\n\t"
-		"pop %%r13\n\t"
-		"pop %%r12\n\t"
-		"pop %%r11\n\t"
-		"pop %%r10\n\t"
-		"pop %%r9\n\t"
-		"pop %%r8\n\t"
-		"pop %%rsi\n\t"
-		"pop %%rdi\n\t"
-		"pop %%rbp\n\t"
-		"pop %%rdx\n\t"
-		"pop %%rcx\n\t"
-		"pop %%rbx\n\t"
-		"pop %%rax\n\t"
-		"addq $16, %%rsp\n\t"
-        "swapgs\n\t"
-		"iretq\n\t"
-		:: "r" (&next->ctx)
-	);
+    __asm__ volatile(
+            "mov %0, %%rsp\n\t"
+            "pop %%r15\n\t"
+            "pop %%r14\n\t"
+            "pop %%r13\n\t"
+            "pop %%r12\n\t"
+            "pop %%r11\n\t"
+            "pop %%r10\n\t"
+            "pop %%r9\n\t"
+            "pop %%r8\n\t"
+            "pop %%rsi\n\t"
+            "pop %%rdi\n\t"
+            "pop %%rbp\n\t"
+            "pop %%rdx\n\t"
+            "pop %%rcx\n\t"
+            "pop %%rbx\n\t"
+            "pop %%rax\n\t"
+            "addq $16, %%rsp\n\t"
+            "swapgs\n\t"
+            "iretq\n\t"
+            :: "r" (&next->ctx)
+            );
     __builtin_unreachable();
 }
 
 __attribute__((noreturn)) void sched_await(void) {
-    lapic_timer_oneshot(SCHED_VECTOR, DEFAULT_TIMESLICE);
+    lapic_timer_oneshot(SCHED_VECTOR, 20000);
     sti();
     for (;;) {
         hlt();
@@ -194,7 +192,7 @@ __attribute__((noreturn)) void sched_yield(void) {
 
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, false, schedule);
-    kernel_process = process_create(NULL, &kernel_pagemap);
+    kernel_process = process_create(NULL, kernel_pagemap);
 
     klog("[sched] intialized scheduler and created kernel process\n");
 }

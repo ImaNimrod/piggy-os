@@ -5,7 +5,7 @@ ASMFILES := $(wildcard *.asm)
 INITOBJ := $(CFILES:.c=.o) $(ASMFILES:.asm=.o)
 
 ASFLAGS := -felf64
-CFLAGS := -ffreestanding -fno-stack-protector -mno-red-zone -Wall -Wextra -pedantic -std=gnu11
+CFLAGS := -ffreestanding -fno-stack-protector -mno-red-zone -Wall -Wextra -pedantic -std=gnu11 -O0
 
 all: init
 

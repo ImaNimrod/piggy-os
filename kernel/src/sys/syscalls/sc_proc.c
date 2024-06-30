@@ -21,11 +21,9 @@ void syscall_exit(struct registers* r) {
     sched_yield();
 }
 
-// TODO: implement fork
 void syscall_fork(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
-
 
     struct process* new_process = process_create(current_process, NULL);
     if (new_process == NULL) {
@@ -39,8 +37,8 @@ void syscall_fork(struct registers* r) {
         return;
     }
 
-    sched_thread_enqueue(new_thread);
     r->rax = new_process->pid;
+    sched_thread_enqueue(new_thread);
 }
 
 // TODO: shebang support
@@ -59,6 +57,7 @@ void syscall_exec(struct registers* r) {
     uintptr_t entry;
 
     if (node == NULL || !elf_load(node, new_pagemap, 0, &entry)) {
+        vmm_destroy_pagemap(new_pagemap);
         r->rax = (uint64_t) -1;
         return;
     }
@@ -84,11 +83,12 @@ void syscall_exec(struct registers* r) {
 
     struct thread* new_thread = thread_create(current_process, entry, NULL, argv, envp, true);
     if (new_thread == NULL) {
+        vmm_destroy_pagemap(new_pagemap);
         r->rax = (uint64_t) -1;
         return;
     }
 
-    vmm_switch_pagemap(&kernel_pagemap);
+    vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
 
     sched_thread_enqueue(new_thread);
@@ -121,4 +121,15 @@ void syscall_thread_exit(struct registers* r) {
     (void) r;
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();
+}
+
+void syscall_sbrk(struct registers* r) {
+    intptr_t size = r->rdi;
+
+    void* ptr = process_sbrk(this_cpu()->running_thread->process, size);
+    if (ptr == NULL) {
+        r->rax = (uint64_t) -1;
+    } else {
+        r->rax = (uint64_t) ptr;
+    }
 }

@@ -7,15 +7,13 @@
 #include <utils/math.h>
 #include <utils/string.h>
 
-#define PAGE_FAULT          14
+#define PAGE_FAULT 14
 
 extern uint8_t text_start_addr[], text_end_addr[];
 extern uint8_t rodata_start_addr[], rodata_end_addr[];
 extern uint8_t data_start_addr[], data_end_addr[];
 
-struct pagemap kernel_pagemap;
-
-// TODO: create function to "fork" pagemaps
+struct pagemap* kernel_pagemap;
 
 volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST,
@@ -27,14 +25,7 @@ static volatile struct limine_kernel_address_request kaddr_request = {
     .revision = 0
 };
 
-static inline size_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
-    uintptr_t vaddr = 0;
-    vaddr |= pml4_index << 39;
-    vaddr |= pml3_index << 30;
-    vaddr |= pml2_index << 21;
-    vaddr |= pml1_index << 12;
-    return vaddr;
-}
+static struct cache* pagemap_cache;
 
 static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, size_t depth) {
     if (depth < 1) {
@@ -53,17 +44,23 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
             pmm_free((uintptr_t) level - HIGH_VMA, BIGPAGE_SIZE / PAGE_SIZE);
         }
 
-        destroy_levels_recursive((uint64_t*) ((level[i] & ~(0xfff)) + HIGH_VMA), 0, 512, depth - 1);
+        destroy_levels_recursive((uint64_t*) ((level[i] & ~PTE_FLAG_MASK) + HIGH_VMA), 0, 512, depth - 1);
     }
 
     pmm_free((uintptr_t) level - HIGH_VMA, 1);
 }
 
+static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
+    uintptr_t vaddr = 0;
+    vaddr |= pml4_index << 39;
+    vaddr |= pml3_index << 30;
+    vaddr |= pml2_index << 21;
+    vaddr |= pml1_index << 12;
+    return vaddr;
+}
+
 static void page_fault_handler(struct registers* r) {
     (void) r;
-    klog("error code: 0x%x\n", r->error_code);
-    klog("rip: 0x%x%x\n", (r->rip >> 32), (uint32_t) r->rip);
-    klog("rsp: 0x%x%x\n", (r->rsp >> 32), (uint32_t) r->rsp);
     kpanic(r, "PAGE FAULT");
 }
 
@@ -89,7 +86,7 @@ struct pagemap* vmm_new_pagemap(void) {
     }
 
     for (size_t i = 256; i < 512; i++) {
-        pagemap->top_level[i] = kernel_pagemap.top_level[i];
+        pagemap->top_level[i] = kernel_pagemap->top_level[i];
     }
 
     return pagemap;
@@ -112,21 +109,21 @@ struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap) {
 
     for (size_t i = 0; i < 256; i++) {
         if (old_pagemap->top_level[i] & PTE_PRESENT) {
-            uint64_t* pml4 = (uint64_t*) ((old_pagemap->top_level[i] & ~(0xfff)) + HIGH_VMA);
+            uint64_t* pml4 = (uint64_t*) ((old_pagemap->top_level[i] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
             for (size_t j = 0; j < 512; j++) {
                 if (pml4[j] & PTE_PRESENT) {
-                    uint64_t* pml3 = (uint64_t*) ((pml4[j] & ~(0xfff)) + HIGH_VMA);
+                    uint64_t* pml3 = (uint64_t*) ((pml4[j] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
                     for (size_t k = 0; k < 512; k++) {
                         if (pml3[k] & PTE_PRESENT) {
-                            uint64_t* pml2 = (uint64_t*) ((pml3[k] & ~(0xfff)) + HIGH_VMA);
+                            uint64_t* pml2 = (uint64_t*) ((pml3[k] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
                             for (size_t l = 0; l < 512; l++) {
                                 if (pml2[l] & PTE_PRESENT) {
                                     uintptr_t paddr = pmm_alloc(1);
-                                    memcpy((void*) (paddr + HIGH_VMA), (void*) ((pml4[j] & ~(0xfff)) + HIGH_VMA), PAGE_SIZE);
-                                    vmm_map_page(new_pagemap, entries_to_vaddr(i, j, k, l), paddr, pml2[l] & 0xfff);
+                                    memcpy((void*) (paddr + HIGH_VMA), (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE);
+                                    vmm_map_page(new_pagemap, entries_to_vaddr(i, j, k, l), paddr, pml2[l] & PTE_FLAG_MASK);
                                 }
                             }
                         }
@@ -163,7 +160,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
             }
         }
 
-        pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~(0xfff)) + HIGH_VMA);
+        pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     } else {
         pml4 = pagemap->top_level;
     }
@@ -178,7 +175,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
         pml4[pml4_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
 
-    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         pml3[pml3_index] = pmm_allocz(1);
         if (pml3[pml3_index] == 0) {
@@ -189,7 +186,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
         pml3[pml3_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
 
-    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
     if (flags & PTE_SIZE) {
         pml2[pml2_index] = paddr | flags;
@@ -207,7 +204,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
         pml2[pml2_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
 
-    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     pml1[pml1_index] = paddr | flags;
 
     spinlock_release(&pagemap->lock);
@@ -232,7 +229,7 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
             return false;
         }
 
-        pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~(0xfff)) + HIGH_VMA);
+        pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     } else {
         pml4 = pagemap->top_level;
     }
@@ -242,13 +239,13 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
         return false;
     }
 
-    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         spinlock_release(&pagemap->lock);
         return false;
     }
 
-    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
 	if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
@@ -262,7 +259,7 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
         return false;
     }
 
-    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~(0xfff)) + HIGH_VMA);
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     pml1[pml1_index] = 0;
     invlpg(vaddr);
 
@@ -273,27 +270,33 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 void vmm_init(void) {
     klog("[vmm] initializing virtual memory manager...\n");
 
-    kernel_pagemap.top_level = (uint64_t*) pmm_allocz(1);
-    if (kernel_pagemap.top_level == NULL) {
+    pagemap_cache = slab_cache_create("pagemap cache", sizeof(struct pagemap));
+    if (pagemap_cache == NULL) {
+        kpanic(NULL, "failed to initialize object cache for pagemaps");
+    }
+
+    kernel_pagemap = cache_alloc_object(pagemap_cache);
+    kernel_pagemap->top_level = (uint64_t*) pmm_allocz(1);
+    if (kernel_pagemap->top_level == NULL) {
         kpanic(NULL, "failed to allocate memory for kernel pagemap top level");
     }
 
-    kernel_pagemap.top_level = (uint64_t*) ((uintptr_t) kernel_pagemap.top_level + HIGH_VMA);
-    kernel_pagemap.lock = (spinlock_t) {0};
+    kernel_pagemap->top_level = (uint64_t*) ((uintptr_t) kernel_pagemap->top_level + HIGH_VMA);
+    kernel_pagemap->lock = (spinlock_t) {0};
 
     uint32_t ecx = 0, unused;
     __get_cpuid(7, &unused, &unused, &ecx, &unused);
     if (ecx & (1 << 16)) {
-        kernel_pagemap.has_level5 = true;
+        kernel_pagemap->has_level5 = true;
     }
 
     for (uint64_t i = 256; i < 512; i++) {
-        kernel_pagemap.top_level[i] = pmm_allocz(1) | PTE_PRESENT | PTE_WRITABLE;
+        kernel_pagemap->top_level[i] = pmm_allocz(1) | PTE_PRESENT | PTE_WRITABLE;
     }
 
     for (uintptr_t i = 0x1000; i < 0x100000000; i += PAGE_SIZE) {
-        vmm_map_page(&kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
-        vmm_map_page(&kernel_pagemap, i, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
+        vmm_map_page(kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
+        vmm_map_page(kernel_pagemap, i, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
     }
 
     uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE),
@@ -309,20 +312,20 @@ void vmm_init(void) {
 
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
         uintptr_t paddr = text_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(&kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT);
+        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT);
     }
 
     for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
         uintptr_t paddr = rodata_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(&kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_NX);
+        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_NX);
     }
 
     for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
         uintptr_t paddr = data_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(&kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
+        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
     }
 
-    vmm_switch_pagemap(&kernel_pagemap);
+    vmm_switch_pagemap(kernel_pagemap);
     klog("[vmm] switch to new kernel pagemap\n");
 
     isr_install_handler(PAGE_FAULT, false, page_fault_handler);

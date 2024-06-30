@@ -20,6 +20,7 @@ struct file_descriptor {
 
 struct file_descriptor* fd_create(struct vfs_node* node, int flags);
 bool fd_close(struct process* p, int fdnum);
+bool fd_dup(struct process* old_process, int old_fdnum, struct process* new_process, int new_fdnum);
 int fd_alloc_fdnum(struct process* p, struct file_descriptor* fd);
 struct file_descriptor* fd_from_fdnum(struct process* p, int fdnum);
 

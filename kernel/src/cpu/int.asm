@@ -68,9 +68,6 @@ syscall_entry:
     mov qword [gs:0024], rsp
     mov rsp, qword [gs:0016]
 
-    sti
-    cld
-
     push 0x1b
     push qword [gs:0024]
     push r11
@@ -116,8 +113,6 @@ syscall_entry:
     pop rax
 
     add rsp, 16
-
-    cli
 
     mov rsp, qword [gs:0024]
     swapgs

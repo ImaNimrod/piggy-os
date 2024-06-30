@@ -81,7 +81,7 @@ void lapic_timer_stop(void) {
     lapic_write(LAPIC_REG_LVT_TIMER, 0x10000);
 }
 
-void lapic_init(uint8_t lapic_id) {
+void lapic_init(void) {
     uint64_t lapic_msr = rdmsr(MSR_LAPIC_BASE);
     wrmsr(MSR_LAPIC_BASE, lapic_msr | (1 << 11));
 

@@ -18,6 +18,7 @@ extern void syscall_getpid(struct registers* r);
 extern void syscall_gettid(struct registers* r);
 extern void syscall_thread_create(struct registers* r);
 extern void syscall_thread_exit(struct registers* r);
+extern void syscall_sbrk(struct registers* r);
 extern void syscall_open(struct registers* r);
 extern void syscall_close(struct registers* r);
 extern void syscall_read(struct registers* r);
@@ -43,6 +44,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_gettid, .name = "gettid" },
     { .handler = syscall_thread_create, .name = "thread_create" },
     { .handler = syscall_thread_exit, .name = "thread_exit" },
+    { .handler = syscall_sbrk, .name = "sbrk" },
     { .handler = syscall_open, .name = "open" },
     { .handler = syscall_close, .name = "close" },
     { .handler = syscall_read, .name = "read" },
