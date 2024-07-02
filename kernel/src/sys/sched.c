@@ -12,8 +12,6 @@ struct process* kernel_process;
 static struct thread* runnable_threads = NULL;
 static spinlock_t thread_lock = {0};
 
-// TODO: use actual tree data structure for processes
-
 static bool add_thread_to_list(struct thread** list, struct thread* t) {
     struct thread* iter = *list;
     if (!iter) {
@@ -86,7 +84,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
         }
 
         current->fs_base = rdmsr(MSR_FS_BASE);
-        current->gs_base = rdmsr(MSR_KERNEL_GS);
+        current->gs_base = rdmsr(MSR_USER_GS);
 
         if (current->state == THREAD_NORMAL) {
             current->state = THREAD_READY_TO_RUN;
@@ -114,9 +112,9 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     lapic_timer_oneshot(SCHED_VECTOR, next->timeslice);
 
     wrmsr(MSR_FS_BASE, next->fs_base);
+
     if (next->ctx.cs & 3) {
         this_cpu()->fpu_restore(next->fpu_storage);
-        wrmsr(MSR_KERNEL_GS, next->gs_base);
     }
 
     if (!current || current->process != next->process) {
@@ -124,27 +122,27 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     __asm__ volatile(
-            "mov %0, %%rsp\n\t"
-            "pop %%r15\n\t"
-            "pop %%r14\n\t"
-            "pop %%r13\n\t"
-            "pop %%r12\n\t"
-            "pop %%r11\n\t"
-            "pop %%r10\n\t"
-            "pop %%r9\n\t"
-            "pop %%r8\n\t"
-            "pop %%rsi\n\t"
-            "pop %%rdi\n\t"
-            "pop %%rbp\n\t"
-            "pop %%rdx\n\t"
-            "pop %%rcx\n\t"
-            "pop %%rbx\n\t"
-            "pop %%rax\n\t"
-            "addq $16, %%rsp\n\t"
-            "swapgs\n\t"
-            "iretq\n\t"
-            :: "r" (&next->ctx)
-            );
+        "mov %0, %%rsp\n\t"
+        "pop %%r15\n\t"
+        "pop %%r14\n\t"
+        "pop %%r13\n\t"
+        "pop %%r12\n\t"
+        "pop %%r11\n\t"
+        "pop %%r10\n\t"
+        "pop %%r9\n\t"
+        "pop %%r8\n\t"
+        "pop %%rsi\n\t"
+        "pop %%rdi\n\t"
+        "pop %%rbp\n\t"
+        "pop %%rdx\n\t"
+        "pop %%rcx\n\t"
+        "pop %%rbx\n\t"
+        "pop %%rax\n\t"
+        "addq $16, %%rsp\n\t"
+        "swapgs\n\t"
+        "iretq\n\t"
+        :: "r" (&next->ctx)
+    );
     __builtin_unreachable();
 }
 
@@ -184,6 +182,7 @@ __attribute__((noreturn)) void sched_yield(void) {
     lapic_send_ipi(this_cpu()->lapic_id, SCHED_VECTOR);
 
     sti();
+
     for (;;) {
         hlt();
     }

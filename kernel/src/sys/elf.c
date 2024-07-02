@@ -4,7 +4,7 @@
 #include <utils/math.h>
 #include <utils/string.h>
 
-bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t load_base, uintptr_t* entry) {
+bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
     struct elf_header header;
     if (node->read(node, &header, 0, sizeof(header)) < 0) {
         return false;
@@ -48,7 +48,7 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t load_bas
         }
 
         for (size_t j = 0; j < page_count; j++) {
-            uintptr_t vaddr = load_base + pheader.p_vaddr + (j * PAGE_SIZE);
+            uintptr_t vaddr = pheader.p_vaddr + (j * PAGE_SIZE);
             uintptr_t paddr = phys_pages + (j * PAGE_SIZE);
             vmm_map_page(pagemap, vaddr, paddr, vmm_flags);
         }
@@ -59,7 +59,7 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t load_bas
     }
 
     if (entry) {
-        *entry = header.e_entry + load_base;
+        *entry = header.e_entry;
     }
 
     return true;

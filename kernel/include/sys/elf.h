@@ -88,6 +88,6 @@ struct elf_program_header {
     uint64_t p_align;
 };
 
-bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t load_base, uintptr_t* entry);
+bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry);
 
 #endif /* _KERNEL_SYS_ELF_H */

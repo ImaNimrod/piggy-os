@@ -1,6 +1,7 @@
 #include <cpu/percpu.h>
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
+#include <dev/char/console.h>
 #include <dev/char/fbdev.h>
 #include <dev/char/streams.h>
 #include <dev/hpet.h>
@@ -16,8 +17,11 @@
 #include <sys/process.h>
 #include <sys/sched.h>
 #include <utils/log.h>
+#include <utils/random.h>
 
 static void kernel_main(void) {
+    random_init();
+
     vfs_init();
     devfs_init();
     tmpfs_init();
@@ -27,6 +31,7 @@ static void kernel_main(void) {
     vfs_create(vfs_root, "/dev", VFS_NODE_DIRECTORY);
     vfs_mount(vfs_root, NULL, "/dev", "devfs");
 
+    console_init();
     fbdev_init();
     streams_init();
 

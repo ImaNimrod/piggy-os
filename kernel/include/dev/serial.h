@@ -1,6 +1,7 @@
 #ifndef _KERNEL_DEV_SERIAL_H
 #define _KERNEL_DEV_SERIAL_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define COM1 0x3f8
@@ -10,6 +11,6 @@
 
 char serial_getc(uint16_t port);
 void serial_putc(uint16_t port, char c);
-int serial_init(uint16_t port); 
+bool serial_init(uint16_t port); 
 
 #endif /* _KERNEL_DEV_SERIAL_H */

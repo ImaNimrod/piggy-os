@@ -1,0 +1,216 @@
+diff --git a/bfd/config.bfd b/bfd/config.bfd
+index 6553aac1..3f3209d9 100644
+--- a/bfd/config.bfd
++++ b/bfd/config.bfd
+@@ -655,6 +655,16 @@ case "${targ}" in
+     targ_defvec=i386_elf32_vec
+     targ_selvecs="iamcu_elf32_vec"
+     ;;
++  i[3-7]86-*-piggy*)
++    targ_defvec=i386_elf32_vec
++    targ_selvecs=
++    targ64_selvecs=x86_64_elf64_vec
++    ;;
++  x86_64-*-piggy*)
++    targ_defvec=x86_64_elf64_vec
++    targ_selvecs=i386_elf32_vec
++    want64=true
++    ;;
+   i[3-7]86-*-linux-*)
+     targ_defvec=i386_elf32_vec
+     targ_selvecs="iamcu_elf32_vec i386_pei_vec"
+diff --git a/config.sub b/config.sub
+index defe52c0..5b039edb 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1766,7 +1766,7 @@ case $os in
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* | mlibc* | cos* | mbr* )
++	     | fiwix* | mlibc* | cos* | mbr* | piggy* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+diff --git a/gas/Makefile.am b/gas/Makefile.am
+index b9b9e18b..d7356b71 100644
+--- a/gas/Makefile.am
++++ b/gas/Makefile.am
+@@ -349,6 +349,7 @@ TARG_ENV_HFILES = \
+ 	config/te-nbsd532.h \
+ 	config/te-pc532mach.h \
+ 	config/te-pe.h \
++	config/te-piggy.h \
+ 	config/te-solaris.h \
+ 	config/te-tmips.h \
+ 	config/te-vxworks.h \
+diff --git a/gas/Makefile.in b/gas/Makefile.in
+index b5751636..f1805ec7 100644
+--- a/gas/Makefile.in
++++ b/gas/Makefile.in
+@@ -848,6 +848,7 @@ TARG_ENV_HFILES = \
+ 	config/te-nbsd532.h \
+ 	config/te-pc532mach.h \
+ 	config/te-pe.h \
++	config/te-piggy.h \
+ 	config/te-solaris.h \
+ 	config/te-tmips.h \
+ 	config/te-vxworks.h \
+diff --git a/gas/config/tc-i386.c b/gas/config/tc-i386.c
+index 2e194313..4d73328c 100644
+--- a/gas/config/tc-i386.c
++++ b/gas/config/tc-i386.c
+@@ -534,7 +534,8 @@ const char extra_symbol_chars[] = "*%-([{}"
+      && !defined (TE_Haiku)				\
+      && !defined (TE_FreeBSD)				\
+      && !defined (TE_DragonFly)				\
+-     && !defined (TE_NetBSD))
++     && !defined (TE_NetBSD)				\
++     && !defined (TE_PiggyOS))
+ /* This array holds the chars that always start a comment.  If the
+    pre-processor is disabled, these aren't very useful.  The option
+    --divide will remove '/' from this list.  */
+diff --git a/gas/configure.tgt b/gas/configure.tgt
+index d58f2187..9df839b5 100644
+--- a/gas/configure.tgt
++++ b/gas/configure.tgt
+@@ -267,6 +267,7 @@ case ${generic_target} in
+   i386-*-*nt*)				fmt=coff em=pe ;;
+   i386-*-rdos*)				fmt=elf ;;
+   i386-*-darwin*)			fmt=macho ;;
++  i386-*-piggy*)			fmt=elf em=piggy ;;
+ 
+   ia16-*-elf*)				fmt=elf ;;
+ 
+diff --git a/ld/Makefile.am b/ld/Makefile.am
+index 6a9833e5..c643afa1 100644
+--- a/ld/Makefile.am
++++ b/ld/Makefile.am
+@@ -281,6 +281,7 @@ ALL_EMULATION_SOURCES = \
+ 	eelf_i386_fbsd.c \
+ 	eelf_i386_haiku.c \
+ 	eelf_i386_ldso.c \
++	eelf_i386_piggy.c \
+ 	eelf_i386_sol2.c \
+ 	eelf_i386_vxworks.c \
+ 	eelf_iamcu.c \
+@@ -464,6 +465,7 @@ ALL_64_EMULATION_SOURCES = \
+ 	eelf_x86_64_cloudabi.c \
+ 	eelf_x86_64_fbsd.c \
+ 	eelf_x86_64_haiku.c \
++	eelf_x86_64_piggy.c \
+ 	eelf_x86_64_sol2.c \
+ 	ehppa64linux.c \
+ 	ei386pep.c \
+diff --git a/ld/Makefile.in b/ld/Makefile.in
+index 8639e782..2097e43b 100644
+--- a/ld/Makefile.in
++++ b/ld/Makefile.in
+@@ -792,6 +792,7 @@ ALL_EMULATION_SOURCES = \
+ 	eelf_i386_fbsd.c \
+ 	eelf_i386_haiku.c \
+ 	eelf_i386_ldso.c \
++	eelf_i386_piggy.c \
+ 	eelf_i386_sol2.c \
+ 	eelf_i386_vxworks.c \
+ 	eelf_iamcu.c \
+@@ -974,6 +975,7 @@ ALL_64_EMULATION_SOURCES = \
+ 	eelf_x86_64_cloudabi.c \
+ 	eelf_x86_64_fbsd.c \
+ 	eelf_x86_64_haiku.c \
++	eelf_x86_64_piggy.c \
+ 	eelf_x86_64_sol2.c \
+ 	ehppa64linux.c \
+ 	ei386pep.c \
+@@ -1482,6 +1484,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_haiku.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_ldso.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_piggy.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_sol2.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_vxworks.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_iamcu.Po@am__quote@
+@@ -1491,6 +1494,7 @@ distclean-compile:
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_cloudabi.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_haiku.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_piggy.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_sol2.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eh8300elf.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eh8300elf_linux.Po@am__quote@
+diff --git a/ld/configure.tgt b/ld/configure.tgt
+index f937f78b..b3be2af8 100644
+--- a/ld/configure.tgt
++++ b/ld/configure.tgt
+@@ -381,6 +381,15 @@ i[3-7]86-*-linux-*)	targ_emul=elf_i386
+ 			targ64_extra_emuls="elf_x86_64 elf32_x86_64"
+ 			targ64_extra_libpath="elf_x86_64 elf32_x86_64"
+ 			;;
++i[3-7]86-*-piggy*)
++			targ_emul=elf_i386_piggy
++			targ_extra_emuls=elf_i386
++			targ64_extra_emuls="elf_x86_64_piggy elf_x86_64"
++			;;
++x86_64-*-piggy*)
++			targ_emul=elf_x86_64_piggy
++			targ_extra_emuls="elf_i386_piggy elf_x86_64 elf_i386"
++			;;
+ i[3-7]86-*-redox*)	targ_emul=elf_i386
+ 			targ_extra_emuls=elf_x86_64
+ 			;;
+@@ -1116,6 +1125,10 @@ case "${target}" in
+   NATIVE_LIB_DIRS='/lib /usr/lib /usr/local/lib'
+   ;;
+ 
++*-*-piggy*)
++  NATIVE_LIB_DIRS='/local/lib /lib'
++  ;;
++
+ hppa*64*-*-hpux11*)
+   NATIVE_LIB_DIRS=/usr/lib/pa20_64
+   ;;
+diff --git a/ld/emulparams/elf_i386_piggy.sh b/ld/emulparams/elf_i386_piggyos.sh
+new file mode 100644
+index 00000000..e7b73989
+--- /dev/null
++++ b/ld/emulparams/elf_i386_piggy.sh
+@@ -0,0 +1,2 @@
++source_sh ${srcdir}/emulparams/elf_i386.sh
++TEXT_START_ADDR=0x00100000
+diff --git a/ld/emulparams/elf_x86_64_piggy.sh b/ld/emulparams/elf_x86_64_piggyos.sh
+new file mode 100644
+index 00000000..e2a120df
+--- /dev/null
++++ b/ld/emulparams/elf_x86_64_piggy.sh
+@@ -0,0 +1,2 @@
++source_sh ${srcdir}/emulparams/elf_x86_64.sh
++TEXT_START_ADDR=0x00100000
+diff --git a/gas/config/te-piggy.h b/gas/config/te-piggyos.h
+new file mode 100644
+index 00000000..f03e2601
+--- /dev/null
++++ b/gas/config/te-piggy.h
+@@ -0,0 +1,23 @@
++/* Copyright (C) 2024-2024 Free Software Foundation, Inc.
++   This file is part of GAS, the GNU Assembler.
++   GAS is free software; you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as
++   published by the Free Software Foundation; either version 3,
++   or (at your option) any later version.
++   GAS is distributed in the hope that it will be useful, but
++   WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
++   the GNU General Public License for more details.
++   You should have received a copy of the GNU General Public License
++   along with GAS; see the file COPYING.  If not, write to the Free
++   Software Foundation, 51 Franklin Street - Fifth Floor, Boston, MA
++   02110-1301, USA.  */
++
++/* Target environment for PiggyOS. */
++
++#define TE_PiggyOS 1
++
++#define LOCAL_LABELS_DOLLAR 1
++#define LOCAL_LABELS_FB 1
++
++#include "obj-format.h"

@@ -248,16 +248,9 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         spinlock_release(&vfs_lock);
         return false;
     }
-
     r.node->mountpoint = mount_node;
 
     create_dotentries(r.parent, mount_node);
-
-    if (source && strlen(source) != 0) {
-        klog("[vfs] mounted `%s` on `%s` with filesystem `%s`\n", source, target, fs_name);
-    } else {
-        klog("[vfs] mounted `%s` on `%s`\n", fs_name, target);
-    }
 
     spinlock_release(&vfs_lock);
     return true;

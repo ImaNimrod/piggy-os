@@ -92,9 +92,13 @@ syscall_entry:
     push r14
     push r15
 
+    sti
+
     mov rdi, rsp
     xor rbp, rbp
     call syscall_handler
+
+    cli
 
     pop r15
     pop r14

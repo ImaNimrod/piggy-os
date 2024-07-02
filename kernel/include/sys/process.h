@@ -17,6 +17,7 @@
 
 enum process_state {
     PROCESS_RUNNING,
+    PROCESS_WAITING,
     PROCESS_ZOMBIE,
 };
 
@@ -34,6 +35,7 @@ struct process {
     uint8_t exit_code;
 
     struct pagemap* pagemap;
+    uintptr_t code_base;
     uintptr_t brk;
     uintptr_t thread_stack_top;
 
@@ -44,8 +46,6 @@ struct process {
     struct process* parent;
     vector_t* children;
     vector_t* threads;
-
-    struct process* next;
 };
 
 struct thread {

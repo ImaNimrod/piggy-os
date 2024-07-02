@@ -3,8 +3,6 @@
 #include <utils/log.h>
 #include <utils/math.h>
 
-// TODO: validation for pointer arguments in ALL syscalls
-
 struct syscall_handle {
     void (*handler)(struct registers* r);
     const char* name;
@@ -13,6 +11,7 @@ struct syscall_handle {
 extern void syscall_exit(struct registers* r);
 extern void syscall_fork(struct registers* r);
 extern void syscall_exec(struct registers* r);
+extern void syscall_wait(struct registers* r);
 extern void syscall_yield(struct registers* r);
 extern void syscall_getpid(struct registers* r);
 extern void syscall_gettid(struct registers* r);
@@ -39,6 +38,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_exit, .name = "exit" },
     { .handler = syscall_fork, .name = "fork" },
     { .handler = syscall_exec, .name = "exec" },
+    { .handler = syscall_wait, .name = "wait" },
     { .handler = syscall_yield, .name = "yield" },
     { .handler = syscall_getpid, .name = "getpid" },
     { .handler = syscall_gettid, .name = "gettid" },

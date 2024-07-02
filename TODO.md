@@ -36,7 +36,7 @@ List of syscalls:
     - getcwd                (DONE 6/26/24)
 
 Other things that need to happen:
-    - syscall pointer argument validation (is the memory userspace, not NULL, etc.)
+    - syscall pointer argument validation (is the memory userspace, not NULL, etc.) (DONE 6/30/24)
     - create a basic devfs (in memory filesystem like tmpfs) (DONE 6/27/24)
     - create framebuffer device (/dev/fb0) that has working read, write, and ioctl (DONE 6/27/24)
     - create streams (/dev/null, /dev/zero) (DONE 6/28/24)

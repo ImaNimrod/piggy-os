@@ -8,24 +8,70 @@
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
+#include <utils/vector.h>
 
 #define STACK_SIZE 0x40000
 
 static struct cache* process_cache;
 static struct cache* thread_cache;
 
+// TODO: use actual tree data structure for processes
+static vector_t* running_processes;
+static vector_t* dead_processes;
+static spinlock_t process_lock = {0};
+
 static const char* init_path = "/bin/init";
-static pid_t next_pid = 0;
+
+static bool create_std_file_descriptors(struct process* p, const char* console_path) {
+    struct vfs_node* console_node = vfs_get_node(p->cwd, console_path);
+    if (console_node == NULL) {
+        return false;
+    }
+
+    struct file_descriptor* stdin = fd_create(console_node, O_RDONLY);
+    if (stdin == NULL) {
+        return false;
+    }
+
+    if (fd_alloc_fdnum(p, stdin) < 0) {
+        return false;
+    }
+
+    struct file_descriptor* stdout = fd_create(console_node, O_WRONLY);
+    if (stdout == NULL) {
+        return false;
+    }
+
+    if (fd_alloc_fdnum(p, stdout) < 0) {
+        return false;
+    }
+
+    struct file_descriptor* stderr = fd_create(console_node, O_WRONLY);
+    if (stderr == NULL) {
+        return false;
+    }
+
+    if (fd_alloc_fdnum(p, stderr) < 0) {
+        return false;
+    }
+
+    return true;
+}
 
 struct process* process_create(struct process* old, struct pagemap* pagemap) {
+    spinlock_acquire(&process_lock);
+
     struct process* new = cache_alloc_object(process_cache);
     if (new == NULL) {
         return NULL;
     }
 
+    new->state = PROCESS_RUNNING;
+
     new->children = vector_create(sizeof(struct process*));
     if (new->children == NULL) {
         cache_free_object(process_cache, new);
+        spinlock_release(&process_lock);
         return NULL;
     }
 
@@ -33,13 +79,10 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
     if (new->threads == NULL) {
         kfree(new->children);
         cache_free_object(process_cache, new);
+
+        spinlock_release(&process_lock);
         return NULL;
     }
-
-    new->pid = next_pid;
-    __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
-
-    new->state = PROCESS_RUNNING;
 
     if (old != NULL) {
         strncpy(new->name, old->name, sizeof(new->name));
@@ -49,6 +92,8 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
             kfree(new->children);
             kfree(new->threads);
             cache_free_object(process_cache, new);
+
+            spinlock_release(&process_lock);
             return NULL;
         }
 
@@ -67,6 +112,8 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
                 kfree(new->children);
                 kfree(new->threads);
                 cache_free_object(process_cache, new);
+
+                spinlock_release(&process_lock);
                 return NULL;
             }
         }
@@ -79,6 +126,10 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
         new->cwd = vfs_root;
     }
 
+    new->pid = running_processes->size;
+    vector_push_back(running_processes, new);
+
+    spinlock_release(&process_lock);
     return new;
 }
 
@@ -92,12 +143,12 @@ bool process_create_init(void) {
     struct pagemap* init_pagemap = vmm_new_pagemap();
 
     uintptr_t entry;
-    if (!elf_load(init_node, init_pagemap, 0, &entry)) {
+    if (!elf_load(init_node, init_pagemap, &entry)) {
         vmm_destroy_pagemap(init_pagemap);
         return false;
     }
 
-    const char* argv[] = { init_path, NULL };
+    const char* argv[] = { init_path, "bruh", "test", "l", NULL };
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create(NULL, init_pagemap);
@@ -106,6 +157,12 @@ bool process_create_init(void) {
         return false;
     }
 
+    if (!create_std_file_descriptors(init_process, "/dev/console")) {
+        process_destroy(init_process, -1);
+        return false;
+    };
+
+    init_process->code_base = entry;
     vfs_get_pathname(vfs_root, init_process->name, sizeof(init_process->name) - 1);
 
     struct thread* init_thread = thread_create(init_process, entry, NULL, argv, envp, true);
@@ -123,6 +180,8 @@ void process_destroy(struct process* p, int status) {
         kpanic(NULL, "tried to exit init process");
     }
 
+    spinlock_acquire(&process_lock);
+
     p->exit_code = (uint8_t) status;
     p->state = PROCESS_ZOMBIE;
 
@@ -138,11 +197,20 @@ void process_destroy(struct process* p, int status) {
         fd_close(p, i);
     }
 
+    struct process* init = vector_get(running_processes, 1);
+    for (size_t i = 0; i < p->children->size; i++) {
+        vector_push_back(init->children, vector_get(p->children, i));
+    }
+
     vector_destroy(p->children);
     vector_destroy(p->threads);
 
-    // TODO: reparent process children to init process
     vmm_destroy_pagemap(p->pagemap);
+
+    vector_remove_by_value(running_processes, p);
+    vector_push_back(dead_processes, p);
+
+    spinlock_release(&process_lock);
 }
 
 void* process_sbrk(struct process* p, intptr_t size) {
@@ -212,6 +280,8 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             return NULL;
         }
 
+        uintptr_t* stack = (void*) (stack_paddr + STACK_SIZE + HIGH_VMA);
+
         for (size_t i = 0; i < ALIGN_UP(STACK_SIZE, PAGE_SIZE) / PAGE_SIZE + 1; i++) {
             bool ret = vmm_map_page(p->pagemap,
                     (p->thread_stack_top - STACK_SIZE) + (i * PAGE_SIZE),
@@ -226,7 +296,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         }
 
         t->ctx.rsp = t->stack = p->thread_stack_top;
-        p->thread_stack_top -= STACK_SIZE;
+        p->thread_stack_top -= STACK_SIZE - PAGE_SIZE;
 
         t->page_fault_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
         t->page_fault_stack += STACK_SIZE + HIGH_VMA;
@@ -242,8 +312,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         t->gs_base = 0;
 
         if (p->threads->size == 0 && argv != NULL && envp != NULL) {
-            uintptr_t* stack = (uintptr_t*) (stack_paddr + STACK_SIZE + HIGH_VMA);
-            void* stack_top = stack;
+            uintptr_t* stack_top = stack;
 
             int envp_len;
             for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
@@ -260,7 +329,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             }
 
             stack = (uintptr_t*) ALIGN_DOWN((uintptr_t) stack, 16);
-            if ((argv_len + envp_len + 1) & 1) {
+            if (((argv_len + envp_len + 1) & 1) != 0) {
                 stack--;
             }
 
@@ -270,18 +339,19 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             stack -= envp_len;
             for (int i = 0; i < envp_len; i++) {
                 old_rsp -= strlen(envp[i]) + 1;
-                stack[i] = old_rsp;
+                ((uintptr_t*) stack)[i] = old_rsp;
             }
 
             *(--stack) = 0;
             stack -= argv_len;
             for (int i = 0; i < argv_len; i++) {
                 old_rsp -= strlen(argv[i]) + 1;
-                stack[i] = old_rsp;
+                ((uintptr_t*) stack)[i] = old_rsp;
             }
 
-            *(--stack) = argv_len;
+            *(uintptr_t*) (--stack) = argv_len;
 
+            t->stack -= (uintptr_t) stack_top - (uintptr_t) stack;
             t->ctx.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
         }
     } else {
@@ -379,5 +449,15 @@ void process_init(void) {
     thread_cache = slab_cache_create("thread cache", sizeof(struct thread));
     if (thread_cache == NULL) {
         kpanic(NULL, "failed to initialize object cache for thread structures");
+    }
+
+    running_processes = vector_create(sizeof(struct process*));
+    if (running_processes == NULL) {
+        kpanic(NULL, "failed to create running process vector");
+    }
+
+    dead_processes = vector_create(sizeof(struct process*));
+    if (dead_processes == NULL) {
+        kpanic(NULL, "failed to create dead process vector");
     }
 }

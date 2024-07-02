@@ -1,25 +1,6 @@
 #include <cpu/asm.h>
 #include <dev/serial.h>
 
-int serial_init(uint16_t port) {
-    outb(port + 7, 0xae);
-    if (inb(port + 7) != 0xae) {
-        return 1;
-    }
-
-    outb(port + 1, 0x01);
-    outb(port + 3, 0x80);
-
-    outb(port + 0, 0x03);
-    outb(port + 1, 0x00);
-
-    outb(port + 3, 0x03);
-    outb(port + 2, 0xc7);
-    outb(port + 4, 0x0b);
-
-    return 0;
-}
-
 char serial_getc(uint16_t port) {
     while (!(inb(port + 5) & 0x01)) {
         pause();
@@ -34,4 +15,23 @@ void serial_putc(uint16_t port, char c) {
     }
 
     outb(port, c);
+}
+
+bool serial_init(uint16_t port) {
+    outb(port + 7, 0xae);
+    if (inb(port + 7) != 0xae) {
+        return false;
+    }
+
+    outb(port + 1, 0x01);
+    outb(port + 3, 0x80);
+
+    outb(port + 0, 0x03);
+    outb(port + 1, 0x00);
+
+    outb(port + 3, 0x03);
+    outb(port + 2, 0xc7);
+    outb(port + 4, 0x0b);
+
+    return true;
 }

@@ -72,7 +72,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     wrmsr(MSR_STAR, 0x13000800000000);
     wrmsr(MSR_LSTAR, (uint64_t) syscall_entry);
-    wrmsr(MSR_SFMASK, (uint64_t) ((1 << 9) | (1 << 10)));
+    wrmsr(MSR_SFMASK, (uint64_t) 0x700);
 
     percpu->fpu_storage_size = 512;
     percpu->fpu_save = fxsave;

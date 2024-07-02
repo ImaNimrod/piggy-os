@@ -80,8 +80,7 @@ struct pagemap* vmm_new_pagemap(void) {
     pagemap->lock = (spinlock_t) {0};
 
     uint32_t ecx = 0, unused;
-    __get_cpuid(7, &unused, &unused, &ecx, &unused);
-    if (ecx & (1 << 16)) {
+    if (__get_cpuid(7, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
         pagemap->has_level5 = true;
     }
 
@@ -285,8 +284,7 @@ void vmm_init(void) {
     kernel_pagemap->lock = (spinlock_t) {0};
 
     uint32_t ecx = 0, unused;
-    __get_cpuid(7, &unused, &unused, &ecx, &unused);
-    if (ecx & (1 << 16)) {
+    if (__get_cpuid(7, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
         kernel_pagemap->has_level5 = true;
     }
 

@@ -13,8 +13,12 @@
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
     int flags = r->rsi;
-
     struct process* current_process = this_cpu()->running_thread->process;
+
+    if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
@@ -68,9 +72,7 @@ void syscall_open(struct registers* r) {
 void syscall_close(struct registers* r) {
     int fdnum = r->rdi;
 
-    struct process* current_process = this_cpu()->running_thread->process;
-
-    if (fd_close(current_process, fdnum)) {
+    if (fd_close(this_cpu()->running_thread->process, fdnum)) {
         r->rax = 0;
     } else {
         r->rax = -1;
@@ -82,7 +84,14 @@ void syscall_read(struct registers* r) {
     void* buf = (void*) r->rsi;
     size_t count = r->rdx;
 
-    struct file_descriptor* fd = fd_from_fdnum(this_cpu()->running_thread->process, fdnum);
+    struct process* current_process = this_cpu()->running_thread->process;
+
+    if ((uintptr_t) buf < current_process->code_base || (uintptr_t) buf > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -110,8 +119,14 @@ void syscall_write(struct registers* r) {
     int fdnum = r->rdi;
     const void* buf = (const void*) r->rsi;
     size_t count = r->rdx;
+    struct process* current_process = this_cpu()->running_thread->process;
 
-    struct file_descriptor* fd = fd_from_fdnum(this_cpu()->running_thread->process, fdnum);
+    if ((uintptr_t) buf < current_process->code_base || (uintptr_t) buf > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -139,8 +154,14 @@ void syscall_ioctl(struct registers* r) {
     int fdnum = r->rdi;
     uint64_t request = r->rsi;
     void* argp = (void*) r->rdx;
+    struct process* current_process = this_cpu()->running_thread->process;
 
-    struct file_descriptor* fd = fd_from_fdnum(this_cpu()->running_thread->process, fdnum);
+    if ((uintptr_t) argp < current_process->code_base || (uintptr_t) argp > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -201,10 +222,9 @@ void syscall_seek(struct registers* r) {
 
 void syscall_chdir(struct registers* r) {
     const char* path = (char*) r->rdi;
-
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if (path == NULL) {
+    if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -233,10 +253,9 @@ void syscall_chdir(struct registers* r) {
 void syscall_getcwd(struct registers* r) {
     char* buffer = (char*) r->rdi;
     size_t len = r->rsi;
-
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if (buffer == NULL) {
+    if ((uintptr_t) buffer < current_process->code_base || (uintptr_t) buffer > PROCESS_THREAD_STACK_TOP) {
         r->rax = (uint64_t) -1;
         return;
     }

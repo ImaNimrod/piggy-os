@@ -4,7 +4,7 @@ CFLAGS := -Os -std=gnu11 -ffreestanding -fno-stack-protector -fno-stack-check -f
 		  -fms-extensions -fno-omit-frame-pointer -fno-strict-aliasing -fpie \
 		  -m64 -march=x86-64 -mno-80387 -mno-mmx -mno-3dnow -mno-sse -mno-sse2 -mno-red-zone \
 		  -Wall -Wextra -pedantic -Wpointer-arith -Wcast-align -Winline -Wno-long-long \
-		  -Wnested-externs -Wstrict-prototypes -Wredundant-decls -Wshadow
+		  -Wnested-externs -Wstrict-prototypes -Wredundant-decls -Wshadow -Wvla
 
 CPPFLAGS := -I include
 

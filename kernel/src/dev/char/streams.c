@@ -3,6 +3,7 @@
 #include <fs/vfs.h>
 #include <types.h>
 #include <utils/log.h>
+#include <utils/random.h>
 #include <utils/string.h>
 
 static ssize_t null_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
@@ -14,6 +15,20 @@ static ssize_t null_read(struct vfs_node* node, void* buf, off_t offset, size_t 
 }
 
 static ssize_t null_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
+    (void) node;
+    (void) buf;
+    (void) offset;
+    return count;
+}
+
+static ssize_t random_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
+    (void) node;
+    (void) offset;
+    rand_fill(buf, count);
+    return count;
+}
+
+static ssize_t random_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
     (void) node;
     (void) buf;
     (void) offset;
@@ -42,6 +57,13 @@ void streams_init(void) {
         .write = null_write,
     };
 
+    struct device random_dev = {
+        .name = "random",
+        .type = VFS_NODE_CHARDEV,
+        .read = random_read,
+        .write = random_write,
+    };
+
     struct device zero_dev = {
         .name = "zero",
         .type = VFS_NODE_CHARDEV,
@@ -51,6 +73,10 @@ void streams_init(void) {
 
     if (!devfs_add_device(&null_dev)) {
         kpanic(NULL, "failed to add null device to devfs");
+    }
+
+    if (!devfs_add_device(&random_dev)) {
+        kpanic(NULL, "failed to add random device to devfs");
     }
 
     if (!devfs_add_device(&zero_dev)) {

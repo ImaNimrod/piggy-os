@@ -135,4 +135,16 @@ static inline uint64_t wrmsr(uint32_t msr, uint64_t val) {
     return ((uint64_t) edx << 32) | eax;
 }
 
+static inline uint64_t rdseed(void) {
+    uint64_t result;
+    __asm__ volatile ("rdseed %0" : "=r" (result));
+    return result;
+}
+
+static inline uint64_t rdrand(void) {
+    uint64_t result;
+    __asm__ volatile ("rdrand %0" : "=r" (result));
+    return result;
+}
+
 #endif /* _KERNEL_ASM_H */
