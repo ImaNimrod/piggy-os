@@ -188,6 +188,12 @@ void syscall_seek(struct registers* r) {
         return;
     }
 
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
     if (fd->node->type == VFS_NODE_REGULAR) {
         r->rax = (uint64_t) -1;
         return;
@@ -220,33 +226,52 @@ void syscall_seek(struct registers* r) {
     r->rax = new_offset;
 }
 
-void syscall_chdir(struct registers* r) {
-    const char* path = (char*) r->rdi;
+void syscall_truncate(struct registers* r) {
+    int fdnum = r->rdi;
+    off_t length = r->rsi;
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    size_t path_len = strlen(path);
-    if (path_len == 0 || path_len >= PATH_MAX) {
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    struct vfs_node* node = vfs_get_node(current_process->cwd, path);
-    if (node == NULL) {
+    struct vfs_node* node = fd->node;
+    if (node->type == VFS_NODE_DIRECTORY) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    if (node->type != VFS_NODE_DIRECTORY) {
+    if (!node->truncate(node, length)) {
+        r->rax = (uint64_t) -1;
+    } else {
+        r->rax = 0;
+    }
+}
+
+void syscall_chdir(struct registers* r) {
+    int fdnum = r->rdi;
+    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    current_process->cwd = node;
+    if (fd->node->type != VFS_NODE_DIRECTORY) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    current_process->cwd = fd->node;
     r->rax = 0;
 }
 

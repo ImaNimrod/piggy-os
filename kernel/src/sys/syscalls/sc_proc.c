@@ -129,6 +129,8 @@ void syscall_exec(struct registers* r) {
     vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
 
+    r->rax = 0;
+
     sched_thread_enqueue(new_thread);
     sched_yield();
 }

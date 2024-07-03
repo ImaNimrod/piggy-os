@@ -13,9 +13,9 @@ ASFLAGS := -f elf64
 LDFLAGS := -m elf_x86_64 -nostdlib -static -pie \
 		   --no-dynamic-linker -z text -z max-page-size=0x1000
 
-override CFILES := $(shell cd src && find . -type f -name '*.c')
-override ASFILES := $(shell cd src && find . -type f -name '*.asm')
-override OBJFILES := $(addprefix obj/,$(CFILES:.c=.o) $(ASFILES:.asm=.o))
+KERNEL_CFILES := $(shell cd src && find . -type f -name '*.c')
+KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.asm')
+KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.asm=.o))
 
 .PHONY: all
 all: bin/$(KERNEL_NAME)
@@ -23,10 +23,10 @@ all: bin/$(KERNEL_NAME)
 include/limine.h:
 	@curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
-bin/$(KERNEL_NAME): linker.ld $(OBJFILES)
+bin/$(KERNEL_NAME): linker.ld $(KERNEL_OBJFILES)
 	@mkdir -p "$$(dirname $@)"
 	@echo "  LD   $@"
-	@$(LD) $(LDFLAGS) $(OBJFILES) -T linker.ld -o $@
+	@$(LD) $(LDFLAGS) $(KERNEL_OBJFILES) -T linker.ld -o $@
 
 obj/%.o: src/%.c include/limine.h
 	@mkdir -p "$$(dirname $@)"

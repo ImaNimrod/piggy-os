@@ -24,6 +24,7 @@ extern void syscall_read(struct registers* r);
 extern void syscall_write(struct registers* r);
 extern void syscall_ioctl(struct registers* r);
 extern void syscall_seek(struct registers* r);
+extern void syscall_truncate(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 
@@ -51,6 +52,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_write, .name = "write" },
     { .handler = syscall_ioctl, .name = "ioctl" },
     { .handler = syscall_seek, .name = "seek" },
+    { .handler = syscall_truncate, .name = "truncate" },
     { .handler = syscall_chdir, .name = "chdir" },
     { .handler = syscall_getcwd, .name = "getcwd" },
 };
