@@ -9,6 +9,7 @@ int chdir(const char* path) {
     if (fd < 0) {
         return -1;
     }
+    close(fd);
     return fchdir(fd);
 }
 
@@ -64,6 +65,8 @@ int truncate(const char* path, off_t length) {
     if (length == 0) {
         return 0;
     }
+
+    close(fd);
     return ftruncate(fd, length);
 }
 
