@@ -70,3 +70,7 @@ int truncate(const char* path, off_t length) {
 ssize_t write(int fd, const void* buf, size_t count) {
     return syscall3(SYS_WRITE, fd, (uint64_t) buf, count);
 }
+
+void yield(void) {
+    syscall0(SYS_YIELD);
+}

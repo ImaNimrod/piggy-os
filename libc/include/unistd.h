@@ -30,5 +30,6 @@ off_t lseek(int, off_t, int);
 ssize_t read(int, void*, size_t);
 int truncate(const char*, off_t);
 ssize_t write(int, const void*, size_t);
+void yield(void);
 
 #endif /* _UNISTD_H */

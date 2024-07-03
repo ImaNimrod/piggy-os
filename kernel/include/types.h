@@ -25,6 +25,9 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#define WNOHANG     (1 << 0)
+#define WUNTRACED   (1 << 1)
+
 typedef int64_t off_t;
 typedef int64_t ssize_t;
 

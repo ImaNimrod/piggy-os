@@ -175,20 +175,6 @@ void sched_thread_destroy(struct thread* t) {
     thread_destroy(t);
 }
 
-__attribute__((noreturn)) void sched_yield(void) {
-    cli();
-
-    lapic_timer_stop();
-    lapic_send_ipi(this_cpu()->lapic_id, SCHED_VECTOR);
-
-    sti();
-
-    for (;;) {
-        hlt();
-    }
-    __builtin_unreachable();
-}
-
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, false, schedule);
     kernel_process = process_create(NULL, kernel_pagemap);

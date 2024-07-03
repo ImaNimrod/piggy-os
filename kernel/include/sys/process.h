@@ -70,6 +70,7 @@ struct process* process_create(struct process* old, struct pagemap* pagemap);
 bool process_create_init(void);
 void process_destroy(struct process* p, int status);
 void* process_sbrk(struct process* p, intptr_t size);
+pid_t process_wait(struct process* p, pid_t pid, int* status, int flags);
 
 struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp, bool is_user);
 struct thread* thread_fork(struct process* forked, struct thread* old_thread);

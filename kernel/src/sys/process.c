@@ -255,6 +255,61 @@ void* process_sbrk(struct process* p, intptr_t size) {
     return (void*) end;
 }
 
+pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
+    struct process* child = NULL;
+
+    if (pid == -1) {
+        while (true) {
+            if (p->children->size == 0) {
+                return -1;
+            }
+
+            struct process* iter;
+            for (size_t i = 0; i < p->children->size; i++) {
+                iter = p->children->data[i];
+                if (iter->state == PROCESS_ZOMBIE) {
+                    child = iter;
+                    break;
+                }
+            }
+
+            if (flags & WNOHANG) {
+                return 0;
+            }
+
+            sched_yield();
+        }
+    } else if (pid > 0) {
+        struct process* iter;
+        for (size_t i = 0; i < p->children->size; i++) {
+            iter = p->children->data[i];
+            if (iter->pid == pid) {
+                child = iter;
+                break;
+            }
+        }
+
+        if (child == NULL) {
+            return -1;
+        }
+
+        while (child->state != PROCESS_ZOMBIE) {
+            if (flags & WNOHANG) {
+                return 0;
+            }
+            sched_yield();
+        }
+    } else {
+        return -1;
+    }
+
+    if (status) {
+        *status = child->exit_code;
+    }
+
+    return child->pid;
+}
+
 struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp, bool is_user) {
     struct thread* t = cache_alloc_object(thread_cache);
     if (t == NULL) {

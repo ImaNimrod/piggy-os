@@ -21,6 +21,7 @@ List of syscalls:
     - fork                  (DONE 6/30/24)
     - exec                  (DONE 6/30/24)
     - yield                 (DONE 6/26/24)
+    - wait                  (DONE 7/03/24 not originally planned)
     - getpid                (DONE 6/26/24)
     - gettid                (DONE 6/26/24)
     - thread_create         (DONE 6/26/24)

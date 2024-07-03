@@ -12,7 +12,7 @@ LIBC_OBJFILES := $(addprefix obj/,$(LIBC_CFILES:.c=.o) $(LIBC_ASFILES:.asm=.o))
 LIBC_CRT_OBJFILES := $(wildcard obj/crt/*.o)
 
 .PHONY: libc
-libc: $(SYSROOT_DIR)/lib/libc.a install-crt install-headers
+libc: install-headers $(SYSROOT_DIR)/lib/libc.a install-crt
 
 $(SYSROOT_DIR)/lib/libc.a: $(LIBC_OBJFILES)
 	@echo "  AR   $@"

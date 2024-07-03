@@ -135,9 +135,18 @@ void syscall_exec(struct registers* r) {
     sched_yield();
 }
 
-// TODO: implement wait syscall
 void syscall_wait(struct registers* r) {
-    r->rax = (uint64_t) -1;
+    pid_t pid = r->rdi;
+    int* status = (int*) r->rsi;
+    int flags = r->rdx;
+    struct process* current_process = this_cpu()->running_thread->process;
+
+    if ((uintptr_t) status < current_process->code_base || (uintptr_t) status > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    r->rax = process_wait(current_process, pid, status, flags);
 }
 
 void syscall_yield(struct registers* r) {
