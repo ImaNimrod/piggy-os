@@ -1,0 +1,107 @@
+diff --git a/config.sub b/config.sub
+index 38f3d037a..1ffd715b0 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1708,7 +1708,7 @@ case $os in
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* )
++	     | fiwix* | piggy* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
+index 7112f4dcd..ae186bd51 100755
+--- a/fixincludes/mkfixinc.sh
++++ b/fixincludes/mkfixinc.sh
+@@ -13,6 +13,7 @@ case $machine in
+     powerpcle-*-eabisim* | \
+     powerpcle-*-eabi* | \
+     *-*-vxworks7* | \
++    *-piggy* | \
+     *-musl* )
+ 	#  IF there is no include fixing,
+ 	#  THEN create a no-op fixer and exit
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index bc4561574..bb8974c5c 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -883,6 +883,12 @@ case ${target} in
+   rust_target_objs="${rust_target_objs} fuchsia-rust.o"
+   target_has_targetrustm=yes
+   ;;
++*-*-piggy*)
++  gas=yes
++  gnu_ld=yes
++  default_use_cxa_atexit=yes
++  use_gcc_stdint=provide
++  ;;
+ *-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu | *-*-uclinuxfdpiceabi)
+   extra_options="$extra_options gnu-user.opt"
+   gas=yes
+@@ -1949,6 +1955,12 @@ x86_64-*-darwin*)
+ 	tmake_file="${tmake_file} ${cpu_type}/t-darwin64-biarch t-slibgcc"
+ 	tm_file="${cpu_type}/darwin64-biarch.h ${tm_file} "
+ 	;;
++i[34567]86-*-piggy*)
++    tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h piggy.h"
++    ;;
++x86_64-*-piggy*)
++    tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h i386/x86-64.h piggy.h"
++    ;;
+ i[34567]86-*-elfiamcu)
+ 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/iamcu.h"
+ 	;;
+diff --git a/libgcc/config.host b/libgcc/config.host
+index 9fae51d4c..1ae733c4c 100644
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -834,6 +834,14 @@ i[34567]86-*-solaris2* | x86_64-*-solaris2*)
+ 	tm_file="${tm_file} i386/elf-lib.h"
+ 	md_unwind_header=i386/sol2-unwind.h
+ 	;;
++i[34567]86-*-piggy*)
++	extra_parts="$extra_parts crtbegin.o crtend.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic"
++	;;
++x86_64-*-piggy*)
++	extra_parts="$extra_parts crtbegin.o crtend.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic"
++	;;
+ i[4567]86-wrs-vxworks*|x86_64-wrs-vxworks*)
+ 	;;
+ i[34567]86-*-cygwin*)
+ diff --git a/gcc/config/piggy.h b/gcc/config/piggy.h
+new file mode 100644
+index 000000000..49e63e142
+--- /dev/null
++++ b/gcc/config/piggy.h
+@@ -0,0 +1,27 @@
++#undef TARGET_PIGGYOS
++#define TARGET_PIGGYOS 1
++
++#undef LIB_SPEC
++#define LIB_SPEC "-lc"
++
++#undef LINK_SPEC
++#define LINK_SPEC "-z max-page-size=4096"
++
++#undef STARTFILE_SPEC
++#define STARTFILE_SPEC "crt0.o%s crti.o%s crtbegin.o%s"
++
++#undef ENDFILE_SPEC
++#define ENDFILE_SPEC "crtend.o%s crtn.o%s"
++
++#undef STANDARD_STARTFILE_PREFIX
++#define STANDARD_STARTFILE_PREFIX "/lib/"
++
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()      \
++  do {                                \
++    builtin_define ("__piggy__");      \
++    builtin_define ("__unix__");      \
++    builtin_assert ("system=piggy");   \
++    builtin_assert ("system=unix");   \
++    builtin_assert ("system=posix");   \
++  } while(0);

@@ -78,7 +78,7 @@ index d58f2187..9df839b5 100644
    i386-*-*nt*)				fmt=coff em=pe ;;
    i386-*-rdos*)				fmt=elf ;;
    i386-*-darwin*)			fmt=macho ;;
-+  i386-*-piggy*)			fmt=elf em=piggy ;;
++  i386-*-piggy*)			fmt=elf ;;
  
    ia16-*-elf*)				fmt=elf ;;
  
@@ -163,7 +163,7 @@ index f937f78b..b3be2af8 100644
    ;;
  
 +*-*-piggy*)
-+  NATIVE_LIB_DIRS='/local/lib /lib'
++  NATIVE_LIB_DIRS='/lib'
 +  ;;
 +
  hppa*64*-*-hpux11*)
@@ -176,6 +176,8 @@ index 00000000..e7b73989
 +++ b/ld/emulparams/elf_i386_piggy.sh
 @@ -0,0 +1,2 @@
 +source_sh ${srcdir}/emulparams/elf_i386.sh
++GENERATE_SHLIB_SCRIPT=yes
++GENERATE_PIE_SCRIPT=yes
 +TEXT_START_ADDR=0x00100000
 diff --git a/ld/emulparams/elf_x86_64_piggy.sh b/ld/emulparams/elf_x86_64_piggyos.sh
 new file mode 100644
@@ -184,6 +186,8 @@ index 00000000..e2a120df
 +++ b/ld/emulparams/elf_x86_64_piggy.sh
 @@ -0,0 +1,2 @@
 +source_sh ${srcdir}/emulparams/elf_x86_64.sh
++GENERATE_SHLIB_SCRIPT=yes
++GENERATE_PIE_SCRIPT=yes
 +TEXT_START_ADDR=0x00100000
 diff --git a/gas/config/te-piggy.h b/gas/config/te-piggyos.h
 new file mode 100644

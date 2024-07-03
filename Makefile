@@ -5,10 +5,10 @@ EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd 
 .PHONY: all
 all: $(IMAGE_NAME)
 
-$(IMAGE_NAME): limine kernel userspace initrd
+$(IMAGE_NAME): limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root
-	cp -v kernel/bin/$(KERNEL_NAME) $(RAMDISK_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
+	cp -v kernel/bin/$(KERNEL_NAME) $(INITRD_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
 	cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/
@@ -20,21 +20,30 @@ $(IMAGE_NAME): limine kernel userspace initrd
 	./limine/limine bios-install $@
 	rm -rf iso_root
 
-.PHONY: kernel
-kernel:
-	$(MAKE) -C kernel
-
 limine:
 	git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
 	$(MAKE) -C limine
 
-.PHONY: initrd
-initrd:
-	cd initrd; tar -cvf ../$(RAMDISK_NAME) *
+.PHONY: kernel
+kernel:
+	$(MAKE) -C kernel
+
+.PHONY: libc
+libc:
+	$(MAKE) -C libc
 
 .PHONY: userspace
 userspace:
 	$(MAKE) -C userspace
+
+.PHONY: initrd
+initrd:
+	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_NAME) *
+
+.PHONY: toolchain
+toolchain:
+	$(MAKE) -C libc install-headers
+	./toolchain/build-toolchain.sh
 
 .PHONY: run
 run:
@@ -47,12 +56,13 @@ run-kvm:
 .PHONY: todolist
 todolist:
 	@echo -e "List of todos and fixme in sources: \n"
-	-@grep -FHr -e TODO -e FIXME kernel userspace
+	-@grep -FHr -e TODO -e FIXME kernel libc userspace
 
 .PHONY: clean
 clean:
-	$(RM) -r $(IMAGE_NAME) $(RAMDISK_NAME) iso_root
+	$(RM) -r $(IMAGE_NAME) $(INITRD_NAME) iso_root
 	$(MAKE) -C kernel clean
+	$(MAKE) -C libc clean
 	$(MAKE) -C userspace clean
 
 .PHONY: distclean

@@ -2,6 +2,9 @@
 *.bin
 *.o
 *.elf
+*.a
 *.tar
 
 limine/
+toolchain/build
+toolchain/tarballs

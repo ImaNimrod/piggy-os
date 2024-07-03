@@ -1,23 +1,15 @@
 include ../config.mk
 
-CFILES := $(wildcard *.c)
-ASMFILES := $(wildcard *.asm)
-INITOBJ := $(CFILES:.c=.o) $(ASMFILES:.asm=.o)
+CFLAGS := -Wall -Wextra -pedantic -O0
 
-ASFLAGS := -felf64
-CFLAGS := -ffreestanding -mno-red-zone -Os -Wall -Wextra -pedantic -std=gnu11
+USERSPACE_PROGRAMS := $(patsubst %.c, $(SYSROOT_DIR)/bin/%, $(wildcard *.c))
 
-all: init
+.PHONY: userspace
+userspace: $(USERSPACE_PROGRAMS)
 
-init: $(INITOBJ)
-	$(LD) $(LDFLAGS) -T linker.ld $^ -o ../initrd/bin/init
+$(SYSROOT_DIR)/bin/%: %.c
+	@$(CC) $(CFLAGS) -o $@ $<
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-%.o: %.asm
-	$(AS) $(ASFLAGS) $< -o $@
-
-.PHONY: clean
+.PHONY:
 clean:
-	$(RM) -r $(INITOBJ)
+	$(RM) $(USERSPACE_PROGRAMS)
