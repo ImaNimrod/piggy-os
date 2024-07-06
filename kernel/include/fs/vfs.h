@@ -22,6 +22,7 @@ struct vfs_filesystem {
 
 struct vfs_node {
     char* name;
+    struct stat;
     int type;
     ssize_t size;
     size_t refcount;
@@ -30,7 +31,7 @@ struct vfs_node {
     struct vfs_node* link;
     hashmap_t* children;
     struct vfs_filesystem* fs;
-    void* device;
+    void* private;
     spinlock_t lock;
 
     ssize_t (*read)(struct vfs_node*, void*, off_t, size_t);

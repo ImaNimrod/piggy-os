@@ -19,7 +19,7 @@ static struct vfs_filesystem tmpfs = {
 };
 
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -35,7 +35,7 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
 }
 
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -66,7 +66,7 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 }
 
 static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->device;
+    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -107,19 +107,19 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
     }
 
     if (type == VFS_NODE_REGULAR) {
-        new_node->device = kmalloc(sizeof(struct tmpfs_metadata));
-        if (new_node->device == NULL) {
+        new_node->private = kmalloc(sizeof(struct tmpfs_metadata));
+        if (new_node->private == NULL) {
             vfs_destroy_node(new_node);
             return NULL;
         }
 
-        struct tmpfs_metadata* metadata = new_node->device;
+        struct tmpfs_metadata* metadata = new_node->private;
 
         metadata->capacity = 4096;
         metadata->data = kmalloc(metadata->capacity);
 
         if (metadata->data == NULL) {
-            kfree(new_node->device);
+            kfree(new_node->private);
             vfs_destroy_node(new_node);
             return NULL;
         }

@@ -57,7 +57,7 @@ void initrd_unpack(void) {
 
     struct limine_file* initrd_module = module_response->modules[0];
 
-    klog("[initrd] started unpacking initrd module at 0x%x (size: %luKiB)\n",
+    klog("[initrd] started unpacking initrd module at 0x%x (size: %dKiB)\n",
             (uintptr_t) initrd_module, initrd_module->size >> 10);
 
     struct tar_header* current_file = (struct tar_header*) initrd_module->address;

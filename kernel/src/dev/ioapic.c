@@ -175,7 +175,7 @@ void register_ioapic(uint8_t id, uintptr_t address, uint32_t gsi_base) {
         return;
     }
 
-    klog("[ioapic] initializing ioapic #%u (address=0x%lx, GSI base=%u)\n", id, address, gsi_base);
+    klog("[ioapic] initializing ioapic #%u (address=0x%x, GSI base=%d)\n", id, address, gsi_base);
 
     struct ioapic_device* ioapic = kmalloc(sizeof(struct ioapic_device));
     ioapic->id = id;

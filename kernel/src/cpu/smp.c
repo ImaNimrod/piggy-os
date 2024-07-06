@@ -82,7 +82,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     lapic_init();
 
-    klog("[smp] processor #%lu online%s\n", percpu->cpu_number, (percpu->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
+    klog("[smp] processor #%u online%s\n", percpu->cpu_number, (percpu->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
 
     if (percpu->lapic_id != bsp_lapic_id) {
@@ -95,7 +95,7 @@ void smp_init(void) {
     bsp_lapic_id = smp_response->bsp_lapic_id;
     cpu_count = smp_response->cpu_count;
 
-    klog("[smp] %lu processor%c detected\n", cpu_count, (cpu_count == 1 ? '\0' : 's'));
+    klog("[smp] %u processor%c detected\n", cpu_count, (cpu_count == 1 ? '\0' : 's'));
 
     struct percpu* percpus = kmalloc(sizeof(struct percpu) * cpu_count);
 
@@ -120,5 +120,5 @@ void smp_init(void) {
         pause();
     }
 
-    klog("[smp] initialized %lu cpu%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));
+    klog("[smp] initialized %u cpu%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));
 }

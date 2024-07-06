@@ -67,7 +67,7 @@ uintptr_t pmm_alloc(size_t pages) {
     }
 
     if (ret == (uintptr_t) -1) {
-        kpanic(NULL, "pmm unable to allocate %lu physical pages", pages);
+        kpanic(NULL, "pmm unable to allocate %u physical pages", pages);
     }
 
     used_pages += pages;
@@ -105,7 +105,7 @@ void pmm_init(void) {
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
-        klog("[pmm] memory map entry: base=0x%016lx, length=0x%016lx, type: %s\n",
+        klog("[pmm] memory map entry: base=0x%016x, length=0x%016x, type: %s\n",
                 entry->base, entry->length, memmap_type_str(entry->type));
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {
@@ -149,6 +149,6 @@ void pmm_init(void) {
         }
     }
 
-    klog("[pmm] usable memory: %luMiB reserved memory: %luMiB\n", (usable_pages * PAGE_SIZE) >> 20, (reserved_pages * PAGE_SIZE) >> 20);
+    klog("[pmm] usable memory: %uMiB reserved memory: %uMiB\n", (usable_pages * PAGE_SIZE) >> 20, (reserved_pages * PAGE_SIZE) >> 20);
     klog("[pmm] initialized physical memory manager\n");
 }

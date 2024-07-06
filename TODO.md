@@ -33,6 +33,8 @@ List of syscalls:
     - write                 (DONE 6/26/24)
     - ioctl                 (DONE 6/26/24)
     - seek                  (DONE 6/26/24)
+    - truncate              (DONE 7/02/24 not originally planned)
+    - stat
     - chdir                 (DONE 6/26/24)
     - getcwd                (DONE 6/26/24)
 
@@ -43,10 +45,6 @@ Other things that need to happen:
     - create streams (/dev/null, /dev/zero) (DONE 6/28/24)
     - create a function for destroying vmm pagemaps (DONE 6/29/24)
     - implement errno system (errno is the absolute value of a negative syscall return value)
+    - move vfs file metadata to a stat struct and implement stat syscall
     - write userspace programs that try to break things and fix the small things from there
     - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)
-
-End goal:
-    - boot the OS on real hardware; the kernel will initialize everything and launch
-        the init process from an ELF file (/bin/init) contained on the initrd; the init process
-        will write a cool pattern to the framebuffer (/dev/fb0) in an infinite loop.

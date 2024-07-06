@@ -194,7 +194,7 @@ void syscall_seek(struct registers* r) {
         return;
     }
 
-    if (fd->node->type == VFS_NODE_REGULAR) {
+    if (fd->node->type != VFS_NODE_REGULAR) {
         r->rax = (uint64_t) -1;
         return;
     }

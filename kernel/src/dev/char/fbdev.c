@@ -18,7 +18,7 @@ static ssize_t fbdev_read(struct vfs_node* node, void* buf, off_t offset, size_t
 
     spinlock_acquire(&node->lock);
 
-    struct limine_framebuffer* framebuffer = node->device;
+    struct limine_framebuffer* framebuffer = node->private;
     size_t size = framebuffer->pitch * framebuffer->height;
 
     size_t actual_count = count;
@@ -39,7 +39,7 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
 
     spinlock_acquire(&node->lock);
 
-    struct limine_framebuffer* framebuffer = node->device;
+    struct limine_framebuffer* framebuffer = node->private;
     size_t size = framebuffer->pitch * framebuffer->height;
 
     size_t actual_count = count;
@@ -71,8 +71,8 @@ void fbdev_init(void) {
     for (size_t i = 0; i < framebuffer_response->framebuffer_count; i++) {
         struct limine_framebuffer* framebuffer = framebuffer_response->framebuffers[i];
 
-        klog("[fbdev] found framebuffer #%lu with mode %lux%lux%lu\n",
-                i, framebuffer->width, framebuffer->height, framebuffer->bpp);
+        klog("[fbdev] found framebuffer #%u with mode %ux%ux%u at 0x%x\n",
+                i, framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
 
         struct device fb_dev = {
             .name = "fb",
@@ -87,7 +87,7 @@ void fbdev_init(void) {
         fb_dev.name[2] = i + '0';
 
         if (!devfs_add_device(&fb_dev)) {
-            kpanic(NULL, "failed to add framebuffer #%lu device to devfs", i);
+            kpanic(NULL, "failed to add framebuffer #%u device to devfs", i);
         }
     }
 }

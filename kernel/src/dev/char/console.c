@@ -14,7 +14,7 @@ static ssize_t console_read(struct vfs_node* node, void* buf, off_t offset, size
     size_t actual_count = count;
 
     while (actual_count--) {
-        *buf_u8++ = serial_getc((uint16_t) (uintptr_t) node->device);
+        *buf_u8++ = serial_getc((uint16_t) (uintptr_t) node->private);
     }
 
     spinlock_release(&node->lock);
@@ -30,7 +30,7 @@ static ssize_t console_write(struct vfs_node* node, const void* buf, off_t offse
     size_t actual_count = count;
 
     while (actual_count--) {
-        serial_putc((uint16_t) ((uintptr_t) node->device), *buf_u8++);
+        serial_putc((uint16_t) ((uintptr_t) node->private), *buf_u8++);
     }
 
     spinlock_release(&node->lock);

@@ -20,7 +20,7 @@ static struct vfs_filesystem devfs = {
 };
 
 static ssize_t devfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
-    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -36,7 +36,7 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
 }
 
 static ssize_t devfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
-    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -67,7 +67,7 @@ static ssize_t devfs_write(struct vfs_node* node, const void* buf, off_t offset,
 }
 
 static bool devfs_truncate(struct vfs_node* node, off_t length) {
-    struct devfs_metadata* metadata = (struct devfs_metadata*) node->device;
+    struct devfs_metadata* metadata = (struct devfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
@@ -110,19 +110,19 @@ static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node*
     }
 
     if (type == VFS_NODE_REGULAR) {
-        new_node->device = kmalloc(sizeof(struct devfs_metadata));
-        if (new_node->device == NULL) {
+        new_node->private = kmalloc(sizeof(struct devfs_metadata));
+        if (new_node->private == NULL) {
             vfs_destroy_node(new_node);
             return NULL;
         }
 
-        struct devfs_metadata* metadata = new_node->device;
+        struct devfs_metadata* metadata = new_node->private;
 
         metadata->capacity = 4096;
         metadata->data = kmalloc(metadata->capacity);
 
         if (metadata->data == NULL) {
-            kfree(new_node->device);
+            kfree(new_node->private);
             vfs_destroy_node(new_node);
             return NULL;
         }
@@ -147,7 +147,7 @@ bool devfs_add_device(struct device* device) {
         kpanic(NULL, "failed to create devfs node");
     }
 
-    dev_node->device = device->private;
+    dev_node->private = device->private;
 
     if (device->read) {
         dev_node->read = device->read;

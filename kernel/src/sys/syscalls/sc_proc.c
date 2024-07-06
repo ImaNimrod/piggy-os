@@ -6,9 +6,10 @@
 #include <mem/vmm.h>
 #include <sys/elf.h>
 #include <sys/sched.h>
+#include <utils/log.h>
 #include <types.h>
 
-void syscall_exit(struct registers* r) {
+__attribute__((noreturn)) void syscall_exit(struct registers* r) {
     int status = r->rdi;
     struct process* current_process = this_cpu()->running_thread->process;
 
@@ -17,6 +18,7 @@ void syscall_exit(struct registers* r) {
 
     this_cpu()->running_thread = NULL;
     sched_yield();
+    __builtin_unreachable();
 }
 
 void syscall_fork(struct registers* r) {
@@ -57,23 +59,9 @@ void syscall_exec(struct registers* r) {
         return;
     }
 
-    for (const char* arg = *argv; ; arg++) {
-        if ((uintptr_t) arg < current_process->code_base || (uintptr_t) arg > PROCESS_THREAD_STACK_TOP) {
-            r->rax = (uint64_t) -1;
-            return;
-        }
-    }
-
     if ((uintptr_t) envp < current_process->code_base || (uintptr_t) envp > PROCESS_THREAD_STACK_TOP) {
         r->rax = (uint64_t) -1;
         return;
-    }
-
-    for (const char* env = *envp; ; env++) {
-        if ((uintptr_t) env < current_process->code_base || (uintptr_t) env > PROCESS_THREAD_STACK_TOP) {
-            r->rax = (uint64_t) -1;
-            return;
-        }
     }
 
     struct pagemap* old_pagemap = current_process->pagemap;
@@ -132,7 +120,8 @@ void syscall_exec(struct registers* r) {
     r->rax = 0;
 
     sched_thread_enqueue(new_thread);
-    sched_yield();
+    sched_await();
+    __builtin_unreachable();
 }
 
 void syscall_wait(struct registers* r) {
@@ -141,9 +130,11 @@ void syscall_wait(struct registers* r) {
     int flags = r->rdx;
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if ((uintptr_t) status < current_process->code_base || (uintptr_t) status > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
+    if (status != NULL) {
+        if ((uintptr_t) status < current_process->code_base || (uintptr_t) status > PROCESS_THREAD_STACK_TOP) {
+            r->rax = (uint64_t) -1;
+            return;
+        }
     }
 
     r->rax = process_wait(current_process, pid, status, flags);

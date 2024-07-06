@@ -1,8 +1,10 @@
 #include <cpu/asm.h>
+#include <cpu/percpu.h>
 #include <cpuid.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
+#include <sys/process.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
@@ -60,8 +62,31 @@ static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, s
 }
 
 static void page_fault_handler(struct registers* r) {
-    (void) r;
-    kpanic(r, "PAGE FAULT");
+    uintptr_t faulting_addr = read_cr2();
+    bool is_present = r->error_code & FAULT_PRESENT;
+    bool is_writing = r->error_code & FAULT_WRITABLE;
+    bool is_user = r->error_code & FAULT_USER;
+
+    kpanic(r, "page fault occurred in kernel");
+
+    klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
+            is_user ? "user-mode" : "supervisor-mode",
+            is_writing ? "write to" : "read from",
+            is_present ? "\0" : "non-",
+            faulting_addr);
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    if (current_thread != NULL) {
+        struct process* current_process = current_thread->process;
+
+        if (current_process->pid != 0) {
+            klog("[vmm] terminating process (pid = %d) due to page fault\n", current_process->pid);
+            process_destroy(current_process, -1);
+            return;
+        }
+    }
+
+    kpanic(r, "page fault occurred in kernel");
 }
 
 struct pagemap* vmm_new_pagemap(void) {
@@ -324,7 +349,7 @@ void vmm_init(void) {
     }
 
     vmm_switch_pagemap(kernel_pagemap);
-    klog("[vmm] switch to new kernel pagemap\n");
+    klog("[vmm] switched to new kernel pagemap\n");
 
     isr_install_handler(PAGE_FAULT, false, page_fault_handler);
 
