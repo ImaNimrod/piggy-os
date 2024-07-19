@@ -2,6 +2,7 @@
 #define _UNISTD_H
 
 #include <fcntl.h>
+#include <stddef.h>
 #include <sys/types.h>
 
 #define STDIN_FILENO 0
@@ -26,6 +27,7 @@ pid_t fork(void);
 int ftruncate(int, off_t);
 char* getcwd(char*, size_t);
 pid_t getpid(void);
+pid_t getppid(void);
 off_t lseek(int, off_t, int);
 ssize_t read(int, void*, size_t);
 int truncate(const char*, off_t);

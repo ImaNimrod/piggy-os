@@ -52,21 +52,21 @@ static ssize_t zero_write(struct vfs_node* node, const void* buf, off_t offset, 
 void streams_init(void) {
     struct device null_dev = {
         .name = "null",
-        .type = VFS_NODE_CHARDEV,
+        .mode = S_IFCHR,
         .read = null_read,
         .write = null_write,
     };
 
     struct device random_dev = {
         .name = "random",
-        .type = VFS_NODE_CHARDEV,
+        .mode = S_IFCHR,
         .read = random_read,
         .write = random_write,
     };
 
     struct device zero_dev = {
         .name = "zero",
-        .type = VFS_NODE_CHARDEV,
+        .mode = S_IFCHR,
         .read = zero_read,
         .write = zero_write,
     };

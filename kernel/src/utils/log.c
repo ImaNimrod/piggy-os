@@ -99,7 +99,6 @@ static void klog_internal(const char* fmt, va_list args) {
     }
 }
 
-
 void klog(const char* fmt, ...) {
     if (fmt == NULL) {
         return;

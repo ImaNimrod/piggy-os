@@ -40,7 +40,7 @@ static ssize_t console_write(struct vfs_node* node, const void* buf, off_t offse
 void console_init(void) {
     struct device console_dev = {
         .name = "console",
-        .type = VFS_NODE_CHARDEV,
+        .mode = S_IFCHR,
         .private = (void*) COM1,
         .read = console_read,
         .write = console_write,

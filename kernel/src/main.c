@@ -1,5 +1,6 @@
 #include <cpu/percpu.h>
 #include <cpu/smp.h>
+#include <config.h>
 #include <dev/acpi/acpi.h>
 #include <dev/char/console.h>
 #include <dev/char/fbdev.h>
@@ -28,7 +29,7 @@ static void kernel_main(void) {
 
     vfs_mount(vfs_root, NULL, "/", "tmpfs");
 
-    vfs_create(vfs_root, "/dev", VFS_NODE_DIRECTORY);
+    vfs_create(vfs_root, "/dev", S_IFDIR);
     vfs_mount(vfs_root, NULL, "/dev", "devfs");
 
     console_init();

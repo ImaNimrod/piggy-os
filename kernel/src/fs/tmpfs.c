@@ -2,6 +2,7 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <types.h>
+#include <utils/math.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
@@ -11,7 +12,7 @@ struct tmpfs_metadata {
 };
 
 static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
-static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
+static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode);
 
 static struct vfs_filesystem tmpfs = {
     .mount = tmpfs_mount,
@@ -24,8 +25,8 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
     spinlock_acquire(&node->lock);
 
     size_t actual_count = count;
-    if ((off_t) (offset + count) >= node->size) {
-        actual_count = count - ((offset + count) - node->size);
+    if ((off_t) (offset + count) >= node->stat.st_size) {
+        actual_count = count - ((offset + count) - node->stat.st_size);
     }
 
     memcpy(buf, (void*) ((uintptr_t) metadata->data + offset), actual_count);
@@ -57,8 +58,9 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 
     memcpy((void*) ((uintptr_t) metadata->data + offset), buf, count);
 
-    if ((off_t) (count + offset) >= node->size) {
-        node->size = (off_t) (offset + count);
+    if ((off_t) (offset + count) >= node->stat.st_size) {
+        node->stat.st_size = (off_t) (offset + count);
+        node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
     }
 
     spinlock_release(&node->lock);
@@ -88,7 +90,8 @@ static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
         metadata->data = new_data;
     }
 
-    node->size = length;
+    node->stat.st_size = length;
+    node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
 
     spinlock_release(&node->lock);
     return true;
@@ -97,16 +100,16 @@ static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
 static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
     (void) source;
     struct vfs_filesystem* new_fs = &tmpfs;
-    return new_fs->create(new_fs, parent, name, VFS_NODE_DIRECTORY);
+    return new_fs->create(new_fs, parent, name, S_IFDIR);
 }
 
-static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type) {
-    struct vfs_node* new_node = vfs_create_node(fs, parent, name, type);
+static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode) {
+    struct vfs_node* new_node = vfs_create_node(fs, parent, name, S_ISDIR(mode));
     if (new_node == NULL) {
         return NULL;
     }
 
-    if (type == VFS_NODE_REGULAR) {
+    if (S_ISREG(mode)) {
         new_node->private = kmalloc(sizeof(struct tmpfs_metadata));
         if (new_node->private == NULL) {
             vfs_destroy_node(new_node);
@@ -125,7 +128,10 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
         }
     }
 
-    new_node->size = 0;
+    new_node->stat.st_mode = mode;
+    new_node->stat.st_size = 0;
+    new_node->stat.st_blksize = 512;
+    new_node->stat.st_blocks = 0;
 
     new_node->read = tmpfs_read;
     new_node->write = tmpfs_write;
@@ -133,7 +139,6 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
 
     return new_node;
 }
-
 
 void tmpfs_init(void) {
     vfs_register_filesystem("tmpfs", &tmpfs);

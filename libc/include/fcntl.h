@@ -21,7 +21,7 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-int creat(const char*, ...);
+int creat(const char*, mode_t);
 int fcntl(int, int, ...);
 int open(const char*, int, ...);
 

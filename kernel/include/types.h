@@ -48,21 +48,19 @@ typedef int32_t tid_t;
 typedef uint64_t dev_t;
 typedef uint64_t ino_t;
 
-typedef int64_t time_t;
-
+typedef int32_t mode_t;
 typedef int64_t blksize_t;
 typedef int64_t blkcnt_t;
 
+// TODO: make actual use of st_dev, st_ino, and st_rdev in stat structure
 struct stat {
     dev_t st_dev;
     ino_t st_ino;
+    mode_t st_mode;
+    dev_t st_rdev;
     off_t st_size;
-    time_t st_atime;
-    time_t st_mtime;
-    time_t st_ctime;
     blksize_t st_blksize;
     blkcnt_t st_blocks;
 };
-
 
 #endif /* _KERNEL_TYPES_H */

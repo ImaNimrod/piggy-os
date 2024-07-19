@@ -80,7 +80,7 @@ void initrd_unpack(void) {
 
         switch (current_file->type) {
             case TAR_FILE_TYPE_NORMAL:
-                node = vfs_create(vfs_root, name, VFS_NODE_REGULAR);
+                node = vfs_create(vfs_root, name, S_IFREG);
                 if (node == NULL) {
                     kpanic(NULL, "failed to allocate initrd node for file `%s`", name);
                 }
@@ -88,7 +88,7 @@ void initrd_unpack(void) {
                 node->write(node, (void*) ((uintptr_t) current_file + 512), 0, size);
                 break;
             case TAR_FILE_TYPE_DIRECTORY:
-                node = vfs_create(vfs_root, name, VFS_NODE_DIRECTORY);
+                node = vfs_create(vfs_root, name, S_IFDIR);
                 if (node == NULL) {
                     kpanic(NULL, "failed to allocate initrd node for directory `%s`", name);
                 }

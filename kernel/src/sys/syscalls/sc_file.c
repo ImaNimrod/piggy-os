@@ -13,6 +13,7 @@
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
     int flags = r->rsi;
+    mode_t mode = r->rdi;
     struct process* current_process = this_cpu()->running_thread->process;
 
     if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
@@ -27,7 +28,7 @@ void syscall_open(struct registers* r) {
     }
 
     if (node == NULL && (flags & O_CREAT)) {
-        node = vfs_create(current_process->cwd, path, VFS_NODE_REGULAR);
+        node = vfs_create(current_process->cwd, path, mode);
     }
 
     if (node == NULL) {
@@ -41,7 +42,7 @@ void syscall_open(struct registers* r) {
         return;
     }
 
-    if (node->type != VFS_NODE_DIRECTORY && (flags & O_DIRECTORY) != 0) {
+    if (!S_ISDIR(node->stat.st_mode) && (flags & O_DIRECTORY) != 0) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -52,7 +53,7 @@ void syscall_open(struct registers* r) {
         return;
     }
 
-    if ((flags & O_TRUNC) && node->type == VFS_NODE_REGULAR) {
+    if ((flags & O_TRUNC) && S_ISREG(node->stat.st_mode)) {
         node->truncate(node, 0);
     }
 
@@ -63,7 +64,7 @@ void syscall_open(struct registers* r) {
     }
 
     if (flags & O_APPEND) {
-        current_process->file_descriptors[fdnum]->offset = node->size;
+        current_process->file_descriptors[fdnum]->offset = node->stat.st_size;
     }
 
     r->rax = fdnum;
@@ -194,7 +195,14 @@ void syscall_seek(struct registers* r) {
         return;
     }
 
-    if (fd->node->type != VFS_NODE_REGULAR) {
+    struct vfs_node* node = fd->node;
+
+    if (S_ISDIR(node->stat.st_mode) || S_ISCHR(node->stat.st_mode)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    if (S_ISBLK(node->stat.st_mode) && (offset % node->stat.st_blksize) != 0) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -207,7 +215,7 @@ void syscall_seek(struct registers* r) {
             new_offset = current_offset + offset;
             break;
         case SEEK_END:
-            new_offset = offset + fd->node->size;
+            new_offset = offset + node->stat.st_size;
             break;
         case SEEK_SET:
             new_offset = offset;
@@ -244,7 +252,8 @@ void syscall_truncate(struct registers* r) {
     }
 
     struct vfs_node* node = fd->node;
-    if (node->type == VFS_NODE_DIRECTORY) {
+
+    if (S_ISDIR(node->stat.st_mode)) {
         r->rax = (uint64_t) -1;
         return;
     }
@@ -254,6 +263,26 @@ void syscall_truncate(struct registers* r) {
     } else {
         r->rax = 0;
     }
+}
+
+void syscall_stat(struct registers* r) {
+    int fdnum = r->rdi;
+    struct stat* stat = (struct stat*) r->rsi;
+    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    if ((uintptr_t) stat < current_process->code_base || (uintptr_t) stat > PROCESS_THREAD_STACK_TOP) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    memcpy(stat, &fd->node->stat, sizeof(struct stat));
+    r->rax = 0;
 }
 
 void syscall_chdir(struct registers* r) {
@@ -266,12 +295,14 @@ void syscall_chdir(struct registers* r) {
         return;
     }
 
-    if (fd->node->type != VFS_NODE_DIRECTORY) {
+    struct vfs_node* node = fd->node;
+
+    if (!S_ISDIR(node->stat.st_mode)) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    current_process->cwd = fd->node;
+    current_process->cwd = node;
     r->rax = 0;
 }
 

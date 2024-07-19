@@ -70,7 +70,7 @@ void syscall_exec(struct registers* r) {
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     uintptr_t entry;
 
-    if (node == NULL || !elf_load(node, new_pagemap, &entry)) {
+    if (node == NULL || !S_ISREG(node->stat.st_mode) || !elf_load(node, new_pagemap, &entry)) {
         vmm_destroy_pagemap(new_pagemap);
         r->rax = (uint64_t) -1;
         return;
@@ -147,6 +147,15 @@ void syscall_yield(struct registers* r) {
 
 void syscall_getpid(struct registers* r) {
     r->rax = this_cpu()->running_thread->process->pid;
+}
+
+void syscall_getppid(struct registers* r) {
+    struct process* current_process = this_cpu()->running_thread->process;
+    if (current_process->parent != NULL) {
+        r->rax = current_process->parent->pid;
+    } else {
+        r->rax = current_process->pid;
+    }
 }
 
 void syscall_gettid(struct registers* r) {

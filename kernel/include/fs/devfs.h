@@ -9,7 +9,7 @@
 
 struct device {
     char name[20];
-    int type;
+    mode_t mode;
     void* private;
     ssize_t (*read)(struct vfs_node*, void*, off_t, size_t);
     ssize_t (*write)(struct vfs_node*, const void*, off_t, size_t);

@@ -14,6 +14,7 @@ extern void syscall_exec(struct registers* r);
 extern void syscall_wait(struct registers* r);
 extern void syscall_yield(struct registers* r);
 extern void syscall_getpid(struct registers* r);
+extern void syscall_getppid(struct registers* r);
 extern void syscall_gettid(struct registers* r);
 extern void syscall_thread_create(struct registers* r);
 extern void syscall_thread_exit(struct registers* r);
@@ -25,6 +26,7 @@ extern void syscall_write(struct registers* r);
 extern void syscall_ioctl(struct registers* r);
 extern void syscall_seek(struct registers* r);
 extern void syscall_truncate(struct registers* r);
+extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 
@@ -42,6 +44,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_wait, .name = "wait" },
     { .handler = syscall_yield, .name = "yield" },
     { .handler = syscall_getpid, .name = "getpid" },
+    { .handler = syscall_getppid, .name = "getppid" },
     { .handler = syscall_gettid, .name = "gettid" },
     { .handler = syscall_thread_create, .name = "thread_create" },
     { .handler = syscall_thread_exit, .name = "thread_exit" },
@@ -53,6 +56,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_ioctl, .name = "ioctl" },
     { .handler = syscall_seek, .name = "seek" },
     { .handler = syscall_truncate, .name = "truncate" },
+    { .handler = syscall_stat, .name = "stat" },
     { .handler = syscall_chdir, .name = "chdir" },
     { .handler = syscall_getcwd, .name = "getcwd" },
 };

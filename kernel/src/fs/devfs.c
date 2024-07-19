@@ -1,6 +1,7 @@
 #include <fs/devfs.h>
 #include <mem/slab.h>
 #include <utils/log.h>
+#include <utils/math.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
@@ -10,7 +11,7 @@ struct devfs_metadata {
 };
 
 static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
-static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
+static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode);
 
 static struct vfs_node* devfs_root;
 
@@ -25,8 +26,8 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
     spinlock_acquire(&node->lock);
 
     size_t actual_count = count;
-    if ((off_t) (offset + count) >= node->size) {
-        actual_count = count - ((offset + count) - node->size);
+    if ((off_t) (offset + count) >= node->stat.st_size) {
+        actual_count = count - ((offset + count) - node->stat.st_size);
     }
 
     memcpy(buf, (void*) ((uintptr_t) metadata->data + offset), actual_count);
@@ -58,8 +59,9 @@ static ssize_t devfs_write(struct vfs_node* node, const void* buf, off_t offset,
 
     memcpy((void*) ((uintptr_t) metadata->data + offset), buf, count);
 
-    if ((off_t) (count + offset) >= node->size) {
-        node->size = (off_t) (offset + count);
+    if ((off_t) (offset + count) >= node->stat.st_size) {
+        node->stat.st_size = (off_t) (offset + count);
+        node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
     }
 
     spinlock_release(&node->lock);
@@ -89,7 +91,8 @@ static bool devfs_truncate(struct vfs_node* node, off_t length) {
         metadata->data = new_data;
     }
 
-    node->size = length;
+    node->stat.st_size = length;
+    node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
 
     spinlock_release(&node->lock);
     return true;
@@ -103,13 +106,13 @@ static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* so
     return devfs_root;
 }
 
-static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type) {
-    struct vfs_node* new_node = vfs_create_node(fs, parent, name, type);
+static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode) {
+    struct vfs_node* new_node = vfs_create_node(fs, parent, name, S_ISDIR(mode));
     if (new_node == NULL) {
         return NULL;
     }
 
-    if (type == VFS_NODE_REGULAR) {
+    if (S_ISREG(mode)) {
         new_node->private = kmalloc(sizeof(struct devfs_metadata));
         if (new_node->private == NULL) {
             vfs_destroy_node(new_node);
@@ -128,7 +131,10 @@ static struct vfs_node* devfs_create(struct vfs_filesystem* fs, struct vfs_node*
         }
     }
 
-    new_node->size = 0;
+    new_node->stat.st_mode = mode;
+    new_node->stat.st_size = 0;
+    new_node->stat.st_blksize = 512;
+    new_node->stat.st_blocks = 0;
 
     new_node->read = devfs_read;
     new_node->write = devfs_write;
@@ -142,7 +148,7 @@ bool devfs_add_device(struct device* device) {
         return false;
     }
 
-    struct vfs_node* dev_node = vfs_create_node(&devfs, devfs_root, device->name, device->type);
+    struct vfs_node* dev_node = vfs_create_node(&devfs, devfs_root, device->name, S_ISDIR(device->mode));
     if (dev_node == NULL) {
         kpanic(NULL, "failed to create devfs node");
     }
@@ -166,6 +172,6 @@ bool devfs_add_device(struct device* device) {
 }
 
 void devfs_init(void) {
-    devfs_root = devfs.create(&devfs, NULL, "", VFS_NODE_DIRECTORY);
+    devfs_root = devfs.create(&devfs, NULL, "", S_IFDIR);
     vfs_register_filesystem("devfs", &devfs);
 }

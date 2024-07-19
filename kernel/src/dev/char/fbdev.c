@@ -76,7 +76,7 @@ void fbdev_init(void) {
 
         struct device fb_dev = {
             .name = "fb",
-            .type = VFS_NODE_CHARDEV,
+            .mode = S_IFCHR,
             .private = (void*) framebuffer,
             .read = fbdev_read,
             .write = fbdev_write,

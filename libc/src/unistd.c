@@ -9,8 +9,10 @@ int chdir(const char* path) {
     if (fd < 0) {
         return -1;
     }
+
+    int ret = fchdir(fd);
     close(fd);
-    return fchdir(fd);
+    return ret;
 }
 
 int close(int fd) {
@@ -48,6 +50,10 @@ pid_t getpid(void) {
     return syscall0(SYS_GETPID);
 }
 
+pid_t getppid(void) {
+    return syscall0(SYS_GETPPID);
+}
+
 off_t lseek(int fd, off_t offset, int whence) {
     return syscall3(SYS_SEEK, fd, offset, whence);
 }
@@ -66,8 +72,9 @@ int truncate(const char* path, off_t length) {
         return 0;
     }
 
+    int ret = ftruncate(fd, length);
     close(fd);
-    return ftruncate(fd, length);
+    return ret;
 }
 
 ssize_t write(int fd, const void* buf, size_t count) {

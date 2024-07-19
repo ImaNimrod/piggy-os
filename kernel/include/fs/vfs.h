@@ -8,11 +8,6 @@
 #include <utils/hashmap.h>
 #include <utils/spinlock.h>
 
-#define VFS_NODE_REGULAR    0
-#define VFS_NODE_DIRECTORY  1
-#define VFS_NODE_CHARDEV    2
-#define VFS_NODE_BLOCKDEV   3
-
 extern struct vfs_node* vfs_root;
 
 struct vfs_filesystem {
@@ -22,9 +17,7 @@ struct vfs_filesystem {
 
 struct vfs_node {
     char* name;
-    struct stat;
-    int type;
-    ssize_t size;
+    struct stat stat;
     size_t refcount;
     struct vfs_node* parent;
     struct vfs_node* mountpoint;
@@ -40,14 +33,14 @@ struct vfs_node {
     bool (*truncate)(struct vfs_node*, off_t);
 };
 
-struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type);
+struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, bool is_dir);
 struct vfs_node* vfs_reduce_node(struct vfs_node* node);
 void vfs_destroy_node(struct vfs_node* node);
 struct vfs_node* vfs_get_node(struct vfs_node* parent, const char* path);
 size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len);
 struct vfs_node* vfs_get_root(void);
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name);
-struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, int type);
+struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mode);
 bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs);
 bool vfs_unregister_filesystem(const char* fs_name);
 void vfs_init(void);

@@ -1,0 +1,8 @@
+#ifndef _KERNEL_CONFIG_H
+#define _KERNEL_CONFIG_H
+
+#define CONFIG_SYSNAME "Piggy"
+#define CONFIG_RELEASE "0.0.1"
+#define CONFIG_VERSION GIT_VERSION
+
+#endif /* _KERNEL_CONFIG_H */

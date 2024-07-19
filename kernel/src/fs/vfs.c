@@ -44,8 +44,8 @@ static bool truncate_stub(struct vfs_node* node, off_t length) {
 }
 
 static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {
-    struct vfs_node* dot = vfs_create_node(node->fs, node, ".", VFS_NODE_REGULAR);
-    struct vfs_node* dotdot = vfs_create_node(node->fs, node, "..", VFS_NODE_REGULAR);
+    struct vfs_node* dot = vfs_create_node(node->fs, node, ".", false);
+    struct vfs_node* dotdot = vfs_create_node(node->fs, node, "..", false);
 
     dot->link = node;
     dotdot->link = parent;
@@ -105,7 +105,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
 
         new_node = vfs_reduce_node(new_node);
         if (last) {
-            if (ask_for_dir && new_node->type != VFS_NODE_DIRECTORY) {
+            if (ask_for_dir && !S_ISDIR(new_node->stat.st_mode)) {
                 return (struct path2node_res) { current_node, NULL };
             }
             return (struct path2node_res) { current_node, new_node };
@@ -113,7 +113,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
 
         current_node = new_node;
 
-        if (current_node->type != VFS_NODE_DIRECTORY) {
+        if (!S_ISDIR(current_node->stat.st_mode)) {
             return (struct path2node_res) {0};
         }
     }
@@ -121,18 +121,17 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
     return (struct path2node_res) {0};
 }
 
-struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, int type) {
+struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, bool is_dir) {
     struct vfs_node* node = cache_alloc_object(vfs_node_cache);
     if (node == NULL) {
         return NULL;
     }
 
-    node->name = strdup(name);
-    node->type = type;
     node->fs = fs;
     node->parent = parent;
+    node->name = strdup(name);
 
-    if (type == VFS_NODE_DIRECTORY) {
+    if (is_dir) {
         node->children = hashmap_create(128);
     }
 
@@ -159,7 +158,7 @@ struct vfs_node* vfs_reduce_node(struct vfs_node* node) {
 void vfs_destroy_node(struct vfs_node* node) {
     kfree(node->name);
 
-    if (node->type == VFS_NODE_DIRECTORY) {
+    if (S_ISDIR(node->stat.st_mode)) {
         hashmap_destroy(node->children);
     }
 
@@ -226,7 +225,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
             return false;
         }
 
-        if (source_node->type == VFS_NODE_DIRECTORY) {
+        if (S_ISDIR(source_node->stat.st_mode)) {
             spinlock_release(&vfs_lock);
             return false;
         }
@@ -238,7 +237,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         return false;
     }
 
-    if (!(r.node == vfs_root) && !(r.node->type == VFS_NODE_DIRECTORY)) {
+    if (!(r.node == vfs_root) && !S_ISDIR(r.node->stat.st_mode)) {
         spinlock_release(&vfs_lock);
         return false;
     }
@@ -256,7 +255,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
     return true;
 }
 
-struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, int type) {
+struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mode) {
     spinlock_acquire(&vfs_lock);
 
     struct path2node_res r = path2node(parent, name);
@@ -273,14 +272,14 @@ struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, int type)
 
     struct vfs_filesystem* fs = r.parent->fs;
     const char* new_node_name = (const char*) basename((char*) name);
-    struct vfs_node* new_node = fs->create(fs, r.parent, new_node_name, type);
+    struct vfs_node* new_node = fs->create(fs, r.parent, new_node_name, mode);
 
     if (!hashmap_set(r.parent->children, new_node_name, strlen(new_node_name), new_node)) {
         spinlock_release(&vfs_lock);
         return NULL;
     }
 
-    if (new_node->type == VFS_NODE_DIRECTORY) {
+    if (S_ISDIR(new_node->stat.st_mode)) {
         create_dotentries(r.parent, new_node);
     }
 
@@ -308,7 +307,7 @@ void vfs_init(void) {
         kpanic(NULL, "failed to initialize object cache for vfs nodes");
     }
 
-    vfs_root = vfs_create_node(NULL, NULL, "", VFS_NODE_REGULAR);
+    vfs_root = vfs_create_node(NULL, NULL, "", false);
     vfs_filesystems = hashmap_create(20);
 
     klog("[vfs] vfs structures initialized\n");
