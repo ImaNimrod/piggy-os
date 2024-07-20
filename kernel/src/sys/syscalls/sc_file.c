@@ -289,9 +289,9 @@ void syscall_stat(struct registers* r) {
 
     if (copy_to_user(stat, &fd->node->stat, sizeof(struct stat)) == NULL) {
         r->rax = (uint64_t) -1;
-        return;
+    } else {
+        r->rax = 0;
     }
-    r->rax = 0;
 }
 
 void syscall_chdir(struct registers* r) {

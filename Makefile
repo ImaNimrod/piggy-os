@@ -3,7 +3,7 @@ include ./config.mk
 EMUOPTS=-M q35 -smp 2 -m 2G -no-reboot \
 		-bios /usr/share/edk2/x64/OVMF.fd \
 		-serial file:qemu.log \
-		-serial mon:stdio
+		-serial stdio
 
 .PHONY: all
 all: $(IMAGE_NAME)
@@ -54,7 +54,7 @@ run:
 
 .PHONY: run-kvm
 run-kvm:
-	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom $(IMAGE_NAME)
+	$(EMU) $(EMUOPTS) -enable-kvm -cpu kvm64,smep,smap -cdrom $(IMAGE_NAME)
 
 .PHONY: todolist
 todolist:

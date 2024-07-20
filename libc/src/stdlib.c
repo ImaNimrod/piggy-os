@@ -18,6 +18,8 @@ void srand(unsigned int s) {
     seed = s;
 }
 
+// TODO: fix malloc/free holy shit I hate heap allocators
+
 #define CHUNK_MAGIC 0xfaab45873dce509a
 
 struct chunk {

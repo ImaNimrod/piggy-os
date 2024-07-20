@@ -8,3 +8,4 @@
 limine/
 toolchain/build
 toolchain/tarballs
+qemu.log

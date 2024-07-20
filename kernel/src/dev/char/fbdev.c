@@ -4,6 +4,7 @@
 #include <limine.h>
 #include <types.h>
 #include <utils/log.h>
+#include <utils/math.h>
 #include <utils/string.h>
 
 static volatile struct limine_framebuffer_request framebuffer_request = {
@@ -68,26 +69,37 @@ void fbdev_init(void) {
         return;
     }
 
+    char fbdev_name[4] = "fb";
+
+    struct stat fbdev_stat = {
+        .st_dev = makedev(0, 1),
+        .st_mode = S_IFCHR,
+        .st_blksize = 4096,
+    };
+
     for (size_t i = 0; i < framebuffer_response->framebuffer_count; i++) {
         struct limine_framebuffer* framebuffer = framebuffer_response->framebuffers[i];
 
         klog("[fbdev] found framebuffer #%u with mode %ux%ux%u at 0x%x\n",
                 i, framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
 
-        struct device fb_dev = {
-            .name = "fb",
-            .mode = S_IFCHR,
-            .private = (void*) framebuffer,
-            .read = fbdev_read,
-            .write = fbdev_write,
-            .ioctl = fbdev_ioctl,
-        };
-
         // TODO: fix this hack
-        fb_dev.name[2] = i + '0';
+        fbdev_name[2] = i + '0';
 
-        if (!devfs_add_device(&fb_dev)) {
-            kpanic(NULL, "failed to add framebuffer #%u device to devfs", i);
+        struct vfs_node* fbdev = devfs_create_device(strdup(fbdev_name));
+        if (fbdev == NULL) {
+            kpanic(NULL, "failed to create device for framebuffer #%u in devfs", i);
         }
+
+        memcpy(&fbdev->stat, &fbdev_stat, sizeof(struct stat));
+        fbdev->stat.st_size = framebuffer->pitch * framebuffer->height; 
+        fbdev->stat.st_rdev = makedev(FBDEV_MAJ, i);
+        fbdev->stat.st_blocks = DIV_CEIL(fbdev->stat.st_size, fbdev->stat.st_blksize);
+
+        fbdev->private = framebuffer;
+
+        fbdev->read = fbdev_read;
+        fbdev->write = fbdev_write;
+        fbdev->ioctl = fbdev_ioctl;
     }
 }

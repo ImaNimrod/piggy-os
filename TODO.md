@@ -34,17 +34,17 @@ List of syscalls:
     - ioctl                 (DONE 6/26/24)
     - seek                  (DONE 6/26/24)
     - truncate              (DONE 7/02/24 not originally planned)
-    - stat
+    - stat                  (DONE 7/20/24 not originally planned + took a break)
     - chdir                 (DONE 6/26/24)
     - getcwd                (DONE 6/26/24)
 
 Other things that need to happen:
     - syscall pointer argument validation (is the memory userspace, not NULL, etc.) (DONE 6/30/24)
-    - create a basic devfs (in memory filesystem like tmpfs) (DONE 6/27/24)
-    - create framebuffer device (/dev/fb0) that has working read, write, and ioctl (DONE 6/27/24)
-    - create streams (/dev/null, /dev/zero) (DONE 6/28/24)
+    - create a basic devfs (in memory filesystem like tmpfs) (DONE 7/20/24)
+    - create framebuffer device (/dev/fb0) that has working read, write, and ioctl (DONE 7/20/24)
+    - create streams (/dev/null, /dev/zero) (DONE 7/20/24)
     - create a function for destroying vmm pagemaps (DONE 6/29/24)
     - implement errno system (errno is the absolute value of a negative syscall return value)
-    - move vfs file metadata to a stat struct and implement stat syscall
+    - move vfs file metadata to a stat struct and implement stat syscall (DONE 7/20/24)
     - write userspace programs that try to break things and fix the small things from there
     - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)

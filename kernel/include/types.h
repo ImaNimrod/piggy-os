@@ -39,13 +39,17 @@
 #define WNOHANG     (1 << 0)
 #define WUNTRACED   (1 << 1)
 
+#define makedev(maj, min) (dev_t) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
+#define major(dev) (uint8_t) (((dev) & 0xff00u) >> 8)
+#define minor(dev) (uint8_t) ((dev) & 0x00ffu)
+
 typedef int64_t off_t;
 typedef int64_t ssize_t;
 
 typedef int32_t pid_t;
 typedef int32_t tid_t;
 
-typedef uint64_t dev_t;
+typedef uint32_t dev_t;
 typedef uint64_t ino_t;
 
 typedef int32_t mode_t;

@@ -1,6 +1,7 @@
 #include <cpu/asm.h>
 #include <cpuid.h>
 #include <dev/hpet.h>
+#include <mem/slab.h>
 #include <utils/log.h>
 #include <utils/random.h>
 
@@ -39,20 +40,33 @@ static uint64_t generate(struct rng_state* rng) {
     return y;
 }
 
-uint64_t rand(struct rng_state* rng) {
+struct rng_state* rng_create(void) {
+    struct rng_state* rng = kmalloc(sizeof(struct rng_state));
+    if (rng == NULL) {
+        return NULL;
+    }
+
+    rng->index = MT_SIZE;
+    rng->lock = (spinlock_t) {0};
+
+    rng_seed(rng, hpet_count());
+    return rng;
+}
+
+uint64_t rng_rand(struct rng_state* rng) {
     spinlock_acquire(&rng->lock);
     uint64_t value = generate(rng);
     spinlock_release(&rng->lock);
     return value;
 }
 
-size_t rand_fill(struct rng_state* rng, void* buf, size_t count) {
+size_t rng_rand_fill(struct rng_state* rng, void* buf, size_t count) {
     spinlock_acquire(&rng->lock);
 
     uint8_t* buf_u8 = buf;
     size_t length = count;
 
-    while (length >= 4) {
+    while (length >= 8) {
         uint64_t value = generate(rng);
         buf_u8[0] = (uint8_t) (value & 0xff);
         buf_u8[1] = (uint8_t) ((value >> 8) & 0xff);
@@ -79,13 +93,16 @@ size_t rand_fill(struct rng_state* rng, void* buf, size_t count) {
     return count;
 }
 
-void srand(struct rng_state* rng, uint64_t seed) {
+void rng_seed(struct rng_state* rng, uint64_t seed) {
+    spinlock_acquire(&rng->lock);
+
     rng->state[0] = seed *= seed ^ get_hardware_rand();
     for (size_t i = 1; i < MT_SIZE - 1; i++) {
         rng->state[i] = 0x5851f42d4c957f2d * (rng->state[i - 1] ^ (rng->state[i - 1] >> 62)) + i;
     }
 
     rng->index = MT_SIZE;
+    spinlock_release(&rng->lock);
 }
 
 void random_init(void) {

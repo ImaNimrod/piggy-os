@@ -43,15 +43,22 @@ void console_init(void) {
         kpanic(NULL, "failed to initialize serial port for console device");
     }
 
-    struct device console_dev = {
-        .name = "console",
-        .mode = S_IFCHR,
-        .private = (void*) COM2,
-        .read = console_read,
-        .write = console_write,
+    struct vfs_node* console_dev = devfs_create_device("console");
+    if (console_dev == NULL) {
+        kpanic(NULL, "failed to create console device for devfs");
+    }
+
+    console_dev->stat = (struct stat) {
+        .st_dev = makedev(0, 1),
+        .st_mode = S_IFCHR,
+        .st_rdev = makedev(CONSOLE_MAJ, 0),
+        .st_size = 0,
+        .st_blksize = 4096,
+        .st_blocks = 0,
     };
 
-    if (!devfs_add_device(&console_dev)) {
-        kpanic(NULL, "failed to add console device to devfs");
-    }
+    console_dev->private = (void*) COM2;
+
+    console_dev->read = console_read;
+    console_dev->write = console_write;
 }
