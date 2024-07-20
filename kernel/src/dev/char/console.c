@@ -4,17 +4,18 @@
 #include <fs/vfs.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
+#include <utils/string.h>
 
 static ssize_t console_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
     (void) offset;
 
     spinlock_acquire(&node->lock);
 
-    uint8_t* buf_u8 = (uint8_t*) buf;
     size_t actual_count = count;
+    uint8_t* temp_buf = buf;
 
     while (actual_count--) {
-        *buf_u8++ = serial_getc((uint16_t) (uintptr_t) node->private);
+        *temp_buf++ = serial_getc((uint16_t) (uintptr_t) node->private);
     }
 
     spinlock_release(&node->lock);
@@ -26,11 +27,11 @@ static ssize_t console_write(struct vfs_node* node, const void* buf, off_t offse
 
     spinlock_acquire(&node->lock);
 
-    uint8_t* buf_u8 = (uint8_t*) buf;
     size_t actual_count = count;
+    const uint8_t* temp_buf = buf;
 
     while (actual_count--) {
-        serial_putc((uint16_t) ((uintptr_t) node->private), *buf_u8++);
+        serial_putc((uint16_t) ((uintptr_t) node->private), *temp_buf++);
     }
 
     spinlock_release(&node->lock);

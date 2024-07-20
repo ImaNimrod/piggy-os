@@ -1,5 +1,6 @@
 #include <fs/initrd.h>
 #include <fs/vfs.h>
+#include <fs/tmpfs.h>
 #include <limine.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
@@ -74,7 +75,7 @@ void initrd_unpack(void) {
             continue;
         }
 
-        uint64_t size = oct2int(current_file->size, sizeof(current_file->size));
+        size_t size = oct2int(current_file->size, sizeof(current_file->size));
 
         struct vfs_node* node;
 
@@ -92,6 +93,7 @@ void initrd_unpack(void) {
                 if (node == NULL) {
                     kpanic(NULL, "failed to allocate initrd node for directory `%s`", name);
                 }
+
                 break;
             case TAR_FILE_TYPE_GNU_LONG_PATH:
                 name_override = (char*) ((uintptr_t) current_file + 512);

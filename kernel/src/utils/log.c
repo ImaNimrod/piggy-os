@@ -137,10 +137,10 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
         klog("R8:  0x%016x R9:  0x%016x R10: 0x%016x R11: 0x%016x\n", r->r8, r->r9, r->r10, r->r11);
         klog("R12: 0x%016x R13: 0x%016x R14: 0x%016x R15: 0x%016x\n", r->r12, r->r13, r->r14, r->r15);
         klog("CR0: 0x%016x CR2: 0x%016x CR3: 0x%016x CR4: 0x%016x\n", read_cr0(), read_cr2(), read_cr3(), read_cr4());
-        klog("RIP: 0x%016x RFLAGS: 0x%016x CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x\n", r->rip, r->rflags, r->cs, r->ss, r->error_code);
+        klog("RIP: 0x%016x RFLAGS: 0x%016x CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x", r->rip, r->rflags, r->cs, r->ss, r->error_code);
     }
 
-    puts("===============================================================================================\n");
+    puts("\n===============================================================================================\n");
 
     for (;;) {
         hlt();

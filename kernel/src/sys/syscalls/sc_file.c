@@ -3,10 +3,9 @@
 #include <fs/fd.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
-#include <stdbool.h>
 #include <types.h>
 #include <utils/spinlock.h>
-#include <utils/string.h>
+#include <utils/user_access.h>
 
 // TODO: implement errno system
 
@@ -16,10 +15,12 @@ void syscall_open(struct registers* r) {
     mode_t mode = r->rdi;
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
+    if (!check_user_ptr(path)) {
         r->rax = (uint64_t) -1;
         return;
     }
+
+    USER_ACCESS_BEGIN;
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
@@ -30,6 +31,8 @@ void syscall_open(struct registers* r) {
     if (node == NULL && (flags & O_CREAT)) {
         node = vfs_create(current_process->cwd, path, mode);
     }
+
+    USER_ACCESS_END;
 
     if (node == NULL) {
         r->rax = (uint64_t) -1;
@@ -87,11 +90,6 @@ void syscall_read(struct registers* r) {
 
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if ((uintptr_t) buf < current_process->code_base || (uintptr_t) buf > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
-
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
@@ -106,11 +104,20 @@ void syscall_read(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
+    if (!check_user_ptr(buf)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    USER_ACCESS_BEGIN;
+
     ssize_t read = node->read(node, buf, fd->offset, count);
     if (read < 0) {
         r->rax = (uint64_t) -1;
         return;
     }
+
+    USER_ACCESS_END;
 
     fd->offset += read;
     r->rax = read;
@@ -121,11 +128,6 @@ void syscall_write(struct registers* r) {
     const void* buf = (const void*) r->rsi;
     size_t count = r->rdx;
     struct process* current_process = this_cpu()->running_thread->process;
-
-    if ((uintptr_t) buf < current_process->code_base || (uintptr_t) buf > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -141,11 +143,20 @@ void syscall_write(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
+    if (!check_user_ptr(buf)) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
+
+    USER_ACCESS_BEGIN;
+
     ssize_t written = node->write(node, buf, fd->offset, count);
     if (written < 0) {
         r->rax = (uint64_t) -1;
         return;
     }
+
+    USER_ACCESS_END;
 
     fd->offset += written;
     r->rax = written;
@@ -156,11 +167,6 @@ void syscall_ioctl(struct registers* r) {
     uint64_t request = r->rsi;
     void* argp = (void*) r->rdx;
     struct process* current_process = this_cpu()->running_thread->process;
-
-    if ((uintptr_t) argp < current_process->code_base || (uintptr_t) argp > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -174,8 +180,13 @@ void syscall_ioctl(struct registers* r) {
         return;
     }
 
-    struct vfs_node* node = fd->node;
-    r->rax = node->ioctl(node, request, argp);
+    /* 
+     * NOTE: because ioctls are device specific, it's up to individual device drivers to
+     * define how the argp argument is used. This means that if argp is a pointer to a struct,
+     * it is also the device drivers' responsiblity to safely access that data using
+     * the API defined utils/user_access.h .
+     */
+    r->rax = fd->node->ioctl(fd->node, request, argp);
 }
 
 void syscall_seek(struct registers* r) {
@@ -276,12 +287,10 @@ void syscall_stat(struct registers* r) {
         return;
     }
 
-    if ((uintptr_t) stat < current_process->code_base || (uintptr_t) stat > PROCESS_THREAD_STACK_TOP) {
+    if (copy_to_user(stat, &fd->node->stat, sizeof(struct stat)) == NULL) {
         r->rax = (uint64_t) -1;
         return;
     }
-
-    memcpy(stat, &fd->node->stat, sizeof(struct stat));
     r->rax = 0;
 }
 
@@ -311,11 +320,6 @@ void syscall_getcwd(struct registers* r) {
     size_t len = r->rsi;
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if ((uintptr_t) buffer < current_process->code_base || (uintptr_t) buffer > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
-
     char temp_buffer[PATH_MAX];
     size_t actual_len = vfs_get_pathname(current_process->cwd, temp_buffer, sizeof(temp_buffer) - 1);
 
@@ -324,6 +328,9 @@ void syscall_getcwd(struct registers* r) {
         return;
     }
 
-    strncpy(buffer, temp_buffer, len);
+    if (copy_to_user(buffer, temp_buffer, len) == NULL) {
+        r->rax = (uint64_t) -1;
+        return;
+    }
     r->rax = 0;
 }

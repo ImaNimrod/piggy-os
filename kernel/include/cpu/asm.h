@@ -28,6 +28,14 @@ static inline bool interrupt_state(void) {
     return flags & (1 << 9);
 }
 
+static inline void clac(void) {
+    __asm__ volatile("clac" ::: "cc");
+}
+
+static inline void stac(void) {
+    __asm__ volatile("stac" ::: "cc");
+}
+
 static inline void hlt(void) {
     __asm__ volatile("hlt");
 }
@@ -41,7 +49,7 @@ static inline void swapgs(void) {
 }
 
 static inline void invlpg(uintptr_t vaddr) {
-	__asm__ volatile("invlpg %0" :: "m" ((*((int(*)[])((void*) vaddr)))) : "memory");
+    __asm__ volatile("invlpg %0" :: "m" ((*((int(*)[])((void*) vaddr)))) : "memory");
 }
 
 static inline void fxsave(void* ctx) {

@@ -5,6 +5,7 @@
 #include <utils/math.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
+#include <utils/user_access.h>
 
 struct tmpfs_metadata {
     size_t capacity;

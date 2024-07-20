@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
 #include <utils/log.h>
@@ -59,6 +60,10 @@ void syscall_handler(struct registers* r) {
         klog("[syscall] unknown syscall number: %u\n", r->rax);
         r->rax = -1;
         return;
+    }
+
+    if (this_cpu()->smepsmap_enabled) {
+        clac(); // just sanity check that user memory access is disabled
     }
 
     struct syscall_handle syscall = syscall_table[r->rax];

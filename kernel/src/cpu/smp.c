@@ -30,7 +30,6 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     gdt_reload();
     idt_reload();
-
     gdt_load_tss(&percpu->tss);
 
     vmm_switch_pagemap(kernel_pagemap);
@@ -41,28 +40,42 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     percpu->tss.rsp0 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
     percpu->tss.ist1 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
 
-    uint32_t ecx = 0, edx = 0, unused;
-    __get_cpuid(7, &unused, &unused, &ecx, &unused);
-    __get_cpuid(1, &unused, &unused, &ecx, &edx);
-
-    /* enable SSE/SSE2 instructions */
     uint64_t cr0 = read_cr0();
+    uint64_t cr4 = read_cr4();
+    uint32_t ebx = 0, ecx = 0, edx = 0, unused;
+
+    if (__get_cpuid(1, &unused, &unused, &unused, &edx)) {
+        /* enable global pages if supported */
+        if (edx & (1 << 13)) {
+            cr4 |= (1 << 7);
+        }
+    }
+
+    /* enable SSE instruction sets */
     cr0 &= ~(1 << 2);
     cr0 |= (1 << 1);
-    write_cr0(cr0);
 
-    uint64_t cr4 = read_cr4();
     cr4 |= (1 << 9) | (1 << 10);
 
-    /* enable global pages if supported */
-    if (edx & (1 << 13)) {
-        cr4 |= (1 << 7);
-    }
-    /* enable usermode instruction prevention if supported */ 
-    if (ecx & (1 << 2)) {
-        cr4 |= (1 << 11);
+    if (__get_cpuid(7, &unused, &ebx, &ecx, &unused)) {
+        /* enable usermode instruction prevention if supported */ 
+        if (ecx & (1 << 2)) {
+            cr4 |= (1 << 11);
+        }
+
+        /* enable SMEP and SMAP if supported */
+        if (ebx & (1 << 7)) {
+            cr4 |= (1 << 20);
+            percpu->smepsmap_enabled = true;
+        }
+
+        if (ebx & (1 << 20)) {
+            cr4 |= (1 << 21);
+            percpu->smepsmap_enabled = true;
+        }
     }
 
+    write_cr0(cr0);
     write_cr4(cr4);
 
     /* enable SYSCALL/SYSRET instructions */

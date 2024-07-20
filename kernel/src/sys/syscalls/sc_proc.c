@@ -6,8 +6,8 @@
 #include <mem/vmm.h>
 #include <sys/elf.h>
 #include <sys/sched.h>
-#include <utils/log.h>
 #include <types.h>
+#include <utils/user_access.h>
 
 __attribute__((noreturn)) void syscall_exit(struct registers* r) {
     int status = r->rdi;
@@ -49,23 +49,34 @@ void syscall_exec(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    if ((uintptr_t) path < current_process->code_base || (uintptr_t) path > PROCESS_THREAD_STACK_TOP) {
+    if (!check_user_ptr(path) || !check_user_ptr(argv) || !check_user_ptr(envp)) {
         r->rax = (uint64_t) -1;
         return;
     }
 
-    if ((uintptr_t) argv < current_process->code_base || (uintptr_t) argv > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
+    const char** ptr;
+    const char* iter;
+
+    ptr = argv;
+    for (iter = *ptr; iter != NULL; iter = *++ptr) {
+        if (!check_user_ptr(iter)) {
+            r->rax = (uint64_t) -1;
+            return;
+        }
     }
 
-    if ((uintptr_t) envp < current_process->code_base || (uintptr_t) envp > PROCESS_THREAD_STACK_TOP) {
-        r->rax = (uint64_t) -1;
-        return;
+    ptr = envp;
+    for (iter = *ptr; iter != NULL; iter = *++ptr) {
+        if (!check_user_ptr(iter)) {
+            r->rax = (uint64_t) -1;
+            return;
+        }
     }
 
     struct pagemap* old_pagemap = current_process->pagemap;
     struct pagemap* new_pagemap = vmm_new_pagemap();
+
+    USER_ACCESS_BEGIN;
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     uintptr_t entry;
@@ -115,6 +126,8 @@ void syscall_exec(struct registers* r) {
     }
     sched_thread_enqueue(new_thread);
 
+    USER_ACCESS_END;
+
     vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
 
@@ -129,16 +142,17 @@ void syscall_wait(struct registers* r) {
     pid_t pid = r->rdi;
     int* status = (int*) r->rsi;
     int flags = r->rdx;
-    struct process* current_process = this_cpu()->running_thread->process;
 
     if (status != NULL) {
-        if ((uintptr_t) status < current_process->code_base || (uintptr_t) status > PROCESS_THREAD_STACK_TOP) {
+        if (!check_user_ptr(status)) {
             r->rax = (uint64_t) -1;
             return;
         }
     }
 
-    r->rax = process_wait(current_process, pid, status, flags);
+    USER_ACCESS_BEGIN;
+    r->rax = process_wait(this_cpu()->running_thread->process, pid, status, flags);
+    USER_ACCESS_END;
 }
 
 void syscall_yield(struct registers* r) {
@@ -167,7 +181,7 @@ void syscall_thread_create(struct registers* r) {
     uintptr_t entry = (uintptr_t) r->rdi;
     struct process* current_process = this_cpu()->running_thread->process;
 
-    if (entry < current_process->code_base || entry > PROCESS_THREAD_STACK_TOP) {
+    if (!check_user_ptr((void*) entry)) {
         r->rax = (uint64_t) -1;
         return;
     }
