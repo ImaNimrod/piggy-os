@@ -30,6 +30,7 @@ pid_t getpid(void);
 pid_t getppid(void);
 off_t lseek(int, off_t, int);
 ssize_t read(int, void*, size_t);
+void* sbrk(intptr_t size);
 int truncate(const char*, off_t);
 ssize_t write(int, const void*, size_t);
 void yield(void);

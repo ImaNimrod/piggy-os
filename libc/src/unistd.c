@@ -28,8 +28,6 @@ int execve(const char* path, char* const* argv, char* const* envp) {
     return syscall3(SYS_EXEC, (uint64_t) path, (uint64_t) argv, (uint64_t) envp);
 }
 
-// TODO: implement execve variants
-
 int fchdir(int fd) {
     return syscall1(SYS_CHDIR, fd);
 }
@@ -60,6 +58,10 @@ off_t lseek(int fd, off_t offset, int whence) {
 
 ssize_t read(int fd, void* buf, size_t count) {
     return syscall3(SYS_READ, fd, (uint64_t) buf, count);
+}
+
+void* sbrk(intptr_t size) {
+    return (void*) syscall1(SYS_SBRK, size);
 }
 
 int truncate(const char* path, off_t length) {

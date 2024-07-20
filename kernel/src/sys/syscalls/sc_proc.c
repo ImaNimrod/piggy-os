@@ -113,14 +113,15 @@ void syscall_exec(struct registers* r) {
         r->rax = (uint64_t) -1;
         return;
     }
+    sched_thread_enqueue(new_thread);
 
     vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
 
     r->rax = 0;
+    this_cpu()->running_thread = NULL;
 
-    sched_thread_enqueue(new_thread);
-    sched_await();
+    sched_yield();
     __builtin_unreachable();
 }
 

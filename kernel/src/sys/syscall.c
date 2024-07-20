@@ -30,14 +30,7 @@ extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 
-static void syscall_debug(struct registers* r) {
-    const char* msg = (const char*) r->rdi;
-    klog("%s", msg);
-    r->rax = 0;
-}
-
 static struct syscall_handle syscall_table[] = {
-    { .handler = syscall_debug, .name = "debug" },
     { .handler = syscall_exit, .name = "exit" },
     { .handler = syscall_fork, .name = "fork" },
     { .handler = syscall_exec, .name = "exec" },

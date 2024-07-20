@@ -104,6 +104,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
         }
 
         new_node = vfs_reduce_node(new_node);
+
         if (last) {
             if (ask_for_dir && !S_ISDIR(new_node->stat.st_mode)) {
                 return (struct path2node_res) { current_node, NULL };
@@ -237,7 +238,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         return false;
     }
 
-    if (!(r.node == vfs_root) && !S_ISDIR(r.node->stat.st_mode)) {
+    if (r.node != vfs_root && !S_ISDIR(r.node->stat.st_mode)) {
         spinlock_release(&vfs_lock);
         return false;
     }
@@ -247,6 +248,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         spinlock_release(&vfs_lock);
         return false;
     }
+
     r.node->mountpoint = mount_node;
 
     create_dotentries(r.parent, mount_node);

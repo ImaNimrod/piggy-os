@@ -12,7 +12,7 @@
 #define _IOLBF 1
 #define _IONBF 2
 
-typedef struct FILE FILE;
+typedef struct _FILE FILE;
 typedef off_t fpos_t;
 
 extern FILE* stdin;

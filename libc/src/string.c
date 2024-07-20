@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 void* memchr(const void* s, int c, size_t size) {
@@ -217,6 +218,15 @@ char* strncpy(char* __restrict dest, const char* __restrict src, size_t n) {
     }
 
     return dest;
+}
+
+char* strdup(const char* str) {
+    size_t len = strlen(str) + 1;
+    char* dup = malloc(len);
+    if (dup) {
+        memcpy(dup, str, len);
+    }
+    return dup;
 }
 
 size_t strlen(const char* str) {

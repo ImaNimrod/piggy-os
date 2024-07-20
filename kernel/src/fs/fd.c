@@ -37,7 +37,6 @@ bool fd_close(struct process* p, int fdnum) {
         kfree(fd);
     }
 
-
     p->file_descriptors[fdnum] = NULL;
 
     spinlock_release(&p->fd_lock);

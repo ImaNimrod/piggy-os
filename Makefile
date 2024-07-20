@@ -1,6 +1,9 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -m 2G -serial stdio -no-reboot -bios /usr/share/edk2/x64/OVMF.fd -smp 2
+EMUOPTS=-M q35 -smp 2 -m 2G -no-reboot \
+		-bios /usr/share/edk2/x64/OVMF.fd \
+		-serial file:qemu.log \
+		-serial mon:stdio
 
 .PHONY: all
 all: $(IMAGE_NAME)

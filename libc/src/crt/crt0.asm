@@ -10,7 +10,7 @@ _start:
     call main
 
     mov rdi, rax
-    mov rax, 1
+    mov rax, 0
     syscall
 
     jmp $

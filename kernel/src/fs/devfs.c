@@ -172,6 +172,6 @@ bool devfs_add_device(struct device* device) {
 }
 
 void devfs_init(void) {
-    devfs_root = devfs.create(&devfs, NULL, "", S_IFDIR);
+    devfs_root = devfs.create(&devfs, NULL, "dev", S_IFDIR);
     vfs_register_filesystem("devfs", &devfs);
 }
