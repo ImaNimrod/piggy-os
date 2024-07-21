@@ -301,6 +301,7 @@ char* strstr(const char* haystack, const char* needle) {
     return NULL;
 }
 
+
 static char* strtok_saveptr = NULL;
 
 char* strtok(char* __restrict str, const char* __restrict delim) {
@@ -312,29 +313,29 @@ char* strtok(char* __restrict str, const char* __restrict delim) {
 }
 
 char* strtok_r(char* str, const char* delim, char** saveptr) {
-	char* token;
+    char* token;
 
-	if (str == NULL) {
-		str = *saveptr;
+    if (str == NULL) {
+        str = *saveptr;
     }
 
-	str += strspn(str, delim);
-	if (*str == '\0') {
-		*saveptr = str;
-		return NULL;
-	}
+    str += strspn(str, delim);
+    if (*str == '\0') {
+        *saveptr = str;
+        return NULL;
+    }
 
-	token = str;
-	str = strpbrk(token, delim);
+    token = str;
+    str = strpbrk(token, delim);
 
-	if (str == NULL) {
-		*saveptr = (char*) strchr(token, '\0');
-	} else {
-		*str = '\0';
-		*saveptr = str + 1;
-	}
+    if (str == NULL) {
+        *saveptr = (char*) strchr(token, '\0');
+    } else {
+        *str = '\0';
+        *saveptr = str + 1;
+    }
 
-	return token;
+    return token;
 }
 
 size_t strxfrm(char* __restrict dest, const char* __restrict src, size_t n) {

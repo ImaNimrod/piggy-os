@@ -5,6 +5,7 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
@@ -19,8 +20,6 @@ static struct cache* thread_cache;
 static vector_t* running_processes;
 static vector_t* dead_processes;
 static spinlock_t process_lock = {0};
-
-static const char* init_path = "/bin/init";
 
 static bool create_std_file_descriptors(struct process* p, const char* console_path) {
     struct vfs_node* console_node = vfs_get_node(p->cwd, console_path);
@@ -134,7 +133,13 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
 }
 
 bool process_create_init(void) {
+    char* init_path = cmdline_get("init");
+    if (!init_path) {
+        init_path = "/bin/init";
+    }
+
     klog("[process] creating init process (pid = 1) using %s\n", init_path);
+
     struct vfs_node* init_node = vfs_get_node(vfs_root, init_path);
     if (init_node == NULL) {
         return false;
@@ -148,7 +153,7 @@ bool process_create_init(void) {
         return false;
     }
 
-    const char* argv[] = { init_path, "bruh", "test", "l", NULL };
+    const char* argv[] = { init_path, NULL };
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create(NULL, init_pagemap);

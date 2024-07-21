@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <dev/serial.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
@@ -100,7 +101,7 @@ static void klog_internal(const char* fmt, va_list args) {
 }
 
 void klog(const char* fmt, ...) {
-    if (fmt == NULL) {
+    if (!cmdline_early_get_klog() || fmt == NULL) {
         return;
     }
 
@@ -119,28 +120,29 @@ void klog(const char* fmt, ...) {
 __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...) {
     cli();
 
-    spinlock_release(&print_lock);
+    if (cmdline_early_get_klog()) {
+        spinlock_release(&print_lock);
+        puts("\n\n==================================| KERNEL PANIC |=============================================\nkernel panicked due to reason: ");
 
-    puts("\n\n==================================| KERNEL PANIC |=============================================\nkernel panicked due to reason: ");
+        va_list args;
+        va_start(args, fmt);
 
-    va_list args;
-    va_start(args, fmt);
+        klog_internal(fmt, args);
 
-    klog_internal(fmt, args);
+        va_end(args);
 
-    va_end(args);
+        if (r != NULL) {
+            puts("\n===============================================================================================\n");
+            klog("RAX: 0x%016x RBX: 0x%016x RCX: 0x%016x RDX: 0x%016x\n", r->rax, r->rbx, r->rcx, r->rdx);
+            klog("RSI: 0x%016x RDI: 0x%016x RSP: 0x%016x RBP: 0x%016x\n", r->rsi, r->rdi, r->rsp, r->rbp);
+            klog("R8:  0x%016x R9:  0x%016x R10: 0x%016x R11: 0x%016x\n", r->r8, r->r9, r->r10, r->r11);
+            klog("R12: 0x%016x R13: 0x%016x R14: 0x%016x R15: 0x%016x\n", r->r12, r->r13, r->r14, r->r15);
+            klog("CR0: 0x%016x CR2: 0x%016x CR3: 0x%016x CR4: 0x%016x\n", read_cr0(), read_cr2(), read_cr3(), read_cr4());
+            klog("RIP: 0x%016x RFLAGS: 0x%016x CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x", r->rip, r->rflags, r->cs, r->ss, r->error_code);
+        }
 
-    if (r != NULL) {
         puts("\n===============================================================================================\n");
-        klog("RAX: 0x%016x RBX: 0x%016x RCX: 0x%016x RDX: 0x%016x\n", r->rax, r->rbx, r->rcx, r->rdx);
-        klog("RSI: 0x%016x RDI: 0x%016x RSP: 0x%016x RBP: 0x%016x\n", r->rsi, r->rdi, r->rsp, r->rbp);
-        klog("R8:  0x%016x R9:  0x%016x R10: 0x%016x R11: 0x%016x\n", r->r8, r->r9, r->r10, r->r11);
-        klog("R12: 0x%016x R13: 0x%016x R14: 0x%016x R15: 0x%016x\n", r->r12, r->r13, r->r14, r->r15);
-        klog("CR0: 0x%016x CR2: 0x%016x CR3: 0x%016x CR4: 0x%016x\n", read_cr0(), read_cr2(), read_cr3(), read_cr4());
-        klog("RIP: 0x%016x RFLAGS: 0x%016x CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x", r->rip, r->rflags, r->cs, r->ss, r->error_code);
     }
-
-    puts("\n===============================================================================================\n");
 
     for (;;) {
         hlt();

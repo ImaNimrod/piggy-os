@@ -9,15 +9,16 @@
 
 #define HIGH_VMA (hhdm_request.response->offset)
 
-#define PAGE_SIZE 0x1000
-#define BIGPAGE_SIZE 0x200000
+#define PAGE_SIZE       0x1000
+#define BIGPAGE_SIZE    0x200000
 
-#define PTE_PRESENT     (1ull << 0)
-#define PTE_WRITABLE    (1ull << 1l)
-#define PTE_USER        (1ull << 2)
-#define PTE_SIZE        (1ull << 7)
-#define PTE_GLOBAL      (1ull << 8)
-#define PTE_NX          (1ull << 63)
+#define PTE_PRESENT         (1 << 0)
+#define PTE_WRITABLE        (1 << 1)
+#define PTE_USER            (1 << 2)
+#define PTE_CACHE_DISABLE   (1 << 4)
+#define PTE_SIZE            (1 << 7)
+#define PTE_GLOBAL          (1 << 8)
+#define PTE_NX              (1ul << 63)
 #define PTE_FLAG_MASK   ((uint64_t) 0x8000000000000fff)
 
 #define FAULT_PRESENT   (1 << 0)

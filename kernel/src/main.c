@@ -1,6 +1,5 @@
 #include <cpu/percpu.h>
 #include <cpu/smp.h>
-#include <config.h>
 #include <dev/acpi/acpi.h>
 #include <dev/char/console.h>
 #include <dev/char/fbdev.h>
@@ -17,6 +16,7 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/random.h>
 
@@ -36,7 +36,9 @@ static void kernel_main(void) {
     fbdev_init();
     streams_init();
 
-    initrd_unpack();
+    if (!initrd_unpack()) {
+        kpanic(NULL, "failed to unpack initrd");
+    }
 
     if (!process_create_init()) {
         kpanic(NULL, "failed to create init process");
@@ -47,10 +49,15 @@ static void kernel_main(void) {
 }
 
 void kernel_entry(void) {
-    serial_init(COM1);
+    if (cmdline_early_get_klog()) {
+        serial_init(COM1);
+    }
 
     pmm_init();
     slab_init();
+
+    cmdline_parse();
+
     vmm_init();
 
     acpi_init();

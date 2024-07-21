@@ -9,6 +9,7 @@
 #include <utils/math.h>
 #include <utils/string.h>
 
+#define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
 #define PAGE_FAULT 14
 
 extern uint8_t text_start_addr[], text_end_addr[];
@@ -180,8 +181,11 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
         if (!(pagemap->top_level[pml5_index] & PTE_PRESENT)) {
             pagemap->top_level[pml5_index] = pmm_allocz(1);
             if (pagemap->top_level[pml5_index] == 0) {
-                pagemap->top_level[pml5_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
+                spinlock_release(&pagemap->lock);
+                return false;
             }
+
+            pagemap->top_level[pml5_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
         }
 
         pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -196,7 +200,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
             return false;
         }
 
-        pml4[pml4_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
+        pml4[pml4_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -207,7 +211,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
             return false;
         }
 
-        pml3[pml3_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
+        pml3[pml3_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
     }
 
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -225,7 +229,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
             return false;
         }
 
-        pml2[pml2_index] |= PTE_PRESENT | PTE_WRITABLE | PTE_USER;
+        pml2[pml2_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
     }
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -317,11 +321,6 @@ void vmm_init(void) {
         kernel_pagemap->top_level[i] = pmm_allocz(1) | PTE_PRESENT | PTE_WRITABLE;
     }
 
-    for (uintptr_t i = 0x1000; i < 0x100000000; i += PAGE_SIZE) {
-        vmm_map_page(kernel_pagemap, i + HIGH_VMA, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
-        vmm_map_page(kernel_pagemap, i, i, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
-    }
-
     uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE),
               text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE);
     uintptr_t rodata_start = ALIGN_DOWN((uintptr_t) rodata_start_addr, PAGE_SIZE),
@@ -335,17 +334,37 @@ void vmm_init(void) {
 
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
         uintptr_t paddr = text_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT);
+        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
     }
 
     for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
         uintptr_t paddr = rodata_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_NX);
+        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
     }
 
     for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
         uintptr_t paddr = data_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
+        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
+    }
+
+    uintptr_t paddr = 0;
+	for (size_t i = 1; i < 0x800; i++) {
+		vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
+                PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
+		paddr += BIGPAGE_SIZE;
+	}
+
+    struct limine_memmap_entry** mmap_entries = memmap_request.response->entries;
+    uint64_t entry_count = memmap_request.response->entry_count;
+
+    for (size_t i = 0; i < entry_count; i++) {
+        paddr = (mmap_entries[i]->base / BIGPAGE_SIZE) * BIGPAGE_SIZE;
+
+        for (size_t j = 0; j < DIV_CEIL(mmap_entries[i]->length, BIGPAGE_SIZE); j++) {
+            vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
+                    PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
+            paddr += BIGPAGE_SIZE;
+        }
     }
 
     vmm_switch_pagemap(kernel_pagemap);

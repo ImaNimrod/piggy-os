@@ -1,7 +1,10 @@
 #include <dev/ioapic.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <utils/list.h>
 #include <utils/log.h>
+
+#define IOAPIC_VADDR_TOP 0xffffffffffffd000
 
 #define IOREGSEL 0x00
 #define IOREGWIN 0x10
@@ -43,6 +46,7 @@ union ioapic_rentry {
 } __attribute__((packed));
 
 static LIST_HEAD(struct ioapic_device) ioapics;
+static size_t ioapic_count = 0;
 
 static inline uint32_t get_ioapic_rentry_index(uint8_t irq) {
     return (IOAPIC_RENTRY_BASE + (irq * 2));
@@ -169,28 +173,33 @@ void ioapic_set_isa_irq_routing(uint8_t isa_irq, uint8_t vector, uint16_t flags)
     ioapic_write64(ioapic->address, get_ioapic_rentry_index(isa_irq), rentry.raw);
 }
 
-void register_ioapic(uint8_t id, uintptr_t address, uint32_t gsi_base) {
+void register_ioapic(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
     if (get_ioapic_by_id(id) != NULL) {
         klog("[ioapic] duplicate ioapic with id #%u found... skipping initialization\n", id);
         return;
     }
 
-    klog("[ioapic] initializing ioapic #%u (address=0x%x, GSI base=%d)\n", id, address, gsi_base);
+    uintptr_t vaddr = IOAPIC_VADDR_TOP - (ioapic_count * PAGE_SIZE);
+    vmm_map_page(kernel_pagemap, vaddr, paddr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+
+    klog("[ioapic] initializing ioapic #%u (address=0x%x, GSI base=%d)\n", id, paddr, gsi_base);
 
     struct ioapic_device* ioapic = kmalloc(sizeof(struct ioapic_device));
     ioapic->id = id;
-    ioapic->address = address;
+    ioapic->address = vaddr;
     ioapic->gsi_base = gsi_base;
 
-    uint32_t version = ioapic_read(address, IOAPIC_VERSION);
+    uint32_t version = ioapic_read(vaddr, IOAPIC_VERSION);
     ioapic->max_rentry = (version >> 16) & 0xff;
     ioapic->version = version & 0xff;
 
     for (uint8_t i = 0; i <= ioapic->max_rentry; i++) {
-        union ioapic_rentry rentry = { .raw = ioapic_read64(address, get_ioapic_rentry_index(i)) };
+        union ioapic_rentry rentry = { .raw = ioapic_read64(vaddr, get_ioapic_rentry_index(i)) };
         rentry.mask = true;
-        ioapic_write64(address, get_ioapic_rentry_index(i), rentry.raw);
+        ioapic_write64(vaddr, get_ioapic_rentry_index(i), rentry.raw);
     }
 
     LIST_ADD_FRONT(&ioapics, ioapic, list);
+    ioapic_count++;
 }

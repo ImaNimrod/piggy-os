@@ -22,15 +22,19 @@ static ssize_t fbdev_read(struct vfs_node* node, void* buf, off_t offset, size_t
     struct limine_framebuffer* framebuffer = node->private;
     size_t size = framebuffer->pitch * framebuffer->height;
 
-    size_t actual_count = count;
-    if (offset + count > size) {
-        actual_count = count - (offset + count - size);
+    if ((size_t) offset >= size) {
+        spinlock_release(&node->lock);
+        return 0;
     }
 
-    memcpy(buf, (void*) ((uintptr_t) framebuffer->address + offset), actual_count);
+    if (count + (size_t) offset > size) {
+        count = size - offset;
+    }
+
+    memcpy(buf, (void*) ((uintptr_t) framebuffer->address + offset), count);
 
     spinlock_release(&node->lock);
-    return actual_count;
+    return count;
 }
 
 static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
@@ -43,15 +47,19 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
     struct limine_framebuffer* framebuffer = node->private;
     size_t size = framebuffer->pitch * framebuffer->height;
 
-    size_t actual_count = count;
-    if (offset + count > size) {
-        actual_count = count - (offset + count - size);
+    if ((size_t) offset >= size) {
+        spinlock_release(&node->lock);
+        return 0;
     }
 
-    memcpy((void*) ((uintptr_t) framebuffer->address + offset), buf, actual_count);
+    if (count + (size_t) offset > size) {
+        count = size - offset;
+    }
+
+    memcpy((void*) ((uintptr_t) framebuffer->address + offset), buf, count);
 
     spinlock_release(&node->lock);
-    return actual_count;
+    return count;
 }
 
 // TODO: implement framebuffer device ioctl

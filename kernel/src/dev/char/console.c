@@ -39,9 +39,7 @@ static ssize_t console_write(struct vfs_node* node, const void* buf, off_t offse
 }
 
 void console_init(void) {
-    if (!serial_init(COM2)) {
-        kpanic(NULL, "failed to initialize serial port for console device");
-    }
+    serial_init(COM2);
 
     struct vfs_node* console_dev = devfs_create_device("console");
     if (console_dev == NULL) {

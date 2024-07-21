@@ -208,7 +208,7 @@ void syscall_seek(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
-    if (S_ISDIR(node->stat.st_mode) || S_ISCHR(node->stat.st_mode)) {
+    if (S_ISDIR(node->stat.st_mode)) {
         r->rax = (uint64_t) -1;
         return;
     }

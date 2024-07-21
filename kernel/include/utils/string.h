@@ -13,6 +13,7 @@ int strncmp(const char* str1, const char* str2, size_t n);
 char* strncpy(char* dest, const char* src, size_t n);
 char* strdup(const char* str);
 size_t strlen(const char* str);
+char* strstr(const char* haystack, const char* needle);
 char* basename(char* str);
 
 #endif /* _KERNEL_UTILS_STRING_H */

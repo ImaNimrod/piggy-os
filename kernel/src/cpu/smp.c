@@ -10,6 +10,7 @@
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <sys/sched.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 
 #define CPU_STACK_SIZE 0x8000
@@ -24,6 +25,14 @@ static size_t cpu_count = 0;
 static size_t initialized_cpus = 0;
 
 extern void syscall_entry(void);
+
+static void hang(struct limine_smp_info* smp_info) {
+    (void) smp_info;
+    cli();
+    for (;;) {
+        hlt();
+    }
+}
 
 static void single_cpu_init(struct limine_smp_info* smp_info) {
     struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
@@ -110,6 +119,13 @@ void smp_init(void) {
 
     klog("[smp] %u processor%c detected\n", cpu_count, (cpu_count == 1 ? '\0' : 's'));
 
+    bool nosmp = cmdline_get("nosmp") != NULL;
+    if (nosmp) {
+        klog("[smp] nosmp argument detected, only initializing BSP\n");
+    }
+
+    void (*cpu_goto_fn)(struct limine_smp_info*) = nosmp ? hang : single_cpu_init;
+
     struct percpu* percpus = kmalloc(sizeof(struct percpu) * cpu_count);
 
     for (size_t i = 0; i < cpu_count; i++) {
@@ -122,15 +138,17 @@ void smp_init(void) {
         percpus[i].lapic_id = i;
 
         if (cpu->lapic_id != bsp_lapic_id) {
-            cpu->goto_address = single_cpu_init;
+            __atomic_store_n(&cpu->goto_address, cpu_goto_fn, __ATOMIC_SEQ_CST);
         } else {
             idt_init();
             single_cpu_init(cpu);
         }
     }
 
-    while (initialized_cpus != smp_response->cpu_count) {
-        pause();
+    if (!nosmp) {
+        while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != cpu_count)  {
+            pause();
+        }
     }
 
     klog("[smp] initialized %u cpu%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));

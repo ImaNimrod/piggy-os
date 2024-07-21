@@ -50,21 +50,29 @@ static inline uint64_t oct2int(const char* str, size_t len) {
     return value;
 }
 
-void initrd_unpack(void) {
+bool initrd_unpack(void) {
     struct limine_module_response* module_response = module_request.response;
-    if (module_response == NULL || module_response->module_count == 0) {
-        kpanic(NULL, "no initrd found");
+    struct limine_file* initrd_module = NULL;
+
+    for (size_t i = 0; i < module_response->module_count; i++) {
+        if (!strcmp(module_response->modules[i]->path, "/initrd.tar")) {
+            initrd_module = module_response->modules[i];
+            break;
+        }
     }
 
-    struct limine_file* initrd_module = module_response->modules[0];
+    if (initrd_module == NULL) {
+        return false;
+    }
 
     klog("[initrd] started unpacking initrd module at 0x%x (size: %dKiB)\n",
             (uintptr_t) initrd_module, initrd_module->size >> 10);
 
+    size_t file_count = 0;
     struct tar_header* current_file = (struct tar_header*) initrd_module->address;
     char* name_override = NULL;
 
-    while (strncmp(current_file->magic, "ustar", 5) == 0) {
+    while (!strncmp(current_file->magic, "ustar", 5)) {
         char* name = current_file->name;
         if (name_override != NULL) {
             name = name_override;
@@ -77,7 +85,7 @@ void initrd_unpack(void) {
 
         size_t size = oct2int(current_file->size, sizeof(current_file->size));
 
-        struct vfs_node* node;
+        struct vfs_node* node = NULL;
 
         switch (current_file->type) {
             case TAR_FILE_TYPE_NORMAL:
@@ -101,9 +109,16 @@ void initrd_unpack(void) {
                 break;
         }
 
+        if (node != NULL) {
+            node->stat.st_blksize = 512;
+            node->stat.st_blocks = DIV_CEIL(size, node->stat.st_blksize);
+            file_count++;
+        }
+
         pmm_free((uintptr_t) current_file - HIGH_VMA, (512 + ALIGN_UP(size, 512)) / PAGE_SIZE);
         current_file = (struct tar_header*) ((uintptr_t) current_file + 512 + ALIGN_UP(size, 512));
     }
 
-    klog("[initrd] finished unpacking\n");
+    klog("[initrd] finished unpacking %u files\n", file_count);
+    return true;
 }

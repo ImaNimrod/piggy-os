@@ -145,6 +145,19 @@ size_t strlen(const char* str) {
     return (size_t) s - (size_t) str;
 }
 
+char* strstr(const char* haystack, const char* needle) {
+    size_t n = strlen(needle);
+
+    while (*haystack != '\0') {
+        if (*haystack == *needle && strncmp(haystack, needle, n)) {
+            return (char*) haystack;
+        }
+        haystack++;
+    }
+
+    return NULL;
+}
+
 char* basename(char* str) {
     if (str == NULL || !*str) {
         return ".";

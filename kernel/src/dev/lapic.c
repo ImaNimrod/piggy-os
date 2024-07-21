@@ -9,6 +9,7 @@
 
 // TODO: setup NMI support
 // TODO: maybe do x2apic?
+#define LAPIC_VADDR 0xffffffffffffe000
 
 #define LAPIC_REG_ID            0x020
 #define LAPIC_REG_VER           0x030
@@ -28,14 +29,12 @@
 #define LAPIC_REG_TIMER_CURCNT  0x390
 #define LAPIC_REG_TIMER_DIV     0x3e0
 
-static uintptr_t lapic_addr = 0;
-
 static uint32_t lapic_read(uint32_t reg) {
-    return *((volatile uint32_t*) ((uintptr_t) lapic_addr + HIGH_VMA + reg));
+    return *((volatile uint32_t*) (LAPIC_VADDR + reg));
 }
 
 static void lapic_write(uint32_t reg, uint32_t value) {
-    *((volatile uint32_t*) ((uintptr_t) lapic_addr + HIGH_VMA + reg)) = value;
+    *((volatile uint32_t*) (LAPIC_VADDR + reg)) = value;
 }
 
 static void lapic_timer_calibrate(void) {
@@ -85,7 +84,8 @@ void lapic_init(void) {
     uint64_t lapic_msr = rdmsr(MSR_LAPIC_BASE);
     wrmsr(MSR_LAPIC_BASE, lapic_msr | (1 << 11));
 
-    lapic_addr = madt_get_lapic_addr();
+    vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_get_lapic_addr(),
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
 
     lapic_write(LAPIC_REG_SVR, lapic_read(LAPIC_REG_SVR) | (1 << 8));
 
