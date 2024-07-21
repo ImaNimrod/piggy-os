@@ -10,8 +10,8 @@ static void delay(void) {
     do {} while (i--);
 }
 
-static void* memset32(void* dest, int c, size_t n) {
-    __asm__ volatile("cld; rep stosl" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
+static void* memset64(void* dest, long c, size_t n) {
+    __asm__ volatile("cld; rep stosq" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
     return dest;
 }
 
@@ -22,6 +22,7 @@ int main(void) {
 
     int fb = open("/dev/fb0", O_WRONLY);
     if (fb < 0) {
+        fputs("init: failed to open framebuffer device\n", stderr);
         for (;;) {
             __asm__ volatile("pause");
         }
@@ -29,6 +30,7 @@ int main(void) {
 
     struct stat fb_stat;
     if (fstat(fb, &fb_stat) < 0) {
+        fputs("init: failed to stat framebuffer device\n", stderr);
         for (;;) {
             __asm__ volatile("pause");
         }
@@ -36,19 +38,19 @@ int main(void) {
 
     uint8_t* buf = sbrk(fb_stat.st_size);
     for (;;) {
-        memset32(buf, 0xffff0000, fb_stat.st_size / sizeof(int));
+        memset64(buf, 0xffff0000ffff0000 /* red */, fb_stat.st_size / sizeof(long));
         lseek(fb, 0, SEEK_SET);
         write(fb, (void*) buf, fb_stat.st_size);
 
         delay();
 
-        memset32(buf, 0xff00ff00, fb_stat.st_size / sizeof(int));
+        memset64(buf, 0xff00ff00ff00ff00 /* green */, fb_stat.st_size / sizeof(long));
         lseek(fb, 0, SEEK_SET);
         write(fb, (void*) buf, fb_stat.st_size);
 
         delay();
 
-        memset32(buf, 0xff0000ff, fb_stat.st_size / sizeof(int));
+        memset64(buf, 0xff0000ffff0000ff /* blue */, fb_stat.st_size / sizeof(long));
         lseek(fb, 0, SEEK_SET);
         write(fb, (void*) buf, fb_stat.st_size);
 

@@ -55,6 +55,7 @@ void idt_init(void) {
         idt_set_gate(i, idt_stub, 0);
         idt_stub = (void*) ((uintptr_t) idt_stub + 32);
     }
+
 	idt_set_ist(1, 1);
 	idt_set_ist(2, 1);
 	idt_set_ist(8, 1);

@@ -26,6 +26,8 @@ struct percpu {
     uint32_t lapic_frequency;
 };
 
+extern struct percpu* percpus;
+
 static inline struct percpu* this_cpu(void) {
     struct percpu* ret;
     __asm__ volatile ("mov %%gs:0x0, %0" : "=r" (ret));

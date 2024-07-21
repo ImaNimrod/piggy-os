@@ -1,7 +1,8 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/acpi/madt.h>
+#include <cpu/percpu.h>
 #include <dev/ioapic.h>
+#include <sys/process.h> 
 #include <utils/log.h>
 #include <utils/math.h>
 

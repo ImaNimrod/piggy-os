@@ -1,9 +1,14 @@
 #include <cpu/asm.h>
+#include <cpu/percpu.h>
+#include <cpu/smp.h>
+#include <dev/lapic.h>
 #include <dev/serial.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
+
+#define PANIC_IPI 0xff
 
 static spinlock_t print_lock = {0};
 
@@ -46,6 +51,8 @@ static void puts(const char* str) {
 }
 
 static void klog_internal(const char* fmt, va_list args) {
+    const char* str;
+
     char c;
     while ((c = *(fmt++)) != '\0') {
         if (c != '%') {
@@ -82,19 +89,17 @@ static void klog_internal(const char* fmt, va_list args) {
                 case 'c':
                     serial_putc(COM1, (char) va_arg(args, int));
                     break;
-                case 's': {
-                              const char* str = va_arg(args, const char*);
-                              if (!str) {
-                                  puts("(null)");
-                                  break;
-                              }
-
-                              puts(str);
-                              break;
-                          }
+                case 's':
+                    str = va_arg(args, const char*);
+                    if (!str) {
+                        puts("(null)");
+                        break;
+                    }
+                    puts(str);
+                    break;
                 default:
-                          serial_putc(COM1, c);
-                          break;
+                    serial_putc(COM1, c);
+                    break;
             }
         }
     }
@@ -142,6 +147,13 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
         }
 
         puts("\n===============================================================================================\n");
+    }
+
+    size_t cpu_number = this_cpu()->cpu_number;
+    for (size_t i = 0; i < smp_cpu_count; i++) {
+        if (i != cpu_number) {
+            lapic_send_ipi(percpus[i].lapic_id, PANIC_IPI);
+        }
     }
 
     for (;;) {

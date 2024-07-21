@@ -15,13 +15,15 @@
 
 #define CPU_STACK_SIZE 0x8000
 
+struct percpu* percpus = NULL;
+size_t smp_cpu_count = 0;
+
 static volatile struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
     .revision = 0
 };
 
 static uint32_t bsp_lapic_id = 0;
-static size_t cpu_count = 0;
 static size_t initialized_cpus = 0;
 
 extern void syscall_entry(void);
@@ -114,10 +116,10 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
 void smp_init(void) {
     struct limine_smp_response* smp_response = smp_request.response;
+    smp_cpu_count = smp_response->cpu_count;
     bsp_lapic_id = smp_response->bsp_lapic_id;
-    cpu_count = smp_response->cpu_count;
 
-    klog("[smp] %u processor%c detected\n", cpu_count, (cpu_count == 1 ? '\0' : 's'));
+    klog("[smp] %u processor%c detected\n", smp_cpu_count, (smp_cpu_count == 1 ? '\0' : 's'));
 
     bool nosmp = cmdline_get("nosmp") != NULL;
     if (nosmp) {
@@ -126,9 +128,9 @@ void smp_init(void) {
 
     void (*cpu_goto_fn)(struct limine_smp_info*) = nosmp ? hang : single_cpu_init;
 
-    struct percpu* percpus = kmalloc(sizeof(struct percpu) * cpu_count);
+    percpus = kmalloc(sizeof(struct percpu) * smp_cpu_count);
 
-    for (size_t i = 0; i < cpu_count; i++) {
+    for (size_t i = 0; i < smp_cpu_count; i++) {
         struct limine_smp_info* cpu = smp_response->cpus[i];
 
         cpu->extra_argument = (uint64_t) &percpus[i];
@@ -146,7 +148,7 @@ void smp_init(void) {
     }
 
     if (!nosmp) {
-        while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != cpu_count)  {
+        while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != smp_cpu_count)  {
             pause();
         }
     }

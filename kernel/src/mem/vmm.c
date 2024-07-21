@@ -68,8 +68,6 @@ static void page_fault_handler(struct registers* r) {
     bool is_writing = r->error_code & FAULT_WRITABLE;
     bool is_user = r->error_code & FAULT_USER;
 
-    kpanic(r, "page fault occurred in kernel");
-
     klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
             is_user ? "user-mode" : "supervisor-mode",
             is_writing ? "write to" : "read from",
@@ -79,7 +77,6 @@ static void page_fault_handler(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     if (current_thread != NULL) {
         struct process* current_process = current_thread->process;
-
         if (current_process->pid != 0) {
             klog("[vmm] terminating process (pid = %d) due to page fault\n", current_process->pid);
             process_destroy(current_process, -1);

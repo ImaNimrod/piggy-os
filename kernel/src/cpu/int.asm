@@ -1,7 +1,11 @@
-section .text
+bits 64
+
+PANIC_IPI equ 0xff
 
 extern isr_handler
 extern syscall_handler
+
+section .text
 
 %macro interrupt_stub 1
     %%start:
@@ -22,6 +26,9 @@ idt_stubs:
     %endrep
 
 interrupt_handler:
+    cmp qword [rsp], PANIC_IPI
+    je panic_ipi_handler
+
     push rax
     push rbx
     push rcx
@@ -122,3 +129,10 @@ syscall_entry:
     swapgs
 
     o64 sysret
+
+; this is run by each of the CPUs when they receive a panic IPI
+panic_ipi_handler:
+    cli
+.loop:
+    hlt
+    jmp .loop

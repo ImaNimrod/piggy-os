@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+extern size_t smp_cpu_count;
+
 void smp_init(void);
 
 #endif /* _KERNEL_CPU_SMP_H */

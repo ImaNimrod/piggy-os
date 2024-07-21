@@ -54,9 +54,10 @@ void lapic_eoi(void) {
     lapic_write(LAPIC_REG_EOI, 0);
 }
 
-void lapic_send_ipi(uint32_t lapic_id, uint32_t vector) {
+void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
     lapic_write(LAPIC_REG_ICR1, lapic_id << 24);
-    lapic_write(LAPIC_REG_ICR0, vector);
+    while (lapic_read(LAPIC_REG_ICR0) & (1 << 12));
+    lapic_write(LAPIC_REG_ICR0, vector | (1 << 14));
 }
 
 void lapic_timer_oneshot(uint8_t vector, uint64_t us) {
