@@ -1,4 +1,4 @@
-#include <sys/syscalls.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 
 pid_t wait(int* status) {

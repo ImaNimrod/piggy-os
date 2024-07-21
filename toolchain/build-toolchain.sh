@@ -13,6 +13,18 @@ export PATH="$PATH:$PREFIX/bin"
 mkdir -p "$DIR/tarballs"
 pushd "$DIR/tarballs"
     md5=""
+    if [ -e ${NASM_PKG} ]; then
+        md5="$(md5sum ${NASM_PKG} | cut -f1 -d ' ')"
+    fi
+    if [ "$md5" != ${NASM_MD5SUM} ] ; then
+        rm -f ${NASM_PKG}
+        echo "downloading ${NASM_NAME}..."
+        curl -LO ${NASM_BASE_URL}/${NASM_VERSION}/${NASM_PKG}
+    else
+        echo "skipped downloading ${NASM_NAME}"
+    fi
+
+    md5=""
     if [ -e ${BINUTILS_PKG} ]; then
         md5="$(md5sum ${BINUTILS_PKG} | cut -f1 -d ' ')"
     fi
@@ -36,6 +48,13 @@ pushd "$DIR/tarballs"
         echo "skipped downloading ${GCC_NAME}"
     fi
 
+    if [ ! -d ${NASM_NAME} ]; then
+        echo "extracting ${NASM_NAME}..."
+        tar -xf ${NASM_PKG}
+    else
+        echo "using existing ${NASM_NAME} source"
+    fi
+
     if [ ! -d ${BINUTILS_NAME} ]; then
         echo "extracting ${BINUTILS_NAME}..."
         tar -xf ${BINUTILS_PKG}
@@ -53,7 +72,7 @@ pushd "$DIR/tarballs"
         tar -xf ${GCC_PKG}
 
         echo "patching ${GCC_NAME}..."
-        pushd ${BINUTILS_NAME}
+        pushd ${GCC_NAME}
             patch -p1 < ${DIR}/patches/${GCC_NAME}.patch
         popd
     else
@@ -63,8 +82,15 @@ popd
 
 mkdir -p ${DIR}/build
 pushd ${DIR}/build
-    rm -rf build_binutils
-    rm -rf build_gcc
+    rm -rf build_*
+
+    mkdir -p build_nasm
+    pushd build_nasm
+        ${DIR}/tarballs/${NASM_NAME}/configure --prefix=${PREFIX}
+
+        make -j $(nproc) all
+        make install
+    popd
 
     mkdir -p build_binutils
     pushd build_binutils

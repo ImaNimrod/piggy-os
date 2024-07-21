@@ -11,7 +11,7 @@ all: $(IMAGE_NAME)
 $(IMAGE_NAME): limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root
-	cp -v kernel/bin/$(KERNEL_NAME) $(INITRD_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
+	cp -v kernel/$(KERNEL_FILE) $(INITRD_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
 	cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/

@@ -18,12 +18,12 @@ KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.asm')
 KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.asm=.o))
 
 .PHONY: all
-all: bin/$(KERNEL_NAME)
+all: $(KERNEL_FILE)
 
 include/limine.h:
 	@curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
 
-bin/$(KERNEL_NAME): linker.ld $(KERNEL_OBJFILES)
+$(KERNEL_FILE): linker.ld $(KERNEL_OBJFILES)
 	@mkdir -p "$$(dirname $@)"
 	@echo "  LD   $@"
 	@$(LD) $(LDFLAGS) $(KERNEL_OBJFILES) -T linker.ld -o $@
@@ -40,7 +40,7 @@ obj/%.o: src/%.asm
 
 .PHONY: clean
 clean:
-	$(RM) -r bin obj
+	$(RM) -r $(KERNEL_FILE) obj
 
 .PHONY: distclean
 distclean:
