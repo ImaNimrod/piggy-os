@@ -5,7 +5,7 @@ AS=$(TOOLCHAIN_DIR)/build/bin/nasm
 CC=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-gcc
 LD=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-ld
 AR=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-ar
-EMU=qemu-system-x86_64
+EMU=$(TOOLCHAIN_DIR)/build/bin/qemu-system-x86_64
 
 IMAGE_NAME=piggy-os.iso
 KERNEL_FILE=kernel.elf

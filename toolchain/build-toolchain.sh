@@ -13,6 +13,18 @@ export PATH="$PATH:$PREFIX/bin"
 mkdir -p "$DIR/tarballs"
 pushd "$DIR/tarballs"
     md5=""
+    if [ -e ${QEMU_PKG} ]; then
+        md5="$(md5sum ${QEMU_PKG} | cut -f1 -d ' ')"
+    fi
+    if [ "$md5" != ${QEMU_MD5SUM} ] ; then
+        rm -f ${QEMU_PKG}
+        echo "downloading ${QEMU_NAME}..."
+        curl -LO ${QEMU_BASE_URL}/${QEMU_PKG}
+    else
+        echo "skipped downloading ${QEMU_NAME}"
+    fi
+
+    md5=""
     if [ -e ${NASM_PKG} ]; then
         md5="$(md5sum ${NASM_PKG} | cut -f1 -d ' ')"
     fi
@@ -46,6 +58,13 @@ pushd "$DIR/tarballs"
         curl -LO ${GCC_BASE_URL}/${GCC_NAME}/${GCC_PKG}
     else
         echo "skipped downloading ${GCC_NAME}"
+    fi
+
+    if [ ! -d ${QEMU_NAME} ]; then
+        echo "extracting ${QEMU_NAME}..."
+        tar -xf ${QEMU_PKG}
+    else
+        echo "using existing ${QEMU_NAME} source"
     fi
 
     if [ ! -d ${NASM_NAME} ]; then
@@ -83,6 +102,18 @@ popd
 mkdir -p ${DIR}/build
 pushd ${DIR}/build
     rm -rf build_*
+
+    mkdir -p build_qemu
+    pushd build_qemu
+        ${DIR}/tarballs/${QEMU_NAME}/configure \
+            --prefix=${PREFIX} \
+            --target-list=x86_64-softmmu \
+            --enable-gtk \
+            --enable-slirp
+
+        make -j $(nproc)
+        make install
+    popd
 
     mkdir -p build_nasm
     pushd build_nasm
