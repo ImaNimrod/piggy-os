@@ -6,6 +6,7 @@
 *.tar
 
 limine/
+kernel/include/limine.h
 toolchain/build
 toolchain/tarballs
 qemu.log

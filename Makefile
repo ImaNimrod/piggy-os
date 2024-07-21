@@ -24,7 +24,7 @@ $(IMAGE_NAME): limine kernel libc userspace initrd
 	rm -rf iso_root
 
 limine:
-	git clone https://github.com/limine-bootloader/limine.git --branch=v7.x-binary --depth=1
+	git clone https://github.com/limine-bootloader/limine.git --branch=v7.11.0-binary --depth=1
 	$(MAKE) -C limine
 
 .PHONY: kernel
@@ -54,7 +54,7 @@ run:
 
 .PHONY: run-kvm
 run-kvm:
-	$(EMU) $(EMUOPTS) -enable-kvm -cpu kvm64,smep,smap -cdrom $(IMAGE_NAME)
+	$(EMU) $(EMUOPTS) -enable-kvm -cpu host -cdrom $(IMAGE_NAME)
 
 .PHONY: todolist
 todolist:
