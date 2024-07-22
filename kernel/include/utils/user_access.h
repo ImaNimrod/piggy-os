@@ -1,6 +1,8 @@
 #ifndef _KERNEL_UTILS_USER_ACCESS_H
 #define _KERNEL_UTILS_USER_ACCESS_H
 
+#include <cpu/asm.h>
+#include <cpu/percpu.h>
 #include <stdbool.h>
 #include <stddef.h>
 

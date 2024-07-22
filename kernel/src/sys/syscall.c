@@ -30,6 +30,7 @@ extern void syscall_truncate(struct registers* r);
 extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
+extern void syscall_utsname(struct registers* r);
 
 static struct syscall_handle syscall_table[] = {
     { .handler = syscall_exit, .name = "exit" },
@@ -53,6 +54,7 @@ static struct syscall_handle syscall_table[] = {
     { .handler = syscall_stat, .name = "stat" },
     { .handler = syscall_chdir, .name = "chdir" },
     { .handler = syscall_getcwd, .name = "getcwd" },
+    { .handler = syscall_utsname, .name = "utsname" },
 };
 
 void syscall_handler(struct registers* r) {

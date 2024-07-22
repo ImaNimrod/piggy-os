@@ -8,6 +8,7 @@ USERSPACE_PROGRAMS := $(patsubst %.c, $(SYSROOT_DIR)/bin/%, $(wildcard *.c))
 userspace: $(USERSPACE_PROGRAMS)
 
 $(SYSROOT_DIR)/bin/%: %.c
+	@echo "  CC   $(shell basename $@)"
 	@$(CC) $(CFLAGS) -o $@ $<
 
 .PHONY:

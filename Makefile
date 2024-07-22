@@ -8,6 +8,7 @@ EMUOPTS=-M q35 -smp 2 -m 2G -no-reboot \
 .PHONY: all
 all: $(IMAGE_NAME)
 
+.NOTPARALLEL:
 $(IMAGE_NAME): limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root

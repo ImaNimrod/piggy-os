@@ -7,12 +7,12 @@ ASFLAGS := -f elf64
 
 LIBC_CFILES := $(shell cd src && find . -type f -name '*.c')
 LIBC_ASFILES := $(shell cd src && find . -type f -name '*.asm')
-LIBC_OBJFILES := $(addprefix obj/,$(LIBC_CFILES:.c=.o) $(LIBC_ASFILES:.asm=.o))
+LIBC_OBJFILES := $(addprefix obj/,$(LIBC_ASFILES:.asm=.o) $(LIBC_CFILES:.c=.o))
 
 LIBC_CRT_OBJFILES := $(wildcard obj/crt/*.o)
 
 .PHONY: libc
-libc: install-headers $(SYSROOT_DIR)/lib/libc.a install-crt
+libc: install-headers $(SYSROOT_DIR)/lib/libc.a | install-crt
 
 $(SYSROOT_DIR)/lib/libc.a: $(LIBC_OBJFILES)
 	@echo "  AR   $@"

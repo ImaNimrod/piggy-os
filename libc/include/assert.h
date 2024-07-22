@@ -3,11 +3,12 @@
 
 #undef assert
 
-#ifdef NDEBUG
-#define assert(test) ((void) 0)
+#if !defined(NDEBUG)
+#define assert(c)
 #else
-// TODO: implement active form of assert
-#define assert(test) ((void) 0)
-#ednif
+#define assert(c)
+#endif
+
+// TODO: implement assert
 
 #endif /* _ASSERT_H */

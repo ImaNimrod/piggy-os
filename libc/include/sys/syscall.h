@@ -24,6 +24,7 @@
 #define SYS_STAT            18
 #define SYS_CHDIR           19
 #define SYS_GETCWD          20
+#define SYS_UTSNAME         21
 
 extern uint64_t syscall0(uint64_t);
 extern uint64_t syscall1(uint64_t, uint64_t);
