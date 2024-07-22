@@ -1,4 +1,3 @@
-#include <cpuid.h>
 #include <cpu/asm.h>
 #include <cpu/percpu.h>
 #include <dev/acpi/madt.h>

@@ -64,7 +64,7 @@ void syscall_handler(struct registers* r) {
         return;
     }
 
-    if (this_cpu()->smepsmap_enabled) {
+    if (this_cpu()->smap_enabled) {
         clac(); // just sanity check that user memory access is disabled
     }
 

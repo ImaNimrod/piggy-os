@@ -17,10 +17,10 @@ struct percpu {
     struct thread* running_thread;
 	struct tss tss;
 
-    bool smepsmap_enabled;
     size_t fpu_storage_size;
     void (*fpu_save)(void*);
     void (*fpu_restore)(void*);
+    bool smap_enabled;
 
     uint32_t lapic_id;
     uint32_t lapic_frequency;

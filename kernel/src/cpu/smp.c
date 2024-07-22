@@ -1,4 +1,3 @@
-#include <cpuid.h>
 #include <cpu/asm.h>
 #include <cpu/gdt.h>
 #include <cpu/idt.h>
@@ -55,7 +54,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     uint64_t cr4 = read_cr4();
     uint32_t ebx = 0, ecx = 0, edx = 0, unused;
 
-    if (__get_cpuid(1, &unused, &unused, &unused, &edx)) {
+    if (cpuid(1, 0, &unused, &unused, &unused, &edx)) {
         /* enable global pages if supported */
         if (edx & (1 << 13)) {
             cr4 |= (1 << 7);
@@ -68,7 +67,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     cr4 |= (1 << 9) | (1 << 10);
 
-    if (__get_cpuid(7, &unused, &ebx, &ecx, &unused)) {
+    if (cpuid(7, 0, &unused, &ebx, &ecx, &unused)) {
         /* enable usermode instruction prevention if supported */ 
         if (ecx & (1 << 2)) {
             cr4 |= (1 << 11);
@@ -77,12 +76,11 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
         /* enable SMEP and SMAP if supported */
         if (ebx & (1 << 7)) {
             cr4 |= (1 << 20);
-            percpu->smepsmap_enabled = true;
         }
 
         if (ebx & (1 << 20)) {
             cr4 |= (1 << 21);
-            percpu->smepsmap_enabled = true;
+            percpu->smap_enabled = true;
         }
     }
 

@@ -1,5 +1,4 @@
 #include <cpu/asm.h>
-#include <cpuid.h>
 #include <dev/hpet.h>
 #include <mem/slab.h>
 #include <utils/log.h>
@@ -107,10 +106,10 @@ void rng_seed(struct rng_state* rng, uint64_t seed) {
 
 void random_init(void) {
     uint32_t ebx = 0, ecx = 0, unused;
-    if (__get_cpuid(7, &unused, &ebx, &unused, &unused) && ebx & (1 << 18)) {
+    if (cpuid(7, 0, &unused, &ebx, &unused, &unused) && ebx & (1 << 18)) {
         klog("[random] using rdseed to seed PRNGs\n");
         use_rdseed = true;
-    } else if (__get_cpuid(1, &unused, &unused, &ecx, &unused) && ecx & (1 << 30)) {
+    } else if (cpuid(1, 0, &unused, &unused, &ecx, &unused) && ecx & (1 << 30)) {
         klog("[random] using rdrand to seed PRNGs\n");
         use_rdrand = true;
     } else {

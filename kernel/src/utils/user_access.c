@@ -4,7 +4,7 @@
 
 bool check_user_ptr(const void* ptr) {
     return ((uintptr_t) ptr >= this_cpu()->running_thread->process->code_base &&
-        (uintptr_t) ptr < PROCESS_THREAD_STACK_TOP);
+            (uintptr_t) ptr < PROCESS_THREAD_STACK_TOP);
 }
 
 void* copy_from_user(void* kdest, const void* usrc, size_t size) {
@@ -12,16 +12,9 @@ void* copy_from_user(void* kdest, const void* usrc, size_t size) {
         return NULL;
     }
 
-    if (this_cpu()->smepsmap_enabled) {
-        stac();
-    }
-
+    USER_ACCESS_BEGIN;
     void* ret = memcpy(kdest, usrc, size);
-
-    if (this_cpu()->smepsmap_enabled) {
-        clac();
-    }
-
+    USER_ACCESS_END;
     return ret;
 }
 
@@ -30,15 +23,8 @@ void* copy_to_user(void* udest, const void* ksrc, size_t size) {
         return NULL;
     }
 
-    if (this_cpu()->smepsmap_enabled) {
-        stac();
-    }
-
+    USER_ACCESS_BEGIN;
     void* ret = memcpy(udest, ksrc, size);
-
-    if (this_cpu()->smepsmap_enabled) {
-        clac();
-    }
-
+    USER_ACCESS_END;
     return ret;
 }

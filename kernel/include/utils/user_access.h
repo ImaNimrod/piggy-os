@@ -8,14 +8,14 @@
 
 #define USER_ACCESS_BEGIN \
     do { \
-        if (this_cpu()->smepsmap_enabled) { \
+        if (this_cpu()->smap_enabled) { \
             stac(); \
         } \
     } while (0)
 
 #define USER_ACCESS_END \
     do { \
-        if (this_cpu()->smepsmap_enabled) { \
+        if (this_cpu()->smap_enabled) { \
             clac(); \
         } \
     } while (0)

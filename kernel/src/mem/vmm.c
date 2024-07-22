@@ -1,6 +1,5 @@
 #include <cpu/asm.h>
 #include <cpu/percpu.h>
-#include <cpuid.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
@@ -103,7 +102,7 @@ struct pagemap* vmm_new_pagemap(void) {
     pagemap->lock = (spinlock_t) {0};
 
     uint32_t ecx = 0, unused;
-    if (__get_cpuid(7, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
+    if (cpuid(7, 0, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
         pagemap->has_level5 = true;
     }
 
@@ -144,8 +143,10 @@ struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap) {
                             for (size_t l = 0; l < 512; l++) {
                                 if (pml2[l] & PTE_PRESENT) {
                                     uintptr_t paddr = pmm_alloc(1);
-                                    memcpy((void*) (paddr + HIGH_VMA), (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE);
-                                    vmm_map_page(new_pagemap, entries_to_vaddr(i, j, k, l), paddr, pml2[l] & PTE_FLAG_MASK);
+                                    memcpy((void*) (paddr + HIGH_VMA),
+                                            (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE);
+                                    vmm_map_page(new_pagemap, entries_to_vaddr(i, j, k, l), paddr,
+                                            pml2[l] & PTE_FLAG_MASK);
                                 }
                             }
                         }
@@ -310,7 +311,7 @@ void vmm_init(void) {
     kernel_pagemap->lock = (spinlock_t) {0};
 
     uint32_t ecx = 0, unused;
-    if (__get_cpuid(7, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
+    if (cpuid(7, 0, &unused, &unused, &ecx, &unused) && ecx & (1 << 16)) {
         kernel_pagemap->has_level5 = true;
     }
 
