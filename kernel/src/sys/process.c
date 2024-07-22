@@ -340,8 +340,6 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             return NULL;
         }
 
-        uintptr_t* stack = (void*) (stack_paddr + STACK_SIZE + HIGH_VMA);
-
         for (size_t i = 0; i < ALIGN_UP(STACK_SIZE, PAGE_SIZE) / PAGE_SIZE + 1; i++) {
             bool ret = vmm_map_page(p->pagemap,
                     (p->thread_stack_top - STACK_SIZE) + (i * PAGE_SIZE),
@@ -355,7 +353,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
             }
         }
 
-        t->ctx.rsp = t->stack = p->thread_stack_top;
+        t->ctx.rsp = p->thread_stack_top;
         p->thread_stack_top -= STACK_SIZE - PAGE_SIZE;
 
         t->page_fault_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
@@ -372,19 +370,20 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         t->gs_base = 0;
 
         if (p->threads->size == 0 && argv != NULL && envp != NULL) {
-            uintptr_t* stack_top = stack;
+            void* stack_top = (void*) (stack_paddr + STACK_SIZE + HIGH_VMA);
+            uintptr_t* stack = stack_top;
 
             int envp_len;
             for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
                 size_t length = strlen(envp[envp_len]);
-                stack = (uintptr_t*) ((uintptr_t) stack - length - 1);
+                stack = (void*) ((uintptr_t) stack - length - 1);
                 memcpy(stack, envp[envp_len], length);
             }
 
             int argv_len;
             for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
                 size_t length = strlen(argv[argv_len]);
-                stack = (uintptr_t*) ((uintptr_t) stack - length - 1);
+                stack = (void*) ((uintptr_t) stack - length - 1);
                 memcpy(stack, argv[argv_len], length);
             }
 
@@ -397,25 +396,32 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
 
             *(--stack) = 0;
             stack -= envp_len;
-            for (int i = 0; i < envp_len; i++) {
+
+            int i;
+            for (i = 0; i < envp_len; i++) {
                 old_rsp -= strlen(envp[i]) + 1;
-                ((uintptr_t*) stack)[i] = old_rsp;
+                stack[i] = old_rsp;
             }
+
+            t->ctx.rdx = t->ctx.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // envp
 
             *(--stack) = 0;
             stack -= argv_len;
-            for (int i = 0; i < argv_len; i++) {
+            for (i = 0; i < argv_len; i++) {
                 old_rsp -= strlen(argv[i]) + 1;
-                ((uintptr_t*) stack)[i] = old_rsp;
+                stack[i] = old_rsp;
             }
 
-            *(uintptr_t*) (--stack) = argv_len;
+            t->ctx.rsi = t->ctx.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // argv
+            t->ctx.rdi = argv_len;  // argc
 
-            t->stack -= (uintptr_t) stack_top - (uintptr_t) stack;
             t->ctx.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
+            t->stack = t->ctx.rsp;
         }
     } else {
         t->timeslice = 5000;
+
+        t->ctx.rdi = (uint64_t) arg;
 
         t->ctx.cs = 0x08;
         t->ctx.ss = 0x10;
@@ -430,7 +436,6 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
 
     t->ctx.rflags = 0x202;
     t->ctx.rip = entry;
-    t->ctx.rdi = (uint64_t) arg;
 
     t->tid = p->threads->size;
     vector_push_back(p->threads, t);

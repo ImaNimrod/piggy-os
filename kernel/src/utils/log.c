@@ -126,7 +126,6 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
     cli();
 
     if (cmdline_early_get_klog()) {
-        spinlock_release(&print_lock);
         puts("\n\n==================================| KERNEL PANIC |=============================================\nkernel panicked due to reason: ");
 
         va_list args;

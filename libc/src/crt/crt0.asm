@@ -1,16 +1,24 @@
 bits 64
 
-extern main
-
 section .text
-    
+
 global _start
 
+extern environ
+
+extern exit
+extern main
+
 _start:
+    push qword 0
+    push qword 0
+    mov rbp, rsp
+
+    mov [environ], rdx
+
     call main
 
     mov rdi, rax
-    mov rax, 0
-    syscall
+    call exit
 
     jmp $

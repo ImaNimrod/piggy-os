@@ -14,6 +14,8 @@
 #define W_OK (1 << 1)
 #define X_OK (1 << 2)
 
+extern char** environ;
+
 int chdir(const char*);
 int close(int);
 int execl(const char*, const char*, ...);
