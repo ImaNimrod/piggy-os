@@ -1,5 +1,4 @@
 #include <fcntl.h> 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -15,28 +14,28 @@ static void* memset64(void* dest, long c, size_t n) {
     return dest;
 }
 
-int main(void) {
-    if (getpid() != 1) {
-        fputs("init: must be run with process pid = 1\n", stderr);
+static inline void hang(void) {
+    for (;;) {
+        __asm__ volatile("pause");
     }
+}
 
+int main(void) {
     int fb = open("/dev/fb0", O_WRONLY);
     if (fb < 0) {
-        fputs("init: failed to open framebuffer device\n", stderr);
-        for (;;) {
-            __asm__ volatile("pause");
-        }
+        hang();
     }
 
     struct stat fb_stat;
     if (fstat(fb, &fb_stat) < 0) {
-        fputs("init: failed to stat framebuffer device\n", stderr);
-        for (;;) {
-            __asm__ volatile("pause");
-        }
+        hang();
     }
 
-    uint8_t* buf = sbrk(fb_stat.st_size);
+    char* buf = malloc(fb_stat.st_size);
+    if (buf == NULL) {
+        hang();
+    }
+
     for (;;) {
         memset64(buf, 0xffff0000ffff0000 /* red */, fb_stat.st_size / sizeof(long));
         lseek(fb, 0, SEEK_SET);
@@ -57,10 +56,9 @@ int main(void) {
         delay();
     }
 
+    free(buf);
     close(fb);
 
-    for (;;) {
-        __asm__ volatile("pause");
-    }
+    hang();
     return EXIT_SUCCESS;
 }

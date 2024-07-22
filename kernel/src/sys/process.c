@@ -224,7 +224,7 @@ void* process_sbrk(struct process* p, intptr_t size) {
     ptrdiff_t remaining_bytes = (end % PAGE_SIZE) ? (PAGE_SIZE - (PAGE_SIZE % 0x1000)) : 0;
     if (size > 0) {
         if (remaining_bytes < size) {
-            size_t page_count = DIV_CEIL(size - remaining_bytes, 0x1000);
+            size_t page_count = DIV_CEIL(size - remaining_bytes, PAGE_SIZE) + 1;
 
             uintptr_t paddr = pmm_alloc(page_count);
             if (paddr == 0) {
@@ -257,6 +257,7 @@ void* process_sbrk(struct process* p, intptr_t size) {
     }
 
     p->brk += size;
+    klog("0x%x\n", p->brk);
     return (void*) end;
 }
 

@@ -41,11 +41,14 @@ int mbtowc(wchar_t* __restrict, const char* __restrict, size_t);
 void qsort(void*, size_t, size_t, int (*)(const void*, const void*));
 int rand(void);
 void* realloc(void*, size_t);
+void* reallocarray(void*, size_t, size_t);
+int setenv(const char*, const char*, int);
 void srand(unsigned int);
 double strtod(const char* __restrict, char** __restrict);
 long strtol(const char* __restrict, char** __restrict, int);
 unsigned long strtoul(const char* __restrict, char** __restrict, int);
 int system(const char*);
+int unsetenv(const char*);
 size_t wcstombs(char* __restrict, const wchar_t* __restrict, size_t);
 int wctomb(char*, wchar_t);
 

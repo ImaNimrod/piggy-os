@@ -142,7 +142,7 @@ struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap) {
 
                             for (size_t l = 0; l < 512; l++) {
                                 if (pml2[l] & PTE_PRESENT) {
-                                    uintptr_t paddr = pmm_alloc(1);
+                                    uintptr_t paddr = pmm_allocz(1);
                                     memcpy((void*) (paddr + HIGH_VMA),
                                             (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE);
                                     vmm_map_page(new_pagemap, entries_to_vaddr(i, j, k, l), paddr,

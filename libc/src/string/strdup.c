@@ -8,5 +8,6 @@ char* strdup(const char* str) {
     if (dup) {
         memcpy(dup, str, len);
     }
+
     return dup;
 }
