@@ -1,64 +1,32 @@
-#include <fcntl.h> 
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
-static void delay(void) {
-    size_t i = 100000000;
-    do {} while (i--);
-}
-
-static void* memset64(void* dest, long c, size_t n) {
-    __asm__ volatile("cld; rep stosq" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
-    return dest;
-}
-
-static inline void hang(void) {
-    for (;;) {
-        __asm__ volatile("pause");
-    }
-}
-
 int main(void) {
-    int fb = open("/dev/fb0", O_WRONLY);
-    if (fb < 0) {
-        hang();
+    puts("starting PiggyOS...\n");
+
+    if (getpid() != 1) {
+        fputs("must be run from the init process (pid=1)", stderr);
+        _exit(EXIT_FAILURE);
     }
 
-    struct stat fb_stat;
-    if (fstat(fb, &fb_stat) < 0) {
-        hang();
+    setenv("PATH", "/bin", 1);
+
+    while (1) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            fputs("failed to fork child process", stderr);
+            _exit(EXIT_FAILURE);
+        } else if (pid == 0) {
+            char* const argv[] = { "/bin/fbtest", "-i", NULL };
+            execv(argv[0], argv);
+            return EXIT_FAILURE;
+        } else {
+            waitpid(pid, NULL, 0);
+        }
     }
 
-    char* buf = malloc(fb_stat.st_size);
-    if (buf == NULL) {
-        hang();
-    }
-
-    for (;;) {
-        memset64(buf, 0xffff0000ffff0000 /* red */, fb_stat.st_size / sizeof(long));
-        lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
-
-        delay();
-
-        memset64(buf, 0xff00ff00ff00ff00 /* green */, fb_stat.st_size / sizeof(long));
-        lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
-
-        delay();
-
-        memset64(buf, 0xff0000ffff0000ff /* blue */, fb_stat.st_size / sizeof(long));
-        lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
-
-        delay();
-    }
-
-    free(buf);
-    close(fb);
-
-    hang();
     return EXIT_SUCCESS;
 }

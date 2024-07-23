@@ -147,7 +147,7 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 }
 
 __attribute__((noreturn)) void sched_await(void) {
-    lapic_timer_oneshot(SCHED_VECTOR, 20000);
+    lapic_timer_oneshot(SCHED_VECTOR, 5000);
     sti();
     for (;;) {
         hlt();

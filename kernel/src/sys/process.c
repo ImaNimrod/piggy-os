@@ -257,7 +257,6 @@ void* process_sbrk(struct process* p, intptr_t size) {
     }
 
     p->brk += size;
-    klog("0x%x\n", p->brk);
     return (void*) end;
 }
 

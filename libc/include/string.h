@@ -8,7 +8,6 @@ int memcmp(const void*, const void*, size_t);
 void* memcpy(void* __restrict, const void* __restrict, size_t);
 void* memmove(void*, const void*, size_t);
 void* memset(void*, int, size_t);
-
 char* stpcpy(char* __restrict str1, const char* __restrict str2);
 char* stpncpy(char* __restrict str1, const char* __restrict str2, size_t n);
 char* strcat(char* __restrict, const char* __restrict);

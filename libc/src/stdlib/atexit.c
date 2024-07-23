@@ -4,7 +4,7 @@
 
 static void (*atexit_handlers[ATEXIT_MAX])(void);
 
-void _call_atexit_handlers(void) {
+void __call_atexit_handlers(void) {
     for (ssize_t i = ATEXIT_MAX - 1; i >= 0; i--) {
         if (atexit_handlers[i]) {
             atexit_handlers[i]();
