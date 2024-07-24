@@ -19,6 +19,7 @@ static struct cache* thread_cache;
 // TODO: use actual tree data structure for processes
 static vector_t* running_processes;
 static vector_t* dead_processes;
+static pid_t next_pid;
 static spinlock_t process_lock = {0};
 
 static bool create_std_file_descriptors(struct process* p, const char* console_path) {
@@ -125,7 +126,7 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
         new->cwd = vfs_root;
     }
 
-    new->pid = running_processes->size;
+    new->pid = next_pid++;
     vector_push_back(running_processes, new);
 
     spinlock_release(&process_lock);
@@ -162,7 +163,7 @@ bool process_create_init(void) {
         return false;
     }
 
-    if (!create_std_file_descriptors(init_process, "/dev/console")) {
+    if (!create_std_file_descriptors(init_process, "/dev/tty0")) {
         process_destroy(init_process, -1);
         return false;
     };
