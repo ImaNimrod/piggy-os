@@ -54,11 +54,13 @@ void syscall_exec(struct registers* r) {
         return;
     }
 
+    USER_ACCESS_BEGIN;
+
     const char** ptr;
     const char* iter;
 
     ptr = argv;
-    for (iter = *ptr; iter != NULL; iter = *++ptr) {
+    for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
             r->rax = (uint64_t) -1;
             return;
@@ -66,7 +68,7 @@ void syscall_exec(struct registers* r) {
     }
 
     ptr = envp;
-    for (iter = *ptr; iter != NULL; iter = *++ptr) {
+    for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
             r->rax = (uint64_t) -1;
             return;
@@ -75,8 +77,6 @@ void syscall_exec(struct registers* r) {
 
     struct pagemap* old_pagemap = current_process->pagemap;
     struct pagemap* new_pagemap = vmm_new_pagemap();
-
-    USER_ACCESS_BEGIN;
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     uintptr_t entry;

@@ -52,7 +52,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     uint64_t cr0 = read_cr0();
     uint64_t cr4 = read_cr4();
-    uint32_t ebx = 0, ecx = 0, edx = 0, unused;
+    uint32_t ebx = 0, edx = 0, unused;
 
     if (cpuid(1, 0, &unused, &unused, &unused, &edx)) {
         /* enable global pages if supported */
@@ -67,12 +67,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     cr4 |= (1 << 9) | (1 << 10);
 
-    if (cpuid(7, 0, &unused, &ebx, &ecx, &unused)) {
-        /* enable usermode instruction prevention if supported */ 
-        if (ecx & (1 << 2)) {
-            cr4 |= (1 << 11);
-        }
-
+    if (cpuid(7, 0, &unused, &ebx, &unused, &unused)) {
         /* enable SMEP and SMAP if supported */
         if (ebx & (1 << 7)) {
             cr4 |= (1 << 20);

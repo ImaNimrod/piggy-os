@@ -67,6 +67,7 @@ static void page_fault_handler(struct registers* r) {
     bool is_writing = r->error_code & FAULT_WRITABLE;
     bool is_user = r->error_code & FAULT_USER;
 
+    klog("0x%x\n", r->rip);
     klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
             is_user ? "user-mode" : "supervisor-mode",
             is_writing ? "write to" : "read from",
@@ -273,12 +274,12 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
 
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
-	if (pml2[pml2_index] & PTE_SIZE) {
+    if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
-		invlpg(vaddr);
-		spinlock_release(&pagemap->lock);
-		return true;
-	}
+        invlpg(vaddr);
+        spinlock_release(&pagemap->lock);
+        return true;
+    }
 
     if (!(pml2[pml2_index] & PTE_PRESENT)) {
         spinlock_release(&pagemap->lock);
@@ -346,11 +347,11 @@ void vmm_init(void) {
     }
 
     uintptr_t paddr = 0;
-	for (size_t i = 1; i < 0x800; i++) {
-		vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
+    for (size_t i = 1; i < 0x800; i++) {
+        vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
                 PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
-		paddr += BIGPAGE_SIZE;
-	}
+        paddr += BIGPAGE_SIZE;
+    }
 
     struct limine_memmap_entry** mmap_entries = memmap_request.response->entries;
     uint64_t entry_count = memmap_request.response->entry_count;

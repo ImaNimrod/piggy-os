@@ -167,7 +167,7 @@ void ioapic_set_isa_irq_routing(uint8_t isa_irq, uint8_t vector, uint16_t flags)
     } else if (trigger_mode == 0x03) {
         rentry.trigger_mode = IOAPIC_TRIGGER_LEVEL;
     } else {
-        kpanic(NULL, "iopaic_set_isa_irq_routing: invalid trigger mode %u", trigger_mode);
+        kpanic(NULL, "ioapic_set_isa_irq_routing: invalid trigger mode %u", trigger_mode);
     }
 
     ioapic_write64(ioapic->address, get_ioapic_rentry_index(isa_irq), rentry.raw);

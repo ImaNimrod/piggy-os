@@ -1,7 +1,6 @@
 #ifndef _KERNEL_TYPES_H
 #define _KERNEL_TYPES_H
 
-#include <stddef.h>
 #include <stdint.h>
 
 #define MAX_FDS 16
@@ -19,7 +18,7 @@
 #define O_TRUNC     0020
 #define O_APPEND    0040
 #define O_EXCL      0100
-#define O_CLOEXEC   0200
+#define O_CLOEXEC   0400
 
 #define SEEK_SET 0
 #define SEEK_CUR 1
@@ -37,11 +36,42 @@
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 
 #define WNOHANG     (1 << 0)
-#define WUNTRACED   (1 << 1)
 
 #define makedev(maj, min) (dev_t) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
 #define major(dev) (uint8_t) (((dev) & 0xff00u) >> 8)
 #define minor(dev) (uint8_t) ((dev) & 0x00ffu)
+
+#define NCCS        32
+#define VINTR       0
+#define VQUIT       1
+#define VERASE      2
+#define VKILL       3
+#define VEOF        4
+#define VTIME       5
+#define VMIN        6
+#define VSWTC       7
+#define VSTART      8
+#define VSTOP       9
+#define VSUSP       10
+#define VEOL        11
+#define VREPRINT    12
+#define VDISCARD    13
+#define VWERASE     14
+#define VLNEXT      15
+#define VEOL2       16
+
+/* termios c_iflag options */
+#define IGNCR   0001
+#define ICRNL   0002
+#define INLCR   0004
+
+/* termios c_oflag options */
+
+/* termios c_lflag options */
+#define ECHO    0001
+#define ECHOE   0002
+#define ECHOCTL 0020
+#define ICANON  0100  
 
 typedef int64_t off_t;
 typedef int64_t ssize_t;
@@ -56,6 +86,9 @@ typedef int32_t mode_t;
 typedef int64_t blksize_t;
 typedef int64_t blkcnt_t;
 
+typedef uint32_t tcflag_t;
+typedef uint32_t cc_t;
+
 struct stat {
     dev_t st_dev;
     ino_t st_ino;
@@ -64,6 +97,14 @@ struct stat {
     off_t st_size;
     blksize_t st_blksize;
     blkcnt_t st_blocks;
+};
+
+struct termios {
+    tcflag_t c_iflag;
+    tcflag_t c_oflag;
+    tcflag_t c_cflag;
+    tcflag_t c_lflag;
+    cc_t c_cc[NCCS];
 };
 
 struct utsname {

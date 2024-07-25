@@ -37,6 +37,7 @@ List of syscalls:
     - stat                  (DONE 7/20/24 not originally planned + took a break)
     - chdir                 (DONE 6/26/24)
     - getcwd                (DONE 6/26/24)
+    - utsname               (DONE 7/21/24 not originally planned)
 
 Other things that need to happen:
     - syscall pointer argument validation (is the memory userspace, not NULL, etc.) (DONE 6/30/24)
@@ -46,5 +47,6 @@ Other things that need to happen:
     - create a function for destroying vmm pagemaps (DONE 6/29/24)
     - implement errno system (errno is the absolute value of a negative syscall return value)
     - move vfs file metadata to a stat struct and implement stat syscall (DONE 7/20/24)
-    - write userspace programs that try to break things and fix the small things from there
     - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)
+    - actual tty API using framebuffer for output and PS2 keyboard for input
+    - write userspace programs that try to break things and fix the small things from there

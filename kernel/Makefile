@@ -6,7 +6,7 @@ CFLAGS := -O2 -std=gnu11 -ffreestanding -fno-stack-protector -fno-stack-check -f
 		  -Wall -Wextra -pedantic -Wpointer-arith -Wcast-align -Winline -Wno-long-long \
 		  -Wnested-externs -Wstrict-prototypes -Wredundant-decls -Wshadow -Wvla
 
-CPPFLAGS := -I include -D GIT_VERSION=\"$(shell git describe --always --tags)\"
+CPPFLAGS := -I include -D FLANTERM_FB_DISABLE_BUMP_ALLOC=1 -D GIT_VERSION=\"$(shell git describe --always --tags)\"
 
 ASFLAGS := -f elf64
 

@@ -14,6 +14,11 @@ static hashmap_t* cmdline_map;
 static const char* klog_token = "klog";
 
 bool cmdline_early_get_klog(void) {
+    static bool have_klog = false;
+    if (have_klog) {
+        return true;
+    }
+
     struct limine_kernel_file_response* kernel_file_response = kernel_file_request.response;
     if (kernel_file_response == NULL || kernel_file_response->kernel_file == NULL) {
         return false;
@@ -26,6 +31,7 @@ bool cmdline_early_get_klog(void) {
 
     while (*cmdline != '\0') {
         if (*cmdline == *klog_token && !strncmp(cmdline, klog_token, strlen(klog_token))) {
+            have_klog = true;
             return true;
         }
         cmdline++;

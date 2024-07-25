@@ -1,10 +1,11 @@
 #include <cpu/percpu.h>
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
-#include <dev/char/console.h>
 #include <dev/char/fbdev.h>
-#include <dev/char/streams.h>
+#include <dev/char/pseudo.h>
+#include <dev/char/tty.h>
 #include <dev/hpet.h>
+#include <dev/ps2.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
 #include <fs/initrd.h>
@@ -13,7 +14,6 @@
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
-#include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
 #include <utils/cmdline.h>
@@ -21,6 +21,7 @@
 #include <utils/random.h>
 
 static void kernel_main(void) {
+    ps2_init();
     random_init();
 
     vfs_init();
@@ -32,9 +33,9 @@ static void kernel_main(void) {
     vfs_create(vfs_root, "/dev", S_IFDIR);
     vfs_mount(vfs_root, NULL, "/dev", "devfs");
 
-    console_init();
+    pseudo_init();
     fbdev_init();
-    streams_init();
+    tty_init();
 
     if (!initrd_unpack()) {
         kpanic(NULL, "failed to unpack initrd");

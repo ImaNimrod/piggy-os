@@ -7,17 +7,19 @@ void spinlock_acquire(spinlock_t* lock) {
         return;
     }
 
-    size_t count = 0;
+    //size_t count = 0;
 
     for (;;) {
         if (spinlock_test_and_acquire(lock)) {
             break;
         }
 
+        /*
         count++;
         if (count >= 10000000) {
             kpanic(NULL, "deadlock!");
         }
+        */
 
         pause();
     }

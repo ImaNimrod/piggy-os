@@ -11,7 +11,13 @@ vector_t* vector_create(size_t elem_size) {
     v->elem_size = elem_size;
     v->size = 0;
     v->capacity = VECTOR_INITIAL_CAPACITY;
+
     v->data = kmalloc(elem_size * VECTOR_INITIAL_CAPACITY);
+    if (v->data == NULL) {
+        kfree(v);
+        return NULL;
+    }
+
     return v;
 }
 
@@ -48,7 +54,7 @@ bool vector_remove(vector_t* v, size_t index) {
         return false;
     }
 
-    if (index == v->size) {
+    if (index == v->size - 1) {
         vector_pop_back(v);
     } else {
         memmove(&(v->data[index]), &(v->data[index + 1]), (v->elem_size * v->size) - index - 1);
