@@ -324,13 +324,14 @@ void syscall_getcwd(struct registers* r) {
     size_t actual_len = vfs_get_pathname(current_process->cwd, temp_buffer, sizeof(temp_buffer) - 1);
 
     if (actual_len >= len) {
-        r->rax = (uint64_t) -1;
+        r->rax = (uint64_t) NULL;
         return;
     }
 
     if (copy_to_user(buffer, temp_buffer, len) == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = (uint64_t) NULL;
         return;
     }
-    r->rax = 0;
+
+    r->rax = (uint64_t) buffer;
 }
