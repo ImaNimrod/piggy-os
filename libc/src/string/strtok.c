@@ -1,11 +1,11 @@
 #include <string.h>
 
-static char* strtok_saveptr = NULL;
 
-char* strtok(char* __restrict str, const char* __restrict delim) {
+char* strtok(char* str, const char* seperators) {
+    static char* next = NULL;
     if (str) {
-        strtok_saveptr = NULL;
+        next = NULL;
     }
 
-    return strtok_r(str, delim, &strtok_saveptr);
+    return strtok_r(str, seperators, &next);
 }

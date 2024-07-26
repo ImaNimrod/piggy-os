@@ -154,7 +154,7 @@ bool process_create_init(void) {
         return false;
     }
 
-    const char* argv[] = { init_path, NULL };
+    const char* argv[] = { init_path, "bruh", "yesy" };
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create(NULL, init_pagemap);
@@ -379,6 +379,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
                 size_t length = strlen(envp[envp_len]);
                 stack = (void*) ((uintptr_t) stack - length - 1);
                 memcpy(stack, envp[envp_len], length);
+                *((char*) stack + length) = '\0';
             }
 
             int argv_len;
@@ -386,6 +387,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
                 size_t length = strlen(argv[argv_len]);
                 stack = (void*) ((uintptr_t) stack - length - 1);
                 memcpy(stack, argv[argv_len], length);
+                *((char*) stack + length) = '\0';
             }
 
             stack = (uintptr_t*) ALIGN_DOWN((uintptr_t) stack, 16);
@@ -393,11 +395,16 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
                 stack--;
             }
 
+            *(--stack) = 0, *(--stack) = 0;
+            stack -= 2; stack[0] = 0, stack[1] = 0;
+            stack -= 2; stack[0] = 0, stack[1] = 0;
+            stack -= 2; stack[0] = 0, stack[1] = 0;
+            stack -= 2; stack[0] = 0, stack[1] = 0;
+            stack -= 2; stack[0] = 0, stack[1] = 0;
             uintptr_t old_rsp = t->ctx.rsp;
 
             *(--stack) = 0;
             stack -= envp_len;
-
             int i;
             for (i = 0; i < envp_len; i++) {
                 old_rsp -= strlen(envp[i]) + 1;

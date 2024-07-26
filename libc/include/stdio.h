@@ -53,11 +53,15 @@ int scanf(const char* __restrict, ...);
 void setbuf(FILE* __restrict, char* __restrict);
 int setvbuf(FILE* __restrict, char* __restrict, int, size_t);
 int sprintf(char* __restrict, const char* __restrict, ...);
+int snprintf(char* __restrict, size_t, const char* __restrict, ...);
 int sscanf(const char* __restrict, const char* __restrict, ...);
 FILE* tmpfile(void);
 int ungetc(int, FILE*);
 int vfprintf(FILE* __restrict, const char* __restrict, __gnuc_va_list);
+int vfscanf(FILE* __restrict, const char* __restrict, __gnuc_va_list);
+int vsscanf(const char* __restrict, const char* __restrict, __gnuc_va_list);
 int vprintf(const char* __restrict, __gnuc_va_list);
 int vsprintf(char* __restrict, const char* __restrict, __gnuc_va_list);
+int vsnprintf(char* __restrict, size_t, const char* __restrict, __gnuc_va_list);
 
 #endif /* _STDIO_H */

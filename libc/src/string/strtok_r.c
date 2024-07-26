@@ -1,20 +1,20 @@
 #include <string.h>
 
-char* strtok_r(char* str, const char* delim, char** saveptr) {
+char* strtok_r(char* str, const char* seperators, char** saveptr) {
     char* token;
 
     if (str == NULL) {
         str = *saveptr;
     }
 
-    str += strspn(str, delim);
+    str += strspn(str, seperators);
     if (*str == '\0') {
         *saveptr = str;
         return NULL;
     }
 
     token = str;
-    str = strpbrk(token, delim);
+    str = strpbrk(token, seperators);
 
     if (str == NULL) {
         *saveptr = (char*) strchr(token, '\0');
