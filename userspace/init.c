@@ -13,14 +13,14 @@ int main(void) {
 
     setenv("PATH", "/bin", 1);
 
-    while (1) {
+    for (;;) {
         pid_t pid = fork();
 
         if (pid < 0) {
             fputs("failed to fork child process", stderr);
             _exit(EXIT_FAILURE);
         } else if (pid == 0) {
-            char* const argv[] = { "/bin/fbtest", "-i", NULL };
+            char* const argv[] = { "/bin/sh", NULL };
             execv(argv[0], argv);
             return EXIT_FAILURE;
         } else {

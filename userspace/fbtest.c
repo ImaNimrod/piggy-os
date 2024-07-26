@@ -9,14 +9,7 @@ static void delay(void) {
     do {} while (i--);
 }
 
-static void* memset32(void* dest, int c, size_t n) {
-    __asm__ volatile("cld; rep stosl" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
-    return dest;
-}
-
 int main(void) {
-    puts("starting framebuffer test loop...\n");
-
     int fb = open("/dev/fb0", O_WRONLY);
     if (fb < 0) {
         perror("open");
@@ -29,6 +22,12 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
+    int rand = open("/dev/random", O_RDONLY);
+    if (rand < 0) {
+        perror("rand");
+        return EXIT_FAILURE;
+    }
+
     char* buf = malloc(fb_stat.st_size);
     if (buf == NULL) {
         fputs("unable to allocate buffer for framebuffer image\n", stderr);
@@ -36,21 +35,9 @@ int main(void) {
     }
 
     for (;;) {
-        memset32(buf, 0xffff0000 /* red */, fb_stat.st_size / sizeof(int));
+        read(rand, buf, fb_stat.st_size);
+        write(fb, buf, fb_stat.st_size);
         lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
-
-        delay();
-
-        memset32(buf, 0xff00ff00 /* green */, fb_stat.st_size / sizeof(int));
-        lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
-
-        delay();
-
-        memset32(buf, 0xff0000ff /* blue */, fb_stat.st_size / sizeof(int));
-        lseek(fb, 0, SEEK_SET);
-        write(fb, (void*) buf, fb_stat.st_size);
 
         delay();
     }

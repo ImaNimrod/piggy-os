@@ -114,3 +114,13 @@ size_t __write_bytes(FILE* stream, const unsigned char* buf, size_t size) {
 
     return written;
 }
+
+// TODO: actually implement printf function internals
+
+int __vafprintf(FILE* stream, const char* fmt, va_list args) {
+    return -1;
+}
+
+int __vasnprintf(char* str, size_t size, const char* fmt, va_list args) {
+    return -1;
+}

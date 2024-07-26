@@ -395,12 +395,6 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
                 stack--;
             }
 
-            *(--stack) = 0, *(--stack) = 0;
-            stack -= 2; stack[0] = 0, stack[1] = 0;
-            stack -= 2; stack[0] = 0, stack[1] = 0;
-            stack -= 2; stack[0] = 0, stack[1] = 0;
-            stack -= 2; stack[0] = 0, stack[1] = 0;
-            stack -= 2; stack[0] = 0, stack[1] = 0;
             uintptr_t old_rsp = t->ctx.rsp;
 
             *(--stack) = 0;

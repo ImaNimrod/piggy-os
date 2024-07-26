@@ -2,6 +2,7 @@
 #define STDIO_INTERNAL_H
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <sys/types.h>
 
@@ -29,5 +30,7 @@ extern FILE* __file_list_head;
 int __fopen_mode_to_flags(const char*);
 size_t __read_bytes(FILE*, unsigned char*, size_t);
 size_t __write_bytes(FILE*, const unsigned char*, size_t);
+int __vafprintf(FILE*, const char*, va_list);
+int __vasnprintf(char*, size_t, const char*, va_list);
 
 #endif /* STDIO_INTERNAL_H */
