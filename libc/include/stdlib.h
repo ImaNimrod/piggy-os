@@ -7,7 +7,7 @@
 #define EXIT_SUCCESS 0
 
 #define MB_CUR_MAX 4
-#define RAND_MAX 32767
+#define RAND_MAX 0x7fffffff
 
 typedef struct {
     int quot;
@@ -23,7 +23,6 @@ typedef struct {
 __attribute__((noreturn)) void abort(void);
 int abs(int);
 int atexit(void (*)(void));
-double atof(const char*);
 int atoi(const char*);
 long atol(const char*);
 void* bsearch(const void*, const void*, size_t, size_t, int (*)(const void*, const void*));
@@ -44,7 +43,6 @@ void* realloc(void*, size_t);
 void* reallocarray(void*, size_t, size_t);
 int setenv(const char*, const char*, int);
 void srand(unsigned int);
-double strtod(const char* __restrict, char** __restrict);
 long strtol(const char* __restrict, char** __restrict, int);
 unsigned long strtoul(const char* __restrict, char** __restrict, int);
 int system(const char*);

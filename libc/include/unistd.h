@@ -16,6 +16,10 @@
 
 extern char** environ;
 
+// TODO: implement getopt
+extern char* optarg;
+extern int opterr, optind, optopt;
+
 int chdir(const char*);
 int close(int);
 int execl(const char*, const char*, ...);
@@ -28,6 +32,7 @@ int fchdir(int);
 pid_t fork(void);
 int ftruncate(int, off_t);
 char* getcwd(char*, size_t);
+int getopt(int, char* const[], const char*);
 pid_t getpid(void);
 pid_t getppid(void);
 off_t lseek(int, off_t, int);
