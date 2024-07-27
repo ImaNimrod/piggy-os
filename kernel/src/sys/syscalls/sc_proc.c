@@ -217,11 +217,7 @@ void syscall_getppid(struct registers* r) {
     klog("[syscall] running syscall_getppid on (pid: %u, tid: %u)\n",
             current_process->pid, current_thread->tid);
 
-    if (current_process->parent != NULL) {
-        r->rax = current_process->parent->pid;
-    } else {
-        r->rax = -1;
-    }
+    r->rax = current_process->parent != NULL ? current_process->parent->pid : 0;
 }
 
 void syscall_gettid(struct registers* r) {
