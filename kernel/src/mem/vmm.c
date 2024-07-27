@@ -78,6 +78,7 @@ static void page_fault_handler(struct registers* r) {
     bool is_writing = r->error_code & FAULT_WRITABLE;
     bool is_user = r->error_code & FAULT_USER;
 
+    klog("0x%x\n", r->rip);
     klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
             is_user ? "user-mode" : "supervisor-mode",
             is_writing ? "write to" : "read from",

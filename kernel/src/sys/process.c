@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/percpu.h>
+#include <errno.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <sys/elf.h>
@@ -59,8 +60,6 @@ static bool create_std_file_descriptors(struct process* p, const char* console_p
 }
 
 struct process* process_create(struct process* old, struct pagemap* pagemap) {
-    spinlock_acquire(&process_lock);
-
     struct process* new = cache_alloc_object(process_cache);
     if (new == NULL) {
         return NULL;
@@ -126,9 +125,11 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
         new->cwd = vfs_root;
     }
 
-    new->pid = next_pid++;
-    vector_push_back(running_processes, new);
+    new->pid = next_pid;
+    __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
 
+    spinlock_acquire(&process_lock);
+    vector_push_back(running_processes, new);
     spinlock_release(&process_lock);
     return new;
 }
@@ -149,7 +150,7 @@ bool process_create_init(void) {
     struct pagemap* init_pagemap = vmm_new_pagemap();
 
     uintptr_t entry;
-    if (!elf_load(init_node, init_pagemap, &entry)) {
+    if (elf_load(init_node, init_pagemap, &entry) < 0) {
         vmm_destroy_pagemap(init_pagemap);
         return false;
     }
@@ -188,7 +189,7 @@ void process_destroy(struct process* p, int status) {
 
     spinlock_acquire(&process_lock);
 
-    p->exit_code = (uint8_t) status;
+    p->exit_code = (uint8_t) (status & 0xff);
     p->state = PROCESS_ZOMBIE;
 
     for (size_t i = 0; i < p->threads->size; i++) {
@@ -225,7 +226,7 @@ pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
     if (pid == -1) {
         while (true) {
             if (p->children->size == 0) {
-                return -1;
+                return -ECHILD;
             }
 
             struct process* iter;
@@ -238,7 +239,7 @@ pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
             }
 
             if (flags & WNOHANG) {
-                return 0;
+                return -EAGAIN;
             }
 
             sched_yield();
@@ -254,17 +255,17 @@ pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
         }
 
         if (child == NULL) {
-            return -1;
+            return -ECHILD;
         }
 
         while (child->state != PROCESS_ZOMBIE) {
             if (flags & WNOHANG) {
-                return 0;
+                return -EAGAIN;
             }
             sched_yield();
         }
     } else {
-        return -1;
+        return -EINVAL;
     }
 
     if (status) {

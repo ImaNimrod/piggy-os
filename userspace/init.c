@@ -24,7 +24,9 @@ int main(void) {
         execv(argv[0], argv);
         return EXIT_FAILURE;
     } else {
-        waitpid(pid, NULL, 0);
+        for (;;) {
+            waitpid(-1, NULL, 0);
+        }
     }
 
     return EXIT_SUCCESS;

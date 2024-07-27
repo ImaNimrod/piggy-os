@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/fd.h>
 #include <mem/slab.h>
 #include <utils/string.h>
@@ -20,9 +21,9 @@ struct file_descriptor* fd_create(struct vfs_node* node, int flags) {
     return fd;
 }
 
-bool fd_close(struct process* p, int fdnum) {
+int fd_close(struct process* p, int fdnum) {
     if (fdnum < 0 || fdnum >= MAX_FDS) {
-        return false;
+        return -EBADF;
     }
 
     spinlock_acquire(&p->fd_lock);
@@ -30,7 +31,7 @@ bool fd_close(struct process* p, int fdnum) {
     struct file_descriptor* fd = p->file_descriptors[fdnum];
     if (fd == NULL) {
         spinlock_release(&p->fd_lock);
-        return false;
+        return -EBADF;
     }
 
     if (fd->refcount-- == 1) {
@@ -40,7 +41,7 @@ bool fd_close(struct process* p, int fdnum) {
     p->file_descriptors[fdnum] = NULL;
 
     spinlock_release(&p->fd_lock);
-    return true;
+    return 0;
 }
 
 bool fd_dup(struct process* old_process, int old_fdnum, struct process* new_process, int new_fdnum) {

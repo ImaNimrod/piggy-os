@@ -1,5 +1,5 @@
-#ifndef _ERRNO_H
-#define _ERRNO_H
+#ifndef _KERNEL_ERRNO_H
+#define _KERNEL_ERRNO_H
 
 #define EAGAIN  1
 #define EBADF   2
@@ -19,6 +19,4 @@
 #define EPERM   16
 #define ESPIPE  17
 
-extern int errno;
-
-#endif /* _ERRNO_H */
+#endif /* _KERNEL_ERRNO_H */

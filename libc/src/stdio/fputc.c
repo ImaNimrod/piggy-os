@@ -1,7 +1,7 @@
 #include "stdio_internal.h"
 
 int fputc(int c, FILE* stream) {
-    if (fwrite(&c, 1, 1, stream) != 1) {
+    if (fwrite(&c, sizeof(char), 1, stream) != 1) {
         return EOF;
     }
 

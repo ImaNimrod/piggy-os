@@ -12,6 +12,8 @@ struct shell_builtin {
     bool (*func) (char**);
 };
 
+static char* program_name;
+
 static bool builtin_cd(char** args) {
     if (args[1] == NULL) {
         fputs("sh: usage: cd [DIR]\n", stderr);
@@ -82,7 +84,7 @@ char* read_line(void) {
             bufsize += 256;
             buf = realloc(buf, bufsize);
             if (!buf) {
-                fputs("failed to allocate memory for line buffer\n", stderr);
+                perror(program_name);
                 exit(EXIT_FAILURE);
             }
         }
@@ -95,7 +97,7 @@ static char** split_args(char *line) {
 
     char** tokens = malloc(bufsize * sizeof(char*));
     if (tokens == NULL) {
-        fputs("unable to allocate memory for command args\n", stderr);
+        perror(program_name);
         exit(EXIT_FAILURE);
     }
 
@@ -113,12 +115,12 @@ static char** split_args(char *line) {
 static void run_program(char** args) {
     pid_t pid = fork();
     if (pid == 0) {
-        if (execv(args[0], args) == -1) {
-            perror("execv");
+        if (execvp(args[0], args) == -1) {
+            perror(program_name);
         }
         exit(EXIT_FAILURE);
     } else if (pid < 0) {
-        perror("fork");
+        perror(program_name);
     } else {
         waitpid(pid, NULL, 0);
     }
@@ -139,7 +141,14 @@ static bool execute(char** args) {
     return false;
 }
 
-int main(void) {
+int main(int argc, char** argv) {
+    program_name = argv[0];
+
+    if (argc > 1) {
+        execute(argv);
+        return EXIT_SUCCESS;
+    }
+
     char* line;
     char** args;
     bool do_quit = false;

@@ -1,6 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <errno.h>
 #include <utils/log.h>
 #include <utils/math.h>
 
@@ -57,7 +58,7 @@ static syscall_handler_t syscall_table[] = {
 void syscall_handler(struct registers* r) {
     if (r->rax >= SIZEOF_ARRAY(syscall_table)) {
         klog("[syscall] unknown syscall number: %u\n", r->rax);
-        r->rax = -1;
+        r->rax = -ENOSYS;
         return;
     }
 

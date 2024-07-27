@@ -1,6 +1,6 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
-#include <utils/log.h>
+#include <errno.h>
 #include <fs/fd.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -8,11 +8,11 @@
 #include <sys/elf.h>
 #include <sys/sched.h>
 #include <types.h>
+#include <utils/log.h>
 #include <utils/user_access.h>
 
 __attribute__((noreturn)) void syscall_exit(struct registers* r) {
-    int status = r->rdi;
-    klog("%d\n", r->rdi);
+    int64_t status = r->rdi;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
@@ -37,13 +37,13 @@ void syscall_fork(struct registers* r) {
 
     struct process* new_process = process_create(current_process, NULL);
     if (new_process == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOMEM;
         return;
     }
 
     struct thread* new_thread = thread_fork(new_process, current_thread);
     if (new_thread == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOMEM;
         return;
     }
 
@@ -66,7 +66,7 @@ void syscall_exec(struct registers* r) {
             path, (uintptr_t) argv, (uintptr_t) envp, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(path) || !check_user_ptr(argv) || !check_user_ptr(envp)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
         return;
     }
 
@@ -76,7 +76,7 @@ void syscall_exec(struct registers* r) {
     ptr = argv;
     for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
-            r->rax = (uint64_t) -1;
+            r->rax = -EFAULT;
             return;
         }
     }
@@ -84,7 +84,7 @@ void syscall_exec(struct registers* r) {
     ptr = envp;
     for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
-            r->rax = (uint64_t) -1;
+            r->rax = -EFAULT;
             return;
         }
     }
@@ -95,9 +95,22 @@ void syscall_exec(struct registers* r) {
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     uintptr_t entry;
 
-    if (node == NULL || !S_ISREG(node->stat.st_mode) || !elf_load(node, new_pagemap, &entry)) {
+    if (node == NULL) {
         vmm_destroy_pagemap(new_pagemap);
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOENT;
+        return;
+    }
+
+    if (!S_ISREG(node->stat.st_mode)) {
+        vmm_destroy_pagemap(new_pagemap);
+        r->rax = -ENOEXEC;
+        return;
+    }
+
+    int res;
+    if ((res = elf_load(node, new_pagemap, &entry))) {
+        vmm_destroy_pagemap(new_pagemap);
+        r->rax = res;
         return;
     }
 
@@ -110,9 +123,9 @@ void syscall_exec(struct registers* r) {
         struct file_descriptor* fd = current_process->file_descriptors[i];
 
         if (fd != NULL && fd->flags & O_CLOEXEC) {
-            if (!fd_close(current_process, i)) {
+            if ((res = fd_close(current_process, i)) < 0) {
                 process_destroy(current_process, -1);
-                r->rax = (uint64_t) -1;
+                r->rax = res;
                 return;
             }
         }
@@ -126,7 +139,7 @@ void syscall_exec(struct registers* r) {
     current_process->threads = vector_create(sizeof(struct thread*));
     if (current_process->threads == NULL) {
         process_destroy(current_process, -1);
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOMEM;
         return;
     }
 
@@ -135,7 +148,7 @@ void syscall_exec(struct registers* r) {
     struct thread* new_thread = thread_create(current_process, entry, NULL, argv, envp, true);
     if (new_thread == NULL) {
         process_destroy(current_process, -1);
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOMEM;
         return;
     }
     sched_thread_enqueue(new_thread);
@@ -145,8 +158,8 @@ void syscall_exec(struct registers* r) {
     vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
 
-    r->rax = 0;
     this_cpu()->running_thread = NULL;
+    r->rax = 0;
 
     sched_yield();
     __builtin_unreachable();
@@ -160,18 +173,17 @@ void syscall_wait(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    USER_ACCESS_BEGIN;
-
     klog("[syscall] running syscall_wait (pid: %d, status: 0x%x, flags: %d) on (pid: %u, tid: %u)\n",
             pid, (uintptr_t) status, flags, current_process->pid, current_thread->tid);
 
     if (status != NULL) {
         if (!check_user_ptr(status)) {
-            r->rax = (uint64_t) -1;
+            r->rax = -EFAULT;
             return;
         }
     }
 
+    USER_ACCESS_BEGIN;
     r->rax = process_wait(current_process, pid, status, flags);
     USER_ACCESS_END;
 }
@@ -208,7 +220,7 @@ void syscall_getppid(struct registers* r) {
     if (current_process->parent != NULL) {
         r->rax = current_process->parent->pid;
     } else {
-        r->rax = current_process->pid;
+        r->rax = -1;
     }
 }
 
@@ -232,7 +244,7 @@ void syscall_thread_create(struct registers* r) {
             entry, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr((void*) entry)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
         return;
     }
 

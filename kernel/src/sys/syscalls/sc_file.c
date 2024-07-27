@@ -1,5 +1,6 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <errno.h>
 #include <fs/fd.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -13,52 +14,51 @@
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
     int flags = r->rsi;
-    mode_t mode = r->rdi;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
     USER_ACCESS_BEGIN;
 
-    klog("[syscall] running syscall_open (path: %s, flags: %04o, mode: 0x%05x) on (pid: %u, tid: %u)\n",
-            path, flags, mode, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_open (path: %s, flags: %04o) on (pid: %u, tid: %u)\n",
+            path, flags, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(path)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
         return;
     }
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EINVAL;
         return;
     }
 
     if (node == NULL && (flags & O_CREAT)) {
-        node = vfs_create(current_process->cwd, path, mode);
+        node = vfs_create(current_process->cwd, path, S_IFREG);
     }
 
     USER_ACCESS_END;
 
     if (node == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOENT;
         return;
     }
 
     node = vfs_reduce_node(node);
     if (node == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOENT;
         return;
     }
 
     if (!S_ISDIR(node->stat.st_mode) && (flags & O_DIRECTORY) != 0) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOTDIR;
         return;
     }
 
     struct file_descriptor* fd = fd_create(node, flags);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENFILE;
         return;
     }
 
@@ -88,11 +88,7 @@ void syscall_close(struct registers* r) {
     klog("[syscall] running syscall_close (fdnum: %d) on (pid: %u, tid: %u)\n",
             fdnum, current_process->pid, current_thread->tid);
 
-    if (fd_close(current_process, fdnum)) {
-        r->rax = 0;
-    } else {
-        r->rax = -1;
-    }
+    r->rax = fd_close(current_process, fdnum);
 }
 
 void syscall_read(struct registers* r) {
@@ -108,31 +104,25 @@ void syscall_read(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_RDONLY)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EPERM;
         return;
     }
 
     struct vfs_node* node = fd->node;
 
     if (!check_user_ptr(buf)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
         return;
     }
 
     USER_ACCESS_BEGIN;
-
     ssize_t read = node->read(node, buf, fd->offset, count);
-    if (read < 0) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
-
     USER_ACCESS_END;
 
     fd->offset += read;
@@ -152,31 +142,25 @@ void syscall_write(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EPERM;
         return;
     }
 
     struct vfs_node* node = fd->node;
 
     if (!check_user_ptr(buf)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
         return;
     }
 
     USER_ACCESS_BEGIN;
-
     ssize_t written = node->write(node, buf, fd->offset, count);
-    if (written < 0) {
-        r->rax = (uint64_t) -1;
-        return;
-    }
-
     USER_ACCESS_END;
 
     fd->offset += written;
@@ -196,13 +180,13 @@ void syscall_ioctl(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EPERM;
         return;
     }
 
@@ -224,25 +208,25 @@ void syscall_seek(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EPERM;
         return;
     }
 
     struct vfs_node* node = fd->node;
 
     if (S_ISDIR(node->stat.st_mode)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EISDIR;
         return;
     }
 
     if (S_ISBLK(node->stat.st_mode) && (offset % node->stat.st_blksize) != 0) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ESPIPE;
         return;
     }
 
@@ -260,12 +244,12 @@ void syscall_seek(struct registers* r) {
             new_offset = offset;
             break;
         default:
-            r->rax = (uint64_t) -1;
+            r->rax = -EINVAL;
             return;
     }
 
     if (new_offset < 0) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ESPIPE;
         return;
     }
 
@@ -285,28 +269,24 @@ void syscall_truncate(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EPERM;
         return;
     }
 
     struct vfs_node* node = fd->node;
 
     if (S_ISDIR(node->stat.st_mode)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EISDIR;
         return;
     }
 
-    if (!node->truncate(node, length)) {
-        r->rax = (uint64_t) -1;
-    } else {
-        r->rax = 0;
-    }
+    r->rax = node->truncate(node, length);
 }
 
 void syscall_stat(struct registers* r) {
@@ -321,12 +301,12 @@ void syscall_stat(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     if (copy_to_user(stat, &fd->node->stat, sizeof(struct stat)) == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EFAULT;
     } else {
         r->rax = 0;
     }
@@ -343,14 +323,14 @@ void syscall_chdir(struct registers* r) {
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
-        r->rax = (uint64_t) -1;
+        r->rax = -EBADF;
         return;
     }
 
     struct vfs_node* node = fd->node;
 
     if (!S_ISDIR(node->stat.st_mode)) {
-        r->rax = (uint64_t) -1;
+        r->rax = -ENOTDIR;
         return;
     }
 

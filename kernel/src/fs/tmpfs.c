@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -50,7 +51,7 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
         void* new_data = krealloc(metadata->data, new_capacity);
         if (new_data == NULL) {
             spinlock_release(&node->lock);
-            return -1;
+            return -ENOMEM;
         }
 
         metadata->data = new_data;
@@ -68,7 +69,7 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
     return count;
 }
 
-static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
+static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
@@ -82,7 +83,7 @@ static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
         void* new_data = krealloc(metadata->data, new_capacity);
         if (new_data == NULL) {
             spinlock_release(&node->lock);
-            return false;
+            return -ENOMEM;
         }
 
         kfree(metadata->data);
@@ -95,7 +96,7 @@ static bool tmpfs_truncate(struct vfs_node* node, off_t length) {
     node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
 
     spinlock_release(&node->lock);
-    return true;
+    return 0;
 }
 
 static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {

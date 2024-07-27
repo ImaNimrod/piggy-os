@@ -78,7 +78,10 @@ int main(int argc, char** argv) {
     }
 
     struct utsname uts;
-    utsname(&uts);
+    if (utsname(&uts) < 0) {
+        perror(program_name);
+        return EXIT_FAILURE;
+    }
 
     if (print_sysname) {
         print_info(uts.sysname);

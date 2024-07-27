@@ -1,29 +1,30 @@
+#include <errno.h>
 #include <mem/pmm.h>
 #include <sys/elf.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
 
-bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
+int elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
     struct elf_header header;
     if (node->read(node, &header, 0, sizeof(header)) < 0) {
-        return false;
+        return -EIO;
     }
 
     if (memcmp(header.e_ident, ELFMAG, 4) != 0) {
-        return false;
+        return -ENOEXEC;
     }
 
     if (header.e_ident[EI_CLASS] != ELFCLASS64 || header.e_ident[EI_DATA] != ELFDATA2LSB ||
             header.e_ident[EI_OSABI] != 0 || header.e_machine != 62) {
-        return false;
+        return -ENOEXEC;
     }
 
     struct elf_program_header pheader;
 
     for (size_t i = 0; i < header.e_phnum; i++) {
         if (node->read(node, &pheader, header.e_phoff + (i * header.e_phentsize), sizeof(pheader)) < 0) {
-            return false;
+            return -EIO;
         }
 
         if (pheader.p_type != PT_LOAD) {
@@ -35,7 +36,7 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) 
 
         uintptr_t phys_pages = pmm_allocz(page_count);
         if (!phys_pages) {
-            return false;
+            return -ENOMEM;
         }
 
         uint64_t vmm_flags = PTE_PRESENT | PTE_USER;
@@ -54,7 +55,7 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) 
         }
 
         if (node->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_offset, pheader.p_filesz) < 0) {
-            return false;
+            return -EIO;
         }
     }
 
@@ -62,5 +63,5 @@ bool elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) 
         *entry = header.e_entry;
     }
 
-    return true;
+    return 0;
 }

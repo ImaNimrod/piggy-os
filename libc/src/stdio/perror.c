@@ -1,8 +1,9 @@
+#include <errno.h>
+#include <string.h>
 #include "stdio_internal.h"
 
-// TODO: print errno error message once errno is implemented in kernel 
 void perror(const char* s) {
     if (s && *s) {
-        fprintf(stderr, "%s\n", s);
+        fprintf(stderr, "%s: %s\n", s, strerror(errno));
     }
 }

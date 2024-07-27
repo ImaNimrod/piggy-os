@@ -6,28 +6,32 @@
 
 #define CAT_BUF_SIZE 1024
 
+static char* program_name;
+
 static void cat(int fd) {
     char* buf = malloc(CAT_BUF_SIZE * sizeof(char));
     if (!buf) {
-        perror("malloc");
+        perror(program_name);
         exit(EXIT_FAILURE);
     }
 
     ssize_t n;
-    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+    while ((n = read(fd, buf, CAT_BUF_SIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, n) != n) {
-            perror("write");
+            perror(program_name);
             exit(EXIT_FAILURE);
         }
     }
 
     if (n < 0) {
-        perror("read");
+        perror(program_name);
         exit(EXIT_FAILURE);
     }
 }
 
 int main(int argc, char** argv) {
+    program_name = argv[0];
+
     if (argc <= 1) {
         cat(STDIN_FILENO);
     } else {
@@ -40,7 +44,7 @@ int main(int argc, char** argv) {
             }
 
             if (fd < 0) {
-                perror("open");
+                perror(program_name);
                 return EXIT_FAILURE;
             }
 

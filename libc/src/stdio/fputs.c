@@ -1,11 +1,11 @@
+#include <string.h>
 #include "stdio_internal.h"
 
 int fputs(const char* s, FILE* stream) {
-    while (*s != '\0') {
-        if (fputc(*s++, stream) < 0) {
-            return EOF;
-        }
+    size_t len = strlen(s);
+    if (fwrite(s, sizeof(char), len, stream) != len) {
+        return EOF;
     }
 
-    return 1;
+    return 0;
 }

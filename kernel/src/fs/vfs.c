@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <utils/log.h>
@@ -19,7 +20,7 @@ static ssize_t read_stub(struct vfs_node* node, void* buf, off_t offset, size_t 
     (void) buf;
     (void) offset;
     (void) count;
-    return -1;
+    return -EPERM;
 }
 
 static ssize_t write_stub(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
@@ -27,20 +28,20 @@ static ssize_t write_stub(struct vfs_node* node, const void* buf, off_t offset, 
     (void) buf;
     (void) offset;
     (void) count;
-    return -1;
+    return -EPERM;
 }
 
 static int ioctl_stub(struct vfs_node* node, uint64_t request, void* argp) {
     (void) node;
     (void) request;
     (void) argp;
-    return -1; 
+    return -ENOTTY; 
 }
 
-static bool truncate_stub(struct vfs_node* node, off_t length) {
+static int truncate_stub(struct vfs_node* node, off_t length) {
     (void) node;
     (void) length;
-    return false; 
+    return -EPERM; 
 }
 
 static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {

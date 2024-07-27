@@ -1,5 +1,6 @@
 #include <config.h>
 #include <cpu/isr.h>
+#include <errno.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/user_access.h>
@@ -22,7 +23,7 @@ void syscall_utsname(struct registers* r) {
             (uintptr_t) utsname, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(utsname)) {
-        r->rax = -1;
+        r->rax = -EFAULT;
         return;
     }
 

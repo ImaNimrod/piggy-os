@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
         }
 
         if (fd < 0) {
-            perror("open");
+            perror(program_name);
             return EXIT_FAILURE;
         }
 

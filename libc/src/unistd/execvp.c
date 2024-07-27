@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +19,9 @@ int execvp(const char* file, char* const argv[]) {
         while (path_env != NULL) {
             size_t length = strcspn(path_env, ":");
             if (length == 0) {
-                if (close(open(file, O_PATH) == 0)) {
+                int fd = open(file, O_PATH);
+                close(fd);
+                if (fd >= 0) {
                     file_path = file;
                     break;
                 }
@@ -31,7 +34,9 @@ int execvp(const char* file, char* const argv[]) {
                 memcpy(alloc_str, path_env, length);
                 stpcpy(stpcpy(alloc_str + length, "/"), file);
 
-                if (close(open(alloc_str, O_PATH)) == 0) {
+                int fd = open(alloc_str, O_PATH);
+                close(fd);
+                if (fd >= 0) {
                     file_path = alloc_str;
                     break;
                 }
@@ -48,6 +53,11 @@ int execvp(const char* file, char* const argv[]) {
     }
 
     execv(file_path, argv);
+
+    if (errno != ENOEXEC) {
+        free(alloc_str);
+        return -1;
+    } 
 
     int argc;
     for (argc = 0; argv[argc] != NULL; argc++);

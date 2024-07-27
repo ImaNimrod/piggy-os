@@ -20,6 +20,7 @@ int strcoll(const char* str1, const char* str2);
 char* strcpy(char* __restrict, const char* __restrict);
 char* strncpy(char* __restrict, const char* __restrict, size_t);
 char* strdup(const char*);
+char* strerror(int);
 size_t strlen(const char*);
 size_t strnlen(const char*, size_t);
 char* strpbrk(const char*, const char*);

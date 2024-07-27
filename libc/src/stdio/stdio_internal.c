@@ -115,7 +115,15 @@ size_t __write_bytes(FILE* stream, const unsigned char* buf, size_t size) {
     return written;
 }
 
-// TODO: actually implement printf function internals
+union callback_data {
+    FILE* stream;
+    struct {
+        char* str;
+        size_t size;
+        size_t written;
+    } buf;
+};
+
 static size_t print_dec(FILE* stream, unsigned long long value, unsigned int width, int fill_zero, int align_right, int precision) {
 	size_t written = 0;
 
@@ -233,8 +241,9 @@ static size_t print_hex(FILE* stream, unsigned long long value, unsigned int wid
 }
 
 int __vafprintf(FILE* stream, const char* fmt, va_list args) {
-    char * s;
+    char* s;
     size_t written = 0;
+
     for (const char *f = fmt; *f; f++) {
         if (*f != '%') {
             fputc(*f, stream);
@@ -244,40 +253,43 @@ int __vafprintf(FILE* stream, const char* fmt, va_list args) {
         f++;
 
         unsigned int arg_width = 0;
-        int align = 1; /* right */
+        int align = 1;
         int fill_zero = 0;
         int big = 0;
         int alt = 0;
         int always_sign = 0;
         int precision = -1;
-        while (1) {
+
+        for (;;) {
             if (*f == '-') {
                 align = 0;
-                ++f;
+                f++;
             } else if (*f == '#') {
                 alt = 1;
-                ++f;
+                f++;
             } else if (*f == '*') {
                 arg_width = (int) va_arg(args, int);
-                ++f;
+                f++;
             } else if (*f == '0') {
                 fill_zero = 1;
-                ++f;
+                f++;
             } else if (*f == '+') {
                 always_sign = 1;
-                ++f;
+                f++;
             } else if (*f == ' ') {
                 always_sign = 2;
-                ++f;
+                f++;
             } else {
                 break;
             }
         }
+
         while (*f >= '0' && *f <= '9') {
             arg_width *= 10;
             arg_width += *f - '0';
-            ++f;
+            f++;
         }
+
         if (*f == '.') {
             f++;
             precision = 0;
@@ -301,11 +313,13 @@ int __vafprintf(FILE* stream, const char* fmt, va_list args) {
                 f++;
             }
         }
+
         if (*f == 'z') {
             big = (sizeof(size_t) == sizeof(unsigned long long) ? 2 :
                     sizeof(size_t) == sizeof(unsigned long) ? 1 : 0);
             f++;
         }
+
         if (*f == 't') {
             big = (sizeof(ptrdiff_t) == sizeof(unsigned long long) ? 2 :
                     sizeof(ptrdiff_t) == sizeof(unsigned long) ? 1 : 0);
@@ -344,15 +358,14 @@ int __vafprintf(FILE* stream, const char* fmt, va_list args) {
                           }
                       }
                       break;
-            case 'c': /* Single character */
+            case 'c':
                 fputc((char) va_arg(args, int), stream);
                 break;
             case 'p':
                 alt = 1;
                 if (sizeof(void*) == sizeof(long long)) big = 2; /* fallthrough */
             case 'X':
-            case 'x': /* Hexadecimal number */
-                {
+            case 'x': {
                     unsigned long long val;
                     if (big == 2) {
                         val = (unsigned long long)va_arg(args, unsigned long long);
@@ -397,10 +410,10 @@ int __vafprintf(FILE* stream, const char* fmt, va_list args) {
                     written += print_dec(stream, val, arg_width, fill_zero, align, precision);
                 }
                 break;
-            case '%': /* Escape */
+            case '%':
                 fputc('%', stream);
                 break;
-            default: /* Nothing at all, just dump it */
+            default:
                 fputc(*f, stream);
                 break;
         }
