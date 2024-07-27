@@ -1,19 +1,50 @@
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-// TODO: finish implementing this with $PATH
 int execvp(const char* file, char* const argv[]) {
     if (!*file) {
         return -1;
     }
 
+    char* alloc_str = NULL;
     const char* file_path;
 
     if (strchr(file, '/')) {
         file_path = file;
     } else {
-        return -1;
+        const char* path_env = getenv("PATH");
+        while (path_env != NULL) {
+            size_t length = strcspn(path_env, ":");
+            if (length == 0) {
+                if (close(open(file, O_PATH) == 0)) {
+                    file_path = file;
+                    break;
+                }
+            } else {
+                alloc_str = malloc(length + strlen(file) + 2);
+                if (!alloc_str) {
+                    return -1;
+                }
+
+                memcpy(alloc_str, path_env, length);
+                stpcpy(stpcpy(alloc_str + length, "/"), file);
+
+                if (close(open(alloc_str, O_PATH)) == 0) {
+                    file_path = alloc_str;
+                    break;
+                }
+
+                free(alloc_str);
+                alloc_str = NULL;
+            }
+            path_env = path_env[length] ? path_env + length + 1 : NULL;
+        }
+
+        if (file_path == NULL) {
+            return -1;
+        }
     }
 
     execv(file_path, argv);
@@ -26,6 +57,7 @@ int execvp(const char* file, char* const argv[]) {
 
     char** shell_argv = malloc((argc + 3) * sizeof(char*));
     if (shell_argv == NULL) {
+        free(alloc_str);
         return -1;
     }
 
@@ -40,5 +72,6 @@ int execvp(const char* file, char* const argv[]) {
     execv("/bin/sh", shell_argv);
 
     free(shell_argv);
+    free(alloc_str);
     return -1;
 }
