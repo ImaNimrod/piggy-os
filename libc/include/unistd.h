@@ -3,6 +3,7 @@
 
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 #define STDIN_FILENO 0
@@ -16,7 +17,6 @@
 
 extern char** environ;
 
-// TODO: implement getopt
 extern char* optarg;
 extern int opterr, optind, optopt;
 

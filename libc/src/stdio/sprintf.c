@@ -1,4 +1,5 @@
 #include <stdarg.h>
+#include <stdint.h>
 #include "stdio_internal.h"
 
 int sprintf(char* str, const char* fmt, ...) {

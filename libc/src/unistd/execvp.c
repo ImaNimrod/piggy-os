@@ -10,7 +10,7 @@ int execvp(const char* file, char* const argv[]) {
     }
 
     char* alloc_str = NULL;
-    const char* file_path;
+    const char* file_path = NULL;
 
     if (strchr(file, '/')) {
         file_path = file;

@@ -9,8 +9,6 @@
 #include <utils/spinlock.h>
 #include <utils/user_access.h>
 
-// TODO: implement errno system
-
 void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
     int flags = r->rsi;

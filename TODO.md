@@ -45,7 +45,7 @@ Other things that need to happen:
     - create framebuffer device (/dev/fb0) that has working read, write, and ioctl (DONE 7/20/24)
     - create streams (/dev/null, /dev/zero) (DONE 7/20/24)
     - create a function for destroying vmm pagemaps (DONE 6/29/24)
-    - implement errno system (errno is the absolute value of a negative syscall return value)
+    - implement errno system (errno is the absolute value of a negative syscall return value) (DONE 7/27/24)
     - move vfs file metadata to a stat struct and implement stat syscall (DONE 7/20/24)
     - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)
     - actual tty API using framebuffer for output and PS2 keyboard for input
