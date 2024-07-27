@@ -4,6 +4,7 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <types.h>
+#include <utils/log.h>
 #include <utils/spinlock.h>
 #include <utils/user_access.h>
 
@@ -13,14 +14,19 @@ void syscall_open(struct registers* r) {
     const char* path = (char*) r->rdi;
     int flags = r->rsi;
     mode_t mode = r->rdi;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    USER_ACCESS_BEGIN;
+
+    klog("[syscall] running syscall_open (path: %s, flags: %04o, mode: 0x%05x) on (pid: %u, tid: %u)\n",
+            path, flags, mode, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(path)) {
         r->rax = (uint64_t) -1;
         return;
     }
-
-    USER_ACCESS_BEGIN;
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
@@ -76,7 +82,13 @@ void syscall_open(struct registers* r) {
 void syscall_close(struct registers* r) {
     int fdnum = r->rdi;
 
-    if (fd_close(this_cpu()->running_thread->process, fdnum)) {
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_close (fdnum: %d) on (pid: %u, tid: %u)\n",
+            fdnum, current_process->pid, current_thread->tid);
+
+    if (fd_close(current_process, fdnum)) {
         r->rax = 0;
     } else {
         r->rax = -1;
@@ -88,7 +100,11 @@ void syscall_read(struct registers* r) {
     void* buf = (void*) r->rsi;
     size_t count = r->rdx;
 
-    struct process* current_process = this_cpu()->running_thread->process;
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_read (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+            fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -127,7 +143,12 @@ void syscall_write(struct registers* r) {
     int fdnum = r->rdi;
     const void* buf = (const void*) r->rsi;
     size_t count = r->rdx;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_write (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+            fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -166,7 +187,12 @@ void syscall_ioctl(struct registers* r) {
     int fdnum = r->rdi;
     uint64_t request = r->rsi;
     void* argp = (void*) r->rdx;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_ioctl (fdnum: %d, request: 0x%x, argp: 0x%x) on (pid: %u, tid: %u)\n",
+            fdnum, request, (uintptr_t) argp, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -180,13 +206,9 @@ void syscall_ioctl(struct registers* r) {
         return;
     }
 
-    /* 
-     * NOTE: because ioctls are device specific, it's up to individual device drivers to
-     * define how the argp argument is used. This means that if argp is a pointer to a struct,
-     * it is also the device drivers' responsiblity to safely access that data using
-     * the API defined utils/user_access.h .
-     */
+    USER_ACCESS_BEGIN;
     r->rax = fd->node->ioctl(fd->node, request, argp);
+    USER_ACCESS_END;
 }
 
 void syscall_seek(struct registers* r) {
@@ -194,7 +216,13 @@ void syscall_seek(struct registers* r) {
     off_t offset = r->rsi;
     int whence = r->rdx;
 
-    struct file_descriptor* fd = fd_from_fdnum(this_cpu()->running_thread->process, fdnum);
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_seek (fdnum: %d, offset: %d, whence: %d) on (pid: %u, tid: %u)\n",
+            fdnum, offset, whence, current_process->pid, current_thread->tid);
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = (uint64_t) -1;
         return;
@@ -248,7 +276,12 @@ void syscall_seek(struct registers* r) {
 void syscall_truncate(struct registers* r) {
     int fdnum = r->rdi;
     off_t length = r->rsi;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_truncate (fdnum: %d, length: %d) on (pid: %u, tid: %u)\n",
+            fdnum, length, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -279,7 +312,12 @@ void syscall_truncate(struct registers* r) {
 void syscall_stat(struct registers* r) {
     int fdnum = r->rdi;
     struct stat* stat = (struct stat*) r->rsi;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_stat (fdnum: %d, stat: 0x%x) on (pid: %u, tid: %u)\n",
+            fdnum, (uintptr_t) stat, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -296,7 +334,12 @@ void syscall_stat(struct registers* r) {
 
 void syscall_chdir(struct registers* r) {
     int fdnum = r->rdi;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_chdir (fdnum: %d) on (pid: %u, tid: %u)\n",
+            fdnum, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
@@ -317,18 +360,23 @@ void syscall_chdir(struct registers* r) {
 
 void syscall_getcwd(struct registers* r) {
     char* buffer = (char*) r->rdi;
-    size_t len = r->rsi;
-    struct process* current_process = this_cpu()->running_thread->process;
+    size_t length = r->rsi;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_getcwd (buffer: 0x%x, length: %d) on (pid: %u, tid: %u)\n",
+            (uintptr_t) buffer, length, current_process->pid, current_thread->tid);
 
     char temp_buffer[PATH_MAX];
-    size_t actual_len = vfs_get_pathname(current_process->cwd, temp_buffer, sizeof(temp_buffer) - 1);
+    size_t actual_length = vfs_get_pathname(current_process->cwd, temp_buffer, sizeof(temp_buffer) - 1);
 
-    if (actual_len >= len) {
+    if (actual_length >= length) {
         r->rax = (uint64_t) NULL;
         return;
     }
 
-    if (copy_to_user(buffer, temp_buffer, len) == NULL) {
+    if (copy_to_user(buffer, temp_buffer, length) == NULL) {
         r->rax = (uint64_t) NULL;
         return;
     }

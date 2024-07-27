@@ -61,13 +61,23 @@ static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, s
     return vaddr;
 }
 
+static bool page_fault_handle_brk(struct process* p, uintptr_t faulting_addr) {
+    uintptr_t paddr = pmm_alloc(1);
+    if (!paddr) {
+        return false;
+    }
+
+    uintptr_t aligned_addr = ALIGN_DOWN(faulting_addr, PAGE_SIZE);
+    return vmm_map_page(p->pagemap, aligned_addr, paddr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
+}
+
 static void page_fault_handler(struct registers* r) {
     uintptr_t faulting_addr = read_cr2();
     bool is_present = r->error_code & FAULT_PRESENT;
     bool is_writing = r->error_code & FAULT_WRITABLE;
     bool is_user = r->error_code & FAULT_USER;
 
-    klog("0x%x\n", r->rip);
     klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
             is_user ? "user-mode" : "supervisor-mode",
             is_writing ? "write to" : "read from",
@@ -77,12 +87,22 @@ static void page_fault_handler(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     if (current_thread != NULL) {
         struct process* current_process = current_thread->process;
+
         if (current_process->pid != 0) {
-            klog("[vmm] terminating process (pid = %d) due to page fault\n", current_process->pid);
-            process_destroy(current_process, -1);
+            bool ret = false;
+
+            if (faulting_addr >= PROCESS_BRK_BASE && faulting_addr <= current_process->brk) {
+                ret = page_fault_handle_brk(current_process, faulting_addr);
+            }
+
+            if (!ret) {
+                klog("[vmm] terminating process (pid = %d) due to page fault\n", current_process->pid);
+                process_destroy(current_process, -1);
+            }
+
             return;
         }
-    }
+    } 
 
     kpanic(r, "page fault occurred in kernel");
 }

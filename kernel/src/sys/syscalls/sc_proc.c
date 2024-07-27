@@ -1,5 +1,6 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
+#include <utils/log.h>
 #include <fs/fd.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -11,7 +12,13 @@
 
 __attribute__((noreturn)) void syscall_exit(struct registers* r) {
     int status = r->rdi;
-    struct process* current_process = this_cpu()->running_thread->process;
+    klog("%d\n", r->rdi);
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_exit (status: %d) on (pid: %u, tid: %u)\n",
+            status, current_process->pid, current_thread->tid);
 
     cli();
     process_destroy(current_process, status);
@@ -24,6 +31,9 @@ __attribute__((noreturn)) void syscall_exit(struct registers* r) {
 void syscall_fork(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_fork on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
 
     struct process* new_process = process_create(current_process, NULL);
     if (new_process == NULL) {
@@ -46,15 +56,19 @@ void syscall_exec(struct registers* r) {
     const char* path = (char*) r->rdi;
     const char** argv = (const char**) r->rsi;
     const char** envp = (const char**) r->rdx;
+
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
+
+    USER_ACCESS_BEGIN;
+
+    klog("[syscall] running syscall_exec (path: %s, argv: 0x%x, envp: 0x%x) on (pid: %u, tid: %u)\n",
+            path, (uintptr_t) argv, (uintptr_t) envp, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(path) || !check_user_ptr(argv) || !check_user_ptr(envp)) {
         r->rax = (uint64_t) -1;
         return;
     }
-
-    USER_ACCESS_BEGIN;
 
     const char** ptr;
     const char* iter;
@@ -143,6 +157,14 @@ void syscall_wait(struct registers* r) {
     int* status = (int*) r->rsi;
     int flags = r->rdx;
 
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    USER_ACCESS_BEGIN;
+
+    klog("[syscall] running syscall_wait (pid: %d, status: 0x%x, flags: %d) on (pid: %u, tid: %u)\n",
+            pid, (uintptr_t) status, flags, current_process->pid, current_thread->tid);
+
     if (status != NULL) {
         if (!check_user_ptr(status)) {
             r->rax = (uint64_t) -1;
@@ -150,22 +172,39 @@ void syscall_wait(struct registers* r) {
         }
     }
 
-    USER_ACCESS_BEGIN;
-    r->rax = process_wait(this_cpu()->running_thread->process, pid, status, flags);
+    r->rax = process_wait(current_process, pid, status, flags);
     USER_ACCESS_END;
 }
 
 void syscall_yield(struct registers* r) {
     (void) r;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_yield on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
+
     sched_yield();
 }
 
 void syscall_getpid(struct registers* r) {
-    r->rax = this_cpu()->running_thread->process->pid;
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_getpid on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
+
+    r->rax = current_process->pid;
 }
 
 void syscall_getppid(struct registers* r) {
-    struct process* current_process = this_cpu()->running_thread->process;
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_getppid on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
+
     if (current_process->parent != NULL) {
         r->rax = current_process->parent->pid;
     } else {
@@ -174,12 +213,23 @@ void syscall_getppid(struct registers* r) {
 }
 
 void syscall_gettid(struct registers* r) {
-    r->rax = this_cpu()->running_thread->tid;
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_gettid on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
+
+    r->rax = current_thread->tid;
 }
 
 void syscall_thread_create(struct registers* r) {
     uintptr_t entry = (uintptr_t) r->rdi;
-    struct process* current_process = this_cpu()->running_thread->process;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_thread_create (entry: 0x%x) on (pid: %u, tid: %u)\n",
+            entry, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr((void*) entry)) {
         r->rax = (uint64_t) -1;
@@ -194,6 +244,13 @@ void syscall_thread_create(struct registers* r) {
 
 void syscall_thread_exit(struct registers* r) {
     (void) r;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_thread_exit on (pid: %u, tid: %u)\n",
+            current_process->pid, current_thread->tid);
+
     sched_thread_destroy(this_cpu()->running_thread);
     sched_yield();
 }
@@ -201,10 +258,14 @@ void syscall_thread_exit(struct registers* r) {
 void syscall_sbrk(struct registers* r) {
     intptr_t size = r->rdi;
 
-    void* ptr = process_sbrk(this_cpu()->running_thread->process, size);
-    if (ptr == NULL) {
-        r->rax = (uint64_t) -1;
-    } else {
-        r->rax = (uint64_t) ptr;
-    }
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_sbrk (size: %d) on (pid: %u, tid: %u)\n",
+            size, current_process->pid, current_thread->tid);
+
+    uintptr_t current_brk = current_process->brk;
+    current_process->brk += size;
+
+    r->rax = current_brk;
 }

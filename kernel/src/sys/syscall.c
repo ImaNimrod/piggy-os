@@ -4,10 +4,7 @@
 #include <utils/log.h>
 #include <utils/math.h>
 
-struct syscall_handle {
-    void (*handler)(struct registers* r);
-    const char* name;
-};
+typedef void (*syscall_handler_t)(struct registers*);
 
 extern void syscall_exit(struct registers* r);
 extern void syscall_fork(struct registers* r);
@@ -32,29 +29,29 @@ extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 extern void syscall_utsname(struct registers* r);
 
-static struct syscall_handle syscall_table[] = {
-    { .handler = syscall_exit, .name = "exit" },
-    { .handler = syscall_fork, .name = "fork" },
-    { .handler = syscall_exec, .name = "exec" },
-    { .handler = syscall_wait, .name = "wait" },
-    { .handler = syscall_yield, .name = "yield" },
-    { .handler = syscall_getpid, .name = "getpid" },
-    { .handler = syscall_getppid, .name = "getppid" },
-    { .handler = syscall_gettid, .name = "gettid" },
-    { .handler = syscall_thread_create, .name = "thread_create" },
-    { .handler = syscall_thread_exit, .name = "thread_exit" },
-    { .handler = syscall_sbrk, .name = "sbrk" },
-    { .handler = syscall_open, .name = "open" },
-    { .handler = syscall_close, .name = "close" },
-    { .handler = syscall_read, .name = "read" },
-    { .handler = syscall_write, .name = "write" },
-    { .handler = syscall_ioctl, .name = "ioctl" },
-    { .handler = syscall_seek, .name = "seek" },
-    { .handler = syscall_truncate, .name = "truncate" },
-    { .handler = syscall_stat, .name = "stat" },
-    { .handler = syscall_chdir, .name = "chdir" },
-    { .handler = syscall_getcwd, .name = "getcwd" },
-    { .handler = syscall_utsname, .name = "utsname" },
+static syscall_handler_t syscall_table[] = {
+    syscall_exit,
+    syscall_fork,
+    syscall_exec,
+    syscall_wait,
+    syscall_yield,
+    syscall_getpid,
+    syscall_getppid,
+    syscall_gettid,
+    syscall_thread_create,
+    syscall_thread_exit,
+    syscall_sbrk,
+    syscall_open,
+    syscall_close,
+    syscall_read,
+    syscall_write,
+    syscall_ioctl,
+    syscall_seek,
+    syscall_truncate,
+    syscall_stat,
+    syscall_chdir,
+    syscall_getcwd,
+    syscall_utsname,
 };
 
 void syscall_handler(struct registers* r) {
@@ -68,16 +65,8 @@ void syscall_handler(struct registers* r) {
         clac(); // just sanity check that user memory access is disabled
     }
 
-    struct syscall_handle syscall = syscall_table[r->rax];
+    this_cpu()->running_thread->ctx = *r;
+    this_cpu()->running_thread->stack = this_cpu()->user_stack;
 
-	this_cpu()->running_thread->ctx = *r;
-	this_cpu()->running_thread->stack = this_cpu()->user_stack;
-
-    if (!syscall.handler) {
-        kpanic(r, "null syscall %s\n", syscall.name);
-    } else {
-        klog("[syscall] running syscall %s (pid %d, tid %d)\n",
-                syscall.name, this_cpu()->running_thread->process->pid, this_cpu()->running_thread->tid);
-        syscall.handler(r);
-    }
+    syscall_table[r->rax](r);
 }

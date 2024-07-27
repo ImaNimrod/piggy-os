@@ -43,9 +43,9 @@ static bool builtin_pwd(char** args) {
         puts(buf);
         putchar('\n');
         fflush(stdout);
-
-        free(buf);
     }
+
+    free(buf);
     return false;
 }
 

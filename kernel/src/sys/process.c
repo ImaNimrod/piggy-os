@@ -219,48 +219,6 @@ void process_destroy(struct process* p, int status) {
     spinlock_release(&process_lock);
 }
 
-void* process_sbrk(struct process* p, intptr_t size) {
-    uintptr_t end = p->brk;
-
-    ptrdiff_t remaining_bytes = (end % PAGE_SIZE) ? (PAGE_SIZE - (PAGE_SIZE % 0x1000)) : 0;
-    if (size > 0) {
-        if (remaining_bytes < size) {
-            size_t page_count = DIV_CEIL(size - remaining_bytes, PAGE_SIZE) + 1;
-
-            uintptr_t paddr = pmm_alloc(page_count);
-            if (paddr == 0) {
-                return NULL;
-            }
-
-            for (size_t i = 0; i < page_count; i++) {
-                if (!vmm_map_page(p->pagemap, end + (i * PAGE_SIZE), paddr + (i * PAGE_SIZE), PTE_PRESENT | PTE_WRITABLE | PTE_USER)) {
-                    pmm_free(paddr, page_count);
-                    return NULL;
-                }
-            }
-        }
-    } else if (size < 0) {
-        if (end + size < PROCESS_BRK_BASE) {
-            return NULL;
-        }
-
-        ptrdiff_t taken = PAGE_SIZE - remaining_bytes;
-        if (taken + size < 0) {
-            size_t page_count = DIV_CEIL((size_t) (taken - size), PAGE_SIZE);
-            uintptr_t vaddr = end - (end % PAGE_SIZE);
-
-            for (size_t i = 0; i < page_count; i++) {
-                if (!vmm_unmap_page(p->pagemap, vaddr - (i * PAGE_SIZE))) {
-                    return NULL;
-                }
-            }
-        }
-    }
-
-    p->brk += size;
-    return (void*) end;
-}
-
 pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
     struct process* child = NULL;
 

@@ -224,7 +224,6 @@ static void keyboard_irq_handler(struct registers* r) {
 
 static bool port_enum_and_init_device(bool second_port) {
     if (send_device_command(PS2_DEVICE_COMMAND_RESET, second_port) != 0xfa) {
-        klog("bruh\n");
         return false;
     }
     if (read_data() != 0xaa) {

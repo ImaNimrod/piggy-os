@@ -21,6 +21,7 @@ static void cat(int fd) {
     }
 }
 
+// TODO: print nice error messages once printf functions are implemented
 int main(int argc, const char* argv[]) {
     if (argc <= 1) {
         cat(STDIN_FILENO);
