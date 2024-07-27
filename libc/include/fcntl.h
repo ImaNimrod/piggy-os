@@ -15,7 +15,7 @@
 #define O_TRUNC     0020
 #define O_APPEND    0040
 #define O_EXCL      0100
-#define O_CLOEXEC   0200
+#define O_CLOEXEC   0400
 
 #define SEEK_SET 0
 #define SEEK_CUR 1

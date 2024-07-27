@@ -7,22 +7,27 @@
 #define CAT_BUF_SIZE 1024
 
 static void cat(int fd) {
-    char buf[CAT_BUF_SIZE];
+    char* buf = malloc(CAT_BUF_SIZE * sizeof(char));
+    if (!buf) {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
 
     ssize_t n;
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
         if (write(STDOUT_FILENO, buf, n) != n) {
+            perror("write");
             exit(EXIT_FAILURE);
         }
     }
 
     if (n < 0) {
+        perror("read");
         exit(EXIT_FAILURE);
     }
 }
 
-// TODO: print nice error messages once printf functions are implemented
-int main(int argc, const char* argv[]) {
+int main(int argc, char** argv) {
     if (argc <= 1) {
         cat(STDIN_FILENO);
     } else {
@@ -35,6 +40,7 @@ int main(int argc, const char* argv[]) {
             }
 
             if (fd < 0) {
+                perror("open");
                 return EXIT_FAILURE;
             }
 

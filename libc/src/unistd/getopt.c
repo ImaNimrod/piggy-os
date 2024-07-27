@@ -1,5 +1,5 @@
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 char* optarg;
@@ -57,6 +57,7 @@ int getopt(int argc, char* const argv[], const char* optstring) {
                     if (++optind < argc) {
                         optarg = argv[optind];
                     } else {
+                        fprintf(stderr, "%s: option requires an argument -- '%c'\n", argv[0], optchar);
                         optarg = NULL;
                         optchar = (optstring[0] == ':') ? ':' : '?';
                     }
@@ -68,6 +69,7 @@ int getopt(int argc, char* const argv[], const char* optstring) {
             optcursor = NULL;
         }
     } else {
+        fprintf(stderr, "%s: invalid option -- '%c'\n", argv[0], optchar);
         optchar = '?';
     }
 

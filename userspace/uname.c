@@ -4,6 +4,24 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
+static char* program_name;
+
+static void print_error(void) {
+    fprintf(stderr, "try '%s -h' for more information\n", program_name);
+}
+
+static void print_help(void) {
+    printf("Usage: %s [OPTION]...\n \
+            Print system information. With no OPTION, same as -s.\n\n \
+            -a        print all information in the following order\n \
+            -s        print the kernel name\n \
+            -n        print the network hostname\n \
+            -r        print the kernel release\n \
+            -v        print the kernel version\n \
+            -m        print the machine hardware name\n \
+            -h        display this help and exit", program_name);
+}
+
 static void print_info(char* str) {
     static bool first_time = true;
     if (!first_time) {
@@ -14,17 +32,21 @@ static void print_info(char* str) {
     first_time = false;
 }
 
-// TODO: print nice error messages once printf functions are implemented
-int main(int argc, char* const argv[]) {
+int main(int argc, char** argv) {
+    program_name = argv[0];
+
     bool print_sysname = false, print_nodename = false, print_release = false,
          print_version = false, print_machine = false;
 
     int c;
-    while ((c = getopt(argc, argv, "amnrsv")) != -1) {
+    while ((c = getopt(argc, argv, "ahmnrsv")) != -1) {
         switch (c) {
             case 'a':
                 print_sysname = print_nodename = print_release = print_version = print_machine = true;
                 break;
+            case 'h':
+                print_help();
+                return EXIT_SUCCESS;
             case 's':
                 print_sysname = true;
                 break;
@@ -41,11 +63,13 @@ int main(int argc, char* const argv[]) {
                 print_machine = true;
                 break;
             case '?':
+                print_error();
                 return EXIT_FAILURE;
         }
     }
 
     if (optind < argc) {
+        print_error();
         return EXIT_FAILURE;
     }
 
@@ -59,19 +83,15 @@ int main(int argc, char* const argv[]) {
     if (print_sysname) {
         print_info(uts.sysname);
     }
-
     if (print_nodename) {
         print_info(uts.nodename);
     }
-
     if (print_release) {
         print_info(uts.release);
     }
-
     if (print_version) {
         print_info(uts.version);
     }
-
     if (print_machine) {
         print_info(uts.machine);
     }

@@ -3,8 +3,6 @@
 // TODO: print errno error message once errno is implemented in kernel 
 void perror(const char* s) {
     if (s && *s) {
-        fputs(s, stderr);
+        fprintf(stderr, "%s\n", s);
     }
-
-    fputc('\n', stderr);
 }

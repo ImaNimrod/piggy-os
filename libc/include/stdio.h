@@ -20,7 +20,6 @@ extern FILE* stdin;
 extern FILE* stdout;
 extern FILE* stderr;
 
-// TODO: implement stdio.h functions
 void clearerr(FILE*);
 int fclose(FILE*);
 FILE* fdopen(int fd, const char* __restrict);
