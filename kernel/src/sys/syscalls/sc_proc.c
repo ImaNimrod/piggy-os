@@ -12,7 +12,7 @@
 #include <utils/user_access.h>
 
 __attribute__((noreturn)) void syscall_exit(struct registers* r) {
-    int64_t status = r->rdi;
+    int status = r->rdi;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
@@ -60,14 +60,22 @@ void syscall_exec(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
+    int ret = 0;
+
     USER_ACCESS_BEGIN;
 
     klog("[syscall] running syscall_exec (path: %s, argv: 0x%x, envp: 0x%x) on (pid: %u, tid: %u)\n",
             path, (uintptr_t) argv, (uintptr_t) envp, current_process->pid, current_thread->tid);
 
+    struct pagemap* old_pagemap = current_process->pagemap;
+    struct pagemap* new_pagemap = vmm_new_pagemap();
+    if (new_pagemap == NULL) {
+        goto error;
+    }
+
     if (!check_user_ptr(path) || !check_user_ptr(argv) || !check_user_ptr(envp)) {
-        r->rax = -EFAULT;
-        return;
+        ret = -EFAULT;
+        goto error;
     }
 
     const char** ptr;
@@ -76,42 +84,33 @@ void syscall_exec(struct registers* r) {
     ptr = argv;
     for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
-            r->rax = -EFAULT;
-            return;
+            ret = -EFAULT;
+            goto error;
         }
     }
 
     ptr = envp;
     for (iter = *ptr; iter != NULL; iter = *ptr++) {
         if (!check_user_ptr(iter)) {
-            r->rax = -EFAULT;
-            return;
+            ret = -EFAULT;
+            goto error;
         }
     }
 
-    struct pagemap* old_pagemap = current_process->pagemap;
-    struct pagemap* new_pagemap = vmm_new_pagemap();
-
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
-    uintptr_t entry;
-
     if (node == NULL) {
-        vmm_destroy_pagemap(new_pagemap);
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto error;
     }
 
     if (!S_ISREG(node->stat.st_mode)) {
-        vmm_destroy_pagemap(new_pagemap);
-        r->rax = -ENOEXEC;
-        return;
+        ret = -ENOEXEC;
+        goto error;
     }
 
-    int res;
-    if ((res = elf_load(node, new_pagemap, &entry))) {
-        vmm_destroy_pagemap(new_pagemap);
-        r->rax = res;
-        return;
+    uintptr_t entry;
+    if ((ret = elf_load(node, new_pagemap, &entry)) < 0) {
+        goto error;
     }
 
     current_process->pagemap = new_pagemap;
@@ -123,10 +122,8 @@ void syscall_exec(struct registers* r) {
         struct file_descriptor* fd = current_process->file_descriptors[i];
 
         if (fd != NULL && fd->flags & O_CLOEXEC) {
-            if ((res = fd_close(current_process, i)) < 0) {
-                process_destroy(current_process, -1);
-                r->rax = res;
-                return;
+            if ((ret = fd_close(current_process, i)) < 0) {
+                goto error;
             }
         }
     }
@@ -138,18 +135,16 @@ void syscall_exec(struct registers* r) {
     vector_destroy(current_process->threads);
     current_process->threads = vector_create(sizeof(struct thread*));
     if (current_process->threads == NULL) {
-        process_destroy(current_process, -1);
-        r->rax = -ENOMEM;
-        return;
+        ret = -ENOMEM;
+        goto error;
     }
 
     vfs_get_pathname(node, current_process->name, sizeof(current_process->name) - 1);
 
     struct thread* new_thread = thread_create(current_process, entry, NULL, argv, envp, true);
     if (new_thread == NULL) {
-        process_destroy(current_process, -1);
-        r->rax = -ENOMEM;
-        return;
+        ret = -ENOMEM;
+        goto error;
     }
     sched_thread_enqueue(new_thread);
 
@@ -163,6 +158,18 @@ void syscall_exec(struct registers* r) {
 
     sched_yield();
     __builtin_unreachable();
+
+error:
+    if (current_process->pagemap == old_pagemap) {
+        if (new_pagemap != NULL) {
+            vmm_destroy_pagemap(new_pagemap);
+        }
+    } else {
+        process_destroy(current_process, -1);
+    }
+
+    USER_ACCESS_END;
+    r->rax = ret;
 }
 
 void syscall_wait(struct registers* r) {

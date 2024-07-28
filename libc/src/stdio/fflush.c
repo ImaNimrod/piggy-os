@@ -3,18 +3,18 @@
 
 int fflush(FILE* stream) {
     if (!stream) {
-        int res = 0;
-        res |= fflush(stdin);
-        res |= fflush(stdout);
-        res |= fflush(stderr);
+        int ret = 0;
+        ret |= fflush(stdin);
+        ret |= fflush(stdout);
+        ret |= fflush(stderr);
 
         FILE* iter = __file_list_head;
         while (iter) {
-            res |= fflush(iter);
+            ret |= fflush(iter);
             iter = iter->next;
         }
 
-        return res;
+        return ret;
     }
 
     if (stream->read_pos != 0) {

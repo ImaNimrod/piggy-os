@@ -188,6 +188,8 @@ void vmm_switch_pagemap(struct pagemap* pagemap) {
 bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
     spinlock_acquire(&pagemap->lock);
 
+    bool ret = false;
+
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
     size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
@@ -201,8 +203,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
         if (!(pagemap->top_level[pml5_index] & PTE_PRESENT)) {
             pagemap->top_level[pml5_index] = pmm_allocz(1);
             if (pagemap->top_level[pml5_index] == 0) {
-                spinlock_release(&pagemap->lock);
-                return false;
+                goto end;
             }
 
             pagemap->top_level[pml5_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
@@ -216,8 +217,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
     if (!(pml4[pml4_index] & PTE_PRESENT)) {
         pml4[pml4_index] = pmm_allocz(1);
         if (pml4[pml4_index] == 0) {
-            spinlock_release(&pagemap->lock);
-            return false;
+            goto end;
         }
 
         pml4[pml4_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
@@ -227,8 +227,7 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         pml3[pml3_index] = pmm_allocz(1);
         if (pml3[pml3_index] == 0) {
-            spinlock_release(&pagemap->lock);
-            return false;
+            goto end;
         }
 
         pml3[pml3_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
@@ -238,15 +237,14 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
 
     if (flags & PTE_SIZE) {
         pml2[pml2_index] = paddr | flags;
-        spinlock_release(&pagemap->lock);
-        return true;
+        ret = true;
+        goto end;
     }
 
     if (!(pml2[pml2_index] & PTE_PRESENT)) {
         pml2[pml2_index] = pmm_allocz(1);
         if (pml2[pml2_index] == 0) {
-            spinlock_release(&pagemap->lock);
-            return false;
+            goto end;
         }
 
         pml2[pml2_index] |= (flags & MASKED_FLAGS) | PTE_WRITABLE;
@@ -255,12 +253,17 @@ bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uin
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     pml1[pml1_index] = paddr | flags;
 
+    ret = true;
+
+end:
     spinlock_release(&pagemap->lock);
-    return true;
+    return ret;
 }
 
 bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     spinlock_acquire(&pagemap->lock);
+
+    bool ret = false;
 
     size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
     size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
@@ -273,8 +276,7 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
         size_t pml5_index = (vaddr & (0x1ffull << 48)) >> 48;
 
         if (!(pagemap->top_level[pml5_index] & PTE_PRESENT)) {
-            spinlock_release(&pagemap->lock);
-            return false;
+            goto end;
         }
 
         pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -283,14 +285,12 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     }
 
     if (!(pml4[pml4_index] & PTE_PRESENT)) {
-        spinlock_release(&pagemap->lock);
-        return false;
+        goto end;
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
-        spinlock_release(&pagemap->lock);
-        return false;
+        goto end;
     }
 
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
@@ -298,21 +298,23 @@ bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
     if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
         invlpg(vaddr);
-        spinlock_release(&pagemap->lock);
-        return true;
+        ret = true;
+        goto end;
     }
 
     if (!(pml2[pml2_index] & PTE_PRESENT)) {
-        spinlock_release(&pagemap->lock);
-        return false;
+        goto end;
     }
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     pml1[pml1_index] = 0;
     invlpg(vaddr);
 
+    ret = true;
+
+end:
     spinlock_release(&pagemap->lock);
-    return true;
+    return ret;
 }
 
 void vmm_init(void) {

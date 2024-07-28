@@ -134,29 +134,29 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
 static int fbdev_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     struct fb_info* fb_info = node->private;
 
-    int res = -ENOTTY;
+    int ret = -ENOTTY;
 
     switch (request) {
         case FBIOBLANK:
-            res = 0;
+            ret = 0;
             break;
         case FBIOGET_FSCREENINFO:
             if (copy_to_user(argp, (void*) &fb_info->fixed, sizeof(struct fb_fixed_info)) == NULL) {
-                res = -EFAULT;
+                ret = -EFAULT;
+            } else {
+                ret = 0;
             }
-
-            res = 0;
             break;
         case FBIOGET_VSCREENINFO:
             if (copy_to_user(argp, (void*) &fb_info->variable, sizeof(struct fb_variable_info)) == NULL) {
-                res = -EFAULT;
+                ret = -EFAULT;
+            } else {
+                ret = 0;
             }
-
-            res = 0;
             break;
     }
 
-    return res;
+    return ret;
 } 
 
 void fbdev_init(void) {

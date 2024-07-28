@@ -33,27 +33,27 @@ FILE* stderr = &__stderr;
 FILE* __file_list_head;
 
 int __fopen_mode_to_flags(const char* mode) {
-    int res = 0;
+    int flags = 0;
 
     while (*mode) {
         switch(*mode++) {
             case 'r':
-                res |= O_RDONLY;
+                flags |= O_RDONLY;
                 break;
             case 'w':
-                res |= O_WRONLY | O_CREAT | O_TRUNC;
+                flags |= O_WRONLY | O_CREAT | O_TRUNC;
                 break;
             case 'a':
-                res |= O_WRONLY | O_APPEND | O_CREAT;
+                flags |= O_WRONLY | O_APPEND | O_CREAT;
                 break;
             case '+':
-                res |= O_RDWR;
+                flags |= O_RDWR;
                 break;
             case 'x':
-                res|= O_EXCL;
+                flags |= O_EXCL;
                 break;
             case 'e':
-                res|= O_CLOEXEC;
+                flags |= O_CLOEXEC;
                 break;
             case 'b':
                 break;
@@ -62,7 +62,7 @@ int __fopen_mode_to_flags(const char* mode) {
         }
     }
 
-    return res;
+    return flags;
 }
 
 void __init_stdio_buffers(void) {

@@ -16,70 +16,78 @@ void syscall_open(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
+    int ret = 0;
+
     USER_ACCESS_BEGIN;
 
     klog("[syscall] running syscall_open (path: %s, flags: %04o) on (pid: %u, tid: %u)\n",
             path, flags, current_process->pid, current_thread->tid);
 
     if (path == NULL || *path == '\0') {
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto end;
     }
 
     if (!check_user_ptr(path)) {
-        r->rax = -EFAULT;
-        return;
+        ret = -EFAULT;
+        goto end;
     }
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
-        r->rax = -EINVAL;
-        return;
+        ret = -EINVAL;
+        goto end;
     }
 
     if (node == NULL && (flags & O_CREAT)) {
         node = vfs_create(current_process->cwd, path, S_IFREG);
     }
 
-    USER_ACCESS_END;
-
     if (node == NULL) {
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto end;
     }
 
     node = vfs_reduce_node(node);
     if (node == NULL) {
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto end;
     }
 
     if (!S_ISDIR(node->stat.st_mode) && (flags & O_DIRECTORY) != 0) {
-        r->rax = -ENOTDIR;
-        return;
+        ret = -ENOTDIR;
+        goto end;
     }
 
     struct file_descriptor* fd = fd_create(node, flags);
     if (fd == NULL) {
-        r->rax = -ENFILE;
-        return;
+        ret = -ENOMEM;
+        goto end;
     }
 
     if ((flags & O_TRUNC) && S_ISREG(node->stat.st_mode)) {
-        node->truncate(node, 0);
+        if ((ret = node->truncate(node, 0)) < 0) {
+            goto end;
+        }
     }
 
     int fdnum = fd_alloc_fdnum(current_process, fd);
     if (fdnum == -1) {
         kfree(fd);
         node->refcount--;
+        ret = -ENFILE;
+        goto end;
     }
 
     if (flags & O_APPEND) {
         current_process->file_descriptors[fdnum]->offset = node->stat.st_size;
     }
 
-    r->rax = fdnum;
+    ret = fdnum;
+
+end:
+    USER_ACCESS_END;
+    r->rax = ret;
 }
 
 void syscall_mkdir(struct registers* r) {
@@ -88,36 +96,40 @@ void syscall_mkdir(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
+    int ret = 0;
+
     USER_ACCESS_BEGIN;
 
     klog("[syscall] running syscall_mkdir (path: %s) on (pid: %u, tid: %u)\n",
             path, current_process->pid, current_thread->tid);
 
     if (path == NULL || *path == '\0') {
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto end;
     }
 
     if (!check_user_ptr(path)) {
-        r->rax = -EFAULT;
-        return;
+        ret = -EFAULT;
+        goto end;
     }
 
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node != NULL) {
-        r->rax = -EEXIST;
-        return;
+        ret = -EEXIST;
+        goto end;
     }
 
     node = vfs_create(current_process->cwd, path, S_IFDIR);
     if (node == NULL) {
-        r->rax = -ENOENT;
-        return;
+        ret = -ENOENT;
+        goto end;
     }
 
-    USER_ACCESS_END;
+    ret = 0;
 
-    r->rax = 0;
+end:
+    USER_ACCESS_END;
+    r->rax = ret;
 }
 
 void syscall_close(struct registers* r) {
@@ -157,6 +169,11 @@ void syscall_read(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
+    if (S_ISDIR(node->stat.st_mode)) {
+        r->rax = -EISDIR;
+        return;
+    }
+
     if (!check_user_ptr(buf)) {
         r->rax = -EFAULT;
         return;
@@ -194,6 +211,11 @@ void syscall_write(struct registers* r) {
     }
 
     struct vfs_node* node = fd->node;
+
+    if (S_ISDIR(node->stat.st_mode)) {
+        r->rax = -EISDIR;
+        return;
+    }
 
     if (!check_user_ptr(buf)) {
         r->rax = -EFAULT;
