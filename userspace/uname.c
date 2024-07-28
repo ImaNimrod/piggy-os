@@ -19,7 +19,7 @@ static void print_help(void) {
             -r        print the kernel release\n \
             -v        print the kernel version\n \
             -m        print the machine hardware name\n \
-            -h        display this help and exit", program_name);
+            -h        display this help and exit\n", program_name);
 }
 
 static void print_info(char* str) {

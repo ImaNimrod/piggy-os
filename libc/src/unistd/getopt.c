@@ -50,11 +50,11 @@ int getopt(int argc, char* const argv[], const char* optstring) {
     optdecl = strchr(optstring, optchar);
     if (optdecl != NULL) {
         if (optdecl[1] == ':') {
-            optarg = ++optcursor;
+            optarg = optcursor++;
 
             if (*optarg == '\0') {
                 if (optdecl[2] != ':') {
-                    if (++optind < argc) {
+                    if (optind++ < argc) {
                         optarg = argv[optind];
                     } else {
                         fprintf(stderr, "%s: option requires an argument -- '%c'\n", argv[0], optchar);
