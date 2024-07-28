@@ -21,10 +21,12 @@ static struct vfs_filesystem tmpfs = {
     .create = tmpfs_create,
 };
 
-static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
+static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
+    (void) flags;
 
     spinlock_acquire(&node->lock);
+
+    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     size_t actual_count = count;
     if ((off_t) (offset + count) >= node->stat.st_size) {
@@ -37,10 +39,12 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
     return actual_count;
 }
 
-static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
+static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count, int flags) {
+    (void) flags;
 
     spinlock_acquire(&node->lock);
+
+    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
 
     if (offset + count >= metadata->capacity) {
         size_t new_capacity = metadata->capacity;

@@ -22,11 +22,9 @@ void syscall_utsname(struct registers* r) {
     klog("[syscall] running syscall_utsname (utsname: 0x%x) on (pid: %u, tid: %u)\n",
             (uintptr_t) utsname, current_process->pid, current_thread->tid);
 
-    if (!check_user_ptr(utsname)) {
+    if (copy_to_user(utsname, &system_utsname, sizeof(struct utsname)) == NULL) {
         r->rax = -EFAULT;
-        return;
+    } else {
+        r->rax = 0;
     }
-
-    copy_to_user(utsname, &system_utsname, sizeof(struct utsname));
-    r->rax = 0;
 }

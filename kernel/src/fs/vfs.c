@@ -15,19 +15,21 @@ static hashmap_t* vfs_filesystems;
 
 struct vfs_node* vfs_root;
 
-static ssize_t read_stub(struct vfs_node* node, void* buf, off_t offset, size_t count) {
+static ssize_t read_stub(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) node;
     (void) buf;
     (void) offset;
     (void) count;
+    (void) flags;
     return -EPERM;
 }
 
-static ssize_t write_stub(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
+static ssize_t write_stub(struct vfs_node* node, const void* buf, off_t offset, size_t count, int flags) {
     (void) node;
     (void) buf;
     (void) offset;
     (void) count;
+    (void) flags;
     return -EPERM;
 }
 

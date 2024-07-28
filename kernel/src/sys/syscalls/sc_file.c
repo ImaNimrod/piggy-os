@@ -120,7 +120,7 @@ void syscall_read(struct registers* r) {
     }
 
     USER_ACCESS_BEGIN;
-    ssize_t read = node->read(node, buf, fd->offset, count);
+    ssize_t read = node->read(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
 
     fd->offset += read;
@@ -158,7 +158,7 @@ void syscall_write(struct registers* r) {
     }
 
     USER_ACCESS_BEGIN;
-    ssize_t written = node->write(node, buf, fd->offset, count);
+    ssize_t written = node->write(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
 
     fd->offset += written;

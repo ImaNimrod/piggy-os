@@ -7,8 +7,9 @@
 #include <utils/random.h>
 #include <utils/string.h>
 
-static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
+static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) offset;
+    (void) flags;
 
     spinlock_acquire(&node->lock);
 
@@ -33,9 +34,10 @@ static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_
     return read;
 }
 
-static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
+static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset, size_t count, int flags) {
     (void) buf;
     (void) offset;
+    (void) flags;
 
     spinlock_acquire(&node->lock);
 

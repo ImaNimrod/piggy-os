@@ -155,7 +155,7 @@ bool process_create_init(void) {
         return false;
     }
 
-    const char* argv[] = { init_path, "bruh", "yesy" };
+    const char* argv[] = { init_path };
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create(NULL, init_pagemap);

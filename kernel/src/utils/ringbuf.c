@@ -1,6 +1,6 @@
 #include <mem/slab.h>
-#include <utils/string.h>
 #include <utils/ringbuf.h>
+#include <utils/string.h>
 
 ringbuf_t* ringbuf_create(size_t size, size_t elem_size) {
     ringbuf_t* r = kmalloc(sizeof(ringbuf_t));

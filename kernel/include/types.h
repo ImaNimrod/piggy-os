@@ -6,19 +6,20 @@
 #define MAX_FDS 16
 #define PATH_MAX 4096
 
-#define O_PATH      0200
-#define O_RDONLY    0000
-#define O_WRONLY    0001
-#define O_RDWR      0002
+#define O_PATH      00200
+#define O_RDONLY    00000
+#define O_WRONLY    00001
+#define O_RDWR      00002
 
 #define O_ACCMODE   (03 | O_PATH)
 
-#define O_CREAT     0004
-#define O_DIRECTORY 0010
-#define O_TRUNC     0020
-#define O_APPEND    0040
-#define O_EXCL      0100
-#define O_CLOEXEC   0400
+#define O_CREAT     00004
+#define O_DIRECTORY 00010
+#define O_TRUNC     00020
+#define O_APPEND    00040
+#define O_EXCL      00100
+#define O_CLOEXEC   00400
+#define O_NONBLOCK  01000
 
 #define SEEK_SET 0
 #define SEEK_CUR 1

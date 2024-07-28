@@ -27,8 +27,8 @@ struct vfs_node {
     void* private;
     spinlock_t lock;
 
-    ssize_t (*read)(struct vfs_node*, void*, off_t, size_t);
-    ssize_t (*write)(struct vfs_node*, const void*, off_t, size_t);
+    ssize_t (*read)(struct vfs_node*, void*, off_t, size_t, int);
+    ssize_t (*write)(struct vfs_node*, const void*, off_t, size_t, int);
     int (*ioctl)(struct vfs_node*, uint64_t, void*);
     int (*truncate)(struct vfs_node*, off_t);
 };

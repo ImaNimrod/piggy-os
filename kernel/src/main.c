@@ -21,7 +21,6 @@
 #include <utils/random.h>
 
 static void kernel_main(void) {
-    ps2_init();
     random_init();
 
     vfs_init();
@@ -36,6 +35,7 @@ static void kernel_main(void) {
     pseudo_init();
     fbdev_init();
     tty_init();
+    ps2_init();
 
     if (!initrd_unpack()) {
         kpanic(NULL, "failed to unpack initrd");

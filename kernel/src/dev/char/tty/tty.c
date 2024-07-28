@@ -132,8 +132,9 @@ out:
         goto out;
 }
 
-static ssize_t tty_read(struct vfs_node* node, void* buf, off_t offset, size_t count) {
+static ssize_t tty_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) offset;
+    (void) flags;
 
     ssize_t ret = 0;
 
@@ -188,13 +189,16 @@ static ssize_t tty_read(struct vfs_node* node, void* buf, off_t offset, size_t c
     return ret;
 }
 
-static ssize_t tty_write(struct vfs_node* node, const void* buf, off_t offset, size_t count) {
+static ssize_t tty_write(struct vfs_node* node, const void* buf, off_t offset, size_t count, int flags) {
     (void) offset;
+    (void) flags;
+
+    spinlock_acquire(&node->lock);
 
     struct tty* tty = node->private;
-
     flanterm_write((struct flanterm_context*) tty->private, buf, count);
 
+    spinlock_release(&node->lock);
     return count;
 }
 
@@ -255,7 +259,12 @@ void tty_init(void) {
 
     active_tty = tty;
 
-    struct stat tty_stat = {
+    struct vfs_node* tty_node = devfs_create_device("tty0");
+    if (tty_node == NULL) {
+        kpanic(NULL, "failed to create tty node in devfs");
+    }
+
+    tty_node->stat = (struct stat) {
         .st_dev = makedev(0, 1),
         .st_mode = S_IFCHR,
         .st_rdev = makedev(TTY_MAJ, 0),
@@ -263,13 +272,6 @@ void tty_init(void) {
         .st_blksize = 4096,
         .st_blocks = 0,
     };
-
-    struct vfs_node* tty_node = devfs_create_device("tty0");
-    if (tty_node == NULL) {
-        kpanic(NULL, "failed to create tty node in devfs");
-    }
-
-    memcpy(&tty_node->stat, &tty_stat, sizeof(struct stat));
 
     tty_node->private = tty;
 
