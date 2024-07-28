@@ -88,7 +88,6 @@ void acpi_init(void) {
 
         if (fadt_flags & (1 << 20)) {
             kpanic(NULL, "unable to use reduced ACPI systems");
-            __builtin_unreachable();
         }
     }
 

@@ -9,6 +9,7 @@
 #define PSEUDO_NULL_MIN     0
 #define PSEUDO_ZERO_MIN     1
 #define PSEUDO_RANDOM_MIN   2
+#define PSEUDO_FULL_MIN     3
 
 void pseudo_init(void);
 

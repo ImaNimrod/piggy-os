@@ -44,20 +44,32 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
 
     vmm_switch_pagemap(kernel_pagemap);
 
-    wrmsr(MSR_KERNEL_GS, (uint64_t) percpu);
-    wrmsr(MSR_USER_GS, (uint64_t) percpu);
+    wrmsr(IA32_GS_BASE_MSR, (uint64_t) percpu);
 
     percpu->tss.rsp0 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
     percpu->tss.ist1 = pmm_alloc(CPU_STACK_SIZE / PAGE_SIZE) + HIGH_VMA;
 
     uint64_t cr0 = read_cr0();
     uint64_t cr4 = read_cr4();
-    uint32_t ebx = 0, edx = 0, unused;
+    uint64_t xcr0 = 0;
 
-    if (cpuid(1, 0, &unused, &unused, &unused, &edx)) {
+    uint32_t ebx = 0, ecx = 0, edx = 0, unused;
+
+    if (cpuid(1, 0, &unused, &unused, &ecx, &edx)) {
         /* enable global pages if supported */
         if (edx & (1 << 13)) {
             cr4 |= (1 << 7);
+        }
+
+        /* enable XSAVE */
+        if (ecx & (1 << 26)) {
+            cr4 |= (1 << 18);
+            xcr0 |= (1 << 0) | (1 << 1);
+
+            /* if XSAVE is available, enable AVX */
+            if (ecx & (1 << 28)) {
+                xcr0 |= (1 << 2);
+            }
         }
     }
 
@@ -77,27 +89,42 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
             cr4 |= (1 << 21);
             percpu->smap_enabled = true;
         }
+
+        /* if XSAVE is available and AVX512 is supported, enable AVX512 */
+        if (xcr0 != 0 && ebx & (1 << 16)) {
+            xcr0 |= (1 << 5) | (1 << 6) | (1 << 7);
+        }
     }
+
+    cpuid(13, 0, &unused, &unused, &ecx, &unused);
 
     write_cr0(cr0);
     write_cr4(cr4);
 
+    if (xcr0 != 0) {
+        write_xcr0(xcr0);
+
+        percpu->fpu_storage_size = ecx;
+        percpu->fpu_save = xsave;
+        percpu->fpu_restore = xrstor;
+    } else {
+        percpu->fpu_storage_size = 512;
+        percpu->fpu_save = fxsave;
+        percpu->fpu_restore = fxrstor;
+    }
+
     /* enable SYSCALL/SYSRET instructions */
-    uint64_t efer = rdmsr(MSR_EFER);
+    uint64_t efer = rdmsr(IA32_EFER_MSR);
     efer |= (1 << 0);
-    wrmsr(MSR_EFER, efer);
+    wrmsr(IA32_EFER_MSR, efer);
 
-    wrmsr(MSR_STAR, 0x13000800000000);
-    wrmsr(MSR_LSTAR, (uint64_t) syscall_entry);
-    wrmsr(MSR_SFMASK, (uint64_t) 0x700);
-
-    percpu->fpu_storage_size = 512;
-    percpu->fpu_save = fxsave;
-    percpu->fpu_restore = fxrstor;
+    wrmsr(IA32_STAR_MSR, 0x13000800000000);
+    wrmsr(IA32_LSTAR_MSR, (uint64_t) syscall_entry);
+    wrmsr(IA32_SFMASK_MSR, (uint64_t) 0x700);
 
     percpu->running_thread = NULL;
 
-    lapic_init();
+    lapic_init(percpu->lapic_id);
 
     klog("[smp] processor #%u online%s\n", percpu->cpu_number, (percpu->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);

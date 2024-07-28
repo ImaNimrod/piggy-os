@@ -6,7 +6,8 @@
 #include <mem/vmm.h>
 #include <utils/log.h>
 
-// TODO: setup NMI support
+#define NMI_VECTOR 2
+
 // TODO: maybe do x2apic?
 #define LAPIC_VADDR 0xffffffffffffe000
 
@@ -34,6 +35,31 @@ static uint32_t lapic_read(uint32_t reg) {
 
 static void lapic_write(uint32_t reg, uint32_t value) {
     *((volatile uint32_t*) (LAPIC_VADDR + reg)) = value;
+}
+
+static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t target_lapic_id, uint16_t flags, uint8_t lint) {
+    if (target_lapic_id == 0xff) {
+        if (current_lapic_id != target_lapic_id) {
+            return;
+        }
+    }
+
+    uint32_t entry = vector | (1 << 10); 
+
+    if (flags & (1 << 1)) {
+        entry |= (1 << 13);
+    }
+    if (flags & (1 << 2)) {
+        entry |= (1 << 15);
+    }
+
+    if (lint == 0) {
+        lapic_write(LAPIC_REG_LVT_LINT0, entry);
+    } else if (lint == 1) {
+        lapic_write(LAPIC_REG_LVT_LINT1, entry);
+    } else {
+        kpanic(NULL, "invalid LINT number %u for LAPIC NMI", lint);
+    }
 }
 
 static void lapic_timer_calibrate(void) {
@@ -80,18 +106,22 @@ void lapic_timer_stop(void) {
     lapic_write(LAPIC_REG_LVT_TIMER, 0x10000);
 }
 
-void lapic_init(void) {
-    uint64_t lapic_msr = rdmsr(MSR_LAPIC_BASE);
-    wrmsr(MSR_LAPIC_BASE, lapic_msr | (1 << 11));
+void lapic_init(uint32_t lapic_id) {
+    uint64_t lapic_msr = rdmsr(IA32_APIC_BASE_MSR);
+    wrmsr(IA32_APIC_BASE_MSR, lapic_msr | (1 << 11));
 
-    vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_get_lapic_addr(),
+    vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_lapic_addr,
             PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
 
     lapic_write(LAPIC_REG_SVR, lapic_read(LAPIC_REG_SVR) | (1 << 8));
 
-    // TODO: dont just mask NMIs and actually setup NMI support
-    lapic_write(LAPIC_REG_LVT_LINT0, 0x10000);
-    lapic_write(LAPIC_REG_LVT_LINT1, 0x10000);
+    struct madt_lapic_nmi* nmi;
+    for (size_t i = 0; i < LAPIC_NMI_NUM; i++) {
+        nmi = madt_lapic_nmi_entries[i];
+        if (nmi != NULL) {
+            lapic_set_nmi(NMI_VECTOR, lapic_id, nmi->lapic_id, nmi->flags, nmi->lint);
+        }
+    }
 
     lapic_timer_calibrate();
 

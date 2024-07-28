@@ -81,10 +81,10 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
 
         if (current->ctx.cs & 3) {
             this_cpu()->fpu_save(current->fpu_storage);
+            current->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
         }
 
-        current->fs_base = rdmsr(MSR_FS_BASE);
-        current->gs_base = rdmsr(MSR_USER_GS);
+        current->fs_base = rdmsr(IA32_FS_BASE_MSR);
 
         if (current->state == THREAD_NORMAL) {
             current->state = THREAD_READY_TO_RUN;
@@ -111,11 +111,12 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     lapic_eoi();
     lapic_timer_oneshot(SCHED_VECTOR, next->timeslice);
 
-    wrmsr(MSR_FS_BASE, next->fs_base);
-
     if (next->ctx.cs & 3) {
         this_cpu()->fpu_restore(next->fpu_storage);
+        wrmsr(IA32_KERNEL_GS_BASE_MSR, next->gs_base);
     }
+
+    wrmsr(IA32_FS_BASE_MSR, next->fs_base);
 
     if (!current || current->process != next->process) {
         vmm_switch_pagemap(next->process->pagemap);
@@ -139,7 +140,10 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
         "pop %%rbx\n\t"
         "pop %%rax\n\t"
         "addq $16, %%rsp\n\t"
+        "cmpq $0x23, 8(%%rsp)\n\t"
+        "jne 1f\n\t"
         "swapgs\n\t"
+        "1:\n\t"
         "iretq\n\t"
         :: "r" (&next->ctx)
     );
@@ -176,7 +180,7 @@ void sched_thread_destroy(struct thread* t) {
 }
 
 void sched_init(void) {
-    isr_install_handler(SCHED_VECTOR, false, schedule);
+    isr_install_handler(SCHED_VECTOR, schedule);
     kernel_process = process_create(NULL, kernel_pagemap);
 
     klog("[sched] intialized scheduler and created kernel process\n");

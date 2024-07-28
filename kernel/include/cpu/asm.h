@@ -4,15 +4,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MSR_LAPIC_BASE  0x1b
-#define MSR_EFER        0xc0000080
-#define MSR_STAR        0xc0000081
-#define MSR_LSTAR       0xc0000082
-#define MSR_CSTAR       0xc0000083
-#define MSR_SFMASK      0xc0000084
-#define MSR_FS_BASE     0xc0000100
-#define MSR_USER_GS     0xc0000101
-#define MSR_KERNEL_GS   0xc0000102
+#define IA32_APIC_BASE_MSR      0x1b
+#define IA32_EFER_MSR           0xc0000080
+#define IA32_STAR_MSR           0xc0000081
+#define IA32_LSTAR_MSR          0xc0000082
+#define IA32_CSTAR_MSR          0xc0000083
+#define IA32_SFMASK_MSR         0xc0000084
+#define IA32_FS_BASE_MSR        0xc0000100
+#define IA32_GS_BASE_MSR        0xc0000101
+#define IA32_KERNEL_GS_BASE_MSR 0xc0000102
 
 static inline void cli(void) {
     __asm__ volatile("cli");
@@ -58,6 +58,14 @@ static inline void fxsave(void* ctx) {
 
 static inline void fxrstor(void* ctx) {
     __asm__ volatile ("fxrstor (%0)" :: "r"(ctx) : "memory");
+}
+
+static inline void xsave(void* ctx) {
+    __asm__ volatile ("xsave (%0)" :: "r" (ctx), "a" (0xffffffff), "d" (0xffffffff) : "memory");
+}
+
+static inline void xrstor(void* ctx) {
+    __asm__ volatile ("xrstor (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
 }
 
 static inline void outb(uint16_t port, uint8_t data) {
@@ -140,6 +148,12 @@ static inline void write_cr3(uint64_t value) {
 
 static inline void write_cr4(uint64_t value) {
     __asm__ volatile ("mov %0, %%cr4" :: "r" (value) : "memory");
+}
+
+static inline void write_xcr0(uint64_t value) {
+	uint32_t eax = value;
+	uint32_t edx = value >> 32;
+	__asm__ volatile("xsetbv" :: "a" (eax), "d" (edx), "c" (0) : "memory");
 }
 
 static inline uint64_t rdmsr(uint32_t msr) {

@@ -324,6 +324,8 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         this_cpu()->fpu_restore(t->fpu_storage);
         uint16_t default_fcw = 0x33f;
         __asm__ volatile ("fldcw %0" :: "m" (default_fcw) : "memory");
+        uint32_t default_mxcsr = 0x1f80;
+        __asm__ volatile ("ldmxcsr %0" :: "m" (default_mxcsr) : "memory");
         this_cpu()->fpu_save(t->fpu_storage);
 
         t->fs_base = 0;
@@ -388,11 +390,10 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         t->ctx.ss = 0x10;
 
         t->page_fault_stack = t->kernel_stack;
-        t->stack = t->kernel_stack;
-        t->ctx.rsp = t->stack;
+        t->stack = t->ctx.rsp = t->kernel_stack;
 
-        t->fs_base = rdmsr(MSR_FS_BASE);
-        t->gs_base = rdmsr(MSR_KERNEL_GS);
+        t->fs_base = rdmsr(IA32_FS_BASE_MSR);
+        t->gs_base = rdmsr(IA32_GS_BASE_MSR);
     }
 
     t->ctx.rflags = 0x202;

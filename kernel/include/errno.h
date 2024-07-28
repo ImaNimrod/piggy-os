@@ -13,10 +13,11 @@
 #define ENOENT  10
 #define ENOEXEC 11
 #define ENOMEM  12
-#define ENOSYS  13
-#define ENOTDIR 14
-#define ENOTTY  15
-#define EPERM   16
-#define ESPIPE  17
+#define ENOSPC  13
+#define ENOSYS  14
+#define ENOTDIR 15
+#define ENOTTY  16
+#define EPERM   17
+#define ESPIPE  18
 
 #endif /* _KERNEL_ERRNO_H */

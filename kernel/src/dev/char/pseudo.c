@@ -1,4 +1,5 @@
 #include <dev/char/pseudo.h>
+#include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <types.h>
@@ -18,6 +19,7 @@ static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_
             read = 0;
             break;
         case PSEUDO_ZERO_MIN:
+        case PSEUDO_FULL_MIN:
             memset(buf, 0, count);
             read = count;
             break;
@@ -45,6 +47,9 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
         case PSEUDO_RANDOM_MIN:
             written = count;
             break;
+        case PSEUDO_FULL_MIN:
+            written = -ENOSPC;
+            break;
     }
 
     spinlock_release(&node->lock);
@@ -62,7 +67,7 @@ void pseudo_init(void) {
 
     struct vfs_node* null_node = devfs_create_device("null");
     if (null_node == NULL) {
-        kpanic(NULL, "failed to create null device for devfs");
+        kpanic(NULL, "failed to create null device node in devfs");
     }
 
     memcpy(&null_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -73,7 +78,7 @@ void pseudo_init(void) {
 
     struct vfs_node* zero_node = devfs_create_device("zero");
     if (zero_node == NULL) {
-        kpanic(NULL, "failed to create zero device for devfs");
+        kpanic(NULL, "failed to create zero device node in devfs");
     }
 
     memcpy(&zero_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -89,7 +94,7 @@ void pseudo_init(void) {
 
     struct vfs_node* random_node = devfs_create_device("random");
     if (random_node == NULL) {
-        kpanic(NULL, "failed to create random node in devfs");
+        kpanic(NULL, "failed to create random device node in devfs");
     }
 
     memcpy(&random_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -99,4 +104,15 @@ void pseudo_init(void) {
 
     random_node->read = pseudo_read;
     random_node->write = pseudo_write;
+
+    struct vfs_node* full_node = devfs_create_device("full");
+    if (full_node == NULL) {
+        kpanic(NULL, "failed to create full device node in devfs");
+    }
+
+    memcpy(&full_node->stat, &pseudo_stat, sizeof(struct stat));
+    full_node->stat.st_rdev = makedev(PSEUDO_MAJ, PSEUDO_FULL_MIN);
+
+    full_node->read = pseudo_read;
+    full_node->write = pseudo_write;
 }

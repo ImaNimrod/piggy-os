@@ -9,7 +9,7 @@
 #include <utils/string.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
-#define PAGE_FAULT 14
+#define PAGE_FAULT_VECTOR 14
 
 extern uint8_t text_start_addr[], text_end_addr[];
 extern uint8_t rodata_start_addr[], rodata_end_addr[];
@@ -92,7 +92,7 @@ static void page_fault_handler(struct registers* r) {
         if (current_process->pid != 0) {
             bool ret = false;
 
-            if (faulting_addr >= PROCESS_BRK_BASE && faulting_addr <= current_process->brk) {
+            if (faulting_addr >= PROCESS_BRK_BASE && faulting_addr < current_process->brk) {
                 ret = page_fault_handle_brk(current_process, faulting_addr);
             }
 
@@ -390,7 +390,7 @@ void vmm_init(void) {
     vmm_switch_pagemap(kernel_pagemap);
     klog("[vmm] switched to new kernel pagemap\n");
 
-    isr_install_handler(PAGE_FAULT, false, page_fault_handler);
+    isr_install_handler(PAGE_FAULT_VECTOR, page_fault_handler);
 
     klog("[vmm] initialized virtual memory manager\n");
 }

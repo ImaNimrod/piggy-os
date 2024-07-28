@@ -1,13 +1,16 @@
 #ifndef _KERNEL_DEV_ACPI_MADT_H
 #define _KERNEL_DEV_APCI_MADT_H
 
+#include <cpu/isr.h>
 #include <dev/acpi/acpi.h>
+#include <dev/lapic.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define MADT_LAPIC_ENTRY                0
 #define MADT_IOAPIC_ENTRY               1
 #define MADT_ISO_ENTRY                  2
+#define MADT_LAPIC_NMI_ENTRY            4
 #define MADT_LAPIC_ADDR_OVERRIDE_ENTRY  5
 
 struct madt {
@@ -45,13 +48,23 @@ struct madt_iso {
     uint16_t flags;
 } __attribute__((packed));
 
+struct madt_lapic_nmi {
+    struct madt_entry_header;
+    uint8_t lapic_id;
+    uint16_t flags;
+    uint8_t lint;
+} __attribute__((packed));
+
 struct madt_lapic_address_override {
     struct madt_entry_header;
     uint16_t : 16;
     uint64_t lapic_addr;
 } __attribute__((packed));
 
-uintptr_t madt_get_lapic_addr(void);
+extern uintptr_t madt_lapic_addr;
+extern struct madt_iso* madt_iso_entries[ISA_IRQ_NUM];
+extern struct madt_lapic_nmi* madt_lapic_nmi_entries[LAPIC_NMI_NUM];
+
 void madt_init(void);
 
 #endif /* _KERNEL_DEV_ACPI_MADT_H */

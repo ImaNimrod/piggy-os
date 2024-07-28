@@ -244,7 +244,10 @@ static bool port_enum_and_init_device(bool second_port) {
         id = read_data();
         if (id == 0x41 || id == 0x83 || id == 0xc1) {
             klog("[ps2] PS/2 keyboard detected\n");
-            isr_install_handler(IRQ(KEYBOARD_IRQ), true, keyboard_irq_handler);
+
+            isr_install_handler(IRQ(KEYBOARD_IRQ), keyboard_irq_handler);
+
+            ioapic_redirect_irq(KEYBOARD_IRQ, IRQ(KEYBOARD_IRQ));
             ioapic_set_irq_mask(KEYBOARD_IRQ, false);
         }
     } else if (id == 0x00 || id == 0x03 || id == 0x04) {

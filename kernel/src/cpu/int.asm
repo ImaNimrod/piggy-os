@@ -127,7 +127,6 @@ syscall_entry:
 
     mov rsp, qword [gs:0024]
     swapgs
-
     o64 sysret
 
 ; this is run by each of the CPUs when they receive a panic IPI

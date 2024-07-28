@@ -21,7 +21,7 @@ static void print_number(int64_t number, size_t radix, char padding, int pad_len
     int count = 0;
 
     if (number < 0 && !is_unsigned) {
-        serial_putc(COM1, '-');
+        outb(0xe9, '-');
         number = -number;
     }
 
@@ -34,18 +34,18 @@ static void print_number(int64_t number, size_t radix, char padding, int pad_len
 
     if (pad_length > count) {
         for (i = 0; i < pad_length - count; i++) {
-            serial_putc(COM1, padding);
+            outb(0xe9, padding);
         }
     }
 
     for (i = count - 1; i > -1; i--) {
-        serial_putc(COM1, (arr[i] < 10 ? '0' + arr[i] : 'a' + arr[i] - 10));
+        outb(0xe9, (arr[i] < 10 ? '0' + arr[i] : 'a' + arr[i] - 10));
     }
 }
 
 static void puts(const char* str) {
     while (*str != '\0') {
-        serial_putc(COM1, *str);
+        outb(0xe9, *str);
         str++;
     }
 }
@@ -56,7 +56,7 @@ static void klog_internal(const char* fmt, va_list args) {
     char c;
     while ((c = *(fmt++)) != '\0') {
         if (c != '%') {
-            serial_putc(COM1, c);
+            outb(0xe9, c);
         } else {
             char padding = ' ';
             int pad_to = 0;
@@ -76,7 +76,7 @@ static void klog_internal(const char* fmt, va_list args) {
                 case '\0':
                     return;
                 case '%':
-                    serial_putc(COM1, '%');
+                    outb(0xe9, '%');
                     break;
                 case 'd':
                 case 'u':
@@ -87,7 +87,7 @@ static void klog_internal(const char* fmt, va_list args) {
                     print_number(va_arg(args, int64_t), c == 'x' ? 16 : 8, padding, pad_to, true);
                     break;
                 case 'c':
-                    serial_putc(COM1, (char) va_arg(args, int));
+                    outb(0xe9, (char) va_arg(args, int));
                     break;
                 case 's':
                     str = va_arg(args, const char*);
@@ -98,7 +98,7 @@ static void klog_internal(const char* fmt, va_list args) {
                     puts(str);
                     break;
                 default:
-                    serial_putc(COM1, c);
+                    outb(0xe9, c);
                     break;
             }
         }
