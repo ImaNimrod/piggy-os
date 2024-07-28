@@ -11,9 +11,10 @@ global syscall3
 
 set_errno_if_negative:
     cmp rdi, 0
-    jg .end
+    jge .end
     neg rdi
     mov [errno], rdi
+    mov rax, -1
 set_errno_if_negative.end:
     ret
 

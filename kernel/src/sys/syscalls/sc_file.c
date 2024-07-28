@@ -21,6 +21,11 @@ void syscall_open(struct registers* r) {
     klog("[syscall] running syscall_open (path: %s, flags: %04o) on (pid: %u, tid: %u)\n",
             path, flags, current_process->pid, current_thread->tid);
 
+    if (path == NULL || *path == '\0') {
+        r->rax = -ENOENT;
+        return;
+    }
+
     if (!check_user_ptr(path)) {
         r->rax = -EFAULT;
         return;
@@ -75,6 +80,44 @@ void syscall_open(struct registers* r) {
     }
 
     r->rax = fdnum;
+}
+
+void syscall_mkdir(struct registers* r) {
+    const char* path = (char*) r->rdi;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    USER_ACCESS_BEGIN;
+
+    klog("[syscall] running syscall_mkdir (path: %s) on (pid: %u, tid: %u)\n",
+            path, current_process->pid, current_thread->tid);
+
+    if (path == NULL || *path == '\0') {
+        r->rax = -ENOENT;
+        return;
+    }
+
+    if (!check_user_ptr(path)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
+    struct vfs_node* node = vfs_get_node(current_process->cwd, path);
+    if (node != NULL) {
+        r->rax = -EEXIST;
+        return;
+    }
+
+    node = vfs_create(current_process->cwd, path, S_IFDIR);
+    if (node == NULL) {
+        r->rax = -ENOENT;
+        return;
+    }
+
+    USER_ACCESS_END;
+
+    r->rax = 0;
 }
 
 void syscall_close(struct registers* r) {

@@ -25,6 +25,7 @@ struct stat {
 };
 
 int fstat(int, struct stat*);
+int mkdir(const char*, ...);
 int stat(const char*, struct stat*);
 
 #endif /* _SYS_STAT_H */

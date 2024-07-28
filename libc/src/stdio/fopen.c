@@ -12,7 +12,7 @@ FILE* fopen(const char* path, const char* mode) {
     }
 
     int fd = open(path, flags);
-    if (fd == -1) {
+    if (fd < 0) {
         return NULL;
     }
 

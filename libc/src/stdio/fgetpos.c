@@ -2,7 +2,7 @@
 
 int fgetpos(FILE* stream, fpos_t* pos) {
     long ret = ftell(stream);
-    if (ret == -1) {
+    if (ret < 0) {
         return -1;
     }
 

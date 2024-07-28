@@ -54,7 +54,7 @@ void cmdline_parse(void) {
     }
 
     char* cmdline = kernel_file_response->kernel_file->cmdline;
-    if (cmdline == NULL || strlen(cmdline) == 0) {
+    if (cmdline == NULL || *cmdline == '\0') {
         return;
     }
 

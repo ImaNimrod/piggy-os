@@ -19,6 +19,7 @@ extern void syscall_thread_create(struct registers* r);
 extern void syscall_thread_exit(struct registers* r);
 extern void syscall_sbrk(struct registers* r);
 extern void syscall_open(struct registers* r);
+extern void syscall_mkdir(struct registers* r);
 extern void syscall_close(struct registers* r);
 extern void syscall_read(struct registers* r);
 extern void syscall_write(struct registers* r);
@@ -43,6 +44,7 @@ static syscall_handler_t syscall_table[] = {
     syscall_thread_exit,
     syscall_sbrk,
     syscall_open,
+    syscall_mkdir,
     syscall_close,
     syscall_read,
     syscall_write,

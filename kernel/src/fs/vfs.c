@@ -58,7 +58,7 @@ static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {
 }
 
 static struct path2node_res path2node(struct vfs_node* parent, const char* path) {
-    if (!path || strlen(path) == 0) {
+    if (!path || *path == '\0') {
         return (struct path2node_res) {0};
     }
 
@@ -221,7 +221,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
     }
 
     struct vfs_node* source_node = NULL;
-    if (source != NULL && strlen(source) != 0) {
+    if (source != NULL && *source != '\0') {
         r = path2node(parent, source);
         source_node = r.node;
         if (source_node == NULL) {
