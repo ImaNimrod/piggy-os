@@ -27,7 +27,7 @@ struct vfs_node* devfs_create_device(const char* name) {
 
     struct vfs_node* dev_node = vfs_create_node(&devfs, devfs_root, name, false);
     if (dev_node == NULL) {
-        kpanic(NULL, "failed to create devfs node");
+        kpanic(NULL, false, "failed to create devfs node");
     }
 
     spinlock_acquire(&devfs_root->lock);

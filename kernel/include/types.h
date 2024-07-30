@@ -74,6 +74,10 @@
 #define ECHOCTL 0020
 #define ICANON  0100  
 
+#define CLOCK_REALTIME  0
+#define CLOCK_MONOTONIC 1
+#define CLOCK_BOOTTIME  2
+
 typedef int64_t off_t;
 typedef int64_t ssize_t;
 
@@ -89,6 +93,13 @@ typedef int64_t blkcnt_t;
 
 typedef uint32_t tcflag_t;
 typedef uint32_t cc_t;
+
+typedef int64_t time_t;
+
+struct timespec {
+    time_t tv_sec;
+    time_t tv_nsec;
+};
 
 struct stat {
     dev_t st_dev;

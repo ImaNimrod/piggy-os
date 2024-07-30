@@ -12,7 +12,8 @@ extern struct vfs_node* vfs_root;
 
 struct vfs_filesystem {
     struct vfs_node *(*mount)(struct vfs_node*, struct vfs_node*, const char*);
-    struct vfs_node *(*create)(struct vfs_filesystem*, struct vfs_node*, const char*, int);
+    struct vfs_node *(*create)(struct vfs_filesystem*, struct vfs_node*, const char*, mode_t);
+    struct vfs_node *(*unlink)(struct vfs_node*, const char*);
 };
 
 struct vfs_node {

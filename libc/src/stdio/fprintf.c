@@ -10,5 +10,6 @@ int fprintf(FILE* stream, const char* fmt, ...) {
 }
 
 int vfprintf(FILE* stream, const char* fmt, va_list args) {
-    return __vafprintf(stream, fmt, args);
+    union callback_data cb = { .stream = stream };
+    return __printf_internal(&cb, FPRINTF, fmt, args);
 }

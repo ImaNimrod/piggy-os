@@ -58,7 +58,7 @@ static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t tar
     } else if (lint == 1) {
         lapic_write(LAPIC_REG_LVT_LINT1, entry);
     } else {
-        kpanic(NULL, "invalid LINT number %u for LAPIC NMI", lint);
+        kpanic(NULL, false, "invalid LINT number %u for LAPIC NMI", lint);
     }
 }
 

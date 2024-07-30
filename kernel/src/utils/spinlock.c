@@ -16,7 +16,7 @@ void spinlock_acquire(spinlock_t* lock) {
 
         count++;
         if (count >= 10000000) {
-            kpanic(NULL, "deadlock!");
+            kpanic(NULL, true, "deadlock!");
         }
 
         pause();

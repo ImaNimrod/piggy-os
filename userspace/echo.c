@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 int main(int argc, char** argv) {
-    for (int i = 0; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         puts(argv[i]);
         if (i + 1 < argc) {
             putchar(' ');

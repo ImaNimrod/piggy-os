@@ -4,24 +4,22 @@
 #include <string.h>
 #include <unistd.h>
 
-static char* program_name;
+#define PROGRAM_NAME "touch"
 
 static void print_error(void) {
-    fprintf(stderr, "try '%s -h' for more information\n", program_name);
+    fputs("try " PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
-    printf("Usage: %s [OPTION]... FILE...\n \
+    puts("Usage: " PROGRAM_NAME " [OPTION]... FILE...\n \
             Update the atime and mtime of each FILE to the current timestamp.\n \
             A FILE argument that does not exist is created empty, unless -c is supplied.\n \
             A FILE argument that of - is causes touch to change the times of the file associated with stdout.\n\n \
             -c        do not create any files\n \
-            -h        display this help and exit\n", program_name);
+            -h        display this help and exit\n");
 }
 
 int main(int argc, char** argv) {
-    program_name = argv[0];
-
     bool no_create = false;
 
     int c;
@@ -40,7 +38,7 @@ int main(int argc, char** argv) {
     }
 
     if (optind >= argc) {
-        fprintf(stderr, "%s: missing operand\n", program_name);
+        fputs(PROGRAM_NAME ": missing operand\n", stderr);
         print_error();
         return EXIT_FAILURE;
     }
@@ -54,7 +52,7 @@ int main(int argc, char** argv) {
         }
 
         if (fd < 0) {
-            perror(program_name);
+            perror(PROGRAM_NAME);
             return EXIT_FAILURE;
         }
 

@@ -9,7 +9,7 @@ struct madt_lapic_nmi* madt_lapic_nmi_entries[LAPIC_NMI_NUM];
 void madt_init(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
     if (madt == NULL) {
-        kpanic(NULL, "system does not have a MADT");
+        kpanic(NULL, false, "system does not have a MADT");
     }
 
     if (madt->flags & 1) {

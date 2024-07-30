@@ -16,11 +16,13 @@
 #include <mem/vmm.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <sys/time.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/random.h>
 
 static void kernel_main(void) {
+    time_init();
     random_init();
 
     vfs_init();
@@ -38,11 +40,11 @@ static void kernel_main(void) {
     ps2_init();
 
     if (!initrd_unpack()) {
-        kpanic(NULL, "failed to unpack initrd");
+        kpanic(NULL, false, "failed to unpack initrd");
     }
 
     if (!process_create_init()) {
-        kpanic(NULL, "failed to create init process");
+        kpanic(NULL, false, "failed to create init process");
     }
 
     sched_thread_destroy(this_cpu()->running_thread);

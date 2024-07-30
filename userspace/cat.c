@@ -5,33 +5,30 @@
 #include <unistd.h>
 
 #define CAT_BUF_SIZE 1024
-
-static char* program_name;
+#define PROGRAM_NAME "cat"
 
 static void cat(int fd) {
     char* buf = malloc(CAT_BUF_SIZE * sizeof(char));
     if (!buf) {
-        perror(program_name);
+        perror(PROGRAM_NAME);
         exit(EXIT_FAILURE);
     }
 
     ssize_t n;
     while ((n = read(fd, buf, CAT_BUF_SIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, n) != n) {
-            perror(program_name);
+            perror(PROGRAM_NAME);
             exit(EXIT_FAILURE);
         }
     }
 
     if (n < 0) {
-        perror(program_name);
+        perror(PROGRAM_NAME);
         exit(EXIT_FAILURE);
     }
 }
 
 int main(int argc, char** argv) {
-    program_name = argv[0];
-
     if (argc <= 1) {
         cat(STDIN_FILENO);
     } else {
@@ -44,7 +41,7 @@ int main(int argc, char** argv) {
             }
 
             if (fd < 0) {
-                perror(program_name);
+                perror(PROGRAM_NAME);
                 return EXIT_FAILURE;
             }
 

@@ -115,110 +115,161 @@ size_t __write_bytes(FILE* stream, const unsigned char* buf, size_t size) {
     return written;
 }
 
-union callback_data {
-    FILE* stream;
-    struct {
-        char* str;
-        size_t size;
-        size_t written;
-    } buf;
-};
+static int fprintf_callback(union callback_data* cd, char c) {
+	fputc(c, cd->stream);
+	return 0;
+}
 
-static size_t print_dec(FILE* stream, unsigned long long value, unsigned int width, int fill_zero, int align_right, int precision) {
-	size_t written = 0;
+static int sprintf_callback(union callback_data* cd, char c) {
+    cd->buf.str[cd->buf.written] = c;
+    cd->buf.written++;
+    return 0;
 
-	unsigned long long n_width = 1;
-	unsigned long long i = 9;
+}
 
-	if (precision == -1) {
+static int snprintf_callback(union callback_data* cd, char c) {
+    if (cd->buf.size > cd->buf.written + 1) {
+        cd->buf.str[cd->buf.written] = c;
+
+        cd->buf.written++;
+        if (cd->buf.written < cd->buf.size) {
+            cd->buf.str[cd->buf.written] = '\0';
+        }
+    }
+
+    return 0;
+}
+
+static size_t print_dec(union callback_data* cd, int callback_type, unsigned long long value, unsigned int width, int fill_zero, int align_right, int precision) {
+    int (*callback)(union callback_data*, char) = NULL;
+    switch (callback_type) {
+        case FPRINTF:
+            callback = fprintf_callback;
+            break;
+        case SPRINTF:
+            callback = sprintf_callback;
+            break;
+        case SNPRINTF:
+            callback = snprintf_callback;
+            break;
+        default: __builtin_unreachable();
+    }
+
+    size_t written = 0;
+
+    unsigned long long n_width = 1;
+    unsigned long long i = 9;
+
+    if (precision == -1) {
         precision = 1;
     }
 
-	if (value == 0) {
-		n_width = 0;
-	} else {
-		unsigned long long val = value;
-		while (val >= 10UL) {
-			val /= 10UL;
-			n_width++;
-		}
-	}
+    if (value == 0) {
+        n_width = 0;
+    } else {
+        unsigned long long val = value;
+        while (val >= 10UL) {
+            val /= 10UL;
+            n_width++;
+        }
+    }
 
-	if (n_width < (unsigned long long) precision) {
+    if (n_width < (unsigned long long) precision) {
         n_width = precision;
     }
 
-	int printed = 0;
-	if (align_right) {
-		while (n_width + printed < width) {
-            fputc(fill_zero ? '0' : ' ', stream);
-			printed += 1;
-		}
+    int printed = 0;
+    if (align_right) {
+        while (n_width + printed < width) {
+            callback(cd, fill_zero ? '0' : ' ');
+            written++;
+            printed += 1;
+        }
 
-		i = n_width;
-		char tmp[100];
-		while (i > 0) {
-			unsigned long long n = value / 10;
-			long long r = value % 10;
-			tmp[i - 1] = r + '0';
-			i--;
-			value = n;
-		}
-		while (i < n_width) {
-            fputc(tmp[i], stream);
-			i++;
-		}
-	} else {
-		i = n_width;
-		char tmp[100];
-		while (i > 0) {
-			unsigned long long n = value / 10;
-			long long r = value % 10;
-			tmp[i - 1] = r + '0';
-			i--;
-			value = n;
-			printed++;
-		}
-		while (i < n_width) {
-            fputc(tmp[i], stream);
-			i++;
-		}
-		while (printed < (long long)width) {
-            fputc(fill_zero ? '0' : ' ', stream);
-			printed += 1;
-		}
-	}
+        i = n_width;
+        char tmp[100];
+        while (i > 0) {
+            unsigned long long n = value / 10;
+            long long r = value % 10;
+            tmp[i - 1] = r + '0';
+            i--;
+            value = n;
+        }
+        while (i < n_width) {
+            callback(cd, tmp[i]);
+            written++;
+            i++;
+        }
+    } else {
+        i = n_width;
+        char tmp[100];
+        while (i > 0) {
+            unsigned long long n = value / 10;
+            long long r = value % 10;
+            tmp[i - 1] = r + '0';
+            i--;
+            value = n;
+            printed++;
+        }
+        while (i < n_width) {
+            callback(cd, tmp[i]);
+            written++;
+            i++;
+        }
+        while (printed < (long long) width) {
+            callback(cd, fill_zero ? '0' : ' ');
+            written++;
+            printed++;
+        }
+    }
 
-	return written;
+    return written;
 }
 
-static size_t print_hex(FILE* stream, unsigned long long value, unsigned int width, int fill_zero, int alt, int caps, int align) {
+static size_t print_hex(union callback_data* cd, int callback_type, unsigned long long value, unsigned int width, int fill_zero, int alt, int caps, int align) {
+    int (*callback)(union callback_data*, char) = NULL;
+    switch (callback_type) {
+        case FPRINTF:
+            callback = fprintf_callback;
+            break;
+        case SPRINTF:
+            callback = sprintf_callback;
+            break;
+        case SNPRINTF:
+            callback = snprintf_callback;
+            break;
+        default: __builtin_unreachable();
+    }
+
 	size_t written = 0;
 	int i = width;
 
 	unsigned long long n_width = 1;
-	unsigned long long j = 0x0F;
+	unsigned long long j = 0x0f;
 	while (value > j && j < UINT64_MAX) {
 		n_width += 1;
 		j *= 0x10;
-		j += 0x0F;
+		j += 0x0f;
 	}
 
 	if (!fill_zero && align == 1) {
 		while (i > (long long) n_width + 2 * !!alt) {
-            fputc(' ', stream);
+            callback(cd, ' ');
+            written++;
 			i--;
 		}
 	}
 
 	if (alt) {
-        fputc('0', stream);
-		fputc(caps ? 'X' : 'x', stream);
+        callback(cd, '0');
+		callback(cd, caps ? 'X' : 'x');
+        written += 2;
 	}
 
 	if (fill_zero && align == 1) {
 		while (i > (long long) n_width + 2 * !!alt) {
-            fputc('0', stream);
+            callback(cd, '0');
+            written++;
 			i--;
 		}
 	}
@@ -226,13 +277,15 @@ static size_t print_hex(FILE* stream, unsigned long long value, unsigned int wid
 	i = (long long) n_width;
 	while (i-- > 0) {
 		char c = (caps ? "0123456789ABCDEF" : "0123456789abcdef")[(value >> (i * 4)) & 0xf];
-        fputc(c, stream);
+        callback(cd, c);
+        written++;
 	}
 
 	if (align == 0) {
 		i = width;
 		while (i > (long long) n_width + 2 * !!alt) {
-            fputc(' ', stream);
+            callback(cd, ' ');
+            written++;
 			i--;
 		}
 	}
@@ -240,13 +293,31 @@ static size_t print_hex(FILE* stream, unsigned long long value, unsigned int wid
 	return written;
 }
 
-int __vafprintf(FILE* stream, const char* fmt, va_list args) {
+int __printf_internal(union callback_data* cd, int callback_type, const char* fmt, va_list args) {
+    int (*callback)(union callback_data*, char) = NULL;
+    switch (callback_type) {
+        case FPRINTF:
+            callback = fprintf_callback;
+            break;
+        case SPRINTF:
+            callback = sprintf_callback;
+            break;
+        case SNPRINTF:
+            callback = snprintf_callback;
+            break;
+        default: __builtin_unreachable();
+    }
+
     char* s;
     size_t written = 0;
 
-    for (const char *f = fmt; *f; f++) {
+    unsigned long long ullval;
+    long long llval;
+
+    for (const char *f = fmt; *f != '\0'; f++) {
         if (*f != '%') {
-            fputc(*f, stream);
+            callback(cd, *f);
+            written++;
             continue;
         }
 
@@ -338,89 +409,91 @@ int __vafprintf(FILE* stream, const char* fmt, va_list args) {
                               }
 
                               if (precision >= 0) {
-                                  while (*s && precision > 0) {
-                                      fputc(*s++, stream);
+                                  while (*s != '\0' && precision > 0) {
+                                      callback(cd, *s++);
+                                      written++;
                                       count++;
                                       precision--;
-                                      if (arg_width && count == arg_width) break;
+                                      if (arg_width && count == arg_width) {
+                                          break;
+                                      }
                                   }
                               } else {
-                                  while (*s) {
-                                      fputc(*s++, stream);
+                                  while (*s != '\0') {
+                                      callback(cd, *s++);
+                                      written++;
                                       count++;
-                                      if (arg_width && count == arg_width) break;
+                                      if (arg_width && count == arg_width) {
+                                          break;
+                                      }
                                   }
                               }
                           }
                           while (count < arg_width) {
-                              fputc(' ', stream);
+                              callback(cd, ' ');
+                              written++;
                               count++;
                           }
                       }
                       break;
             case 'c':
-                fputc((char) va_arg(args, int), stream);
+                callback(cd, (char) va_arg(args, int));
                 break;
             case 'p':
                 alt = 1;
-                if (sizeof(void*) == sizeof(long long)) big = 2; /* fallthrough */
-            case 'X':
-            case 'x': {
-                    unsigned long long val;
-                    if (big == 2) {
-                        val = (unsigned long long)va_arg(args, unsigned long long);
-                    } else if (big == 1) {
-                        val = (unsigned long)va_arg(args, unsigned long);
-                    } else {
-                        val = (unsigned int)va_arg(args, unsigned int);
-                    }
-                    written += print_hex(stream, val, arg_width, fill_zero, alt, !(*f & 32), align);
+                if (sizeof(void*) == sizeof(long long)) {
+                    big = 2;
                 }
+            case 'X':
+            case 'x':
+                if (big == 2) {
+                    ullval = (unsigned long long) va_arg(args, unsigned long long);
+                } else if (big == 1) {
+                    ullval = (unsigned long) va_arg(args, unsigned long);
+                } else {
+                    ullval = (unsigned int) va_arg(args, unsigned int);
+                }
+                written += print_hex(cd, callback_type, ullval, arg_width, fill_zero, alt, !(*f & 32), align);
                 break;
             case 'i':
-            case 'd': /* Decimal number */
-                {
-                    long long val;
-                    if (big == 2) {
-                        val = (long long)va_arg(args, long long);
-                    } else if (big == 1) {
-                        val = (long)va_arg(args, long);
-                    } else {
-                        val = (int)va_arg(args, int);
-                    }
-                    if (val < 0) {
-                        fputc('-', stream);
-                        val = -val;
-                    } else if (always_sign) {
-                        fputc(always_sign == 2 ? ' ' : '+', stream);
-                    }
-                    written += print_dec(stream, val, arg_width, fill_zero, align, precision);
+            case 'd':
+                if (big == 2) {
+                    llval = (long long) va_arg(args, long long);
+                } else if (big == 1) {
+                    llval = (long) va_arg(args, long);
+                } else {
+                    llval = (int) va_arg(args, int);
                 }
+                if (llval < 0) {
+                    callback(cd, '-');
+                    written++;
+                    llval = -llval;
+                } else if (always_sign) {
+                    callback(cd, always_sign == 2 ? ' ' : '+');
+                    written++;
+                }
+                written += print_dec(cd, callback_type, llval, arg_width, fill_zero, align, precision);
                 break;
-            case 'u': /* Unsigned ecimal number */
-                {
-                    unsigned long long val;
-                    if (big == 2) {
-                        val = (unsigned long long)va_arg(args, unsigned long long);
-                    } else if (big == 1) {
-                        val = (unsigned long)va_arg(args, unsigned long);
-                    } else {
-                        val = (unsigned int)va_arg(args, unsigned int);
-                    }
-                    written += print_dec(stream, val, arg_width, fill_zero, align, precision);
+            case 'u':
+                if (big == 2) {
+                    ullval = (unsigned long long) va_arg(args, unsigned long long);
+                } else if (big == 1) {
+                    ullval = (unsigned long) va_arg(args, unsigned long);
+                } else {
+                    ullval = (unsigned int) va_arg(args, unsigned int);
                 }
+                written += print_dec(cd, callback_type, ullval, arg_width, fill_zero, align, precision);
                 break;
             case '%':
-                fputc('%', stream);
+                callback(cd, '%');
+                written++;
                 break;
             default:
-                fputc(*f, stream);
+                callback(cd, *f);
+                written++;
                 break;
         }
     }
-    return written;
-}
 
-int __vasnprintf(char* str, size_t size, const char* fmt, va_list args) {
-    return -1;
+    return written;
 }

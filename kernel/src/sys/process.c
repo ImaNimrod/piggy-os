@@ -184,10 +184,8 @@ bool process_create_init(void) {
 
 void process_destroy(struct process* p, int status) {
     if (p->pid < 2) {
-        kpanic(NULL, "tried to exit init process");
+        kpanic(NULL, true, "tried to exit init process");
     }
-
-    spinlock_acquire(&process_lock);
 
     p->exit_code = (uint8_t) (status & 0xff);
     p->state = PROCESS_ZOMBIE;
@@ -213,6 +211,8 @@ void process_destroy(struct process* p, int status) {
     vector_destroy(p->threads);
 
     vmm_destroy_pagemap(p->pagemap);
+
+    spinlock_acquire(&process_lock);
 
     vector_remove_by_value(running_processes, p);
     vector_push_back(dead_processes, p);
@@ -499,21 +499,21 @@ void thread_destroy(struct thread* t) {
 void process_init(void) {
     process_cache = slab_cache_create("process cache", sizeof(struct process));
     if (process_cache == NULL) {
-        kpanic(NULL, "failed to initialize object cache for process structures");
+        kpanic(NULL, false, "failed to initialize object cache for process structures");
     }
 
     thread_cache = slab_cache_create("thread cache", sizeof(struct thread));
     if (thread_cache == NULL) {
-        kpanic(NULL, "failed to initialize object cache for thread structures");
+        kpanic(NULL, false, "failed to initialize object cache for thread structures");
     }
 
     running_processes = vector_create(sizeof(struct process*));
     if (running_processes == NULL) {
-        kpanic(NULL, "failed to create running process vector");
+        kpanic(NULL, false, "failed to create running process vector");
     }
 
     dead_processes = vector_create(sizeof(struct process*));
     if (dead_processes == NULL) {
-        kpanic(NULL, "failed to create dead process vector");
+        kpanic(NULL, false, "failed to create dead process vector");
     }
 }

@@ -8,7 +8,3 @@ int snprintf(char* str, size_t size, const char* fmt, ...) {
     va_end(args);
     return ret;
 }
-
-int vsnprintf(char* str, size_t size, const char* fmt, va_list args) {
-    return __vasnprintf(str, size, fmt, args);
-}

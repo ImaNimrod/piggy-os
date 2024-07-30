@@ -59,7 +59,7 @@ void hpet_sleep_ns(uint64_t ns) {
 void hpet_init(void) {
     struct hpet_table* hpet_table = (struct hpet_table*) acpi_find_sdt("HPET");
     if (hpet_table == NULL) {
-        kpanic(NULL, "system does not have a HPET");
+        kpanic(NULL, false, "system does not have a HPET");
     }
 
     uintptr_t hpet_paddr = hpet_table->address.base;

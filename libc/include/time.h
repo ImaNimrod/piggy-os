@@ -1,7 +1,12 @@
 #ifndef _TIME_H
 #define _TIME_H
 
+#include <stddef.h>
 #include <sys/types.h>
+
+#define CLOCK_REALTIME  0
+#define CLOCK_MONOTONIC 1
+#define CLOCK_BOOTTIME  2
 
 struct tm {
     int tm_sec;
@@ -15,8 +20,17 @@ struct tm {
     int tm_isdst;
 };
 
-// TODO: implement time.h functions
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
+};
+
+struct tm* gmtime(const time_t*);
+struct tm* gmtime_r(const time_t* __restrict, struct tm* __restrict);
+struct tm* localtime(const time_t*); 
+time_t mktime(struct tm*);
 size_t strftime(char* __restrict, size_t, const char* __restrict, const struct tm* __restrict);
 time_t time(time_t*);
+time_t timegm(struct tm*);
 
 #endif /* _TIME_H */

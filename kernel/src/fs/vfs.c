@@ -309,7 +309,7 @@ bool vfs_unregister_filesystem(const char* fs_name) {
 void vfs_init(void) {
     vfs_node_cache = slab_cache_create("vfs_node cache", sizeof(struct vfs_node));
     if (vfs_node_cache == NULL) {
-        kpanic(NULL, "failed to initialize object cache for vfs nodes");
+        kpanic(NULL, false, "failed to initialize object cache for vfs nodes");
     }
 
     vfs_root = vfs_create_node(NULL, NULL, "", false);

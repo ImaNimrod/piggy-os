@@ -157,12 +157,12 @@ void ps2_keyboard_init(void) {
 
     key_buffer = kmalloc(KEYBUFFER_SIZE * sizeof(uint8_t));
     if (key_buffer == NULL) {
-        kpanic(NULL, "failed to create key buffer for PS/2 keyboard device");
+        kpanic(NULL, false, "failed to create key buffer for PS/2 keyboard device");
     }
 
     struct vfs_node* kbd_node = devfs_create_device("keyboard");
     if (kbd_node == NULL) {
-        kpanic(NULL, "failed to create device node for PS/2 keyboard in devfs");
+        kpanic(NULL, false, "failed to create device node for PS/2 keyboard in devfs");
     }
 
     kbd_node->stat = (struct stat) {

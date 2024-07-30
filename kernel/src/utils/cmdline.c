@@ -49,9 +49,6 @@ char* cmdline_get(const char* key) {
 
 void cmdline_parse(void) {
     struct limine_kernel_file_response* kernel_file_response = kernel_file_request.response;
-    if (kernel_file_response == NULL || kernel_file_response->kernel_file == NULL) {
-        return;
-    }
 
     char* cmdline = kernel_file_response->kernel_file->cmdline;
     if (cmdline == NULL || *cmdline == '\0') {

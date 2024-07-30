@@ -1,8 +1,8 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -smp 2 -m 4G -no-reboot \
+EMUOPTS=-M q35 -smp 2 -m 4G -no-reboot -rtc base=localtime \
 		-bios /usr/share/edk2/x64/OVMF.fd \
-		-serial stdio
+		-debugcon stdio
 
 .PHONY: all
 all: $(IMAGE_NAME)

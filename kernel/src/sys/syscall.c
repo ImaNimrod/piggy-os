@@ -5,6 +5,31 @@
 #include <utils/log.h>
 #include <utils/math.h>
 
+#define SYS_EXIT            0
+#define SYS_FORK            1
+#define SYS_EXEC            2
+#define SYS_WAIT            3
+#define SYS_YIELD           4
+#define SYS_GETPID          5
+#define SYS_GETPPID         6
+#define SYS_GETTID          7
+#define SYS_THREAD_CREATE   8
+#define SYS_THREAD_EXIT     9
+#define SYS_SBRK            10
+#define SYS_OPEN            11
+#define SYS_MKDIR           12
+#define SYS_CLOSE           13
+#define SYS_READ            14
+#define SYS_WRITE           15
+#define SYS_IOCTL           16
+#define SYS_SEEK            17
+#define SYS_TRUNCATE        18
+#define SYS_STAT            19
+#define SYS_CHDIR           20
+#define SYS_GETCWD          21
+#define SYS_UTSNAME         22
+#define SYS_GETCLOCK        23
+
 typedef void (*syscall_handler_t)(struct registers*);
 
 extern void syscall_exit(struct registers* r);
@@ -30,31 +55,33 @@ extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 extern void syscall_utsname(struct registers* r);
+extern void syscall_getclock(struct registers* r);
 
 static syscall_handler_t syscall_table[] = {
-    syscall_exit,
-    syscall_fork,
-    syscall_exec,
-    syscall_wait,
-    syscall_yield,
-    syscall_getpid,
-    syscall_getppid,
-    syscall_gettid,
-    syscall_thread_create,
-    syscall_thread_exit,
-    syscall_sbrk,
-    syscall_open,
-    syscall_mkdir,
-    syscall_close,
-    syscall_read,
-    syscall_write,
-    syscall_ioctl,
-    syscall_seek,
-    syscall_truncate,
-    syscall_stat,
-    syscall_chdir,
-    syscall_getcwd,
-    syscall_utsname,
+    [SYS_EXIT]          = syscall_exit,
+    [SYS_FORK]          = syscall_fork,
+    [SYS_EXEC]          = syscall_exec,
+    [SYS_WAIT]          = syscall_wait,
+    [SYS_YIELD]         = syscall_yield,
+    [SYS_GETPID]        = syscall_getpid,
+    [SYS_GETPPID]       = syscall_getppid,
+    [SYS_GETTID]        = syscall_gettid,
+    [SYS_THREAD_CREATE] = syscall_thread_create,
+    [SYS_THREAD_EXIT]   = syscall_thread_exit,
+    [SYS_SBRK]          = syscall_sbrk,
+    [SYS_OPEN]          = syscall_open,
+    [SYS_MKDIR]         = syscall_mkdir,
+    [SYS_CLOSE]         = syscall_close,
+    [SYS_READ]          = syscall_read,
+    [SYS_WRITE]         = syscall_write,
+    [SYS_IOCTL]         = syscall_ioctl,
+    [SYS_SEEK]          = syscall_seek,
+    [SYS_TRUNCATE]      = syscall_truncate,
+    [SYS_STAT]          = syscall_stat,
+    [SYS_CHDIR]         = syscall_chdir,
+    [SYS_GETCWD]        = syscall_getcwd,
+    [SYS_UTSNAME]       = syscall_utsname,
+    [SYS_GETCLOCK]      = syscall_getclock,
 };
 
 void syscall_handler(struct registers* r) {

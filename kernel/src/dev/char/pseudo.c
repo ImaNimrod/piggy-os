@@ -69,7 +69,7 @@ void pseudo_init(void) {
 
     struct vfs_node* null_node = devfs_create_device("null");
     if (null_node == NULL) {
-        kpanic(NULL, "failed to create null device node in devfs");
+        kpanic(NULL, false, "failed to create null device node in devfs");
     }
 
     memcpy(&null_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -80,7 +80,7 @@ void pseudo_init(void) {
 
     struct vfs_node* zero_node = devfs_create_device("zero");
     if (zero_node == NULL) {
-        kpanic(NULL, "failed to create zero device node in devfs");
+        kpanic(NULL, false, "failed to create zero device node in devfs");
     }
 
     memcpy(&zero_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -91,12 +91,12 @@ void pseudo_init(void) {
 
     struct rng_state* rng = rng_create();
     if (rng == NULL) {
-        kpanic(NULL, "failed to initialize PRNG for random device");
+        kpanic(NULL, false, "failed to initialize PRNG for random device");
     }
 
     struct vfs_node* random_node = devfs_create_device("random");
     if (random_node == NULL) {
-        kpanic(NULL, "failed to create random device node in devfs");
+        kpanic(NULL, false, "failed to create random device node in devfs");
     }
 
     memcpy(&random_node->stat, &pseudo_stat, sizeof(struct stat));
@@ -109,7 +109,7 @@ void pseudo_init(void) {
 
     struct vfs_node* full_node = devfs_create_device("full");
     if (full_node == NULL) {
-        kpanic(NULL, "failed to create full device node in devfs");
+        kpanic(NULL, false, "failed to create full device node in devfs");
     }
 
     memcpy(&full_node->stat, &pseudo_stat, sizeof(struct stat));

@@ -4,14 +4,14 @@
 #include <sys/utsname.h>
 #include <unistd.h>
 
-static char* program_name;
+#define PROGRAM_NAME "uname"
 
 static void print_error(void) {
-    fprintf(stderr, "try '%s -h' for more information\n", program_name);
+    fputs("try " PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
-    printf("Usage: %s [OPTION]...\n \
+    puts("Usage: " PROGRAM_NAME " [OPTION]...\n \
             Print system information. With no OPTION, same as -s.\n\n \
             -a        print all information in the following order\n \
             -s        print the kernel name\n \
@@ -19,7 +19,7 @@ static void print_help(void) {
             -r        print the kernel release\n \
             -v        print the kernel version\n \
             -m        print the machine hardware name\n \
-            -h        display this help and exit\n", program_name);
+            -h        display this help and exit\n");
 }
 
 static void print_info(char* str) {
@@ -33,8 +33,6 @@ static void print_info(char* str) {
 }
 
 int main(int argc, char** argv) {
-    program_name = argv[0];
-
     bool print_sysname = false, print_nodename = false, print_release = false,
          print_version = false, print_machine = false;
 
@@ -79,7 +77,7 @@ int main(int argc, char** argv) {
 
     struct utsname uts;
     if (utsname(&uts) < 0) {
-        perror(program_name);
+        perror(PROGRAM_NAME);
         return EXIT_FAILURE;
     }
 

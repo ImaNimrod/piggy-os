@@ -1,6 +1,7 @@
 #include <config.h>
 #include <cpu/isr.h>
 #include <errno.h>
+#include <sys/process.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/user_access.h>

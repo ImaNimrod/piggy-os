@@ -182,7 +182,7 @@ void fbdev_init(void) {
 
         struct fb_info* fb_info = kmalloc(sizeof(struct fb_info));
         if (fb_info == NULL) {
-            kpanic(NULL, "failed to allocate memory for framebuffer device info");
+            kpanic(NULL, false, "failed to allocate memory for framebuffer device info");
         }
 
         fb_info->framebuffer = framebuffer;
@@ -213,7 +213,7 @@ void fbdev_init(void) {
 
         struct vfs_node* fbdev_node = devfs_create_device(strdup(fbdev_name));
         if (fbdev_node == NULL) {
-            kpanic(NULL, "failed to create device node for framebuffer #%u in devfs", i);
+            kpanic(NULL, false, "failed to create device node for framebuffer #%u in devfs", i);
         }
 
         memcpy(&fbdev_node->stat, &fbdev_stat, sizeof(struct stat));

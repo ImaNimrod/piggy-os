@@ -211,17 +211,17 @@ void tty_init(void) {
 
     struct tty* tty = kmalloc(sizeof(struct tty));
     if (tty == NULL) {
-        kpanic(NULL, "failed to allocate memory for tty");
+        kpanic(NULL, false, "failed to allocate memory for tty");
     }
 
     tty->input_buf = ringbuf_create(8192, sizeof(char));
     if (tty->input_buf == NULL) {
-        kpanic(NULL, "failed to allocate memory for tty input buffer");
+        kpanic(NULL, false ,"failed to create tty input buffer");
     }
 
     tty->canon_buf = ringbuf_create(256, sizeof(ringbuf_t*));
     if (tty->canon_buf == NULL) {
-        kpanic(NULL, "failed to allocate memory for tty canon line buffer");
+        kpanic(NULL, false, "failed to create tty canonical line buffer");
     }
 
     tty->attr.c_lflag = ECHO | ECHOE | ECHOCTL | ICANON;
@@ -261,7 +261,7 @@ void tty_init(void) {
 
     struct vfs_node* tty_node = devfs_create_device("tty0");
     if (tty_node == NULL) {
-        kpanic(NULL, "failed to create tty node in devfs");
+        kpanic(NULL, false, "failed to create tty node in devfs");
     }
 
     tty_node->stat = (struct stat) {

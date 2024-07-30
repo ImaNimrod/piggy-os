@@ -2,11 +2,7 @@
 #include <string.h>
 
 void* calloc(size_t nmemb, size_t size) {
-    size_t length;
-
-    if (__builtin_mul_overflow(nmemb, size, &length)) {
-        return NULL;
-    }
+    size_t length = nmemb * size;
 
     void* ptr = malloc(length);
     if (ptr) {

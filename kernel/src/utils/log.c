@@ -3,6 +3,7 @@
 #include <cpu/smp.h>
 #include <dev/lapic.h>
 #include <dev/serial.h>
+#include <stdarg.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
@@ -105,6 +106,24 @@ static void klog_internal(const char* fmt, va_list args) {
     }
 }
 
+static void print_stack_trace(uintptr_t* base_ptr) {
+    if (base_ptr == NULL) {
+        return;
+    }
+
+    puts("stack trace:\n");
+    for (;;) {
+        uintptr_t* old_bp = (uintptr_t*) base_ptr[0];
+        uintptr_t* ret_addr = (uintptr_t*) base_ptr[1];
+        if (old_bp == NULL || ret_addr == NULL || (uintptr_t) ret_addr < HIGH_VMA) {
+            break;
+        }
+
+        klog("      [0x%016x]\n", (uintptr_t) ret_addr);
+        base_ptr = old_bp;
+    }
+}
+
 void klog(const char* fmt, ...) {
     if (!cmdline_early_get_klog() || fmt == NULL) {
         return;
@@ -122,7 +141,7 @@ void klog(const char* fmt, ...) {
     spinlock_release(&print_lock);
 }
 
-__attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...) {
+__attribute__((noreturn)) void kpanic(struct registers* r, bool trace_stack, const char* fmt, ...) {
     cli();
 
     if (cmdline_early_get_klog()) {
@@ -143,6 +162,14 @@ __attribute__((noreturn)) void kpanic(struct registers* r, const char* fmt, ...)
             klog("R12: 0x%016x R13: 0x%016x R14: 0x%016x R15: 0x%016x\n", r->r12, r->r13, r->r14, r->r15);
             klog("CR0: 0x%016x CR2: 0x%016x CR3: 0x%016x CR4: 0x%016x\n", read_cr0(), read_cr2(), read_cr3(), read_cr4());
             klog("RIP: 0x%016x RFLAGS: 0x%016x CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x", r->rip, r->rflags, r->cs, r->ss, r->error_code);
+        }
+
+        if (trace_stack) {
+            puts("\n===============================================================================================\nstack trace:\n");
+            uintptr_t* base_ptr;
+            __asm__ volatile("movq %%rbp,%0" : "=r" (base_ptr) ::);
+            print_stack_trace(base_ptr);
+
         }
 
         puts("\n===============================================================================================\n");

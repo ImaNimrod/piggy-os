@@ -67,7 +67,7 @@ uintptr_t pmm_alloc(size_t pages) {
     }
 
     if (ret == (uintptr_t) -1) {
-        kpanic(NULL, "pmm unable to allocate %u physical pages", pages);
+        kpanic(NULL, true, "pmm unable to allocate %u physical pages", pages);
     }
 
     used_pages += pages;

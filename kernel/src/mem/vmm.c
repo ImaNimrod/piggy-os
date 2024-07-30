@@ -105,7 +105,7 @@ static void page_fault_handler(struct registers* r) {
         }
     } 
 
-    kpanic(r, "page fault occurred in kernel");
+    kpanic(r, true, "page fault occurred in kernel");
 }
 
 struct pagemap* vmm_new_pagemap(void) {
@@ -322,13 +322,13 @@ void vmm_init(void) {
 
     pagemap_cache = slab_cache_create("pagemap cache", sizeof(struct pagemap));
     if (pagemap_cache == NULL) {
-        kpanic(NULL, "failed to initialize object cache for pagemaps");
+        kpanic(NULL, false, "failed to initialize object cache for pagemaps");
     }
 
     kernel_pagemap = cache_alloc_object(pagemap_cache);
     kernel_pagemap->top_level = (uint64_t*) pmm_allocz(1);
     if (kernel_pagemap->top_level == NULL) {
-        kpanic(NULL, "failed to allocate memory for kernel pagemap top level");
+        kpanic(NULL, false, "failed to allocate memory for kernel pagemap top level");
     }
 
     kernel_pagemap->top_level = (uint64_t*) ((uintptr_t) kernel_pagemap->top_level + HIGH_VMA);

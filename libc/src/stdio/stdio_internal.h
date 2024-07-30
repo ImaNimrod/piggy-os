@@ -27,10 +27,24 @@ struct __FILE {
 
 extern FILE* __file_list_head;
 
+enum {
+    FPRINTF,
+    SPRINTF,
+    SNPRINTF
+};
+
+union callback_data {
+    FILE* stream;
+    struct {
+        char* str;
+        size_t size;
+        size_t written;
+    } buf;
+};
+
 int __fopen_mode_to_flags(const char*);
 size_t __read_bytes(FILE*, unsigned char*, size_t);
 size_t __write_bytes(FILE*, const unsigned char*, size_t);
-int __vafprintf(FILE*, const char*, va_list);
-int __vasnprintf(char*, size_t, const char*, va_list);
+int __printf_internal(union callback_data*, int, const char*, va_list);
 
 #endif /* STDIO_INTERNAL_H */

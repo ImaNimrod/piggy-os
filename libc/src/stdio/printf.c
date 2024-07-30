@@ -8,7 +8,3 @@ int printf(const char* fmt, ...) {
     va_end(args);
 	return ret;
 }
-
-int vprintf(const char* fmt, va_list args) {
-    return __vafprintf(stdout, fmt, args);
-}
