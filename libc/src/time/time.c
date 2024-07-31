@@ -1,7 +1,7 @@
 #include <sys/syscall.h>
 #include "time_internal.h"
 
-static inline int getclock(int clktyp, struct timespec* tp) {
+static inline int getclock(clockid_t clktyp, struct timespec* tp) {
     return syscall2(SYS_GETCLOCK, clktyp, (uint64_t) tp);
 }
 

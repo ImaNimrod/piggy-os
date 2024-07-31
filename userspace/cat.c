@@ -4,8 +4,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#define CAT_BUF_SIZE 1024
 #define PROGRAM_NAME "cat"
+
+#define CAT_BUF_SIZE 1024
 
 static void cat(int fd) {
     char* buf = malloc(CAT_BUF_SIZE * sizeof(char));

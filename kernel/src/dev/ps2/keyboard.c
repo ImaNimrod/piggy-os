@@ -7,6 +7,7 @@
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/ringbuf.h>
@@ -172,6 +173,9 @@ void ps2_keyboard_init(void) {
         .st_size = 0,
         .st_blksize = 4096,
         .st_blocks = 0,
+        .st_atim = time_realtime,
+        .st_ctim = time_realtime,
+        .st_mtim = time_realtime
     };
 
     kbd_node->read = keyboard_read;

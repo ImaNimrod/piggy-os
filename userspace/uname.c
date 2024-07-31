@@ -11,15 +11,7 @@ static void print_error(void) {
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]...\n \
-            Print system information. With no OPTION, same as -s.\n\n \
-            -a        print all information in the following order\n \
-            -s        print the kernel name\n \
-            -n        print the network hostname\n \
-            -r        print the kernel release\n \
-            -v        print the kernel version\n \
-            -m        print the machine hardware name\n \
-            -h        display this help and exit\n");
+    puts("Usage: " PROGRAM_NAME " [OPTION]...\nPrint system information. With no OPTION, same as -s.\n\n-a\tprint all information in the following order\n-s\tprint the kernel name\n-n\tprint the network hostname\n-r\tprint the kernel release\n-v\tprint the kernel version\n-m\tprint the machine hardware name\n-h\tdisplay this help and exit\n");
 }
 
 static void print_info(char* str) {

@@ -2,6 +2,7 @@
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <sys/time.h>
 #include <types.h>
 #include <utils/math.h>
 #include <utils/spinlock.h>
@@ -34,6 +35,8 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
     }
 
     memcpy(buf, (void*) ((uintptr_t) metadata->data + offset), actual_count);
+
+    node->stat.st_atim = time_realtime;
 
     spinlock_release(&node->lock);
     return actual_count;
@@ -69,6 +72,8 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
         node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
     }
 
+    node->stat.st_atim = node->stat.st_mtim = time_realtime;
+
     spinlock_release(&node->lock);
     return count;
 }
@@ -98,6 +103,7 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
 
     node->stat.st_size = length;
     node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
+    node->stat.st_atim = node->stat.st_mtim = time_realtime;
 
     spinlock_release(&node->lock);
     return 0;
@@ -138,6 +144,7 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
     new_node->stat.st_size = 0;
     new_node->stat.st_blksize = 512;
     new_node->stat.st_blocks = 0;
+    new_node->stat.st_atim = new_node->stat.st_mtim = new_node->stat.st_ctim = time_realtime;
 
     new_node->read = tmpfs_read;
     new_node->write = tmpfs_write;

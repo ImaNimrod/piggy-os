@@ -1,15 +1,10 @@
+#include <dev/cmos.h>
 #include <dev/pit.h>
-#include <limine.h>
 #include <sys/time.h>
 #include <types.h> 
 #include <utils/log.h>
 
 #define TIMER_FREQUENCY 1000
-
-static volatile struct limine_boot_time_request boot_time_request = {
-    .id = LIMINE_BOOT_TIME_REQUEST,
-    .revision = 0
-};
 
 struct timespec time_realtime = {0};
 struct timespec time_monotonic = {0};
@@ -57,9 +52,8 @@ void time_update_timers(void) {
 }
 
 void time_init(void) {
-    struct limine_boot_time_response* boot_time_response = boot_time_request.response;
-
-    time_realtime.tv_sec = boot_time_response->boot_time;
+    cmos_init();
+    cmos_get_rtc_time(&time_realtime);
 
     pit_init(TIMER_FREQUENCY);
     klog("[time] initialized timing subsytem\n");

@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
+#include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/random.h>
@@ -50,7 +51,7 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
             written = count;
             break;
         case PSEUDO_FULL_MIN:
-            written = -ENOSPC;
+            written = count == 0 ? 0 : -ENOSPC;
             break;
     }
 
@@ -65,6 +66,9 @@ void pseudo_init(void) {
         .st_size = 0,
         .st_blksize = 4096,
         .st_blocks = 0,
+        .st_atim = time_realtime,
+        .st_mtim = time_realtime,
+        .st_ctim = time_realtime
     };
 
     struct vfs_node* null_node = devfs_create_device("null");

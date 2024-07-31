@@ -33,6 +33,11 @@ void syscall_open(struct registers* r) {
         goto end;
     }
 
+    if (flags & ~(O_ACCMODE | O_CREAT | O_DIRECTORY | O_TRUNC | O_APPEND | O_EXCL | O_CLOEXEC | O_NONBLOCK)) {
+        ret = -EINVAL;
+        goto end;
+    }
+
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
         ret = -EINVAL;

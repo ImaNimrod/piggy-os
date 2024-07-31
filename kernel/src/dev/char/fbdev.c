@@ -4,6 +4,7 @@
 #include <fs/vfs.h>
 #include <limine.h>
 #include <mem/slab.h>
+#include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/math.h>
@@ -172,6 +173,9 @@ void fbdev_init(void) {
         .st_dev = makedev(0, 1),
         .st_mode = S_IFCHR,
         .st_blksize = 4096,
+        .st_atim = time_realtime,
+        .st_mtim = time_realtime,
+        .st_ctim = time_realtime
     };
 
     for (size_t i = 0; i < framebuffer_response->framebuffer_count; i++) {

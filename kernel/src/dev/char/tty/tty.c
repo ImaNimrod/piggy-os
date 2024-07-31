@@ -4,6 +4,7 @@
 #include <fs/vfs.h>
 #include <limine.h>
 #include <mem/slab.h>
+#include <sys/time.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/spinlock.h>
@@ -271,6 +272,9 @@ void tty_init(void) {
         .st_size = 0,
         .st_blksize = 4096,
         .st_blocks = 0,
+        .st_atim = time_realtime,
+        .st_mtim = time_realtime,
+        .st_ctim = time_realtime,
     };
 
     tty_node->private = tty;

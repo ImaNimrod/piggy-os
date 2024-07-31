@@ -186,7 +186,7 @@ size_t strftime(char* buffer, size_t size, const char* fmt, const struct tm* tm)
             case 'U':
             case 'G':
             case 'g':
-                w = snprintf(b, size, "[%c unsupported]", *f);
+                w = snprintf(b, size, "%c unsupported", *f);
                 break;
         }
 

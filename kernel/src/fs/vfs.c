@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <types.h>
 #include <utils/log.h>
 #include <utils/string.h>
 
@@ -251,7 +252,6 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         spinlock_release(&vfs_lock);
         return false;
     }
-
     r.node->mountpoint = mount_node;
 
     create_dotentries(r.parent, mount_node);

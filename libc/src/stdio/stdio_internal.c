@@ -444,6 +444,7 @@ int __printf_internal(union callback_data* cd, int callback_type, const char* fm
                 if (sizeof(void*) == sizeof(long long)) {
                     big = 2;
                 }
+                __attribute__((fallthrough));
             case 'X':
             case 'x':
                 if (big == 2) {

@@ -11,12 +11,7 @@ static void print_error(void) {
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... FILE...\n \
-            Update the atime and mtime of each FILE to the current timestamp.\n \
-            A FILE argument that does not exist is created empty, unless -c is supplied.\n \
-            A FILE argument that of - is causes touch to change the times of the file associated with stdout.\n\n \
-            -c        do not create any files\n \
-            -h        display this help and exit\n");
+    puts("Usage: " PROGRAM_NAME " [OPTION]... FILE...\nUpdate the atime and mtime of each FILE to the current timestamp.\nA FILE argument that does not exist is created empty, unless -c is supplied.\nA FILE argument that of - is causes touch to change the times of the file associated with stdout.\n\n-c\tdo not create any files\n-h\tdisplay this help and exit\n");
 }
 
 int main(int argc, char** argv) {

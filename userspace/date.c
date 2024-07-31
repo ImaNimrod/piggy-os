@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #define PROGRAM_NAME "date"
+
 #define STANDARD_FORMAT "%a %b %e %H:%M:%S %Y"
 #define RFC5322_FORMAT "%a, %d %b %Y %H:%M:%S"
 
@@ -13,10 +14,7 @@ static void print_error(void) {
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n \
-            Print the time and date in the given FORMAT.\n\n \
-            -R        output date and time in RFC 5322 format\n \
-            -h        display this help and exit\n");
+    puts("Usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\nPrint the time and date in the given FORMAT.\n\n-R\toutput date and time in RFC 5322 format\n-h\tdisplay this help and exit\n");
 }
 
 int main(int argc, char** argv) {

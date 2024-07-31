@@ -1,5 +1,6 @@
 #include <fs/devfs.h>
 #include <fs/vfs.h>
+#include <sys/time.h>
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
@@ -45,6 +46,9 @@ void devfs_init(void) {
         .st_size = 0,
         .st_blksize = 4096,
         .st_blocks = 0,
+        .st_atim = time_realtime,
+        .st_mtim = time_realtime,
+        .st_ctim = time_realtime
     };
 
     vfs_register_filesystem("devfs", &devfs);

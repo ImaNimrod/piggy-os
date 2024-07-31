@@ -4,6 +4,7 @@
 #include <limine.h>
 #include <mem/pmm.h>
 #include <mem/vmm.h>
+#include <types.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/string.h>
@@ -84,6 +85,7 @@ bool initrd_unpack(void) {
         }
 
         size_t size = oct2int(current_file->size, sizeof(current_file->size));
+        size_t mtime = oct2int(current_file->mtime, sizeof(current_file->mtime));
 
         struct vfs_node* node = NULL;
 
@@ -94,7 +96,10 @@ bool initrd_unpack(void) {
                     kpanic(NULL, true, "failed to allocate initrd node for file `%s`", name);
                 }
 
-                node->write(node, (void*) ((uintptr_t) current_file + 512), 0, size, 0);
+                if (node->write(node, (void*) ((uintptr_t) current_file + 512), 0, size, 0) != (ssize_t) size) {
+                    kpanic(NULL, true, "failed to write initrd data to file `%s`", name);
+                }
+
                 break;
             case TAR_FILE_TYPE_DIRECTORY:
                 node = vfs_create(vfs_root, name, S_IFDIR);
@@ -112,6 +117,13 @@ bool initrd_unpack(void) {
         if (node != NULL) {
             node->stat.st_blksize = 512;
             node->stat.st_blocks = DIV_CEIL(size, node->stat.st_blksize);
+
+            struct timespec timestamp = {
+                .tv_sec = mtime,
+                .tv_nsec = 0,
+            };
+            node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = timestamp;
+
             file_count++;
         }
 

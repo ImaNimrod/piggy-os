@@ -15,4 +15,11 @@ typedef int mode_t;
 typedef long blksize_t;
 typedef long blkcnt_t;
 
+typedef int clockid_t;
+
+struct timespec {
+    time_t tv_sec;
+    long tv_nsec;
+};
+
 #endif /* _SYS_TYPES_H */

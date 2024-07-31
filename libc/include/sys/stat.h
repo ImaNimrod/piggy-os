@@ -22,6 +22,9 @@ struct stat {
     off_t st_size;
     blksize_t st_blksize;
     blkcnt_t st_blocks;
+    struct timespec st_atim;
+    struct timespec st_mtim;
+    struct timespec st_ctim;
 };
 
 int fstat(int, struct stat*);

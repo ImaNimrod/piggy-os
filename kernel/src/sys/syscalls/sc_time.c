@@ -1,4 +1,5 @@
 #include <cpu/isr.h>
+#include <dev/cmos.h>
 #include <errno.h>
 #include <sys/process.h>
 #include <sys/time.h>
@@ -7,7 +8,7 @@
 #include <utils/user_access.h>
 
 void syscall_getclock(struct registers* r) {
-    int clktyp = r->rdi;
+    clockid_t clktyp = r->rdi;
     struct timespec* tp = (struct timespec*) r->rsi;
 
     struct thread* current_thread = this_cpu()->running_thread;
@@ -24,7 +25,6 @@ void syscall_getclock(struct registers* r) {
                 ret = -EFAULT;
             }
             break;
-        case CLOCK_BOOTTIME:
         case CLOCK_MONOTONIC:
             if (copy_to_user((void*) tp, (void*) &time_monotonic, sizeof(struct timespec)) == NULL) {
                 ret = -EFAULT;

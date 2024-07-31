@@ -48,5 +48,5 @@ Other things that need to happen:
     - implement errno system (errno is the absolute value of a negative syscall return value) (DONE 7/27/24)
     - move vfs file metadata to a stat struct and implement stat syscall (DONE 7/20/24)
     - refactor file descriptor creation/deletion/management into its own file/api (DONE 6/28/24)
-    - actual tty API using framebuffer for output and PS2 keyboard for input
+    - actual tty API using framebuffer for output and PS2 keyboard for input (DONE 7/25/24)
     - write userspace programs that try to break things and fix the small things from there

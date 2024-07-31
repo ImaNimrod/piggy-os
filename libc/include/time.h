@@ -6,7 +6,6 @@
 
 #define CLOCK_REALTIME  0
 #define CLOCK_MONOTONIC 1
-#define CLOCK_BOOTTIME  2
 
 struct tm {
     int tm_sec;
@@ -18,11 +17,6 @@ struct tm {
     int tm_wday;
     int tm_yday;
     int tm_isdst;
-};
-
-struct timespec {
-    time_t tv_sec;
-    long tv_nsec;
 };
 
 struct tm* gmtime(const time_t*);
