@@ -21,9 +21,14 @@
 #include <utils/log.h>
 #include <utils/random.h>
 
+uintptr_t __stack_chk_guard;
+
+__attribute__((noreturn)) void __stack_chk_fail(void) {
+    kpanic(NULL, true, "stack smashing detected");
+}
+
 static void kernel_main(void) {
     time_init();
-    random_init();
 
     vfs_init();
     devfs_init();
@@ -47,8 +52,10 @@ static void kernel_main(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
-    sched_thread_destroy(this_cpu()->running_thread);
-    sched_yield();
+    //sched_thread_dequeue(this_cpu()->running_thread);
+    for (;;) {
+        sched_yield();
+    }
 }
 
 void kernel_entry(void) {
@@ -65,6 +72,9 @@ void kernel_entry(void) {
 
     acpi_init();
     hpet_init();
+
+    random_init();
+    __stack_chk_guard = fast_rand();
 
     process_init();
     sched_init();

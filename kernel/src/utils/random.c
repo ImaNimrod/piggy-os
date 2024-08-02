@@ -4,6 +4,8 @@
 #include <utils/log.h>
 #include <utils/random.h>
 
+struct rng_state* kgp_rng;
+
 static bool use_rdseed, use_rdrand;
 
 static uint64_t get_hardware_rand(void) {
@@ -114,5 +116,10 @@ void random_init(void) {
         use_rdrand = true;
     } else {
         klog("[random] rdseed and rdrand both unavailable\n");
+    }
+    
+    kgp_rng = rng_create();
+    if (kgp_rng == NULL) {
+        kpanic(NULL, false, "failed to create kernel general purpose RNG");
     }
 }
