@@ -27,12 +27,10 @@ void syscall_open(struct registers* r) {
         ret = -EFAULT;
         goto end;
     }
-
     if (path == NULL || *path == '\0') {
         ret = -ENOENT;
         goto end;
     }
-
     if (strlen(path) >= PATH_MAX) {
         ret = -ENAMETOOLONG;
         goto end;
@@ -64,8 +62,12 @@ void syscall_open(struct registers* r) {
         goto end;
     }
 
-    if (!S_ISDIR(node->stat.st_mode) && (flags & O_DIRECTORY) != 0) {
+    if (!S_ISDIR(node->stat.st_mode) && flags & O_DIRECTORY) {
         ret = -ENOTDIR;
+        goto end;
+    }
+    if (S_ISDIR(node->stat.st_mode) && !(flags & O_DIRECTORY)) {
+        ret = -EISDIR;
         goto end;
     }
 

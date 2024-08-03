@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#define BUFSIZ 8192
+#define BUFSIZ 4096
 #define EOF (-1)
 
 #define _IOFBF 0

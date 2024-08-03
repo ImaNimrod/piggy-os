@@ -38,7 +38,9 @@ pid_t getppid(void);
 off_t lseek(int, off_t, int);
 ssize_t read(int, void*, size_t);
 void* sbrk(intptr_t);
+int sleep(unsigned int);
 int truncate(const char*, off_t);
+int usleep(unsigned int);
 ssize_t write(int, const void*, size_t);
 
 #endif /* _UNISTD_H */

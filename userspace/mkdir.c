@@ -10,7 +10,7 @@
 #define PROGRAM_NAME "mkdir"
 
 static void print_error(void) {
-    fputs("try" PROGRAM_NAME "' -h' for more information\n", stderr);
+    fputs("try " PROGRAM_NAME "' -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
@@ -37,7 +37,6 @@ static void create_directory(const char* path, bool create_parents) {
         } else if (create_parents && errno == ENOENT) {
             char* parent_name = strdup(path);
             if (!parent_name) {
-                fputs("bruh", stderr);
                 exit(EXIT_FAILURE);
             }
 
@@ -51,8 +50,6 @@ static void create_directory(const char* path, bool create_parents) {
             exit(EXIT_FAILURE);
         }
     } 
-
-    fputs("alksjdlaks\n", stderr);
 }
 
 int main(int argc, char** argv) {

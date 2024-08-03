@@ -403,7 +403,7 @@ int __printf_internal(union callback_data* cd, int callback_type, const char* fm
                           if (big) {
                               return written;
                           } else {
-                              s = (char*) va_arg(args, char *);
+                              s = (char*) va_arg(args, char*);
                               if (s == NULL) {
                                   s = "(null)";
                               }

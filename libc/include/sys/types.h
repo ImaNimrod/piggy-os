@@ -10,6 +10,7 @@ typedef long time_t;
 
 typedef unsigned short dev_t;
 typedef unsigned long ino_t;
+typedef unsigned short reclen_t;
 
 typedef int mode_t;
 typedef long blksize_t;

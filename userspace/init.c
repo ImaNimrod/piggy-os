@@ -1,15 +1,19 @@
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 int main(void) {
-    puts("starting PiggyOS...\n");
-
     if (getpid() != 1) {
         fputs("must be run from the init process (pid=1)", stderr);
-        _exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
+
+    char buffer[50];
+    fputs(buffer, stderr);
+
+    puts("starting PiggyOS...\n");
 
     setenv("HOME", "/home", 1);
     chdir(getenv("HOME"));
@@ -24,9 +28,9 @@ int main(void) {
         execv(argv[0], argv);
         return EXIT_FAILURE;
     } else {
-        for (;;) {
+        do {
             waitpid(-1, NULL, 0);
-        }
+        } while (errno != ECHILD);
     }
 
     return EXIT_SUCCESS;

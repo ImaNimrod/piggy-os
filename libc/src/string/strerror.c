@@ -21,8 +21,10 @@ char* strerror(int errnum) {
             return "Invalid argument";
         case EISDIR:
             return "Is a directory";
-        case ENFILE:
+        case EMFILE:
             return "Too many files open in system";
+        case ENAMETOOLONG:
+            return "Name too long";
         case ENOENT:
             return "No such file or directory";
         case ENOEXEC:
@@ -39,6 +41,10 @@ char* strerror(int errnum) {
             return "Operation not permitted";
         case ESPIPE:
             return "Invalid seek";
+        case EOVERFLOW:
+            return "Value too large for supplied data type";
+        case ERANGE:
+            return "Result too large";
     }
 
     errno = EINVAL;

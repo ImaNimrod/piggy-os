@@ -1,7 +1,7 @@
 include ../config.mk
 
 CFLAGS := -Wall -Wextra -Wno-long-long -Wstrict-prototypes -Wpointer-arith -Wvla -Wshadow \
-		  -pedantic -std=gnu11 -O2
+		  -pedantic -std=gnu11 -mgeneral-regs-only
 
 ASFLAGS := -f elf64
 

@@ -5,6 +5,8 @@
 #include <sys/wait.h>
 #include <unistd.h> 
 
+#define PROGRAM_NAME "sh"
+
 #define ARRAY_SIZE(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
 struct shell_builtin {
@@ -12,15 +14,13 @@ struct shell_builtin {
     bool (*func) (char**);
 };
 
-static char* program_name;
+static char* line;
+static char** args;
+static bool do_quit = false;
 
 static bool builtin_cd(char** args) {
-    if (args[1] == NULL) {
-        fputs("sh: usage: cd [DIR]\n", stderr);
-    } else {
-        if (chdir(args[1]) != 0) {
-            perror("cd");
-        }
+    if (chdir(args[1] != NULL ? args[1] : getenv("HOME")) < 0) {
+        perror("cd");
     }
 
     return false;
@@ -58,12 +58,11 @@ static struct shell_builtin builtins[] = {
 };
 
 char* read_line(void) {
-    int bufsize = 256;
     int position = 0;
 
-    char* buf = malloc(sizeof(char) * bufsize);
+    char* buf = malloc(256 * sizeof(char));
     if (!buf) {
-        fputs("failed to allocate memory for line buffer\n", stderr);
+        fputs(PROGRAM_NAME ": failed to allocate memory for line buffer\n", stderr);
         exit(EXIT_FAILURE);
     }
 
@@ -79,25 +78,15 @@ char* read_line(void) {
         }
 
         position++;
-
-        if (position >= bufsize) {
-            bufsize += 256;
-            buf = realloc(buf, bufsize);
-            if (!buf) {
-                perror(program_name);
-                exit(EXIT_FAILURE);
-            }
-        }
     }
 }
 
 static char** split_args(char *line) {
-    int bufsize = 64;
     int position = 0;
 
-    char** tokens = malloc(bufsize * sizeof(char*));
+    char** tokens = malloc(64 * sizeof(char*));
     if (tokens == NULL) {
-        perror(program_name);
+        perror(PROGRAM_NAME);
         exit(EXIT_FAILURE);
     }
 
@@ -115,12 +104,12 @@ static char** split_args(char *line) {
 static void run_program(char** args) {
     pid_t pid = fork();
     if (pid == 0) {
-        if (execvp(args[0], args) == -1) {
-            perror(program_name);
+        if (execvp(args[0], args) < 0) {
+            perror(PROGRAM_NAME);
         }
         exit(EXIT_FAILURE);
     } else if (pid < 0) {
-        perror(program_name);
+        perror(PROGRAM_NAME);
     } else {
         waitpid(pid, NULL, 0);
     }
@@ -142,16 +131,10 @@ static bool execute(char** args) {
 }
 
 int main(int argc, char** argv) {
-    program_name = argv[0];
-
     if (argc > 1) {
-        execute(argv);
+        execute(argv++);
         return EXIT_SUCCESS;
     }
-
-    char* line;
-    char** args;
-    bool do_quit = false;
 
     do {
         fputs("> ", stdout);

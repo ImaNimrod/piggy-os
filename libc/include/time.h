@@ -19,6 +19,8 @@ struct tm {
     int tm_isdst;
 };
 
+int clock_gettime(clockid_t, struct timespec*);
+int clock_settime(clockid_t, const struct timespec*);
 struct tm* gmtime(const time_t*);
 struct tm* gmtime_r(const time_t* __restrict, struct tm* __restrict);
 struct tm* localtime(const time_t*); 
