@@ -1,8 +1,10 @@
 #include <errno.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
+#include <utils/math.h>
 #include <utils/string.h>
 
 struct path2node_res {
@@ -290,6 +292,79 @@ struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mo
 
     spinlock_release(&vfs_lock);
     return new_node;
+}
+
+ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset, size_t count) {
+    if (!S_ISDIR(node->stat.st_mode)) {
+        return -ENOTDIR;
+    }
+
+    spinlock_acquire(&vfs_lock);
+
+    size_t total_length = 0;
+    off_t iter_offset = 0;
+
+    if (node->children->entries != NULL) {
+        for (size_t i = 0; i < node->children->size; i++) {
+            hashmap_entry_t* entry = node->children->entries[i];
+            while (entry != NULL) {
+                struct vfs_node* child = entry->value;
+                size_t ent_len = sizeof(struct dirent) + strlen(child->name) + 1;
+
+                iter_offset += ent_len;
+                if (iter_offset > offset) {
+                    total_length += ent_len;
+                }
+
+                entry = entry->next;
+            }
+        }
+    }
+
+    if (total_length == 0) {
+        spinlock_release(&vfs_lock);
+        return 0;
+    }
+
+    ssize_t actual_count = (ssize_t) MIN(total_length, count);
+
+    ssize_t read_size = 0;
+    iter_offset = 0;
+
+    if (node->children->entries != NULL) {
+        for (size_t i = 0; i < node->children->size; i++) {
+            hashmap_entry_t* entry = node->children->entries[i];
+            while (entry != NULL) {
+                struct vfs_node* child = entry->value;
+                struct vfs_node* reduced_child = vfs_reduce_node(child);
+
+                size_t name_len = strlen(child->name) + 1;
+                size_t ent_len = sizeof(struct dirent) + name_len;
+
+                iter_offset += ent_len;
+                if (iter_offset <= offset) {
+                    entry = entry->next;
+                    continue;
+                }
+
+                struct dirent* ent = (struct dirent*) ((uintptr_t) buffer + read_size);
+                ent->d_ino = reduced_child->stat.st_ino;
+                ent->d_reclen = ent_len;
+                memcpy(ent->d_name, child->name, name_len);
+
+                if (read_size >= actual_count) {
+                    break;
+                }
+                read_size += ent_len;
+                entry = entry->next;
+            }
+        }
+    }
+
+    node->stat.st_atim = time_realtime;
+
+    spinlock_release(&vfs_lock);
+    return read_size;
 }
 
 bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs) {

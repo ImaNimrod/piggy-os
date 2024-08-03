@@ -23,13 +23,18 @@ void syscall_open(struct registers* r) {
     klog("[syscall] running syscall_open (path: %s, flags: %04o) on (pid: %u, tid: %u)\n",
             path, flags, current_process->pid, current_thread->tid);
 
+    if (!check_user_ptr(path)) {
+        ret = -EFAULT;
+        goto end;
+    }
+
     if (path == NULL || *path == '\0') {
         ret = -ENOENT;
         goto end;
     }
 
-    if (!check_user_ptr(path)) {
-        ret = -EFAULT;
+    if (strlen(path) >= PATH_MAX) {
+        ret = -ENAMETOOLONG;
         goto end;
     }
 
@@ -80,7 +85,7 @@ void syscall_open(struct registers* r) {
     if (fdnum == -1) {
         kfree(fd);
         node->refcount--;
-        ret = -ENFILE;
+        ret = -EMFILE;
         goto end;
     }
 
@@ -108,13 +113,18 @@ void syscall_mkdir(struct registers* r) {
     klog("[syscall] running syscall_mkdir (path: %s) on (pid: %u, tid: %u)\n",
             path, current_process->pid, current_thread->tid);
 
+    if (!check_user_ptr(path)) {
+        ret = -EFAULT;
+        goto end;
+    }
+
     if (path == NULL || *path == '\0') {
         ret = -ENOENT;
         goto end;
     }
 
-    if (!check_user_ptr(path)) {
-        ret = -EFAULT;
+    if (strlen(path) >= PATH_MAX) {
+        ret = -ENAMETOOLONG;
         goto end;
     }
 
@@ -160,6 +170,11 @@ void syscall_read(struct registers* r) {
     klog("[syscall] running syscall_read (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
+    if (!check_user_ptr(buf)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = -EBADF;
@@ -174,21 +189,20 @@ void syscall_read(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
-    if (S_ISDIR(node->stat.st_mode)) {
-        r->rax = -EISDIR;
-        return;
-    }
-
-    if (!check_user_ptr(buf)) {
-        r->rax = -EFAULT;
-        return;
-    }
-
     USER_ACCESS_BEGIN;
-    ssize_t read = node->read(node, buf, fd->offset, count, fd->flags);
+
+    ssize_t read;
+    if (S_ISDIR(node->stat.st_mode)) {
+        read = vfs_getdents(node, (struct dirent*) buf, fd->offset, count);
+    } else {
+        read = node->read(node, buf, fd->offset, count, fd->flags);
+    }
+
     USER_ACCESS_END;
 
-    fd->offset += read;
+    if (read > 0) {
+        fd->offset += read;
+    }
     r->rax = read;
 }
 
@@ -231,7 +245,9 @@ void syscall_write(struct registers* r) {
     ssize_t written = node->write(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
 
-    fd->offset += written;
+    if (written > 0) {
+        fd->offset += written;
+    }
     r->rax = written;
 }
 

@@ -19,7 +19,6 @@ static inline bool is_cmos_updating(void) {
     return (inb(CMOS_DATA_PORT) & 0x80);
 }
 
-
 static inline bool is_leap_year(uint32_t year) {
     return !(year % 4) && ((year % 100) || !(year % 400));
 }

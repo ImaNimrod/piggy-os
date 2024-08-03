@@ -20,8 +20,7 @@ __attribute__((noreturn)) void syscall_exit(struct registers* r) {
     klog("[syscall] running syscall_exit (status: %d) on (pid: %u, tid: %u)\n",
             status, current_process->pid, current_thread->tid);
 
-    cli();
-    process_destroy(current_process, status);
+    process_exit(current_process, status);
 
     this_cpu()->running_thread = NULL;
     sched_yield();
@@ -115,7 +114,7 @@ void syscall_exec(struct registers* r) {
 
     current_process->pagemap = new_pagemap;
     current_process->code_base = entry;
-    current_process->brk = PROCESS_BRK_BASE;
+    current_process->brk = current_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
     current_process->thread_stack_top = PROCESS_THREAD_STACK_TOP;
 
     for (size_t i = 0; i < MAX_FDS; i++) {
@@ -128,8 +127,9 @@ void syscall_exec(struct registers* r) {
         }
     }
 
+    cli();
     for (size_t i = 0; i < current_process->threads->size; i++) {
-        sched_thread_destroy(current_process->threads->data[i]);
+        sched_thread_dequeue(current_process->threads->data[i]);
     }
 
     vector_destroy(current_process->threads);
@@ -139,16 +139,18 @@ void syscall_exec(struct registers* r) {
         goto error;
     }
 
-    vfs_get_pathname(node, current_process->name, sizeof(current_process->name) - 1);
-
     struct thread* new_thread = thread_create(current_process, entry, NULL, argv, envp, true);
     if (new_thread == NULL) {
         ret = -ENOMEM;
         goto error;
     }
+
     sched_thread_enqueue(new_thread);
+    sti();
 
     USER_ACCESS_END;
+
+    vfs_get_pathname(node, current_process->name, sizeof(current_process->name) - 1);
 
     vmm_switch_pagemap(kernel_pagemap);
     vmm_destroy_pagemap(old_pagemap);
@@ -165,7 +167,7 @@ error:
             vmm_destroy_pagemap(new_pagemap);
         }
     } else {
-        process_destroy(current_process, -1);
+        process_exit(current_process, -1);
     }
 
     USER_ACCESS_END;
@@ -266,7 +268,7 @@ void syscall_thread_exit(struct registers* r) {
     klog("[syscall] running syscall_thread_exit on (pid: %u, tid: %u)\n",
             current_process->pid, current_thread->tid);
 
-    sched_thread_destroy(this_cpu()->running_thread);
+    sched_thread_dequeue(this_cpu()->running_thread);
     sched_yield();
 }
 
@@ -279,8 +281,5 @@ void syscall_sbrk(struct registers* r) {
     klog("[syscall] running syscall_sbrk (size: %d) on (pid: %u, tid: %u)\n",
             size, current_process->pid, current_thread->tid);
 
-    uintptr_t current_brk = current_process->brk;
-    current_process->brk += size;
-
-    r->rax = current_brk;
+    r->rax = (uint64_t) process_sbrk(current_process, size);
 }

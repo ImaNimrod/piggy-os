@@ -12,9 +12,9 @@
 extern struct process* kernel_process;
 
 __attribute__((noreturn)) void sched_await(void);
-bool sched_thread_enqueue(struct thread* t);
-bool sched_thread_dequeue(struct thread* t);
-void sched_thread_destroy(struct thread* t);
+void sched_thread_enqueue(struct thread* t);
+void sched_thread_dequeue(struct thread* t);
+void sched_thread_sleep(struct thread* t, uint64_t ns);
 void sched_init(void);
 
 #endif /* _KERNEL_SYS_SCHED_H */

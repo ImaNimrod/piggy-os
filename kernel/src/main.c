@@ -52,10 +52,8 @@ static void kernel_main(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
-    //sched_thread_dequeue(this_cpu()->running_thread);
-    for (;;) {
-        sched_yield();
-    }
+    sched_thread_dequeue(this_cpu()->running_thread);
+    sched_yield();
 }
 
 void kernel_entry(void) {

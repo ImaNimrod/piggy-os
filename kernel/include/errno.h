@@ -1,23 +1,24 @@
 #ifndef _KERNEL_ERRNO_H
 #define _KERNEL_ERRNO_H
 
-#define EAGAIN  1
-#define EBADF   2
-#define ECHILD  3
-#define EEXIST  4
-#define EFAULT  5
-#define EIO     6
-#define EINVAL  7
-#define EISDIR  8
-#define ENFILE  9
-#define ENOENT  10
-#define ENOEXEC 11
-#define ENOMEM  12
-#define ENOSPC  13
-#define ENOSYS  14
-#define ENOTDIR 15
-#define ENOTTY  16
-#define EPERM   17
-#define ESPIPE  18
+#define EAGAIN          1
+#define EBADF           2
+#define ECHILD          3
+#define EEXIST          4
+#define EFAULT          5
+#define EIO             6
+#define EINVAL          7
+#define EISDIR          8
+#define EMFILE          9
+#define ENAMETOOLONG    10
+#define ENOENT          11
+#define ENOEXEC         12
+#define ENOMEM          13
+#define ENOSPC          14
+#define ENOSYS          15
+#define ENOTDIR         16
+#define ENOTTY          17
+#define EPERM           18
+#define ESPIPE          19
 
 #endif /* _KERNEL_ERRNO_H */

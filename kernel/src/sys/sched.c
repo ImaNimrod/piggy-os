@@ -10,27 +10,37 @@
 struct process* kernel_process;
 
 static struct thread* runnable_threads = NULL;
-static spinlock_t thread_lock = {0};
+static struct thread* blocking_threads = NULL;
+static struct thread* zombie_threads = NULL;
+static spinlock_t thread_list_lock = {0};
+static spinlock_t thread_management_lock = {0};
 
-static bool add_thread_to_list(struct thread** list, struct thread* t) {
+static void add_thread_to_list(struct thread** list, struct thread* t) {
+    spinlock_acquire(&thread_list_lock);
+
     struct thread* iter = *list;
     if (!iter) {
         *list = t;
-        return true;
+        spinlock_release(&thread_list_lock);
+        return;
     }
 
     while (iter->next) {
         iter = iter->next;
     }
     iter->next = t;
-    return true;
+    spinlock_release(&thread_list_lock);
 }
 
-static bool remove_thread_from_list(struct thread** list, struct thread* t) {
+static void remove_thread_from_list(struct thread** list, struct thread* t) {
+    spinlock_acquire(&thread_list_lock);
+
     struct thread* iter = *list;
     if (iter == t) {
         *list = iter->next;
-        return true;
+        iter->next = NULL;
+        spinlock_release(&thread_list_lock);
+        return;
     }
 
     struct thread* next = NULL;
@@ -39,12 +49,14 @@ static bool remove_thread_from_list(struct thread** list, struct thread* t) {
         if (next == t) {
             iter->next = next->next;
             next->next = NULL;
-            return true;
+            spinlock_release(&thread_list_lock);
+            return;
         }
 
         iter = next;
     }
-    return false;
+
+    spinlock_release(&thread_list_lock);
 }
 
 static struct thread* get_next_thread(struct thread* current) {
@@ -73,27 +85,58 @@ static struct thread* get_next_thread(struct thread* current) {
 __attribute__((noreturn)) static void schedule(struct registers* r) {
     lapic_timer_stop();
 
+    if (spinlock_test_and_acquire(&thread_management_lock)) {
+        struct thread* iter = blocking_threads;
+        while (iter != NULL) {
+            if (iter->state == THREAD_SLEEPING && iter->sleep_until < hpet_count()) {
+                iter->state = THREAD_READY_TO_RUN;
+                iter->sleep_until = 0;
+
+                remove_thread_from_list(&blocking_threads, iter);
+                add_thread_to_list(&runnable_threads, iter);
+            }
+            iter = iter->next;
+        }
+
+        iter = zombie_threads;
+        while (iter != NULL) {
+            thread_destroy(iter);
+
+            struct process* p = iter->process;
+            if (p != kernel_process && p->state == PROCESS_ZOMBIE && p->threads->size == 0) {
+                klog("[sched] destroying process (pid: %d)\n", p->pid);
+                process_destroy(p);
+            }
+
+            remove_thread_from_list(&zombie_threads, iter);
+            iter = iter->next;
+        }
+
+        spinlock_release(&thread_management_lock);
+    }
+
     struct thread* current = this_cpu()->running_thread;
     struct thread* next = get_next_thread(current);
 
-    if (current) {
+    if (current != NULL) {
         current->ctx = *r;
 
-        if (current->ctx.cs & 3) {
+        if (current->is_user) {
+            current->user_stack = this_cpu()->user_stack;
             this_cpu()->fpu_save(current->fpu_storage);
             current->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
         }
 
         current->fs_base = rdmsr(IA32_FS_BASE_MSR);
 
-        if (current->state == THREAD_NORMAL) {
+        if (current->state == THREAD_RUNNING) {
             current->state = THREAD_READY_TO_RUN;
         }
 
         spinlock_release(&current->lock);
     }
 
-    if (!next) {
+    if (next == NULL) {
         this_cpu()->running_thread = NULL;
         vmm_switch_pagemap(kernel_pagemap);
         lapic_eoi();
@@ -101,17 +144,17 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     this_cpu()->running_thread = next;
-    next->state = THREAD_NORMAL;
+    next->state = THREAD_RUNNING;
 
     this_cpu()->tss.rsp0 = next->kernel_stack;
     this_cpu()->tss.ist2 = next->page_fault_stack;
-    this_cpu()->user_stack = next->stack;
     this_cpu()->kernel_stack = next->kernel_stack;
 
     lapic_eoi();
     lapic_timer_oneshot(SCHED_VECTOR, next->timeslice);
 
-    if (next->ctx.cs & 3) {
+    if (next->is_user) {
+        this_cpu()->user_stack = next->user_stack;
         this_cpu()->fpu_restore(next->fpu_storage);
         wrmsr(IA32_KERNEL_GS_BASE_MSR, next->gs_base);
     }
@@ -123,30 +166,30 @@ __attribute__((noreturn)) static void schedule(struct registers* r) {
     }
 
     __asm__ volatile(
-        "mov %0, %%rsp\n\t"
-        "pop %%r15\n\t"
-        "pop %%r14\n\t"
-        "pop %%r13\n\t"
-        "pop %%r12\n\t"
-        "pop %%r11\n\t"
-        "pop %%r10\n\t"
-        "pop %%r9\n\t"
-        "pop %%r8\n\t"
-        "pop %%rsi\n\t"
-        "pop %%rdi\n\t"
-        "pop %%rbp\n\t"
-        "pop %%rdx\n\t"
-        "pop %%rcx\n\t"
-        "pop %%rbx\n\t"
-        "pop %%rax\n\t"
-        "addq $16, %%rsp\n\t"
-        "cmpq $0x23, 8(%%rsp)\n\t"
-        "jne 1f\n\t"
-        "swapgs\n\t"
-        "1:\n\t"
-        "iretq\n\t"
-        :: "r" (&next->ctx)
-    );
+            "mov %0, %%rsp\n\t"
+            "pop %%r15\n\t"
+            "pop %%r14\n\t"
+            "pop %%r13\n\t"
+            "pop %%r12\n\t"
+            "pop %%r11\n\t"
+            "pop %%r10\n\t"
+            "pop %%r9\n\t"
+            "pop %%r8\n\t"
+            "pop %%rsi\n\t"
+            "pop %%rdi\n\t"
+            "pop %%rbp\n\t"
+            "pop %%rdx\n\t"
+            "pop %%rcx\n\t"
+            "pop %%rbx\n\t"
+            "pop %%rax\n\t"
+            "addq $16, %%rsp\n\t"
+            "cmpq $0x23, 8(%%rsp)\n\t"
+            "jne 1f\n\t"
+            "swapgs\n\t"
+            "1:\n\t"
+            "iretq\n\t"
+            :: "r" (&next->ctx)
+            );
     __builtin_unreachable();
 }
 
@@ -159,24 +202,24 @@ __attribute__((noreturn)) void sched_await(void) {
     __builtin_unreachable();
 }
 
-bool sched_thread_enqueue(struct thread* t) {
-    spinlock_acquire(&thread_lock);
-    bool ret = add_thread_to_list(&runnable_threads, t);
-    spinlock_release(&thread_lock);
-    return ret;
+void sched_thread_enqueue(struct thread* t) {
+    add_thread_to_list(&runnable_threads, t);
 }
 
-bool sched_thread_dequeue(struct thread* t) {
-    spinlock_acquire(&thread_lock);
-    bool ret = remove_thread_from_list(&runnable_threads, t);
-    spinlock_release(&thread_lock);
-    return ret;
+void sched_thread_dequeue(struct thread* t) {
+    remove_thread_from_list(&runnable_threads, t);
+    t->state = THREAD_ZOMBIE;
+    add_thread_to_list(&zombie_threads, t);
 }
 
-void sched_thread_destroy(struct thread* t) {
-    vector_remove_by_value(t->process->threads, t);
-    sched_thread_dequeue(t);
-    thread_destroy(t);
+void sched_thread_sleep(struct thread* t, uint64_t ns) {
+    remove_thread_from_list(&runnable_threads, t);
+
+    t->state = THREAD_SLEEPING;
+    t->sleep_until = HPET_CALC_SLEEP_NS(ns);
+    add_thread_to_list(&blocking_threads, t);
+
+    sched_yield();
 }
 
 void sched_init(void) {

@@ -27,8 +27,10 @@
 #define SYS_STAT            19
 #define SYS_CHDIR           20
 #define SYS_GETCWD          21
-#define SYS_UTSNAME         22
-#define SYS_GETCLOCK        23
+#define SYS_UTSNAME         23
+#define SYS_SLEEP           24
+#define SYS_CLOCK_GETTIME   25
+#define SYS_CLOCK_SETTIME   26
 
 typedef void (*syscall_handler_t)(struct registers*);
 
@@ -55,7 +57,9 @@ extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 extern void syscall_utsname(struct registers* r);
-extern void syscall_getclock(struct registers* r);
+extern void syscall_sleep(struct registers* r);
+extern void syscall_clock_gettime(struct registers* r);
+extern void syscall_clock_settime(struct registers* r);
 
 static syscall_handler_t syscall_table[] = {
     [SYS_EXIT]          = syscall_exit,
@@ -81,7 +85,9 @@ static syscall_handler_t syscall_table[] = {
     [SYS_CHDIR]         = syscall_chdir,
     [SYS_GETCWD]        = syscall_getcwd,
     [SYS_UTSNAME]       = syscall_utsname,
-    [SYS_GETCLOCK]      = syscall_getclock,
+    [SYS_SLEEP]         = syscall_sleep,
+    [SYS_CLOCK_GETTIME] = syscall_clock_gettime,
+    [SYS_CLOCK_SETTIME] = syscall_clock_settime,
 };
 
 void syscall_handler(struct registers* r) {
@@ -96,7 +102,8 @@ void syscall_handler(struct registers* r) {
     }
 
     this_cpu()->running_thread->ctx = *r;
-    this_cpu()->running_thread->stack = this_cpu()->user_stack;
+    this_cpu()->running_thread->user_stack = this_cpu()->user_stack;
+    this_cpu()->fpu_save(this_cpu()->running_thread->fpu_storage);
 
     syscall_table[r->rax](r);
 }

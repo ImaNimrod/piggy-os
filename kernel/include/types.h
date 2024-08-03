@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAX_FDS 16
+#define MAX_FDS 32
 #define PATH_MAX 4096
 
 #define O_PATH      00200
@@ -83,8 +83,9 @@ typedef int64_t ssize_t;
 typedef int32_t pid_t;
 typedef int32_t tid_t;
 
-typedef uint32_t dev_t;
+typedef uint16_t dev_t;
 typedef uint64_t ino_t;
+typedef uint16_t reclen_t;
 
 typedef int32_t mode_t;
 typedef int64_t blksize_t;
@@ -113,6 +114,12 @@ struct stat {
     struct timespec st_atim;
     struct timespec st_mtim;
     struct timespec st_ctim;
+};
+
+struct dirent {
+    ino_t d_ino;
+    reclen_t d_reclen;
+    char d_name[];
 };
 
 struct termios {

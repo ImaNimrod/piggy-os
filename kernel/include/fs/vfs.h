@@ -42,6 +42,7 @@ size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len);
 struct vfs_node* vfs_get_root(void);
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name);
 struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mode);
+ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset, size_t count);
 bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs);
 bool vfs_unregister_filesystem(const char* fs_name);
 void vfs_init(void);
