@@ -6,32 +6,36 @@
 
 int main(void) {
     if (getpid() != 1) {
-        fputs("must be run from the init process (pid=1)", stderr);
+        fputs("must be run from the init process (pid=1)\n", stderr);
         return EXIT_FAILURE;
     }
-
-    char buffer[50];
-    fputs(buffer, stderr);
 
     puts("starting PiggyOS...\n");
 
     setenv("HOME", "/home", 1);
-    chdir(getenv("HOME"));
+    if (chdir(getenv("HOME")) < 0) {
+        perror("chdir");
+        return EXIT_FAILURE;
+    }
+
     setenv("PATH", "/bin", 1);
 
     pid_t pid = fork();
     if (pid < 0) {
-        fputs("failed to fork child process", stderr);
+        perror("fork");
         return EXIT_FAILURE;
     } else if (pid == 0) {
         char* const argv[] = { "/bin/sh", NULL };
-        execv(argv[0], argv);
+
+        if (execv(argv[0], argv) < 0) {
+            perror("execv");
+        }
         return EXIT_FAILURE;
-    } else {
-        do {
-            waitpid(-1, NULL, 0);
-        } while (errno != ECHILD);
     }
+
+    do {
+        wait(NULL);
+    } while (errno != ECHILD);
 
     return EXIT_SUCCESS;
 }

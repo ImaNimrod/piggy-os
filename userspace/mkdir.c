@@ -58,12 +58,12 @@ int main(int argc, char** argv) {
     int c;
     while ((c = getopt(argc, argv, "hp")) != -1) {
         switch (c) {
-            case 'h':
-                print_help();
-                return EXIT_SUCCESS;
             case 'p':
                 create_parents = true;
                 break;
+            case 'h':
+                print_help();
+                return EXIT_SUCCESS;
             case '?':
                 print_error();
                 return EXIT_FAILURE;
