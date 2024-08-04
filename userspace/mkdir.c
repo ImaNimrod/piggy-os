@@ -14,10 +14,7 @@ static void print_error(void) {
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... DIRECTORY...\n \
-            Create the DIRECTORY(ies), if they do not already exist.\n\n \
-            -p        create parent directories\n \
-            -h        display this help and exit\n");
+    puts("Usage: " PROGRAM_NAME " [OPTION]... DIRECTORY...\nCreate the DIRECTORY(ies), if they do not already exist.\n\n-p\tcreate parent directories\n-h\tdisplay this help and exit\n");
 }
 
 static void create_directory(const char* path, bool create_parents) {

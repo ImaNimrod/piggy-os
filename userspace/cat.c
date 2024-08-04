@@ -9,14 +9,11 @@
 
 #define CAT_BUF_SIZE 1024
 
-static void cat(int fd) {
-    char* buf = malloc(CAT_BUF_SIZE * sizeof(char));
-    if (!buf) {
-        exit(EXIT_FAILURE);
-    }
+static char buf[CAT_BUF_SIZE];
 
+static void cat(int fd) {
     ssize_t n;
-    while ((n = read(fd, buf, CAT_BUF_SIZE)) > 0) {
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
         if (write(STDOUT_FILENO, buf, n) != n) {
             perror(PROGRAM_NAME);
             exit(EXIT_FAILURE);

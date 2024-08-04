@@ -17,7 +17,7 @@ static void print_error(void) {
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n" PROGRAM_NAME " [MMDDhhmm[.ss]]\nPrint the time and date in the given FORMAT or set the date and time with [MMDDhhmm[.ss]].\n\n-R\toutput date and time in RFC 5322 format\n-h\tdisplay this help and exit\n");
+    puts("Usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n  or:  " PROGRAM_NAME " [MMDDhhmm[.ss]]\nPrint the time and date in the given FORMAT or set the date and time with [MMDDhhmm[.ss]].\n\n-R\toutput date and time in RFC 5322 format\n-h\tdisplay this help and exit\n");
 }
 
 static inline bool is_leap_year(int year) {
@@ -121,13 +121,13 @@ static bool parse_time(char* time_string, struct tm* tm) {
 
     *tm = (struct tm) {
         .tm_sec = seconds ? secondi : now_tm->tm_sec,
-            .tm_min = minutei,
-            .tm_hour = houri,
-            .tm_mon = monthi,
-            .tm_year = now_tm->tm_year,
-            .tm_mday = dayi,
-            .tm_yday = now_tm->tm_yday,
-            .tm_isdst = now_tm->tm_isdst
+        .tm_min = minutei,
+        .tm_hour = houri,
+        .tm_mon = monthi,
+        .tm_year = now_tm->tm_year,
+        .tm_mday = dayi,
+        .tm_yday = now_tm->tm_yday,
+        .tm_isdst = now_tm->tm_isdst
     };
 
     return true;
@@ -139,12 +139,12 @@ int main(int argc, char** argv) {
     int c;
     while ((c = getopt(argc, argv, "hR")) != -1) {
         switch (c) {
-            case 'h':
-                print_help();
-                return EXIT_SUCCESS;
             case 'R':
                 rfc5322 = true;
                 break;
+            case 'h':
+                print_help();
+                return EXIT_SUCCESS;
             case '?':
                 print_error();
                 return EXIT_FAILURE;

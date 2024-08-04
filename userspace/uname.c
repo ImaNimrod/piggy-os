@@ -6,6 +6,15 @@
 
 #define PROGRAM_NAME "uname"
 
+enum {
+    PRINT_SYSNAME   = (1 << 0),
+    PRINT_NODENAME  = (1 << 1),
+    PRINT_RELEASE   = (1 << 2),
+    PRINT_VERSION   = (1 << 4),
+    PRINT_MACHINE   = (1 << 8),
+    PRINT_ALL = PRINT_SYSNAME | PRINT_NODENAME | PRINT_RELEASE | PRINT_VERSION | PRINT_MACHINE
+};
+
 static void print_error(void) {
     fputs("try " PROGRAM_NAME " -h' for more information\n", stderr);
 }
@@ -25,46 +34,45 @@ static void print_info(char* str) {
 }
 
 int main(int argc, char** argv) {
-    bool print_sysname = false, print_nodename = false, print_release = false,
-         print_version = false, print_machine = false;
+    int print_mode = 0;
 
     int c;
     while ((c = getopt(argc, argv, "ahmnrsv")) != -1) {
         switch (c) {
             case 'a':
-                print_sysname = print_nodename = print_release = print_version = print_machine = true;
+                print_mode |= PRINT_ALL;
+                break;
+            case 's':
+                print_mode |= PRINT_SYSNAME;
+                break;
+            case 'n':
+                print_mode |= PRINT_NODENAME;
+                break;
+            case 'r':
+                print_mode |= PRINT_RELEASE;
+                break;
+            case 'v':
+                print_mode |= PRINT_VERSION;
+                break;
+            case 'm':
+                print_mode |= PRINT_MACHINE;
                 break;
             case 'h':
                 print_help();
                 return EXIT_SUCCESS;
-            case 's':
-                print_sysname = true;
-                break;
-            case 'n':
-                print_nodename = true;
-                break;
-            case 'r':
-                print_release = true;
-                break;
-            case 'v':
-                print_version = true;
-                break;
-            case 'm':
-                print_machine = true;
-                break;
             case '?':
                 print_error();
                 return EXIT_FAILURE;
         }
     }
 
+    if (print_mode == 0) {
+        print_mode = PRINT_SYSNAME;
+    }
+
     if (optind < argc) {
         print_error();
         return EXIT_FAILURE;
-    }
-
-    if (!print_sysname && !print_nodename && !print_release && !print_version && !print_machine) {
-        print_sysname = true;
     }
 
     struct utsname uts;
@@ -73,22 +81,22 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (print_sysname) {
+    if (print_mode & PRINT_SYSNAME) {
         print_info(uts.sysname);
     }
-    if (print_nodename) {
+    if (print_mode & PRINT_NODENAME) {
         print_info(uts.nodename);
     }
-    if (print_release) {
+    if (print_mode & PRINT_RELEASE) {
         print_info(uts.release);
     }
-    if (print_version) {
+    if (print_mode & PRINT_VERSION) {
         print_info(uts.version);
     }
-    if (print_machine) {
+    if (print_mode & PRINT_MACHINE) {
         print_info(uts.machine);
     }
-
     putchar('\n');
+
     return EXIT_SUCCESS;
 }
