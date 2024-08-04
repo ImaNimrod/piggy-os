@@ -66,10 +66,6 @@ void syscall_open(struct registers* r) {
         ret = -ENOTDIR;
         goto end;
     }
-    if (S_ISDIR(node->stat.st_mode) && !(flags & O_DIRECTORY)) {
-        ret = -EISDIR;
-        goto end;
-    }
 
     struct file_descriptor* fd = fd_create(node, flags);
     if (fd == NULL) {
@@ -276,9 +272,7 @@ void syscall_ioctl(struct registers* r) {
         return;
     }
 
-    USER_ACCESS_BEGIN;
     r->rax = fd->node->ioctl(fd->node, request, argp);
-    USER_ACCESS_END;
 }
 
 void syscall_seek(struct registers* r) {

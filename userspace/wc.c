@@ -28,12 +28,12 @@ static void print_help(void) {
     puts("Usage: " PROGRAM_NAME " [OPTION]... [FILE]...\nDisplay the newline, word, and byte counts for each FILE.\n\n-c\tprint the byte counts\n-m\tprint the character counts\n-l\tprint the newline counts\n-h\tdisplay this help and exit\n");
 }
 
-static void wc(char* path) {
+static int wc(char* path) {
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
         fputs(PROGRAM_NAME ": ", stderr);
         perror(path);
-        return;
+        return EXIT_FAILURE;
     }
 
     size_t c = 0, l = 0, w = 0;
@@ -60,7 +60,7 @@ static void wc(char* path) {
     if (n < 0) {
         fputs(PROGRAM_NAME ": ", stderr);
         perror(path);
-        return;
+        return EXIT_FAILURE;
     }
 
     close(fd);
@@ -81,6 +81,8 @@ static void wc(char* path) {
     total_chars += c;
     total_lines += l;
     total_words += w;
+
+    return EXIT_SUCCESS;
 }
 
 int main(int argc, char** argv) {
@@ -111,8 +113,10 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    int ret = EXIT_SUCCESS;
+
     for (int i = optind; i < argc; i++) {
-        wc(argv[i]);
+        ret = wc(argv[i]);
     }
 
     if (optind + 1 < argc) {
@@ -129,5 +133,5 @@ int main(int argc, char** argv) {
         puts("total\n");
     }
 
-    return EXIT_SUCCESS;
+    return ret;
 }
