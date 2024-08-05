@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include "stdlib_internal.h"
 
 static unsigned int seed = 1;
 

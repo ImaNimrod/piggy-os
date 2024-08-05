@@ -1,4 +1,4 @@
-#include <stdlib.h>
+#include "stdlib_internal.h"
 
 void* reallocarray(void* ptr, size_t size1, size_t size2) {
     size_t total_size;

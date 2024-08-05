@@ -1,7 +1,7 @@
 #include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "stdlib_internal.h"
 
 #define HEAP_CHUNK_MAGIC 0xffba67ed89ab32be
 

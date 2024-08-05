@@ -1,5 +1,5 @@
-#include <stdlib.h>
+#include "stdlib_internal.h"
 
-long labs(long x) {
+long int labs(long x) {
     return x >= 0 ? x : -x;
 }

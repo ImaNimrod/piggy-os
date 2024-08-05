@@ -1,11 +1,7 @@
 #include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-extern char** __heap_environ;
-extern size_t __heap_environ_size;
-extern size_t __heap_environ_length;
+#include "stdlib_internal.h"
 
 static bool reset_environ(void) {
     if (__heap_environ) {

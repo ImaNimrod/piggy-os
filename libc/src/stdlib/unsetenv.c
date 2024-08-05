@@ -1,6 +1,6 @@
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "stdlib_internal.h"
 
 extern char** __heap_environ;
 extern size_t __heap_environ_length;

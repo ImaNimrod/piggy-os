@@ -1,7 +1,5 @@
-#include <stdlib.h>
 #include <unistd.h>
-
-extern void __call_atexit_handlers(void);
+#include "stdlib_internal.h"
 
 __attribute__((noreturn)) void exit(int status) {
     __call_atexit_handlers();

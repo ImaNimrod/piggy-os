@@ -1,6 +1,6 @@
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include "stdlib_internal.h"
 
 char* getenv(const char* name) {
     size_t name_len = strlen(name);
