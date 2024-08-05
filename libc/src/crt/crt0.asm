@@ -12,6 +12,8 @@ extern exit
 extern main
 
 _start:
+    and rsp, -16
+
     mov [environ], rdx
 
     push rdi
