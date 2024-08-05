@@ -25,6 +25,7 @@
 #define SYS_STAT            19
 #define SYS_CHDIR           20
 #define SYS_GETCWD          21
+#define SYS_GETDENTS        22
 #define SYS_UTSNAME         23
 #define SYS_SLEEP           24
 #define SYS_CLOCK_GETTIME   25
