@@ -217,8 +217,8 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
 
     struct path2node_res r;
 
-    struct vfs_filesystem* fs = hashmap_get(vfs_filesystems, fs_name, strlen(fs_name));
-    if (fs == NULL) {
+    vfs_mount_t fs_mount = (vfs_mount_t) hashmap_get(vfs_filesystems, fs_name, strlen(fs_name));
+    if (fs_mount == NULL) {
         spinlock_release(&vfs_lock);
         return false;
     }
@@ -249,7 +249,7 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         return false;
     }
 
-    struct vfs_node* mount_node = fs->mount(r.parent, source_node, basename((char*) target));
+    struct vfs_node* mount_node = fs_mount(r.parent, source_node, basename((char*) target));
     if (mount_node == NULL) {
         spinlock_release(&vfs_lock);
         return false;
@@ -350,6 +350,25 @@ ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset,
                 struct dirent* ent = (struct dirent*) ((uintptr_t) buffer + read_size);
                 ent->d_ino = reduced_child->stat.st_ino;
                 ent->d_reclen = ent_len;
+
+                switch (reduced_child->stat.st_mode & S_IFMT) {
+                    case S_IFREG:
+                        ent->d_type = DT_REG;
+                        break;
+                    case S_IFDIR:
+                        ent->d_type = DT_DIR;
+                        break;
+                    case S_IFCHR:
+                        ent->d_type = DT_CHR;
+                        break;
+                    case S_IFBLK:
+                        ent->d_type = DT_BLK;
+                        break;
+                    default:
+                        ent->d_type = DT_UNKNOWN;
+                        break;
+                }
+
                 memcpy(ent->d_name, child->name, name_len);
 
                 if (read_size >= actual_count) {
@@ -367,9 +386,9 @@ ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset,
     return read_size;
 }
 
-bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs) {
+bool vfs_register_filesystem(const char* fs_name, vfs_mount_t fs_mount) {
     spinlock_acquire(&vfs_lock);
-    bool ret = hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), fs);
+    bool ret = hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), (void*) fs_mount);
     spinlock_release(&vfs_lock);
     return ret;
 }

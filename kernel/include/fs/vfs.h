@@ -11,10 +11,11 @@
 extern struct vfs_node* vfs_root;
 
 struct vfs_filesystem {
-    struct vfs_node *(*mount)(struct vfs_node*, struct vfs_node*, const char*);
+    void* private;
     struct vfs_node *(*create)(struct vfs_filesystem*, struct vfs_node*, const char*, mode_t);
-    struct vfs_node *(*unlink)(struct vfs_node*, const char*);
 };
+
+typedef struct vfs_node *(*vfs_mount_t)(struct vfs_node*, struct vfs_node*, const char*);
 
 struct vfs_node {
     char* name;
@@ -43,7 +44,7 @@ struct vfs_node* vfs_get_root(void);
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name);
 struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mode);
 ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset, size_t count);
-bool vfs_register_filesystem(const char* fs_name, struct vfs_filesystem* fs);
+bool vfs_register_filesystem(const char* fs_name, vfs_mount_t fs_mount);
 bool vfs_unregister_filesystem(const char* fs_name);
 void vfs_init(void);
 

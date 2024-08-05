@@ -72,7 +72,6 @@ static void page_fault_handler(struct registers* r) {
             is_present ? "\0" : "non-",
             faulting_addr);
 
-    /*
     struct thread* current_thread = this_cpu()->running_thread;
     if (current_thread != NULL) {
         struct process* current_process = current_thread->process;
@@ -83,7 +82,6 @@ static void page_fault_handler(struct registers* r) {
             return;
         }
     } 
-    */
 
     kpanic(r, true, "page fault occurred in kernel");
 }

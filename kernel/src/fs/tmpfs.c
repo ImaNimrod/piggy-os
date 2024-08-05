@@ -10,31 +10,32 @@
 #include <utils/user_access.h>
 
 struct tmpfs_metadata {
+    ino_t inode_counter;
+    dev_t dev;
+};
+
+struct tmp_node_metadata {
     size_t capacity;
     void* data;
 };
 
-static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
 static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode);
 
-static struct vfs_filesystem tmpfs = {
-    .mount = tmpfs_mount,
-    .create = tmpfs_create,
-};
+static uint8_t tmpfs_minor = 0;
 
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) flags;
 
     spinlock_acquire(&node->lock);
 
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
+    struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
 
     size_t actual_count = count;
     if ((off_t) (offset + count) >= node->stat.st_size) {
         actual_count = count - ((offset + count) - node->stat.st_size);
     }
 
-    memcpy(buf, (void*) ((uintptr_t) metadata->data + offset), actual_count);
+    memcpy(buf, (void*) ((uintptr_t) node_metadata->data + offset), actual_count);
 
     node->stat.st_atim = time_realtime;
 
@@ -47,25 +48,25 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 
     spinlock_acquire(&node->lock);
 
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
+    struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
 
-    if (offset + count >= metadata->capacity) {
-        size_t new_capacity = metadata->capacity;
+    if (offset + count >= node_metadata->capacity) {
+        size_t new_capacity = node_metadata->capacity;
         while (offset + count >= new_capacity) {
             new_capacity *= 2;
         }
 
-        void* new_data = krealloc(metadata->data, new_capacity);
+        void* new_data = krealloc(node_metadata->data, new_capacity);
         if (new_data == NULL) {
             spinlock_release(&node->lock);
             return -ENOMEM;
         }
 
-        metadata->data = new_data;
-        metadata->capacity = new_capacity;
+        node_metadata->data = new_data;
+        node_metadata->capacity = new_capacity;
     }
 
-    memcpy((void*) ((uintptr_t) metadata->data + offset), buf, count);
+    memcpy((void*) ((uintptr_t) node_metadata->data + offset), buf, count);
 
     if ((off_t) (offset + count) >= node->stat.st_size) {
         node->stat.st_size = (off_t) (offset + count);
@@ -79,26 +80,26 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 }
 
 static int tmpfs_truncate(struct vfs_node* node, off_t length) {
-    struct tmpfs_metadata* metadata = (struct tmpfs_metadata*) node->private;
+    struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
 
     spinlock_acquire(&node->lock);
 
-    if ((size_t) length > metadata->capacity) {
-        size_t new_capacity = metadata->capacity;
+    if ((size_t) length > node_metadata->capacity) {
+        size_t new_capacity = node_metadata->capacity;
         while (new_capacity < (size_t) length) {
             new_capacity *= 2;
         }
 
-        void* new_data = krealloc(metadata->data, new_capacity);
+        void* new_data = krealloc(node_metadata->data, new_capacity);
         if (new_data == NULL) {
             spinlock_release(&node->lock);
             return -ENOMEM;
         }
 
-        kfree(metadata->data);
+        kfree(node_metadata->data);
 
-        metadata->capacity = new_capacity;
-        metadata->data = new_data;
+        node_metadata->capacity = new_capacity;
+        node_metadata->data = new_data;
     }
 
     node->stat.st_size = length;
@@ -111,8 +112,16 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
 
 static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
     (void) source;
-    struct vfs_filesystem* new_fs = &tmpfs;
-    return new_fs->create(new_fs, parent, name, S_IFDIR);
+
+    struct tmpfs_metadata* metadata = kmalloc(sizeof(struct tmpfs_metadata));
+    metadata->inode_counter = 1;
+    metadata->dev = makedev(0, tmpfs_minor++);
+
+    struct vfs_filesystem* tmpfs = kmalloc(sizeof(struct vfs_filesystem*));
+    tmpfs->private = metadata;
+    tmpfs->create = tmpfs_create;
+
+    return tmpfs->create(tmpfs, parent, name, S_IFDIR);
 }
 
 static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode) {
@@ -122,24 +131,28 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
     }
 
     if (S_ISREG(mode)) {
-        new_node->private = kmalloc(sizeof(struct tmpfs_metadata));
-        if (new_node->private == NULL) {
+        struct tmp_node_metadata* node_metadata = kmalloc(sizeof(struct tmp_node_metadata));
+        if (node_metadata == NULL) {
             vfs_destroy_node(new_node);
             return NULL;
         }
 
-        struct tmpfs_metadata* metadata = new_node->private;
+        node_metadata->capacity = 4096;
 
-        metadata->capacity = 4096;
-        metadata->data = kmalloc(metadata->capacity);
-
-        if (metadata->data == NULL) {
-            kfree(new_node->private);
+        node_metadata->data = kmalloc(4096);
+        if (node_metadata->data == NULL) {
+            kfree(node_metadata);
             vfs_destroy_node(new_node);
             return NULL;
         }
+
+        new_node->private = node_metadata;
     }
 
+    struct tmpfs_metadata* fs_metadata = fs->private;
+
+    new_node->stat.st_dev = fs_metadata->dev;
+    new_node->stat.st_ino = fs_metadata->inode_counter++;
     new_node->stat.st_mode = mode;
     new_node->stat.st_size = 0;
     new_node->stat.st_blksize = 512;
@@ -154,5 +167,5 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
 }
 
 void tmpfs_init(void) {
-    vfs_register_filesystem("tmpfs", &tmpfs);
+    vfs_register_filesystem("tmpfs", tmpfs_mount);
 }

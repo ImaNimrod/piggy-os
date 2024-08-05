@@ -6,13 +6,8 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
-static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name);
-
+static struct vfs_filesystem devfs = {0};
 static struct vfs_node* devfs_root;
-
-static struct vfs_filesystem devfs = {
-    .mount = devfs_mount,
-};
 
 static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
     (void) parent;
@@ -51,5 +46,5 @@ void devfs_init(void) {
         .st_ctim = time_realtime
     };
 
-    vfs_register_filesystem("devfs", &devfs);
+    vfs_register_filesystem("devfs", devfs_mount);
 }

@@ -27,6 +27,7 @@
 #define SYS_STAT            19
 #define SYS_CHDIR           20
 #define SYS_GETCWD          21
+#define SYS_GETDENTS        22
 #define SYS_UTSNAME         23
 #define SYS_SLEEP           24
 #define SYS_CLOCK_GETTIME   25
@@ -56,6 +57,7 @@ extern void syscall_truncate(struct registers* r);
 extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
+extern void syscall_getdents(struct registers* r);
 extern void syscall_utsname(struct registers* r);
 extern void syscall_sleep(struct registers* r);
 extern void syscall_clock_gettime(struct registers* r);
@@ -84,6 +86,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_STAT]          = syscall_stat,
     [SYS_CHDIR]         = syscall_chdir,
     [SYS_GETCWD]        = syscall_getcwd,
+    [SYS_GETDENTS]      = syscall_getdents,
     [SYS_UTSNAME]       = syscall_utsname,
     [SYS_SLEEP]         = syscall_sleep,
     [SYS_CLOCK_GETTIME] = syscall_clock_gettime,

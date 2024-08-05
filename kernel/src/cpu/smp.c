@@ -96,10 +96,10 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
         }
     }
 
-    cpuid(13, 0, &unused, &unused, &ecx, &unused);
-
     write_cr0(cr0);
     write_cr4(cr4);
+
+    cpuid(13, 0, &unused, &unused, &ecx, &unused);
 
     if (xcr0 != 0) {
         write_xcr0(xcr0);

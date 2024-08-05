@@ -187,15 +187,13 @@ void syscall_read(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
-    USER_ACCESS_BEGIN;
-
-    ssize_t read;
     if (S_ISDIR(node->stat.st_mode)) {
-        read = vfs_getdents(node, (struct dirent*) buf, fd->offset, count);
-    } else {
-        read = node->read(node, buf, fd->offset, count, fd->flags);
+        r->rax = -EISDIR;
+        return;
     }
 
+    USER_ACCESS_BEGIN;
+    ssize_t read = node->read(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
 
     if (read > 0) {
@@ -215,6 +213,11 @@ void syscall_write(struct registers* r) {
     klog("[syscall] running syscall_write (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
+    if (!check_user_ptr(buf)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
     if (fd == NULL) {
         r->rax = -EBADF;
@@ -231,11 +234,6 @@ void syscall_write(struct registers* r) {
 
     if (S_ISDIR(node->stat.st_mode)) {
         r->rax = -EISDIR;
-        return;
-    }
-
-    if (!check_user_ptr(buf)) {
-        r->rax = -EFAULT;
         return;
     }
 
@@ -442,4 +440,49 @@ void syscall_getcwd(struct registers* r) {
     }
 
     r->rax = (uint64_t) buffer;
+}
+
+void syscall_getdents(struct registers* r) {
+    int fdnum = r->rdi;
+    struct dirent* buf = (struct dirent*) r->rsi;
+    size_t count = r->rdx;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_getdents (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+            fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
+
+    if (!check_user_ptr(buf)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
+        r->rax = -EBADF;
+        return;
+    }
+
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_RDONLY)) {
+        r->rax = -EPERM;
+        return;
+    }
+
+    struct vfs_node* node = fd->node;
+
+    if (!S_ISDIR(node->stat.st_mode)) {
+        r->rax = -ENOTDIR;
+        return;
+    }
+
+    USER_ACCESS_BEGIN;
+    ssize_t read = vfs_getdents(node, buf, fd->offset, count);
+    USER_ACCESS_END;
+
+    if (read > 0) {
+        fd->offset += read;
+    }
+    r->rax = read;
 }

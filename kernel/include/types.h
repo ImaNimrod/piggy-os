@@ -36,6 +36,12 @@
 #define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
 #define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
 
+#define DT_UNKNOWN  0
+#define DT_REG      1
+#define DT_DIR      2
+#define DT_CHR      3
+#define DT_BLK      4
+
 #define WNOHANG     (1 << 0)
 
 #define makedev(maj, min) (dev_t) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
@@ -119,6 +125,7 @@ struct stat {
 struct dirent {
     ino_t d_ino;
     reclen_t d_reclen;
+    unsigned char d_type;
     char d_name[];
 };
 
