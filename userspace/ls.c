@@ -11,11 +11,11 @@
 static bool list_all = false, list_almost_all = false;
 
 static void print_error(void) {
-    fputs("try " PROGRAM_NAME " -h' for more information\n", stderr);
+    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... [FILE]...\nList information about the FILEs (the current directory by default).\n\n-a\tdo not ignore entries starting with .\n-A\tdo not list implied . and .. directory entries\n-h\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nList information about the FILEs (the current directory by default).\n\n-a\tdo not ignore entries starting with .\n-A\tdo not list implied . and .. directory entries\n-h\tdisplay this help and exit\n");
 }
 
 static void list_directory(char* path) {

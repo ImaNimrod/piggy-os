@@ -21,11 +21,11 @@ static int print_mode = PRINT_ALL;
 static size_t total_chars = 0, total_lines = 0, total_words = 0;
 
 static void print_error(void) {
-    fputs("try " PROGRAM_NAME "' -h' for more information\n", stderr);
+    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... [FILE]...\nDisplay the newline, word, and byte counts for each FILE.\n\n-c\tprint the byte counts\n-m\tprint the character counts\n-l\tprint the newline counts\n-h\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nDisplay the newline, word, and byte counts for each FILE.\n\n-c\tprint the byte counts\n-m\tprint the character counts\n-l\tprint the newline counts\n-h\tdisplay this help and exit\n");
 }
 
 static int wc(char* path) {

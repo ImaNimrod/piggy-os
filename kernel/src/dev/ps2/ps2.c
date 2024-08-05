@@ -40,7 +40,6 @@ static bool port_enum_and_init_device(bool second_port) {
     return true;
 }
 
-
 uint8_t ps2_read_data(void) {
     while (!(inb(PS2_STATUS_PORT) & 1)) {
         pause();
@@ -194,19 +193,10 @@ void ps2_init(void) {
     ps2_send_command(PS2_COMMAND_WRITE_CONFIG);
     ps2_send_data(config);
 
-    bool have_device1 = false;
     if (have_port1) {
-        have_device1 = port_enum_and_init_device(false);
+        port_enum_and_init_device(false);
     }
-    bool have_device2 = false;
     if (have_port2) {
-        have_device2 = port_enum_and_init_device(true);
-    }
-
-    if (have_device1) {
-        ps2_send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
-    }
-    if (have_device2) {
-        ps2_send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, true);
+        port_enum_and_init_device(true);
     }
 }

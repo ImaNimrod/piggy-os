@@ -151,6 +151,9 @@ static ssize_t keyboard_read(struct vfs_node* node, void* buf, off_t offset, siz
 }
 
 void ps2_keyboard_init(void) {
+    ps2_send_device_command_with_data(PS2_DEVICE_COMMAND_KEYBOARD_SET_LED, 0, false, false);
+    ps2_send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
+
     isr_install_handler(IRQ(KEYBOARD_IRQ), keyboard_irq_handler);
 
     ioapic_redirect_irq(KEYBOARD_IRQ, IRQ(KEYBOARD_IRQ));

@@ -4,17 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
 #define PROGRAM_NAME "stat"
 
 static void print_error(void) {
-    fputs("try " PROGRAM_NAME "' -h' for more information\n", stderr);
+    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {
-    puts("Usage: " PROGRAM_NAME " [OPTION]... FILE...\nDisplay file metadata.\n\n-t\tprint the information in terse form\n-h\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... FILE...\n\nDisplay metadata for each FILE.\n\n-t\tprint the information in terse form\n-h\tdisplay this help and exit\n");
 }
 
 static const char* file_type_name(mode_t mode) {
@@ -29,6 +30,7 @@ static const char* file_type_name(mode_t mode) {
 
 int main(int argc, char** argv) {
     bool print_terse = false;
+
     int c;
     while ((c = getopt(argc, argv, "ht")) != -1) {
         switch (c) {
@@ -66,11 +68,11 @@ int main(int argc, char** argv) {
                     argv[i], s.st_size, s.st_blocks, s.st_rdev, s.st_ino, s.st_dev,
                     s.st_atim.tv_sec, s.st_mtim.tv_sec, s.st_ctim.tv_sec, s.st_blksize);
         } else {
-            printf("  File: %s (%s)\n  Size: %-8ld  Blocks: %-8ld  Block Size: %-8ld\nDevice: 0x%04x    Inode: %-10lu ",
-                    argv[i], file_type_name(s.st_mode), s.st_size, s.st_blocks, s.st_blksize, s.st_rdev, s.st_ino);
+            printf("  file: %s (%s)\n  size: %-8ld  blocks: %-8ld  block size: %-8ld\n inode: %-9lu device: %u,%u   ",
+                    argv[i], file_type_name(s.st_mode), s.st_size, s.st_blocks, s.st_blksize, s.st_ino, major(s.st_dev), minor(s.st_dev));
 
             if (S_ISCHR(s.st_mode) || S_ISBLK(s.st_mode)) {
-                printf("Device No.: 0x%04x\n", s.st_dev);
+                printf("device no.: %u,%u\n", major(s.st_rdev), minor(s.st_rdev));
             } else {
                 putchar('\n');
             }
@@ -80,15 +82,15 @@ int main(int argc, char** argv) {
 
             tm = localtime(&s.st_atim.tv_sec);
             strftime(buf, sizeof(buf), "%Y-%m-%d %X", tm);
-            printf("Access: %s\n", buf);
+            printf("access: %s\n", buf);
 
             tm = localtime(&s.st_mtim.tv_sec);
             strftime(buf, sizeof(buf), "%Y-%m-%d %X", tm);
-            printf("Modify: %s\n", buf);
+            printf("modify: %s\n", buf);
 
             tm = localtime(&s.st_ctim.tv_sec);
             strftime(buf, sizeof(buf), "%Y-%m-%d %X", tm);
-            printf("Create: %s\n", buf);
+            printf("create: %s\n", buf);
         }
     }
 
