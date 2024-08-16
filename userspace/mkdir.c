@@ -10,7 +10,7 @@
 #define PROGRAM_NAME "mkdir"
 
 static void print_error(void) {
-    fputs("try " PROGRAM_NAME "' -h' for more information\n", stderr);
+    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
 }
 
 static void print_help(void) {

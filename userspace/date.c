@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
     }
 
     const char* format = STANDARD_FORMAT;
-    char* set_time;
+    char* set_time = NULL;
 
     if (optind < argc) {
         if (*argv[optind] == '+') {
