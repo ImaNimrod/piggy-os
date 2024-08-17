@@ -9,8 +9,6 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
-#define PANIC_IPI 0xff
-
 static spinlock_t print_lock = {0};
 
 static void print_number(int64_t number, size_t radix, char padding, int pad_length, bool is_unsigned) {

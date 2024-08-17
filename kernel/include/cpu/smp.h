@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define PANIC_IPI 0xff
+
 extern size_t smp_cpu_count;
 
 void smp_init(void);

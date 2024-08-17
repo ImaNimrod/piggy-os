@@ -22,9 +22,10 @@ struct rsdp {
     char reserved[3];
 } __attribute__((packed));
 
+bool use_acpi_rev2;
+
 static struct rsdp* rsdp;
 static struct acpi_sdt* rsdt;
-static bool use_xsdt;
 
 static bool verify_checksum(struct acpi_sdt* sdt) {
     uint8_t sum = 0;
@@ -38,10 +39,10 @@ static bool verify_checksum(struct acpi_sdt* sdt) {
 
 struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
     struct acpi_sdt* sdt = NULL;
-    size_t entry_count = (rsdt->length - sizeof(struct acpi_sdt)) / (use_xsdt ? 8 : 4);
+    size_t entry_count = (rsdt->length - sizeof(struct acpi_sdt)) / (use_acpi_rev2 ? 8 : 4);
 
     for (size_t i = 0; i < entry_count; i++) {
-        if (use_xsdt) {
+        if (use_acpi_rev2) {
             sdt = (struct acpi_sdt*) (*((uint64_t*) (rsdt + 1) + i) + HIGH_VMA);
         } else {
             sdt = (struct acpi_sdt*) (*((uint32_t*) (rsdt + 1) + i) + HIGH_VMA);
@@ -66,9 +67,9 @@ void acpi_init(void) {
     struct limine_rsdp_response* rsdp_response = rsdp_request.response;
     rsdp = rsdp_response->address;
 
-    use_xsdt = rsdp->revision >= 2 && rsdp->xsdt_addr;
+    use_acpi_rev2 = rsdp->revision >= 2 && rsdp->xsdt_addr;
 
-    if (use_xsdt) {
+    if (use_acpi_rev2) {
         rsdt = (struct acpi_sdt*) (rsdp->xsdt_addr + HIGH_VMA);
         if (memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt)) {
             kpanic(NULL, false, "XSDT corrupted or not present");
@@ -80,7 +81,7 @@ void acpi_init(void) {
         }
     }
 
-    klog("[acpi] initialized using revision %s\n", use_xsdt ? "2.0" : "1.0");
+    klog("[acpi] initialized using revision %s\n", use_acpi_rev2 ? "2.0" : "1.0");
 
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (fadt != NULL && fadt->length >= 116) {

@@ -5,6 +5,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define GAS_ADDRESS_SPACE_MEMORY    0
+#define GAS_ADDRESS_SPACE_IO        1
+#define GAS_ADDRESS_SPACE_PCI       2
+
 struct acpi_sdt {
     char signature[4];
     uint32_t length;
@@ -25,7 +29,11 @@ struct acpi_gas {
     uint64_t base;
 } __attribute__((packed));
 
+extern bool use_acpi_rev2;
+
 struct acpi_sdt* acpi_find_sdt(const char signature[static 4]);
 void acpi_init(void);
+__attribute__((noreturn)) void acpi_reboot(void);
+__attribute__((noreturn)) void acpi_shutdown(void);
 
 #endif /* _KERNEL_ACPI_ACPI_H */

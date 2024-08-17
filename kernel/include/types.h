@@ -83,6 +83,13 @@
 #define CLOCK_REALTIME  0
 #define CLOCK_MONOTONIC 1
 
+#define SYSACT_MAGIC1   0xffbe6384abc6103b
+#define SYSACT_MAGIC2   0xbec81abcf0998367
+#define SYSACT_MAGIC3   0x9187ba8c7983f198
+#define SYSACT_HALT     0
+#define SYSACT_REBOOT   1
+#define SYSACT_SHUTDOWN 2
+
 typedef int64_t off_t;
 typedef int64_t ssize_t;
 

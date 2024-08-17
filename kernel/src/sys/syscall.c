@@ -29,9 +29,10 @@
 #define SYS_GETCWD          21
 #define SYS_GETDENTS        22
 #define SYS_UTSNAME         23
-#define SYS_SLEEP           24
-#define SYS_CLOCK_GETTIME   25
-#define SYS_CLOCK_SETTIME   26
+#define SYS_SYSACT          24
+#define SYS_SLEEP           25
+#define SYS_CLOCK_GETTIME   26
+#define SYS_CLOCK_SETTIME   27
 
 typedef void (*syscall_handler_t)(struct registers*);
 
@@ -59,6 +60,7 @@ extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
 extern void syscall_getdents(struct registers* r);
 extern void syscall_utsname(struct registers* r);
+extern void syscall_sysact(struct registers* r);
 extern void syscall_sleep(struct registers* r);
 extern void syscall_clock_gettime(struct registers* r);
 extern void syscall_clock_settime(struct registers* r);
@@ -88,6 +90,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_GETCWD]        = syscall_getcwd,
     [SYS_GETDENTS]      = syscall_getdents,
     [SYS_UTSNAME]       = syscall_utsname,
+    [SYS_SYSACT]        = syscall_sysact,
     [SYS_SLEEP]         = syscall_sleep,
     [SYS_CLOCK_GETTIME] = syscall_clock_gettime,
     [SYS_CLOCK_SETTIME] = syscall_clock_settime,

@@ -1,5 +1,7 @@
 #include <config.h>
+#include <cpu/asm.h>
 #include <cpu/isr.h>
+#include <dev/acpi/acpi.h>
 #include <errno.h>
 #include <sys/process.h>
 #include <types.h>
@@ -27,5 +29,41 @@ void syscall_utsname(struct registers* r) {
         r->rax = -EFAULT;
     } else {
         r->rax = 0;
+    }
+}
+
+void syscall_sysact(struct registers* r) {
+    uint64_t magic1 = r->rdi;
+    uint64_t magic2 = r->rsi;
+    uint64_t magic3 = r->rdx;
+    uint64_t action = r->r10;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_sysact (magic1: 0x%x, magic2: 0x%x, magic3: 0x%x, action: %d) on (pid: %u, tid: %u)\n",
+            magic1, magic2, magic3, action, current_process->pid, current_thread->tid);
+
+    if (magic1 != SYSACT_MAGIC1 || magic2 != SYSACT_MAGIC2 || magic3 != SYSACT_MAGIC3) {
+        r->rax = -EPERM;
+        return;
+    }
+
+    switch (action) {
+        case SYSACT_HALT:
+            cli();
+            for (;;) {
+                hlt();
+            }
+            break;
+        case SYSACT_REBOOT:
+            acpi_reboot();
+            break;
+        case SYSACT_SHUTDOWN:
+            acpi_shutdown();
+            break;
+        default:
+            r->rax = -EINVAL;
+            return;
     }
 }
