@@ -8,7 +8,7 @@ int main(int argc, char** argv) {
         print_args = true;
     }
 
-    while (1) {
+    for (;;) {
         if (print_args) {
             for (char** arg = argv + 1; *arg; arg++) {
                 puts(*arg);

@@ -8,12 +8,14 @@
 
 #define PROGRAM_NAME "sleep"
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " NUMBER[SUFFIX]...\n   or: " PROGRAM_NAME " OPTION\n\nPause for NUMBER seconds. SUFFIX may be 's' for seconds (the default), 'm' for minutes, 'h' for hours, or 'd' for days.\nNUMBER must be an integer. Given two or more arguments, pause for the amount of time specified by the sum of their values.\n\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static bool apply_suffix(long int* seconds, char suffix) {
@@ -45,19 +47,18 @@ int main(int argc, char** argv) {
     int c;
     while ((c = getopt(argc, argv, "h")) != -1) {
         switch (c) {
-            case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+            case 'h': 
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
     if (optind >= argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     unsigned long int seconds = 0;
@@ -74,8 +75,7 @@ int main(int argc, char** argv) {
         long s = strtol(argv[i], NULL, 10);
         if (errno != 0 || s < 0 || !apply_suffix(&s, suffix)) {
             fprintf(stderr, PROGRAM_NAME ": invalid time interval '%s'\n", argv[1]);
-            print_error();
-            return EXIT_FAILURE;
+            error();
         }
 
         seconds += s;

@@ -10,12 +10,14 @@
 
 #define PROGRAM_NAME "stat"
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... FILE...\n\nDisplay metadata for each FILE.\n\n-t\tprint the information in terse form\n-h\tdisplay this help and exit\n");
+static void help(void) {
+    puts("usage: " PROGRAM_NAME " [OPTION]... FILE...\n\nDisplay metadata for each FILE.\n\n-t\tprint the information in terse form (file, size, block count, real dev, inode, dev, atime, mtime, ctime, block size)\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static const char* file_type_name(mode_t mode) {
@@ -38,18 +40,17 @@ int main(int argc, char** argv) {
                 print_terse = true;
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
     if (optind >= argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     int ret = EXIT_SUCCESS;
@@ -59,7 +60,7 @@ int main(int argc, char** argv) {
     for (int i = optind; i < argc; i++) {
         if (stat(argv[i], &s) < 0) {
             fprintf(stderr, PROGRAM_NAME ": cannot stat '%s': %s\n", argv[i], strerror(errno));
-            ret = EXIT_FAILURE;
+            ret |= EXIT_FAILURE;
             continue;
         }
 

@@ -10,12 +10,14 @@
 
 static bool list_all = false, list_almost_all = false;
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nList information about the FILEs (the current directory by default).\n\n-a\tdo not ignore entries starting with .\n-A\tdo not list implied . and .. directory entries\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static void list_directory(char* path) {
@@ -68,11 +70,11 @@ int main(int argc, char** argv) {
                 }
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 

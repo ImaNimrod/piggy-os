@@ -15,12 +15,14 @@ enum {
     PRINT_ALL = PRINT_SYSNAME | PRINT_NODENAME | PRINT_RELEASE | PRINT_VERSION | PRINT_MACHINE
 };
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " [OPTION]...\n\nPrint system information. With no OPTION, same as -s.\n\n-a\tprint all information in the following order\n-s\tprint the kernel name\n-n\tprint the network hostname\n-r\tprint the kernel release\n-v\tprint the kernel version\n-m\tprint the machine hardware name\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static void print_info(char* str) {
@@ -58,11 +60,11 @@ int main(int argc, char** argv) {
                 print_mode |= PRINT_MACHINE;
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
@@ -71,8 +73,7 @@ int main(int argc, char** argv) {
     }
 
     if (optind < argc) {
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     struct utsname uts;

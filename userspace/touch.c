@@ -6,12 +6,14 @@
 
 #define PROGRAM_NAME "touch"
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " [OPTION]... FILE...\n\nUpdate the atime and mtime of each FILE to the current timestamp.\nA FILE argument that does not exist is created empty, unless -c is supplied.\nA FILE argument that of - is causes touch to change the times of the file associated with stdout.\n\n-c\tdo not create any files\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char** argv) {
@@ -24,18 +26,17 @@ int main(int argc, char** argv) {
                 no_create = true;
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
     if (optind >= argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     for (int i = optind; i < argc; i++) {

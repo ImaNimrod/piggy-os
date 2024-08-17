@@ -9,12 +9,14 @@
 
 #define PROGRAM_NAME "mkdir"
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " [OPTION]... DIRECTORY...\n\nCreate the DIRECTORY(ies), if they do not already exist.\n\n-p\tcreate parent directories\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static void create_directory(const char* path, bool create_parents) {
@@ -59,18 +61,17 @@ int main(int argc, char** argv) {
                 create_parents = true;
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
     if (optind >= argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     for (int i = optind; i < argc; i++) {

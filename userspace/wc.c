@@ -20,12 +20,14 @@ static char buf[WC_BUF_SIZE];
 static int print_mode = PRINT_ALL;
 static size_t total_chars = 0, total_lines = 0, total_words = 0;
 
-static void print_error(void) {
+static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
 }
 
-static void print_help(void) {
+static void help(void) {
     puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nDisplay the newline, word, and byte counts for each FILE.\n\n-c\tprint the byte counts\n-m\tprint the character counts\n-l\tprint the newline counts\n-h\tdisplay this help and exit\n");
+    exit(EXIT_SUCCESS);
 }
 
 static int wc(char* path) {
@@ -99,24 +101,23 @@ int main(int argc, char** argv) {
                 print_mode = PRINT_WORDS;
                 break;
             case 'h':
-                print_help();
-                return EXIT_SUCCESS;
+                help();
+                break;
             case '?':
-                print_error();
-                return EXIT_FAILURE;
+                error();
+                break;
         }
     }
 
     if (optind >= argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
-        print_error();
-        return EXIT_FAILURE;
+        error();
     }
 
     int ret = EXIT_SUCCESS;
 
     for (int i = optind; i < argc; i++) {
-        ret = wc(argv[i]);
+        ret |= wc(argv[i]);
     }
 
     if (optind + 1 < argc) {
