@@ -27,13 +27,15 @@
 #define SYS_GETCWD          21
 #define SYS_GETDENTS        22
 #define SYS_UTSNAME         23
-#define SYS_SLEEP           24
-#define SYS_CLOCK_GETTIME   25
-#define SYS_CLOCK_SETTIME   26
+#define SYS_SYSACT          24
+#define SYS_SLEEP           25
+#define SYS_CLOCK_GETTIME   26
+#define SYS_CLOCK_SETTIME   27
 
 extern uint64_t syscall0(uint64_t);
 extern uint64_t syscall1(uint64_t, uint64_t);
 extern uint64_t syscall2(uint64_t, uint64_t, uint64_t);
 extern uint64_t syscall3(uint64_t, uint64_t, uint64_t, uint64_t);
+extern uint64_t syscall4(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
 #endif /* _SYS_SYSCALLS_H */
