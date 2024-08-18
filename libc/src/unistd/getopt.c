@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -5,76 +6,72 @@
 char* optarg;
 int opterr, optind = 1, optopt;
 
-static char* optcursor = NULL;
-
 int getopt(int argc, char* const argv[], const char* optstring) {
-    int optchar = -1;
-    const char* optdecl = NULL;
+    static int optchar_offset = 1;
 
-    optarg = NULL;
-    opterr = optopt = 0;
-
-    if (optind >= argc) {
-        optcursor = NULL;
+    if (argc <= optind) {
         return -1;
     }
 
-    if (argv[optind] == NULL) {
-        optcursor = NULL;
+    char* optgroup = argv[optind];
+
+    if (optgroup == NULL || optgroup[0] != '-' || !strcmp(optgroup, "-")) {
         return -1;
     }
 
-    if (*argv[optind] != '-') {
-        optcursor = NULL;
-        return -1;
-    }
-
-    if (!strcmp(argv[optind], "-")) {
-        optcursor = NULL;
-        return -1;
-    }
-
-    if (!strcmp(argv[optind], "--")) {
+    if (!strcmp(optgroup, "--")) {
         optind++;
-        optcursor = NULL;
         return -1;
     }
 
-    if (optcursor == NULL || *optcursor == '\0') {
-        optcursor = argv[optind] + 1;
+    char optchar = optgroup[optchar_offset];
+    bool matched = false;
+
+    size_t i;
+    for (i = 0; i < strlen(optstring); ++i) {
+        if (optstring[i] == optchar) {
+            matched = true;
+            break;
+        }
     }
 
-    optchar = *optcursor;
-    optopt = optchar;
+    if (!matched) {
+        optopt = optchar;
+        optind++;
+        fprintf(stderr, "%s: invalid option -- '%c'\n", argv[0], optchar);
+        return '?';
+    }
 
-    optdecl = strchr(optstring, optchar);
-    if (optdecl != NULL) {
-        if (optdecl[1] == ':') {
-            optarg = optcursor++;
+    bool takes_arg = (optstring[i + 1] == ':');
+    bool terminates_optgroup = (optgroup[optchar_offset + 1] == '\0');
 
-            if (*optarg == '\0') {
-                if (optdecl[2] != ':') {
-                    if (optind++ < argc) {
-                        optarg = argv[optind];
-                    } else {
-                        fprintf(stderr, "%s: option requires an argument -- '%c'\n", argv[0], optchar);
-                        optarg = NULL;
-                        optchar = (optstring[0] == ':') ? ':' : '?';
-                    }
-                } else {
-                    optarg = NULL;
-                }
-            }
+    if (!takes_arg) {
+        if (terminates_optgroup) {
+            optind++;
+            optchar_offset = 1;
+        } else {
+            optchar_offset++;
+        }
+        return optchar;
+    }
 
-            optcursor = NULL;
+    bool arg_exists = (argc >= optind + 2);
+
+    if (terminates_optgroup) {
+        if (arg_exists) {
+            optarg = argv[optind + 1];
+            optind += 2;
+        } else {
+            optind++;
+            optarg = NULL;
+            optopt = optchar;
+            fprintf(stderr, "%s: option requires an argument -- '%c'\n", argv[0], optchar);
+            return ':';
         }
     } else {
-        fprintf(stderr, "%s: invalid option -- '%c'\n", argv[0], optchar);
-        optchar = '?';
-    }
-
-    if (optcursor == NULL || *++optcursor == '\0') {
+        optarg = optgroup + optchar_offset + 1;
         optind++;
+        optchar_offset = 1;
     }
 
     return optchar;
