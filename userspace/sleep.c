@@ -72,6 +72,7 @@ int main(int argc, char** argv) {
             argv[i][len] = '\0';
         }
 
+        errno = 0;
         long s = strtol(argv[i], NULL, 10);
         if (errno != 0 || s < 0 || !apply_suffix(&s, suffix)) {
             fprintf(stderr, PROGRAM_NAME ": invalid time interval '%s'\n", argv[1]);

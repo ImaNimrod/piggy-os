@@ -18,7 +18,7 @@ static void error(void) {
 }
 
 static void help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n   or: " PROGRAM_NAME " [MMDDhhmm[.ss]]\n\nPrint the time and date in the given FORMAT or set the date and time with [MMDDhhmm[.ss]].\n\n-R\toutput date and time in RFC 5322 format\n-h\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n\n\nPrint the time and date in the given FORMAT.\n\n-R\t\t\toutput date and time in RFC 5322 format\n-s MMDDhhmm[.ss]\tset the system date and time described by MMDDhhmm[.ss]\n-h\t\t\tdisplay this help and exit\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -137,16 +137,21 @@ static bool parse_time(char* time_string, struct tm* tm) {
 
 int main(int argc, char** argv) {
     bool rfc5322 = false;
+    char* set_time = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "hR")) != -1) {
+    while ((c = getopt(argc, argv, "hRs:")) != -1) {
         switch (c) {
+            case 's':
+                set_time = optarg;
+                break;
             case 'R':
                 rfc5322 = true;
                 break;
             case 'h':
                 help();
                 break;
+            case ':':
             case '?':
                 error();
                 break;
@@ -159,7 +164,6 @@ int main(int argc, char** argv) {
     }
 
     const char* format = STANDARD_FORMAT;
-    char* set_time = NULL;
 
     if (optind < argc) {
         if (*argv[optind] == '+') {
@@ -168,8 +172,6 @@ int main(int argc, char** argv) {
                 return EXIT_FAILURE;
             }
             format = argv[optind];
-        } else {
-            set_time = argv[optind];
         }
     } else if (rfc5322) {
         format = RFC5322_FORMAT;

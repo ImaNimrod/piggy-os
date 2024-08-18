@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     int ret = EXIT_SUCCESS;
 
     if (optind == argc) {
-        ret = cat(STDIN_FILENO);
+        ret = cat("-");
     } else {
         for (int i = optind; i < argc; i++) {
             ret |= cat(argv[i]);

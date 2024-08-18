@@ -4,11 +4,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static void delay(void) {
-    size_t i = 100000000;
-    do {} while (i--);
-}
-
 int main(void) {
     int fb = open("/dev/fb0", O_WRONLY);
     if (fb < 0) {
@@ -39,7 +34,7 @@ int main(void) {
         write(fb, buf, fb_stat.st_size);
         lseek(fb, 0, SEEK_SET);
 
-        delay();
+        usleep(1000 * 100);
     }
 
     free(buf);
