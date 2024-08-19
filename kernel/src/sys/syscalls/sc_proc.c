@@ -69,6 +69,7 @@ void syscall_exec(struct registers* r) {
     struct pagemap* old_pagemap = current_process->pagemap;
     struct pagemap* new_pagemap = vmm_new_pagemap();
     if (new_pagemap == NULL) {
+        ret = -ENOMEM;
         goto error;
     }
 

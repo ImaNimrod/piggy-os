@@ -18,6 +18,16 @@ static char* line;
 static char** args;
 static bool do_quit = false;
 
+static void error(void) {
+    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+    exit(EXIT_FAILURE);
+}
+
+static void help(void) {
+    fputs("help screen\n", stdout);
+    exit(EXIT_SUCCESS);
+}
+
 static bool builtin_cd(char** args) {
     if (chdir(args[1] != NULL ? args[1] : getenv("HOME")) < 0) {
         perror("cd");
@@ -101,7 +111,7 @@ static char** split_args(char *line) {
     return tokens;
 }
 
-static void run_program(char** args) {
+static void run_program(char** args, int* status) {
     pid_t pid = fork();
     if (pid == 0) {
         if (execvp(args[0], args) < 0) {
@@ -111,11 +121,11 @@ static void run_program(char** args) {
     } else if (pid < 0) {
         perror(PROGRAM_NAME);
     } else {
-        waitpid(pid, NULL, 0);
+        waitpid(pid, status, 0);
     }
 }
 
-static bool execute(char** args) {
+static bool execute(char** args, int* status) {
     if (args[0] == NULL) {
         return false;
     }
@@ -126,23 +136,66 @@ static bool execute(char** args) {
         }
     }
 
-    run_program(args);
+    run_program(args, status);
     return false;
 }
 
+// TODO: rewrite this ho
 int main(int argc, char** argv) {
-    if (argc > 1) {
-        execute(argv++);
-        return EXIT_SUCCESS;
+    bool run_command = false;
+    char* command = NULL;
+    int args_index = 0;
+
+    int c;
+    while ((c = getopt(argc, argv, "c:h")) != -1) {
+        if (args_index > 0) {
+            break; 
+        }
+
+        switch (c) {
+            case 'c':
+                run_command = true;
+                command = optarg;
+
+                if (!strcmp(command, "--")) {
+                    args_index = optind;
+                }
+                break;
+            case 'h':
+                help();
+                break;
+            case ':':
+            case '?':
+                error();
+                break;
+        }
+    }
+
+    if (run_command) {
+        int status;
+
+        if (args_index) {
+            if (argc - args_index == 1) {
+                char** command_args = split_args(argv[args_index]);
+                execute(command_args, &status);
+                free(command_args);
+            } else {
+                execute(&argv[args_index], &status);
+            }
+        } else {
+            char* command_args[] = { command, NULL };
+            execute(command_args, &status);
+        }
+
+        return status;
     }
 
     do {
-        fputs("$ ", stdout);
-        fflush(stdout);
+        fputs("$ ", stderr);
 
         line = read_line();
         args = split_args(line);
-        do_quit = execute(args);
+        do_quit = execute(args, NULL);
 
         free(line);
         free(args);
