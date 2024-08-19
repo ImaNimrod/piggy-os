@@ -192,9 +192,13 @@ void syscall_read(struct registers* r) {
         return;
     }
 
+    spinlock_acquire(&node->lock);
+
     USER_ACCESS_BEGIN;
     ssize_t read = node->read(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
+
+    spinlock_release(&node->lock);
 
     if (read > 0) {
         fd->offset += read;
@@ -237,9 +241,13 @@ void syscall_write(struct registers* r) {
         return;
     }
 
+    spinlock_acquire(&node->lock);
+
     USER_ACCESS_BEGIN;
     ssize_t written = node->write(node, buf, fd->offset, count, fd->flags);
     USER_ACCESS_END;
+
+    spinlock_release(&node->lock);
 
     if (written > 0) {
         fd->offset += written;
@@ -270,7 +278,11 @@ void syscall_ioctl(struct registers* r) {
         return;
     }
 
-    r->rax = fd->node->ioctl(fd->node, request, argp);
+    struct vfs_node* node = fd->node;
+
+    spinlock_acquire(&node->lock);
+    r->rax = node->ioctl(node, request, argp);
+    spinlock_release(&node->lock);
 }
 
 void syscall_seek(struct registers* r) {
@@ -364,7 +376,9 @@ void syscall_truncate(struct registers* r) {
         return;
     }
 
+    spinlock_acquire(&node->lock);
     r->rax = node->truncate(node, length);
+    spinlock_release(&node->lock);
 }
 
 void syscall_stat(struct registers* r) {
@@ -383,11 +397,17 @@ void syscall_stat(struct registers* r) {
         return;
     }
 
-    if (copy_to_user(stat, &fd->node->stat, sizeof(struct stat)) == NULL) {
+    struct vfs_node* node = fd->node;
+
+    spinlock_acquire(&node->lock);
+
+    if (copy_to_user(stat, &node->stat, sizeof(struct stat)) == NULL) {
         r->rax = -EFAULT;
     } else {
         r->rax = 0;
     }
+
+    spinlock_release(&node->lock);
 }
 
 void syscall_chdir(struct registers* r) {
@@ -413,6 +433,7 @@ void syscall_chdir(struct registers* r) {
     }
 
     current_process->cwd = node;
+
     r->rax = 0;
 }
 
@@ -472,14 +493,19 @@ void syscall_getdents(struct registers* r) {
 
     struct vfs_node* node = fd->node;
 
+    spinlock_acquire(&node->lock);
+
     if (!S_ISDIR(node->stat.st_mode)) {
         r->rax = -ENOTDIR;
+        spinlock_release(&node->lock);
         return;
     }
 
     USER_ACCESS_BEGIN;
     ssize_t read = vfs_getdents(node, buf, fd->offset, count);
     USER_ACCESS_END;
+
+    spinlock_release(&node->lock);
 
     if (read > 0) {
         fd->offset += read;

@@ -26,8 +26,6 @@ static uint8_t tmpfs_minor = 0;
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) flags;
 
-    spinlock_acquire(&node->lock);
-
     struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
 
     size_t actual_count = count;
@@ -39,14 +37,11 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t
 
     node->stat.st_atim = time_realtime;
 
-    spinlock_release(&node->lock);
     return actual_count;
 }
 
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset, size_t count, int flags) {
     (void) flags;
-
-    spinlock_acquire(&node->lock);
 
     struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
 
@@ -58,7 +53,6 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 
         void* new_data = krealloc(node_metadata->data, new_capacity);
         if (new_data == NULL) {
-            spinlock_release(&node->lock);
             return -ENOMEM;
         }
 
@@ -75,14 +69,11 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
 
     node->stat.st_atim = node->stat.st_mtim = time_realtime;
 
-    spinlock_release(&node->lock);
     return count;
 }
 
 static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     struct tmp_node_metadata* node_metadata = (struct tmp_node_metadata*) node->private;
-
-    spinlock_acquire(&node->lock);
 
     if ((size_t) length > node_metadata->capacity) {
         size_t new_capacity = node_metadata->capacity;
@@ -92,7 +83,6 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
 
         void* new_data = krealloc(node_metadata->data, new_capacity);
         if (new_data == NULL) {
-            spinlock_release(&node->lock);
             return -ENOMEM;
         }
 
@@ -106,7 +96,6 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     node->stat.st_blocks = DIV_CEIL(node->stat.st_size, node->stat.st_blksize);
     node->stat.st_atim = node->stat.st_mtim = time_realtime;
 
-    spinlock_release(&node->lock);
     return 0;
 }
 

@@ -12,8 +12,6 @@ static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_
     (void) offset;
     (void) flags;
 
-    spinlock_acquire(&node->lock);
-
     ssize_t read = -1;
 
     switch (minor(node->stat.st_rdev)) {
@@ -31,7 +29,6 @@ static ssize_t pseudo_read(struct vfs_node* node, void* buf, off_t offset, size_
             break;
     }
 
-    spinlock_release(&node->lock);
     return read;
 }
 
@@ -39,8 +36,6 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
     (void) buf;
     (void) offset;
     (void) flags;
-
-    spinlock_acquire(&node->lock);
 
     ssize_t written = -1;
 
@@ -55,7 +50,6 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
             break;
     }
 
-    spinlock_release(&node->lock);
     return written;
 }
 

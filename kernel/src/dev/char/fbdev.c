@@ -85,13 +85,10 @@ static ssize_t fbdev_read(struct vfs_node* node, void* buf, off_t offset, size_t
         return 0;
     }
 
-    spinlock_acquire(&node->lock);
-
     struct fb_info* fb_info = node->private;
     size_t size = fb_info->fixed.mmio_len;
 
     if ((size_t) offset >= size) {
-        spinlock_release(&node->lock);
         return 0;
     }
 
@@ -100,8 +97,6 @@ static ssize_t fbdev_read(struct vfs_node* node, void* buf, off_t offset, size_t
     }
 
     memcpy(buf, (void*) ((uintptr_t) fb_info->framebuffer->address + offset), count);
-
-    spinlock_release(&node->lock);
     return count;
 }
 
@@ -112,13 +107,10 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
         return 0;
     }
 
-    spinlock_acquire(&node->lock);
-
     struct fb_info* fb_info = node->private;
     size_t size = fb_info->fixed.mmio_len;
 
     if ((size_t) offset >= size) {
-        spinlock_release(&node->lock);
         return 0;
     }
 
@@ -127,8 +119,6 @@ static ssize_t fbdev_write(struct vfs_node* node, const void* buf, off_t offset,
     }
 
     memcpy((void*) ((uintptr_t) fb_info->framebuffer->address + offset), buf, count);
-
-    spinlock_release(&node->lock);
     return count;
 }
 
@@ -138,17 +128,17 @@ static int fbdev_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     int ret = -ENOTTY;
 
     switch (request) {
-        case FBIOBLANK:
+        case IOCTL_FBBLANK:
             ret = 0;
             break;
-        case FBIOGET_FSCREENINFO:
+        case IOCTL_FBGET_FSCREENINFO:
             if (copy_to_user(argp, (void*) &fb_info->fixed, sizeof(struct fb_fixed_info)) == NULL) {
                 ret = -EFAULT;
             } else {
                 ret = 0;
             }
             break;
-        case FBIOGET_VSCREENINFO:
+        case IOCTL_FBGET_VSCREENINFO:
             if (copy_to_user(argp, (void*) &fb_info->variable, sizeof(struct fb_variable_info)) == NULL) {
                 ret = -EFAULT;
             } else {

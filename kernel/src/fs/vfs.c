@@ -13,7 +13,6 @@ struct path2node_res {
 };
 
 static struct cache* vfs_node_cache;
-static spinlock_t vfs_lock = {0};
 static hashmap_t* vfs_filesystems;
 
 struct vfs_node* vfs_root;
@@ -173,15 +172,10 @@ void vfs_destroy_node(struct vfs_node* node) {
 }
 
 struct vfs_node* vfs_get_node(struct vfs_node* parent, const char* path) {
-    spinlock_acquire(&vfs_lock);
-
     struct path2node_res r = path2node(parent, path);
     if (!r.node) {
-        spinlock_release(&vfs_lock);
         return NULL;
     }
-
-    spinlock_release(&vfs_lock);
     return r.node;
 }
 
@@ -213,13 +207,10 @@ size_t vfs_get_pathname(struct vfs_node* node, char* buffer, size_t len) {
 }
 
 bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, const char* fs_name) {
-    spinlock_acquire(&vfs_lock);
-
     struct path2node_res r;
 
     vfs_mount_t fs_mount = (vfs_mount_t) hashmap_get(vfs_filesystems, fs_name, strlen(fs_name));
     if (fs_mount == NULL) {
-        spinlock_release(&vfs_lock);
         return false;
     }
 
@@ -228,61 +219,54 @@ bool vfs_mount(struct vfs_node* parent, const char* source, const char* target, 
         r = path2node(parent, source);
         source_node = r.node;
         if (source_node == NULL) {
-            spinlock_release(&vfs_lock);
             return false;
         }
 
         if (S_ISDIR(source_node->stat.st_mode)) {
-            spinlock_release(&vfs_lock);
             return false;
         }
     }
 
     r = path2node(parent, target);
     if (r.node == NULL) {
-        spinlock_release(&vfs_lock);
         return false;
     }
 
     if (r.node != vfs_root && !S_ISDIR(r.node->stat.st_mode)) {
-        spinlock_release(&vfs_lock);
         return false;
     }
 
     struct vfs_node* mount_node = fs_mount(r.parent, source_node, basename((char*) target));
     if (mount_node == NULL) {
-        spinlock_release(&vfs_lock);
         return false;
     }
     r.node->mountpoint = mount_node;
 
     create_dotentries(r.parent, mount_node);
 
-    spinlock_release(&vfs_lock);
     return true;
 }
 
 struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mode) {
-    spinlock_acquire(&vfs_lock);
-
     struct path2node_res r = path2node(parent, name);
 
     if (r.parent == NULL) {
-        spinlock_release(&vfs_lock);
         return NULL;
     }
 
     if (r.node) {
-        spinlock_release(&vfs_lock);
         return NULL;
     }
 
     struct vfs_filesystem* fs = r.parent->fs;
+
+    spinlock_acquire(&parent->lock);
+
     const char* new_node_name = (const char*) basename((char*) name);
     struct vfs_node* new_node = fs->create(fs, r.parent, new_node_name, mode);
 
     if (!hashmap_set(r.parent->children, new_node_name, strlen(new_node_name), new_node)) {
-        spinlock_release(&vfs_lock);
+        spinlock_release(&parent->lock);
         return NULL;
     }
 
@@ -290,7 +274,7 @@ struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mo
         create_dotentries(r.parent, new_node);
     }
 
-    spinlock_release(&vfs_lock);
+    spinlock_release(&parent->lock);
     return new_node;
 }
 
@@ -298,8 +282,6 @@ ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset,
     if (!S_ISDIR(node->stat.st_mode)) {
         return -ENOTDIR;
     }
-
-    spinlock_acquire(&vfs_lock);
 
     size_t total_length = 0;
     off_t iter_offset = 0;
@@ -322,7 +304,6 @@ ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset,
     }
 
     if (total_length == 0) {
-        spinlock_release(&vfs_lock);
         return 0;
     }
 
@@ -382,22 +363,15 @@ ssize_t vfs_getdents(struct vfs_node* node, struct dirent* buffer, off_t offset,
 
     node->stat.st_atim = time_realtime;
 
-    spinlock_release(&vfs_lock);
     return read_size;
 }
 
 bool vfs_register_filesystem(const char* fs_name, vfs_mount_t fs_mount) {
-    spinlock_acquire(&vfs_lock);
-    bool ret = hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), (void*) fs_mount);
-    spinlock_release(&vfs_lock);
-    return ret;
+    return hashmap_set(vfs_filesystems, fs_name, strlen(fs_name), (void*) fs_mount);
 }
 
 bool vfs_unregister_filesystem(const char* fs_name) {
-    spinlock_acquire(&vfs_lock);
-    bool ret = hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
-    spinlock_release(&vfs_lock);
-    return ret;
+    return hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
 }
 
 void vfs_init(void) {
