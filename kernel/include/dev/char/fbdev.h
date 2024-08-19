@@ -6,9 +6,9 @@
 
 #define FBDEV_MAJ 3
 
-#define FBIOBLANK           0x1000
-#define FBIOGET_FSCREENINFO 0x1001
-#define FBIOGET_VSCREENINFO 0x1002
+#define IOCTL_FBBLANK           0x1000
+#define IOCTL_FBGET_FSCREENINFO 0x1001
+#define IOCTL_FBGET_VSCREENINFO 0x1002
 
 void fbdev_init(void);
 

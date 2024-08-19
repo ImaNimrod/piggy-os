@@ -7,6 +7,10 @@
 
 #define TTY_MAJ 2
 
+#define IOCTL_TTYFLUSH      0x3500
+#define IOCTL_TTYGETATTR    0x3501
+#define IOCTL_TTYSETATTR    0x3502
+
 struct tty {
     struct termios attr;
     ringbuf_t* input_buf;

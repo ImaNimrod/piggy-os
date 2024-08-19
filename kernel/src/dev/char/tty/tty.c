@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <dev/char/tty.h>
+#include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <limine.h>
@@ -9,6 +10,7 @@
 #include <utils/math.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
+#include <utils/user_access.h>
 #include "flanterm/backends/fb.h"
 
 extern volatile struct limine_framebuffer_request framebuffer_request;
@@ -194,13 +196,38 @@ static ssize_t tty_write(struct vfs_node* node, const void* buf, off_t offset, s
     (void) offset;
     (void) flags;
 
-    spinlock_acquire(&node->lock);
-
     struct tty* tty = node->private;
     flanterm_write((struct flanterm_context*) tty->private, buf, count);
-
-    spinlock_release(&node->lock);
     return count;
+}
+
+static int tty_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
+    struct tty* tty = node->private;
+
+    int ret = -ENOTTY;
+
+    switch (request) {
+        // TODO: implement tty flushing ioctl for input/output streams 
+        case IOCTL_TTYFLUSH:
+            ret = 0;
+            break;
+        case IOCTL_TTYGETATTR:
+            if (copy_to_user(argp, (void*) &tty->attr, sizeof(struct termios)) == NULL) {
+                ret = -EFAULT;
+            } else {
+                ret = 0;
+            }
+            break;
+        case IOCTL_TTYSETATTR:
+            if (copy_from_user((void*) &tty->attr, argp, sizeof(struct termios)) == NULL) {
+                ret = -EFAULT;
+            } else {
+                ret = 0;
+            }
+            break;
+    }
+
+    return ret;
 }
 
 void tty_init(void) {
@@ -281,4 +308,5 @@ void tty_init(void) {
 
     tty_node->read = tty_read;
     tty_node->write = tty_write;
+    tty_node->ioctl = tty_ioctl;
 }
