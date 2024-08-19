@@ -1,6 +1,6 @@
 include ./config.mk
 
-EMUOPTS=-M q35 -smp 2 -m 4G -no-reboot -rtc base=localtime \
+EMUOPTS=-M q35 -smp 4 -m 4G -rtc base=localtime \
 		-bios /usr/share/edk2/x64/OVMF.fd \
 		-debugcon stdio
 

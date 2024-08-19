@@ -105,22 +105,31 @@ pushd ${DIR}/build
 
     mkdir -p build_qemu
     pushd build_qemu
+        EXTRA_ARGS=""
+        if [[ $(uname) == "Darwin" ]]
+        then
+            UI_LIB=cocoa
+            EXTRA_ARGS="--disable-sdl"
+        else
+            UI_LIB=gtk
+        fi
+
         ${DIR}/tarballs/${QEMU_NAME}/configure \
             --prefix=${PREFIX} \
             --target-list=x86_64-softmmu \
-            --enable-gtk \
-            --enable-slirp
+            --enable-$UI_LIB \
+            --enable-slirp \
+            $EXTRA_ARGS || exit 1
 
-        make -j $(nproc)
-        make install
+        make -j $(nproc) || exit 1
+        make install || exit 1
     popd
 
     mkdir -p build_nasm
     pushd build_nasm
-        ${DIR}/tarballs/${NASM_NAME}/configure --prefix=${PREFIX}
-
-        make -j $(nproc) all
-        make install
+        ${DIR}/tarballs/${NASM_NAME}/configure --prefix=${PREFIX} || exit 1
+        make -j $(nproc) all || exit 1
+        make install || exit 1
     popd
 
     mkdir -p build_binutils
@@ -130,10 +139,10 @@ pushd ${DIR}/build
             --target=${TARGET} \
             --disable-nls \
             --disable-werror \
-            --with-sysroot="$SYSROOT"
+            --with-sysroot="$SYSROOT" || exit 1
 
-        make -j $(nproc)
-        make install
+        make -j $(nproc) || exit 1
+        make install || exit 1
     popd
 
     mkdir -p build_gcc
@@ -145,9 +154,9 @@ pushd ${DIR}/build
             --disable-werror \
             --enable-languages=c \
             --without-docdir \
-            --with-sysroot="$SYSROOT"
+            --with-sysroot="$SYSROOT" || exit 1
 
-        make all-gcc all-target-libgcc -j $(nproc)
-        make install-gcc install-target-libgcc
+        make all-gcc all-target-libgcc -j $(nproc) || exit 1
+        make install-gcc install-target-libgcc || exit 1
     popd
 popd
