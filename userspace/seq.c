@@ -11,7 +11,7 @@ static void error(void) {
 }
 
 static void help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... LAST\n   or: " PROGRAM_NAME " [OPTION]... FIRST LAST\n   or: " PROGRAM_NAME " [OPTION]... FIRST INCREMENT LAST\n\nPrint numbers from FIRST to LAST, in steps of INCREMENT.\n\n-s STRING\tuse STRING as the seperator instead of '\\n'\n-h\t\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... LAST\n   or: " PROGRAM_NAME " [OPTION]... FIRST LAST\n   or: " PROGRAM_NAME " [OPTION]... FIRST INCREMENT LAST\n\nPrint numbers from FIRST to LAST, in steps of INCREMENT.\nIf FIRST is not specified, the sequence begins at 1. If INCREMENT is not specified, the sequence increments by 1.\n\n-s STRING\tuse STRING as the seperator instead of '\\n'\n-h\t\tdisplay this help and exit\n");
     exit(EXIT_SUCCESS);
 }
 

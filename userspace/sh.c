@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
     }
 
     do {
-        fputs("> ", stdout);
+        fputs("$ ", stdout);
         fflush(stdout);
 
         line = read_line();
