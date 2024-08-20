@@ -5,7 +5,7 @@
 
 static FILE __stdin = {
     .fd = STDIN_FILENO,
-    .flags = FILE_FLAG_BUFFERED,
+    .flags = FILE_FLAG_BUFFERED | FILE_FLAG_USER_BUFFER,
     .buf_size = BUFSIZ,
     .read_pos = UNGET_BYTES,
     .read_end = UNGET_BYTES,
@@ -13,7 +13,7 @@ static FILE __stdin = {
 
 static FILE __stdout = {
     .fd = STDOUT_FILENO,
-    .flags = FILE_FLAG_BUFFERED | FILE_FLAG_TTY,
+    .flags = FILE_FLAG_BUFFERED | FILE_FLAG_TTY | FILE_FLAG_USER_BUFFER,
     .buf_size = BUFSIZ,
     .read_pos = UNGET_BYTES,
     .read_end = UNGET_BYTES,
@@ -21,6 +21,7 @@ static FILE __stdout = {
 
 static FILE __stderr = {
     .fd = STDOUT_FILENO,
+    .flags = FILE_FLAG_USER_BUFFER,
     .buf_size = UNGET_BYTES,
     .read_pos = UNGET_BYTES,
     .read_end = UNGET_BYTES,

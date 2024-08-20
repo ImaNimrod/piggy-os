@@ -6,10 +6,12 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#define FILE_FLAG_ERROR     (1 << 0)
-#define FILE_FLAG_EOF       (1 << 1)
-#define FILE_FLAG_BUFFERED  (1 << 2)
-#define FILE_FLAG_TTY       (1 << 3)
+#define FILE_FLAG_ERROR         (1 << 0)
+#define FILE_FLAG_EOF           (1 << 1)
+#define FILE_FLAG_BUFFERED      (1 << 2)
+#define FILE_FLAG_TTY           (1 << 3)
+#define FILE_FLAG_USER_BUFFER   (1 << 4)
+#define FILE_FLAG_LINEBUFFER    (1 << 5)
 
 #define UNGET_BYTES 8
 
