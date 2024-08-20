@@ -1,8 +1,18 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UNAME=$(uname)
+
+NPROC=1
+if [ ${UNAME} == "Darwin" ]; then
+    NPROC=$(sysctl -n hw.ncpu)
+elif [ ${UNAME} == "Linux" ]; then
+    NPROC=$(nproc)
+else
+    echo "trying to build toolchain on possibly unsupported host platform..."
+fi
 
 source $DIR/toolchain.config
 
@@ -22,18 +32,6 @@ pushd "$DIR/tarballs"
         curl -LO ${QEMU_BASE_URL}/${QEMU_PKG}
     else
         echo "skipped downloading ${QEMU_NAME}"
-    fi
-
-    md5=""
-    if [ -e ${NASM_PKG} ]; then
-        md5="$(md5sum ${NASM_PKG} | cut -f1 -d ' ')"
-    fi
-    if [ "$md5" != ${NASM_MD5SUM} ] ; then
-        rm -f ${NASM_PKG}
-        echo "downloading ${NASM_NAME}..."
-        curl -LO ${NASM_BASE_URL}/${NASM_VERSION}/${NASM_PKG}
-    else
-        echo "skipped downloading ${NASM_NAME}"
     fi
 
     md5=""
@@ -65,13 +63,6 @@ pushd "$DIR/tarballs"
         tar -xf ${QEMU_PKG}
     else
         echo "using existing ${QEMU_NAME} source"
-    fi
-
-    if [ ! -d ${NASM_NAME} ]; then
-        echo "extracting ${NASM_NAME}..."
-        tar -xf ${NASM_PKG}
-    else
-        echo "using existing ${NASM_NAME} source"
     fi
 
     if [ ! -d ${BINUTILS_NAME} ]; then
@@ -106,8 +97,7 @@ pushd ${DIR}/build
     mkdir -p build_qemu
     pushd build_qemu
         EXTRA_ARGS=""
-        if [[ $(uname) == "Darwin" ]]
-        then
+        if [ ${UNAME} == "Darwin" ]; then
             UI_LIB=cocoa
             EXTRA_ARGS="--disable-sdl"
         else
@@ -121,14 +111,7 @@ pushd ${DIR}/build
             --enable-slirp \
             $EXTRA_ARGS || exit 1
 
-        make -j $(nproc) || exit 1
-        make install || exit 1
-    popd
-
-    mkdir -p build_nasm
-    pushd build_nasm
-        ${DIR}/tarballs/${NASM_NAME}/configure --prefix=${PREFIX} || exit 1
-        make -j $(nproc) all || exit 1
+        make -j $NPROC || exit 1
         make install || exit 1
     popd
 
@@ -141,12 +124,17 @@ pushd ${DIR}/build
             --disable-werror \
             --with-sysroot="$SYSROOT" || exit 1
 
-        make -j $(nproc) || exit 1
+        make -j $NPROC || exit 1
         make install || exit 1
     popd
 
     mkdir -p build_gcc
     pushd build_gcc
+        EXTRA_ARGS=""
+        if [ ${UNAME} == "Darwin" ]; then
+            EXTRA_ARGS="--with-mpc=/opt/homebrew --with-gmp=/opt/homebrew --with-mpfr=/opt/homebrew"
+        fi
+
         ${DIR}/tarballs/${GCC_NAME}/configure \
             --prefix=${PREFIX} \
             --target=${TARGET} \
@@ -154,9 +142,10 @@ pushd ${DIR}/build
             --disable-werror \
             --enable-languages=c \
             --without-docdir \
-            --with-sysroot="$SYSROOT" || exit 1
+            --with-sysroot="$SYSROOT" \
+            $EXTRA_ARGS || exit 1
 
-        make all-gcc all-target-libgcc -j $(nproc) || exit 1
+        make all-gcc all-target-libgcc -j $NPROC || exit 1
         make install-gcc install-target-libgcc || exit 1
     popd
 popd
