@@ -29,6 +29,7 @@ int fflush(FILE*);
 int fgetc(FILE*);
 int fgetpos(FILE* __restrict, fpos_t* __restrict);
 char* fgets(char* __restrict, int, FILE* __restrict);
+int fileno(FILE*);
 FILE* fopen(const char* __restrict, const char* __restrict);
 int fprintf(FILE* __restrict, const char* __restrict, ...);
 int fputc(int, FILE*);
