@@ -18,7 +18,7 @@ static void error(void) {
 }
 
 static void help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n\n\nPrint the time and date in the given FORMAT.\n\n-R\t\t\toutput date and time in RFC 5322 format\n-s MMDDhhmm[.ss]\tset the system date and time described by MMDDhhmm[.ss]\n-h\t\t\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n\nPrint the time and date in the given FORMAT.\n\n-R\t\t\toutput date and time in RFC 5322 format\n-s MMDDhhmm[.ss]\tset the system date and time described by MMDDhhmm[.ss]\n-h\t\t\tdisplay this help and exit\n");
     exit(EXIT_SUCCESS);
 }
 
