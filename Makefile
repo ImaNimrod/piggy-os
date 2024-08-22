@@ -41,7 +41,7 @@ userspace:
 
 .PHONY: initrd
 initrd:
-	cd $(SYSROOT_DIR); tar -H ustar -cf ../$(INITRD_NAME) *
+	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_NAME) *
 
 .PHONY: toolchain
 toolchain:

@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (optind >= argc) {
+    if (optind == argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
         error();
     }
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     for (int i = optind; i < argc; i++) {
         if (stat(argv[i], &s) < 0) {
             fprintf(stderr, PROGRAM_NAME ": cannot stat '%s': %s\n", argv[i], strerror(errno));
-            ret |= EXIT_FAILURE;
+            ret = EXIT_FAILURE;
             continue;
         }
 

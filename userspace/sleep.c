@@ -56,12 +56,12 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (optind >= argc) {
+    if (optind == argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
         error();
     }
 
-    unsigned long int seconds = 0;
+    unsigned long int total_duration = 0;
     for (int i = optind; i < argc; i++) {
         size_t len = strlen(argv[i]) - 1;
 
@@ -73,16 +73,19 @@ int main(int argc, char** argv) {
         }
 
         errno = 0;
-        long s = strtol(argv[i], NULL, 10);
-        if (errno != 0 || s < 0 || !apply_suffix(&s, suffix)) {
+
+        char* end_ptr;
+
+        long duration = strtol(argv[i], &end_ptr, 10);
+        if (errno != 0 || duration < 0 || *end_ptr || !apply_suffix(&duration, suffix)) {
             fprintf(stderr, PROGRAM_NAME ": invalid time interval '%s'\n", argv[1]);
             error();
         }
 
-        seconds += s;
+        total_duration += duration;
     }
 
-    if (sleep(seconds) < 0) {
+    if (sleep(total_duration) < 0) {
         perror(PROGRAM_NAME);
         return EXIT_FAILURE;
     }

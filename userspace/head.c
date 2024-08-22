@@ -19,7 +19,7 @@ static void error(void) {
 }
 
 static void help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nPrint the first 10 lines of each FILE to stdout. With more than one FILE, precede each with a header displaying the filename. With no FILE, or when FILE is -, read stdin.\n\n-c NUM\tprint the first NUM bytes of each file.\n-n\tprint the first NUM lines of each file instead of the first 10\n-h\tdisplay this help and exit\n");
+    puts("usage: " PROGRAM_NAME " [OPTION]... [FILE]...\n\nPrint the first 10 lines of each FILE to stdout. With more than one FILE, precede each with a header displaying the filename.\nWith no FILE, or when FILE is -, read stdin.\n\n-c NUM\tprint the first NUM bytes of each file.\n-n\tprint the first NUM lines of each file instead of the first 10\n-h\tdisplay this help and exit\n");
     exit(EXIT_SUCCESS);
 }
 
@@ -106,7 +106,6 @@ end:
     }
     close(fd);
     return ret;
-
 }
 
 int main(int argc, char** argv) {
@@ -151,7 +150,7 @@ int main(int argc, char** argv) {
         for (int i = optind; i < argc; i++) {
             printf("==| %s |==\n", argv[i]);
 
-            ret |= head(argv[i]);
+            ret = head(argv[i]);
 
             if (i != argc - 1) {
                 putchar('\n');

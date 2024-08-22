@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (optind >= argc) {
+    if (optind == argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
         error();
     }

@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
         ret = cat("-");
     } else {
         for (int i = optind; i < argc; i++) {
-            ret |= cat(argv[i]);
+            ret = cat(argv[i]);
         }
     }
 

@@ -22,7 +22,8 @@ export PATH="$PATH:$PREFIX/bin"
 
 mkdir -p "$DIR/tarballs"
 pushd "$DIR/tarballs"
-    md5=""
+    local md5=""
+
     if [ -e ${QEMU_PKG} ]; then
         md5="$(md5sum ${QEMU_PKG} | cut -f1 -d ' ')"
     fi
@@ -34,7 +35,6 @@ pushd "$DIR/tarballs"
         echo "skipped downloading ${QEMU_NAME}"
     fi
 
-    md5=""
     if [ -e ${BINUTILS_PKG} ]; then
         md5="$(md5sum ${BINUTILS_PKG} | cut -f1 -d ' ')"
     fi
@@ -46,7 +46,6 @@ pushd "$DIR/tarballs"
         echo "skipped downloading ${BINUTILS_NAME}"
     fi
 
-    md5=""
     if [ -e "$GCC_PKG" ]; then
         md5="$(md5sum ${GCC_PKG} | cut -f1 -d ' ')"
     fi

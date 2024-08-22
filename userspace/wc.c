@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (optind >= argc) {
+    if (optind == argc) {
         fputs(PROGRAM_NAME ": missing operand\n", stderr);
         error();
     }
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     int ret = EXIT_SUCCESS;
 
     for (int i = optind; i < argc; i++) {
-        ret |= wc(argv[i]);
+        ret = wc(argv[i]);
     }
 
     if (optind + 1 < argc) {

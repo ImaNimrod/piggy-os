@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@ int main(int argc, char** argv) {
     char* seperator = "\n";
 
     int c;
-    while ((c = getopt(argc, argv, "s:h")) != -1) {
+    while (!(argv[optind] && argv[optind][0] == '-' && isdigit(argv[optind][1])) && (c = getopt(argc, argv, "s:h")) != -1) {
         switch (c) {
             case 's':
                 seperator = optarg;
