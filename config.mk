@@ -1,7 +1,7 @@
 SYSROOT_DIR=$(PWD)/sysroot
 TOOLCHAIN_DIR=$(PWD)/toolchain
 
-AS=nasm
+AS=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-as
 CC=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-gcc
 LD=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-ld
 AR=$(TOOLCHAIN_DIR)/build/bin/x86_64-piggy-ar

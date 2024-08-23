@@ -57,6 +57,7 @@ static void kernel_main(void) {
 }
 
 void kernel_entry(void) {
+    klog("bruh\n");
     if (cmdline_early_get_klog()) {
         serial_init(COM1);
     }

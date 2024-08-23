@@ -8,7 +8,8 @@
 
 #define PROGRAM_NAME "ls"
 
-static bool list_all = false, list_almost_all = false;
+static bool list_all = false;
+static bool list_almost_all = false;
 
 static void error(void) {
     fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);

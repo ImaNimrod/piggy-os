@@ -1,10 +1,9 @@
-bits 64
+.intel_syntax noprefix
 
-section .text
+.section .text
 
-global setjmp
-global longjmp
-
+.global setjmp
+.type setjmp, @function
 setjmp:
     mov [rdi + 0], rbx
     mov [rdi + 8], rbp
@@ -18,6 +17,8 @@ setjmp:
     xor rax, rax
     ret
 
+.global longjmp
+.type longjmp, @function
 longjmp:
     mov rbx, [rdi + 0]
     mov rbp, [rdi + 8]

@@ -8,14 +8,12 @@ CFLAGS := -O2 -std=gnu11 -ffreestanding -fstack-protector-strong -fno-stack-chec
 
 CPPFLAGS := -I include -D FLANTERM_FB_DISABLE_BUMP_ALLOC=1 -D GIT_VERSION=\"$(shell git describe --always --tags)\"
 
-ASFLAGS := -f elf64
-
 LDFLAGS := -m elf_x86_64 -nostdlib -static -pie \
 		   --no-dynamic-linker -z text -z max-page-size=0x1000
 
 KERNEL_CFILES := $(shell cd src && find . -type f -name '*.c')
-KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.asm')
-KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.asm=.o))
+KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.S')
+KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.S=.o))
 
 .PHONY: all
 all: $(KERNEL_FILE)
@@ -33,7 +31,7 @@ obj/%.o: src/%.c include/limine.h
 	@echo "  CC   $(shell basename $<)"
 	@$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-obj/%.o: src/%.asm
+obj/%.o: src/%.S
 	@mkdir -p "$$(dirname $@)"
 	@echo "  AS   $(shell basename $<)"
 	@$(AS) $(ASFLAGS) $< -o $@

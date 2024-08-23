@@ -6,7 +6,8 @@
 
 struct rng_state* kgp_rng;
 
-static bool use_rdseed, use_rdrand;
+static bool use_rdseed = false;
+static bool use_rdrand = false;
 
 static uint64_t get_hardware_rand(void) {
     if (use_rdseed) {

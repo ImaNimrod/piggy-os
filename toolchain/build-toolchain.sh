@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -e
+set -eu
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 UNAME=$(uname)
@@ -20,42 +20,31 @@ export CFLAGS="-g0 -O2 -mtune=native -pipe"
 export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
 export PATH="$PATH:$PREFIX/bin"
 
-mkdir -p "$DIR/tarballs"
-pushd "$DIR/tarballs"
+function download_and_extract() {
+    declare -n PKG=${1^^}_PKG
+    declare -n NAME=${1^^}_NAME
+    declare -n BASE_URL=${1^^}_BASE_URL
+    declare -n MD5SUM=${1^^}_MD5SUM
+
     local md5=""
 
-    if [ -e ${QEMU_PKG} ]; then
-        md5="$(md5sum ${QEMU_PKG} | cut -f1 -d ' ')"
+    if [ -e ${PKG} ]; then
+        md5="$(md5sum ${PKG} | cut -f1 -d ' ')"
     fi
-    if [ "$md5" != ${QEMU_MD5SUM} ] ; then
-        rm -f ${QEMU_PKG}
-        echo "downloading ${QEMU_NAME}..."
-        curl -LO ${QEMU_BASE_URL}/${QEMU_PKG}
+    if [ "$md5" != ${MD5SUM} ] ; then
+        rm -f ${PKG}
+        echo "downloading ${PKG}..."
+        curl -LO ${BASE_URL}/${PKG}
     else
-        echo "skipped downloading ${QEMU_NAME}"
+        echo "skipped downloading ${NAME}"
     fi
+}
 
-    if [ -e ${BINUTILS_PKG} ]; then
-        md5="$(md5sum ${BINUTILS_PKG} | cut -f1 -d ' ')"
-    fi
-    if [ "$md5" != ${BINUTILS_MD5SUM} ] ; then
-        rm -f ${BINUTILS_PKG}
-        echo "downloading ${BINUTILS_NAME}..."
-        curl -LO ${BINUTILS_BASE_URL}/${BINUTILS_PKG}
-    else
-        echo "skipped downloading ${BINUTILS_NAME}"
-    fi
-
-    if [ -e "$GCC_PKG" ]; then
-        md5="$(md5sum ${GCC_PKG} | cut -f1 -d ' ')"
-    fi
-    if [ "$md5" != ${GCC_MD5SUM} ] ; then
-        rm -f ${GCC_PKG}
-        echo "downloading ${GCC_NAME}..."
-        curl -LO ${GCC_BASE_URL}/${GCC_NAME}/${GCC_PKG}
-    else
-        echo "skipped downloading ${GCC_NAME}"
-    fi
+mkdir -p "$DIR/tarballs"
+pushd "$DIR/tarballs"
+    download_and_extract QEMU
+    download_and_extract BINUTILS
+    download_and_extract GCC
 
     if [ ! -d ${QEMU_NAME} ]; then
         echo "extracting ${QEMU_NAME}..."
@@ -95,6 +84,8 @@ pushd ${DIR}/build
 
     mkdir -p build_qemu
     pushd build_qemu
+        echo "configuring ${QEMU_NAME}..."
+
         EXTRA_ARGS=""
         if [ ${UNAME} == "Darwin" ]; then
             UI_LIB=cocoa
@@ -110,12 +101,18 @@ pushd ${DIR}/build
             --enable-slirp \
             $EXTRA_ARGS || exit 1
 
+        echo "building ${QEMU_NAME}..."
+
         make -j $NPROC || exit 1
         make install || exit 1
     popd
 
     mkdir -p build_binutils
     pushd build_binutils
+        echo "configuring ${BINUTILS_NAME}..."
+
+        export ac_cv_prog_MAKEINFO=true
+
         ${DIR}/tarballs/${BINUTILS_NAME}/configure \
             --prefix=${PREFIX} \
             --target=${TARGET} \
@@ -123,12 +120,16 @@ pushd ${DIR}/build
             --disable-werror \
             --with-sysroot="$SYSROOT" || exit 1
 
+        echo "building ${BINUTILS_NAME}..."
+
         make -j $NPROC || exit 1
         make install || exit 1
     popd
 
     mkdir -p build_gcc
     pushd build_gcc
+        echo "configuring ${GCC_NAME}..."
+
         EXTRA_ARGS=""
         if [ ${UNAME} == "Darwin" ]; then
             EXTRA_ARGS="--with-mpc=/opt/homebrew --with-gmp=/opt/homebrew --with-mpfr=/opt/homebrew"
@@ -143,6 +144,8 @@ pushd ${DIR}/build
             --without-docdir \
             --with-sysroot="$SYSROOT" \
             $EXTRA_ARGS || exit 1
+
+        echo "building ${GCC_NAME}..."
 
         make all-gcc all-target-libgcc -j $NPROC || exit 1
         make install-gcc install-target-libgcc || exit 1

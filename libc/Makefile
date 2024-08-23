@@ -3,11 +3,9 @@ include ../config.mk
 CFLAGS := -Wall -Wextra -Wno-long-long -Wstrict-prototypes -Wpointer-arith -Wvla -Wshadow \
 		  -pedantic -std=gnu11
 
-ASFLAGS := -f elf64
-
 LIBC_CFILES := $(shell cd src && find . -type f -name '*.c')
-LIBC_ASFILES := $(shell cd src && find . -type f -name '*.asm')
-LIBC_OBJFILES := $(addprefix obj/,$(LIBC_ASFILES:.asm=.o) $(LIBC_CFILES:.c=.o))
+LIBC_ASFILES := $(shell cd src && find . -type f -name '*.S')
+LIBC_OBJFILES := $(addprefix obj/,$(LIBC_ASFILES:.S=.o) $(LIBC_CFILES:.c=.o))
 
 LIBC_CRT_OBJFILES := $(wildcard obj/crt/*.o)
 
@@ -23,7 +21,7 @@ obj/%.o: src/%.c
 	@echo "  CC   $(shell basename $<)"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-obj/%.o: src/%.asm
+obj/%.o: src/%.S
 	@mkdir -p "$$(dirname $@)"
 	@echo "  AS   $(shell basename $<)"
 	@$(AS) $(ASFLAGS) $< -o $@

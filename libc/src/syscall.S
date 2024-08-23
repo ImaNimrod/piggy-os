@@ -1,24 +1,21 @@
-bits 64
+.intel_syntax noprefix
 
-section .text
+.section .text
 
-extern errno
+.extern errno
 
-global syscall0
-global syscall1
-global syscall2
-global syscall3
-global syscall4
-
+.type set_errno_if_negative, @function
 set_errno_if_negative:
     cmp rdi, 0
     jge .end
     neg rdi
     mov [errno], rdi
     mov rax, -1
-set_errno_if_negative.end:
+.end:
     ret
 
+.global syscall0
+.type syscall0, @function
 syscall0:
     mov rax, rdi
 
@@ -28,6 +25,8 @@ syscall0:
     call set_errno_if_negative
     ret
 
+.global syscall1
+.type syscall1, @function
 syscall1:
     mov rax, rdi
 
@@ -39,6 +38,8 @@ syscall1:
     call set_errno_if_negative
     ret
 
+.global syscall2
+.type syscall2, @function
 syscall2:
     mov rax, rdi
 
@@ -51,6 +52,8 @@ syscall2:
     call set_errno_if_negative
     ret
 
+.global syscall3
+.type syscall3, @function
 syscall3:
     mov rax, rdi
 
@@ -64,6 +67,8 @@ syscall3:
     call set_errno_if_negative
     ret
 
+.global syscall4
+.type syscall4, @function
 syscall4:
     mov rax, rdi
 
