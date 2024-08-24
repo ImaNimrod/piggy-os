@@ -27,7 +27,7 @@ static struct heap_chunk* get_free_chunk(size_t size) {
     return NULL;
 }
 
-void* malloc(size_t size) {
+__attribute__((malloc)) void* malloc(size_t size) {
     if (size == 0) {
         return NULL;
     }
@@ -93,7 +93,7 @@ void free(void* ptr) {
     chunk->free = 1;
 }
 
-void* realloc(void* ptr, size_t new_size) {
+__attribute__((malloc)) void* realloc(void* ptr, size_t new_size) {
     if (!ptr) {
         return malloc(new_size);
     }

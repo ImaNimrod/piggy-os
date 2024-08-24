@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#define CLOCKS_PER_SEC 1000000
+
 #define CLOCK_REALTIME  0
 #define CLOCK_MONOTONIC 1
 

@@ -1,12 +1,18 @@
+#include <errno.h>
 #include <string.h>
 #include "stdlib_internal.h"
 
-void* calloc(size_t nmemb, size_t size) {
-    size_t length = nmemb * size;
+__attribute__((malloc)) void* calloc(size_t nmemb, size_t size) {
+    size_t total_size;
 
-    void* ptr = malloc(length);
+    if (__builtin_mul_overflow(nmemb, size, &total_size)) {
+        errno = EOVERFLOW;
+        return NULL;
+    } 
+
+    void* ptr = malloc(total_size);
     if (ptr) {
-        memset(ptr, 0, length);
+        memset(ptr, 0, total_size);
     }
     return ptr;
 }

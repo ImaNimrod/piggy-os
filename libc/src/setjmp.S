@@ -16,6 +16,7 @@ setjmp:
     mov [rdi + 56], rax
     xor rax, rax
     ret
+.size setjmp, . - setjmp
 
 .global longjmp
 .type longjmp, @function
@@ -36,3 +37,4 @@ longjmp:
     inc rax
 .end:
     ret
+.size longjmp, . - longjmp
