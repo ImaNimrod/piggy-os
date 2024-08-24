@@ -321,31 +321,7 @@ void vmm_init(void) {
         kernel_pagemap->top_level[i] = pmm_allocz(1) | PTE_PRESENT | PTE_WRITABLE;
     }
 
-    uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE),
-              text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE);
-    uintptr_t rodata_start = ALIGN_DOWN((uintptr_t) rodata_start_addr, PAGE_SIZE),
-              rodata_end = ALIGN_UP((uintptr_t) rodata_end_addr, PAGE_SIZE);
-    uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE),
-              data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE);
-
     klog("[vmm] creating kernel virtual memory mappings...\n");
-
-    struct limine_kernel_address_response* kaddr_response = kaddr_request.response;
-
-    for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
-        uintptr_t paddr = text_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
-    }
-
-    for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
-        uintptr_t paddr = rodata_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
-    }
-
-    for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
-        uintptr_t paddr = data_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
-        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
-    }
 
     uintptr_t paddr = 0;
     for (size_t i = 1; i < 0x800; i++) {
@@ -354,17 +330,47 @@ void vmm_init(void) {
         paddr += BIGPAGE_SIZE;
     }
 
-    struct limine_memmap_entry** mmap_entries = memmap_request.response->entries;
-    uint64_t entry_count = memmap_request.response->entry_count;
+    struct limine_memmap_response* memmap_response = memmap_request.response;
+    uint64_t entry_count = memmap_response->entry_count;
 
     for (size_t i = 0; i < entry_count; i++) {
-        paddr = (mmap_entries[i]->base / BIGPAGE_SIZE) * BIGPAGE_SIZE;
+        struct limine_memmap_entry* memmap_entry = memmap_response->entries[i];
+        if (memmap_entry->type != LIMINE_MEMMAP_USABLE && memmap_entry->type != LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE
+                && memmap_entry->type != LIMINE_MEMMAP_KERNEL_AND_MODULES && memmap_entry->type != LIMINE_MEMMAP_FRAMEBUFFER) {
+            continue;
+        }
 
-        for (size_t j = 0; j < DIV_CEIL(mmap_entries[i]->length, BIGPAGE_SIZE); j++) {
+        paddr = ALIGN_DOWN(memmap_entry->base, BIGPAGE_SIZE);
+
+        for (size_t j = 0; j < DIV_CEIL(memmap_entry->length, BIGPAGE_SIZE); j++) {
             vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
                     PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
             paddr += BIGPAGE_SIZE;
         }
+    }
+
+    struct limine_kernel_address_response* kaddr_response = kaddr_request.response;
+
+    uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE),
+              text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE);
+    uintptr_t rodata_start = ALIGN_DOWN((uintptr_t) rodata_start_addr, PAGE_SIZE),
+              rodata_end = ALIGN_UP((uintptr_t) rodata_end_addr, PAGE_SIZE);
+    uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE),
+              data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE);
+
+    for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
+        paddr = text_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
+        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
+    }
+
+    for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
+        paddr = rodata_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
+        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
+    }
+
+    for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
+        paddr = data_addr - kaddr_response->virtual_base + kaddr_response->physical_base;
+        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
     }
 
     vmm_switch_pagemap(kernel_pagemap);

@@ -35,7 +35,7 @@ index bc4561574..bb8974c5c 100644
 +  gas=yes
 +  gnu_ld=yes
 +  default_use_cxa_atexit=yes
-+  use_gcc_stdint=provide
++  use_gcc_stdint=wrap
 +  ;;
  *-*-linux* | frv-*-*linux* | *-*-kfreebsd*-gnu | *-*-gnu* | *-*-kopensolaris*-gnu | *-*-uclinuxfdpiceabi)
    extra_options="$extra_options gnu-user.opt"

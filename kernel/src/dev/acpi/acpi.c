@@ -22,7 +22,7 @@ struct rsdp {
     char reserved[3];
 } __attribute__((packed));
 
-bool use_acpi_rev2 - false;
+bool use_acpi_rev2 = false;
 
 static struct rsdp* rsdp;
 static struct acpi_sdt* rsdt;
