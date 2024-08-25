@@ -106,8 +106,8 @@ void pmm_init(void) {
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = entries[i];
 
-        klog("[pmm] memory map entry: base=0x%016x, length=0x%016x, type: %s\n",
-                entry->base, entry->length, memmap_type_str(entry->type));
+        klog("- memory map entry #%u: base=0x%016x, length=0x%016x, type: %s\n",
+                i, entry->base, entry->length, memmap_type_str(entry->type));
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {
             usable_pages += DIV_CEIL(entry->length, PAGE_SIZE);
