@@ -3,6 +3,7 @@
 #include <dev/hpet.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/panic.h>
 
 #define HPET_VADDR 0xfffffffffffff000
 

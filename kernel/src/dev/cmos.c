@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <dev/acpi/acpi.h>
 #include <dev/cmos.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 
 #define CMOS_ADDRESS_PORT   0x70
 #define CMOS_DATA_PORT      0x71

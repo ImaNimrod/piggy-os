@@ -4,6 +4,7 @@
 #include <mem/vmm.h>
 #include <utils/list.h>
 #include <utils/log.h>
+#include <utils/panic.h>
 
 #define IOAPIC_VADDR_TOP 0xffffffffffffd000
 

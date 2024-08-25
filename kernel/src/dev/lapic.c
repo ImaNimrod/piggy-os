@@ -4,7 +4,7 @@
 #include <dev/hpet.h>
 #include <dev/lapic.h>
 #include <mem/vmm.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 
 #define NMI_VECTOR 2
 

@@ -2,6 +2,7 @@
 #include <dev/hpet.h>
 #include <mem/slab.h>
 #include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/random.h>
 
 struct rng_state* kgp_rng;

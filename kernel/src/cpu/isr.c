@@ -2,8 +2,8 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
 #include <sys/process.h> 
-#include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 
 static const char* exception_messages[ISR_EXCEPTION_NUM] = {
     "Divide by Zero",

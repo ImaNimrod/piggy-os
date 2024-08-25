@@ -5,6 +5,7 @@
 #include <dev/char/pseudo.h>
 #include <dev/char/tty.h>
 #include <dev/hpet.h>
+#include <dev/pci.h>
 #include <dev/ps2.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
@@ -18,7 +19,7 @@
 #include <sys/sched.h>
 #include <sys/time.h>
 #include <utils/cmdline.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/random.h>
 
 uintptr_t __stack_chk_guard;
@@ -29,7 +30,6 @@ __attribute__((noreturn)) void __stack_chk_fail(void) {
 
 static void kernel_main(void) {
     time_init();
-
     vfs_init();
     devfs_init();
     tmpfs_init();
@@ -47,6 +47,8 @@ static void kernel_main(void) {
     if (!initrd_unpack()) {
         kpanic(NULL, false, "failed to unpack initrd");
     }
+
+    pci_init();
 
     if (!process_create_init()) {
         kpanic(NULL, false, "failed to create init process");

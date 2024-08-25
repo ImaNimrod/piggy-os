@@ -6,9 +6,8 @@
 #include <limine.h>
 #include <mem/slab.h>
 #include <sys/time.h>
-#include <utils/log.h>
 #include <utils/math.h>
-#include <utils/spinlock.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 #include <utils/user_access.h>
 #include "flanterm/backends/fb.h"
@@ -232,8 +231,8 @@ static int tty_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
 
 void tty_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
-    if (!framebuffer_response || framebuffer_response->framebuffer_count == 0) {
-        klog("[tty] no framebuffers available\n");
+    if (framebuffer_response->framebuffer_count == 0) {
+        kpanic(NULL, false, "no framebuffers available for tty");
         return;
     }
 

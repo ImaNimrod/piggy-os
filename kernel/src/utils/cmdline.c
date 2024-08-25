@@ -41,7 +41,7 @@ bool cmdline_early_get_klog(void) {
 }
 
 char* cmdline_get(const char* key) {
-    if (cmdline_map) {
+    if (cmdline_map != NULL) {
         return hashmap_get(cmdline_map, key, strlen(key));
     }
     return NULL;

@@ -9,7 +9,7 @@
 #include <mem/slab.h>
 #include <sys/time.h>
 #include <types.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/ringbuf.h>
 #include <utils/spinlock.h>
 

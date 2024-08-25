@@ -2,7 +2,7 @@
 #include <fs/vfs.h>
 #include <sys/time.h>
 #include <utils/hashmap.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 

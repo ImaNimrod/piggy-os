@@ -9,6 +9,7 @@
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 #include <utils/vector.h>
 
@@ -563,7 +564,7 @@ void process_init(void) {
         kpanic(NULL, false, "failed to initialize object cache for process structures");
     }
 
-    dead_process_cache = slab_cache_create("process cache", sizeof(struct process));
+    dead_process_cache = slab_cache_create("dead process cache", sizeof(struct dead_process));
     if (dead_process_cache == NULL) {
         kpanic(NULL, false, "failed to initialize object cache for dead process metadata structures");
     }

@@ -2,6 +2,7 @@
 #include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 

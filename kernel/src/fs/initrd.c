@@ -7,6 +7,7 @@
 #include <types.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 
 #define TAR_FILE_TYPE_NORMAL        '0'

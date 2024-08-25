@@ -4,7 +4,7 @@
 #include <fs/vfs.h>
 #include <sys/time.h>
 #include <types.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/random.h>
 #include <utils/string.h>
 

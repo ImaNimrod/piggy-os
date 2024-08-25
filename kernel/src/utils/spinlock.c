@@ -1,5 +1,5 @@
 #include <cpu/asm.h>
-#include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/spinlock.h>
 
 void spinlock_acquire(spinlock_t* lock) {

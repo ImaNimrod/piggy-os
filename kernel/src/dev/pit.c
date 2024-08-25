@@ -20,9 +20,24 @@ static void pit_handler(struct registers* r) {
     lapic_eoi();
 }
 
+void pit_play_sound(uint16_t hz) {
+    uint32_t divisor = PIT_INTERNAL_FREQUENCY / hz;
+    outb(PIT_COMMAND_PORT, 0xb6);
+    outb(PIT_CHANNEL_2_PORT, divisor & 0xff);
+    outb(PIT_CHANNEL_2_PORT, (divisor >> 8) & 0xff);
+
+ 	uint8_t val = inb(0x61);
+  	if (val != (val | 3)) {
+ 		outb(0x61, val | 3);
+ 	}
+}
+
+void pit_stop_sound(void) {
+    outb(0x61, inb(0x61) & 0xfc);
+}
+
 void pit_init(uint16_t hz) {
     uint16_t divisor = PIT_INTERNAL_FREQUENCY / hz; 
-
     outb(PIT_COMMAND_PORT, 0x36);
     outb(PIT_CHANNEL_0_PORT, divisor & 0xff);
     outb(PIT_CHANNEL_0_PORT, (divisor >> 8) & 0xff);

@@ -1,6 +1,7 @@
 #include <dev/acpi/madt.h>
 #include <dev/ioapic.h>
 #include <utils/log.h>
+#include <utils/panic.h>
 
 uintptr_t madt_lapic_addr;
 struct madt_iso* madt_iso_entries[ISA_IRQ_NUM];
@@ -22,7 +23,7 @@ void madt_init(void) {
     struct madt_iso* iso;
     struct madt_lapic_nmi* lapic_nmi;
 
-    for (uint8_t* entry_ptr = (uint8_t*) madt->entries_data; (uintptr_t) entry_ptr < (uintptr_t) madt + madt->length; entry_ptr += *(entry_ptr + 1)) {
+    for (uint8_t* entry_ptr = (uint8_t*) madt->entries; (uintptr_t) entry_ptr < (uintptr_t) madt + madt->length; entry_ptr += *(entry_ptr + 1)) {
         struct madt_entry_header* entry = (struct madt_entry_header*) entry_ptr;
         switch (entry->id) {
             case MADT_LAPIC_ENTRY: break;

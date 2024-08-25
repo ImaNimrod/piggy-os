@@ -2,6 +2,7 @@ include ./config.mk
 
 EMUOPTS=-M q35 -smp 4 -m 4G -rtc base=localtime \
 		-bios /usr/share/edk2/x64/OVMF.fd \
+		-audiodev pipewire,id=speaker -machine pcspk-audiodev=speaker \
 		-debugcon stdio
 
 .PHONY: all

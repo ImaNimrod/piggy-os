@@ -17,7 +17,7 @@ struct madt {
     struct acpi_sdt;
     uint32_t lapic_addr;
     uint32_t flags;
-    char entries_data[];
+    char entries[];
 } __attribute__((packed));
 
 struct madt_entry_header {

@@ -5,6 +5,7 @@
 #include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
@@ -14,7 +15,7 @@ extern uint8_t text_start_addr[], text_end_addr[];
 extern uint8_t rodata_start_addr[], rodata_end_addr[];
 extern uint8_t data_start_addr[], data_end_addr[];
 
-struct pagemap* kernel_pagemap;
+struct pagemap* kernel_pagemap = NULL;
 
 volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST,
@@ -26,7 +27,7 @@ static volatile struct limine_kernel_address_request kaddr_request = {
     .revision = 0
 };
 
-static struct cache* pagemap_cache;
+static struct cache* pagemap_cache = NULL;
 
 static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, size_t depth) {
     if (depth < 1) {

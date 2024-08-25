@@ -3,6 +3,7 @@
 #include <limine.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 
 static volatile struct limine_rsdp_request rsdp_request = {

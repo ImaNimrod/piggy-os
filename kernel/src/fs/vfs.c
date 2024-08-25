@@ -5,6 +5,7 @@
 #include <types.h>
 #include <utils/log.h>
 #include <utils/math.h>
+#include <utils/panic.h>
 #include <utils/string.h>
 
 struct path2node_res {
