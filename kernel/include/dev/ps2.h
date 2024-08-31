@@ -25,6 +25,7 @@
 #define PS2_DEVICE_COMMAND_RESET            0xff
 
 uint8_t ps2_read_data(void);
+uint8_t ps2_read_status(void);
 void ps2_send_command(uint8_t command);
 void ps2_send_data(uint8_t data);
 void ps2_flush_buffer(void);

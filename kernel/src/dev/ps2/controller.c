@@ -47,6 +47,10 @@ uint8_t ps2_read_data(void) {
     return inb(PS2_DATA_PORT);
 }
 
+uint8_t ps2_read_status(void) {
+    return inb(PS2_STATUS_PORT);
+}
+
 void ps2_send_command(uint8_t command) {
     while (inb(PS2_STATUS_PORT) & 2) {
         pause();

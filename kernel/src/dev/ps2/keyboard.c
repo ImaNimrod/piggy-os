@@ -99,29 +99,40 @@ static char translate_keyboard_scancode(uint8_t scancode) {
 static void keyboard_irq_handler(struct registers* r) {
     (void) r;
 
-    uint8_t scancode = ps2_read_data();
+    for (;;) {
+        uint8_t status = ps2_read_status();
+        if (!(status & (1 << 0))) {
+            break;
+        }
+        if (status & (1 << 5)) {
+            continue;
+        }
 
-    key_buffer[key_buffer_write_ptr] = scancode;
-    key_buffer_write_ptr = (key_buffer_write_ptr + 1) % KEYBUFFER_SIZE;
+        uint8_t scancode = ps2_read_data();
 
-    uint8_t new_led_state = led_state;
-    if (scancode == 0x45) {
-        new_led_state ^= 2;
-    } else if (scancode == 0x3a) {
-        new_led_state ^= 4;
-    } else if (scancode == 0x46) {
-        new_led_state ^= 1;
+        key_buffer[key_buffer_write_ptr] = scancode;
+        key_buffer_write_ptr = (key_buffer_write_ptr + 1) % KEYBUFFER_SIZE;
+
+        char c = translate_keyboard_scancode(scancode);
+        if (c != '\0') {
+            ringbuf_push(active_tty->input_buf, &c);
+        }
+
+        uint8_t new_led_state = led_state;
+        if (scancode == 0x45) {
+            new_led_state ^= 2;
+        } else if (scancode == 0x3a) {
+            new_led_state ^= 4;
+        } else if (scancode == 0x46) {
+            new_led_state ^= 1;
+        }
+
+        if (new_led_state != led_state) {
+            ps2_send_device_command_with_data(PS2_DEVICE_COMMAND_KEYBOARD_SET_LED, new_led_state, false, false);
+            led_state = new_led_state;
+        }
     }
 
-    if (new_led_state != led_state) {
-        ps2_send_device_command_with_data(PS2_DEVICE_COMMAND_KEYBOARD_SET_LED, new_led_state, false, false);
-        led_state = new_led_state;
-    }
-
-    char c = translate_keyboard_scancode(scancode);
-    if (c != '\0') {
-        ringbuf_push(active_tty->input_buf, &c);
-    }
 
     lapic_eoi();
 }
