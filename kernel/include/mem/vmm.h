@@ -19,7 +19,7 @@
 #define PTE_SIZE            (1 << 7)
 #define PTE_GLOBAL          (1 << 8)
 #define PTE_NX              (1ul << 63)
-#define PTE_FLAG_MASK   ((uint64_t) 0x8000000000000fff)
+#define PTE_FLAG_MASK       (0x8000000000000ffful)
 
 #define FAULT_PRESENT   (1 << 0)
 #define FAULT_WRITABLE  (1 << 1)
@@ -42,6 +42,7 @@ struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap);
 void vmm_switch_pagemap(struct pagemap* pagemap);
 bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
 bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr);
+uintptr_t vmm_get_page_mapping(struct pagemap* pagemap, uintptr_t vaddr);
 void vmm_init(void);
 
 #endif /* _KERNEL_MEM_VMM_H */

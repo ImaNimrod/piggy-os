@@ -296,6 +296,58 @@ end:
     return ret;
 }
 
+uintptr_t vmm_get_page_mapping(struct pagemap* pagemap, uintptr_t vaddr) {
+    spinlock_acquire(&pagemap->lock);
+
+    uintptr_t ret = (uintptr_t) -1;
+
+    size_t pml4_index = (vaddr & (0x1ffull << 39)) >> 39;
+    size_t pml3_index = (vaddr & (0x1ffull << 30)) >> 30;
+    size_t pml2_index = (vaddr & (0x1ffull << 21)) >> 21;
+    size_t pml1_index = (vaddr & (0x1ffull << 12)) >> 12;
+
+    uint64_t* pml4;
+
+    if (pagemap->has_level5) {
+        size_t pml5_index = (vaddr & (0x1ffull << 48)) >> 48;
+
+        if (!(pagemap->top_level[pml5_index] & PTE_PRESENT)) {
+            goto end;
+        }
+
+        pml4 = (uint64_t*) ((pagemap->top_level[pml5_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    } else {
+        pml4 = pagemap->top_level;
+    }
+
+    if (!(pml4[pml4_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+    if (pml2[pml2_index] & PTE_SIZE) {
+        ret = pml2[pml2_index];
+        goto end;
+    }
+
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    ret = (pml1[pml1_index] & PTE_PRESENT) ? pml1[pml1_index] : (uintptr_t) -1;
+
+end:
+    spinlock_release(&pagemap->lock);
+    return ret;
+}
+
 void vmm_init(void) {
     klog("[vmm] initializing virtual memory manager...\n");
 

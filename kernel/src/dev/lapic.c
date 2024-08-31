@@ -6,11 +6,10 @@
 #include <mem/vmm.h>
 #include <utils/panic.h>
 
+#define LAPIC_VADDR 0xffffffffffffe000
 #define NMI_VECTOR 2
 
 // TODO: maybe do x2apic?
-#define LAPIC_VADDR 0xffffffffffffe000
-
 #define LAPIC_REG_ID            0x020
 #define LAPIC_REG_VER           0x030
 #define LAPIC_REG_TPR           0x080
@@ -110,8 +109,10 @@ void lapic_init(uint32_t lapic_id) {
     uint64_t lapic_msr = rdmsr(IA32_APIC_BASE_MSR);
     wrmsr(IA32_APIC_BASE_MSR, lapic_msr | (1 << 11));
 
-    vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_lapic_addr,
-            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+    if (!vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_lapic_addr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
+        kpanic(NULL, true, "failed to map LAPIC");
+    }
 
     lapic_write(LAPIC_REG_SVR, lapic_read(LAPIC_REG_SVR) | (1 << 8));
 

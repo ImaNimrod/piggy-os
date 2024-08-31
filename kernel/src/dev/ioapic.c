@@ -177,8 +177,10 @@ void register_ioapic(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
     }
 
     uintptr_t vaddr = IOAPIC_VADDR_TOP - (ioapic_count * PAGE_SIZE);
-    vmm_map_page(kernel_pagemap, vaddr, paddr,
-            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+    if (!vmm_map_page(kernel_pagemap, vaddr, paddr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
+        kpanic(NULL, true, "failed to map IOAPIC");
+    }
 
     klog("[ioapic] initializing ioapic #%u (address=0x%x, GSI base=%d)\n", id, paddr, gsi_base);
 
