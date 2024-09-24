@@ -1,3 +1,4 @@
+#include <cpu/percpu.h>
 #include <dev/cmos.h>
 #include <dev/pit.h>
 #include <sys/time.h>
@@ -49,6 +50,12 @@ void time_update_timers(void) {
 
     time_monotonic = timespec_add(time_monotonic, interval);
     time_realtime = timespec_add(time_realtime, interval);
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    if (current_thread != NULL) {
+        current_thread->ticks = timespec_add(current_thread->ticks, interval);
+        current_thread->process->ticks = timespec_add(current_thread->process->ticks, interval);
+    }
 }
 
 void time_init(void) {

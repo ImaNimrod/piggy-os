@@ -37,30 +37,40 @@ void syscall_sleep(struct registers* r) {
 
 void syscall_clock_gettime(struct registers* r) {
     clockid_t clk_id = r->rdi;
-    struct timespec* tp = (struct timespec*) r->rsi;
+    struct timespec* ts = (struct timespec*) r->rsi;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_getclock (clk_id: %d, tp: 0x%x) on (pid: %u, tid: %u)\n",
-            clk_id, (uintptr_t) tp, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_getclock (clk_id: %d, ts: 0x%x) on (pid: %u, tid: %u)\n",
+            clk_id, (uintptr_t) ts, current_process->pid, current_thread->tid);
 
     int ret = 0;
 
+    struct timespec* source = NULL;
+
     switch (clk_id) {
         case CLOCK_REALTIME:
-            if (copy_to_user((void*) tp, (void*) &time_realtime, sizeof(struct timespec)) == NULL) {
-                ret = -EFAULT;
-            }
+            source = &time_realtime;
             break;
         case CLOCK_MONOTONIC:
-            if (copy_to_user((void*) tp, (void*) &time_monotonic, sizeof(struct timespec)) == NULL) {
-                ret = -EFAULT;
-            }
+            source = &time_monotonic;
+            break;
+        case CLOCK_PROCESS_CPUTIME_ID:
+            source = &current_process->ticks;
+            break;
+        case CLOCK_THREAD_CPUTIME_ID:
+            source = &current_thread->ticks;
             break;
         default:
             ret = -EINVAL;
             break;
+    }
+
+    if (ret == 0) {
+        if (copy_to_user((void*) ts, (void*) source, sizeof(struct timespec)) == NULL) {
+            ret = -EFAULT;
+        }
     }
 
     r->rax = ret;
@@ -68,23 +78,25 @@ void syscall_clock_gettime(struct registers* r) {
 
 void syscall_clock_settime(struct registers* r) {
     clockid_t clk_id = r->rdi;
-    const struct timespec* tp = (struct timespec*) r->rsi;
+    const struct timespec* ts = (struct timespec*) r->rsi;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_setclock (clk_id: %d, tp: 0x%x) on (pid: %u, tid: %u)\n",
-            clk_id, (uintptr_t) tp, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_setclock (clk_id: %d, ts: 0x%x) on (pid: %u, tid: %u)\n",
+            clk_id, (uintptr_t) ts, current_process->pid, current_thread->tid);
 
     int ret = 0;
 
     switch (clk_id) {
         case CLOCK_REALTIME:
-            if (copy_from_user((void*) &time_realtime, (void*) tp, sizeof(struct timespec)) == NULL) {
+            if (copy_from_user((void*) &time_realtime, (void*) ts, sizeof(struct timespec)) == NULL) {
                 ret = -EFAULT;
             }
             break;
         case CLOCK_MONOTONIC:
+        case CLOCK_PROCESS_CPUTIME_ID:
+        case CLOCK_THREAD_CPUTIME_ID:
             ret = -EPERM;
             break;
         default:

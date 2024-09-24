@@ -45,6 +45,7 @@ struct process {
     struct vfs_node* cwd;
     spinlock_t fd_lock;
     struct file_descriptor* file_descriptors[MAX_FDS];
+    struct timespec ticks;
 
     struct process* parent;
     vector_t* children;
@@ -59,6 +60,7 @@ struct thread {
     spinlock_t lock;
     uint64_t timeslice;
     uint64_t sleep_until;
+    struct timespec ticks;
 
     uintptr_t kernel_stack;
     uintptr_t page_fault_stack;
