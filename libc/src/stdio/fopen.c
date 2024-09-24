@@ -1,9 +1,11 @@
+#include <errno.h>
 #include <unistd.h>
 #include "stdio_internal.h"
 
 FILE* fopen(const char* path, const char* mode) {
     int flags = __fopen_mode_to_flags(mode);
     if (flags == -1) {
+        errno = EINVAL;
         return NULL;
     }
 

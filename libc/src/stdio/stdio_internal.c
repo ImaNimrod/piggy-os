@@ -56,6 +56,7 @@ int __fopen_mode_to_flags(const char* mode) {
             case 'e':
                 flags |= O_CLOEXEC;
                 break;
+            case 't':
             case 'b':
                 break;
             default:

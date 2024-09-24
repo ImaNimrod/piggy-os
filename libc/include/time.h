@@ -6,8 +6,12 @@
 
 #define CLOCKS_PER_SEC 1000000
 
-#define CLOCK_REALTIME  0
-#define CLOCK_MONOTONIC 1
+#define CLOCK_REALTIME              0
+#define CLOCK_MONOTONIC             1
+#define CLOCK_PROCESS_CPUTIME_ID    2
+#define CLOCK_THREAD_CPUTIME_ID     3
+
+typedef long int clock_t;
 
 struct tm {
     int tm_sec;
@@ -21,6 +25,7 @@ struct tm {
     int tm_isdst;
 };
 
+clock_t clock(void);
 int clock_gettime(clockid_t, struct timespec*);
 int clock_settime(clockid_t, const struct timespec*);
 double difftime(time_t, time_t);

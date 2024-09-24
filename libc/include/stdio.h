@@ -9,9 +9,13 @@
 #define BUFSIZ 4096
 #define EOF (-1)
 
+#define L_tmpnam 20
+
 #define _IOFBF 0
 #define _IOLBF 1
 #define _IONBF 2
+
+#define FILENAME_MAX 1024
 
 typedef struct __FILE FILE;
 typedef off_t fpos_t;
@@ -48,6 +52,8 @@ int printf(const char* __restrict, ...);
 int putc(int, FILE*);
 int putchar(int);
 int puts(const char*);
+int remove(const char*);
+int rename(const char*, const char*);
 void rewind(FILE*);
 int scanf(const char* __restrict, ...);
 void setbuf(FILE* __restrict, char* __restrict);
@@ -56,6 +62,7 @@ int sprintf(char* __restrict, const char* __restrict, ...);
 int snprintf(char* __restrict, size_t, const char* __restrict, ...);
 int sscanf(const char* __restrict, const char* __restrict, ...);
 FILE* tmpfile(void);
+char* tmpnam(char*);
 int ungetc(int, FILE*);
 int vfprintf(FILE* __restrict, const char* __restrict, __gnuc_va_list);
 int vfscanf(FILE* __restrict, const char* __restrict, __gnuc_va_list);

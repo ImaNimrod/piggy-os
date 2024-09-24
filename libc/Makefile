@@ -33,7 +33,7 @@ install-crt:
 
 .PHONY: install-headers
 install-headers:
-	@echo "installing headers in sysroot..."
+	@echo "installing libc headers in sysroot..."
 	cp -fr include/* $(SYSROOT_DIR)/usr/include
 
 .PHONY: clean
