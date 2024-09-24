@@ -35,6 +35,7 @@ kernel:
 .PHONY: libc
 libc:
 	$(MAKE) -C libc
+	$(MAKE) -C libm
 
 .PHONY: userspace
 userspace:
@@ -47,6 +48,7 @@ initrd:
 .PHONY: toolchain
 toolchain:
 	$(MAKE) -C libc install-headers
+	$(MAKE) -C libm install-headers
 	./toolchain/build-toolchain.sh
 
 .PHONY: run
@@ -67,6 +69,7 @@ clean:
 	$(RM) -r $(IMAGE_NAME) $(INITRD_NAME) iso_root
 	$(MAKE) -C kernel clean
 	$(MAKE) -C libc clean
+	$(MAKE) -C libm clean
 	$(MAKE) -C userspace clean
 
 .PHONY: distclean

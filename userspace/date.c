@@ -185,12 +185,12 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
 
-        const struct timespec tp = {
+        const struct timespec ts = {
             .tv_sec = mktime(&set_tm),
             .tv_nsec = 0
         };
 
-        if (clock_settime(CLOCK_REALTIME, &tp) < 0) {
+        if (clock_settime(CLOCK_REALTIME, &ts) < 0) {
             fprintf(stderr, PROGRAM_NAME ": cannot set date: %s\n", strerror(errno));
         }
         tm = &set_tm;
