@@ -14,8 +14,10 @@
 
 #define PIT_IRQ 0
 
-static void pit_handler(struct registers* r) {
+static void pit_handler(struct registers* r, void* ctx) {
     (void) r;
+    (void) ctx;
+
     time_update_timers();
     lapic_eoi();
 }
@@ -42,7 +44,7 @@ void pit_init(uint16_t hz) {
     outb(PIT_CHANNEL_0_PORT, divisor & 0xff);
     outb(PIT_CHANNEL_0_PORT, (divisor >> 8) & 0xff);
 
-    isr_install_handler(IRQ(PIT_IRQ), pit_handler);
+    isr_install_handler(IRQ(PIT_IRQ), pit_handler, NULL);
     ioapic_redirect_irq(PIT_IRQ, IRQ(PIT_IRQ));
     ioapic_set_irq_mask(PIT_IRQ, false);
 }

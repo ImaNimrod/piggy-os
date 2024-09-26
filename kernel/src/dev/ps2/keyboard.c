@@ -96,8 +96,9 @@ static char translate_keyboard_scancode(uint8_t scancode) {
     return c;
 }
 
-static void keyboard_irq_handler(struct registers* r) {
+static void keyboard_irq_handler(struct registers* r, void* ctx) {
     (void) r;
+    (void) ctx;
 
     for (;;) {
         uint8_t status = ps2_read_status();
@@ -165,7 +166,7 @@ void ps2_keyboard_init(void) {
     ps2_send_device_command_with_data(PS2_DEVICE_COMMAND_KEYBOARD_SET_LED, 0, false, false);
     ps2_send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
 
-    isr_install_handler(IRQ(KEYBOARD_IRQ), keyboard_irq_handler);
+    isr_install_handler(IRQ(KEYBOARD_IRQ), keyboard_irq_handler, NULL);
 
     ioapic_redirect_irq(KEYBOARD_IRQ, IRQ(KEYBOARD_IRQ));
     ioapic_set_irq_mask(KEYBOARD_IRQ, false);

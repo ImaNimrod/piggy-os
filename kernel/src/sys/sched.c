@@ -82,7 +82,9 @@ static struct thread* get_next_thread(struct thread* current) {
     return NULL;
 }
 
-__attribute__((noreturn)) static void schedule(struct registers* r) {
+__attribute__((noreturn)) static void schedule(struct registers* r, void* ctx) {
+    (void) ctx;
+
     lapic_timer_stop();
 
     if (spinlock_test_and_acquire(&thread_management_lock)) {
@@ -223,7 +225,7 @@ void sched_thread_sleep(struct thread* t, uint64_t ns) {
 }
 
 void sched_init(void) {
-    isr_install_handler(SCHED_VECTOR, schedule);
+    isr_install_handler(SCHED_VECTOR, schedule, NULL);
     kernel_process = process_create(NULL, kernel_pagemap);
 
     klog("[sched] intialized scheduler and created kernel process\n");

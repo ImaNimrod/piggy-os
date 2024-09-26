@@ -33,6 +33,7 @@ struct vfs_node {
     ssize_t (*write)(struct vfs_node*, const void*, off_t, size_t, int);
     int (*ioctl)(struct vfs_node*, uint64_t, void*);
     int (*truncate)(struct vfs_node*, off_t);
+    int (*sync)(struct vfs_node*);
 };
 
 struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, bool is_dir);

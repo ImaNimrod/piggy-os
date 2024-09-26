@@ -7,7 +7,7 @@
 #define ISA_IRQ_NUM         16
 #define ISR_EXCEPTION_NUM   32
 #define ISR_IRQ_VECTOR_BASE 32
-#define ISR_HANDLER_NUM     256
+#define ISR_NUM             256
 
 #define IRQ(irq) ((irq) + ISR_IRQ_VECTOR_BASE)
 
@@ -36,9 +36,9 @@ struct registers {
 	uint64_t ss;
 } __attribute__((packed));
 
-typedef void (*isr_handler_t)(struct registers*);
+typedef void (*isr_handler_t)(struct registers*, void*);
 
-void isr_install_handler(uint8_t vector, isr_handler_t handler);
+void isr_install_handler(uint8_t vector, isr_handler_t handler, void* ctx);
 void isr_uninstall_handler(uint8_t vector);
 
 #endif /* _KERNEL_CPU_ISR_H */

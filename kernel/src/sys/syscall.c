@@ -24,15 +24,16 @@
 #define SYS_IOCTL           16
 #define SYS_SEEK            17
 #define SYS_TRUNCATE        18
-#define SYS_STAT            19
-#define SYS_CHDIR           20
-#define SYS_GETCWD          21
-#define SYS_GETDENTS        22
-#define SYS_UTSNAME         23
-#define SYS_SYSACT          24
-#define SYS_SLEEP           25
-#define SYS_CLOCK_GETTIME   26
-#define SYS_CLOCK_SETTIME   27
+#define SYS_FSYNC           19
+#define SYS_STAT            20
+#define SYS_CHDIR           21
+#define SYS_GETCWD          22
+#define SYS_GETDENTS        23
+#define SYS_UTSNAME         24
+#define SYS_SYSACT          25
+#define SYS_SLEEP           26
+#define SYS_CLOCK_GETTIME   27
+#define SYS_CLOCK_SETTIME   28
 
 typedef void (*syscall_handler_t)(struct registers*);
 
@@ -55,6 +56,7 @@ extern void syscall_write(struct registers* r);
 extern void syscall_ioctl(struct registers* r);
 extern void syscall_seek(struct registers* r);
 extern void syscall_truncate(struct registers* r);
+extern void syscall_fsync(struct registers* r);
 extern void syscall_stat(struct registers* r);
 extern void syscall_chdir(struct registers* r);
 extern void syscall_getcwd(struct registers* r);
@@ -85,6 +87,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_IOCTL]         = syscall_ioctl,
     [SYS_SEEK]          = syscall_seek,
     [SYS_TRUNCATE]      = syscall_truncate,
+    [SYS_FSYNC]         = syscall_fsync,
     [SYS_STAT]          = syscall_stat,
     [SYS_CHDIR]         = syscall_chdir,
     [SYS_GETCWD]        = syscall_getcwd,

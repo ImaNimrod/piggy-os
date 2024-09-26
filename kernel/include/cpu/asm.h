@@ -2,6 +2,7 @@
 #define _KERNEL_CPU_ASM_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define IA32_APIC_BASE_MSR      0x1b
@@ -96,6 +97,14 @@ static inline uint32_t inl(uint16_t port) {
     uint32_t ret;
     __asm__ volatile("inl %%dx, %%eax" : "=a" (ret) : "d" (port));
     return ret;
+}
+
+static inline void insw(uint16_t port, uint16_t* buf, size_t count) {
+    __asm__ volatile ("cld; rep; insw" : "+D" (buf), "+c" (count) : "d" (port));
+}
+
+static inline void outsw(uint16_t port, const uint16_t* buf, size_t count) {
+    __asm__ volatile ("cld; rep; outsw" : "+A" (buf), "+c" (count) : "d" (port));
 }
 
 static inline bool cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) {

@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/percpu.h>
 #include <dev/acpi/acpi.h>
-#include <dev/ata.h>
+#include <dev/block/ata.h>
 #include <dev/pci.h>
 #include <limits.h>
 #include <mem/slab.h>
@@ -15,25 +15,20 @@
 #define PCI_CONFIG_DATA_PORT 0xcfc
 
 #define PCI_CONFIG_ID           0x00
+#define PCI_CONFIG_VENDOR_ID    PCI_CONFIG_ID
+#define PCI_CONFIG_DEVICE_ID    PCI_CONFIG_ID + 2
 #define PCI_CONFIG_COMMAND      0x04
 #define PCI_CONFIG_STATUS       0x06
 #define PCI_CONFIG_CLASS        0x08
 #define PCI_CONFIG_INFO         0x0c
+#define PCI_CONFIG_HEADER_TYPE  PCI_CONFIG_INFO + 2
 #define PCI_CONFIG_BUS          0x18
 #define PCI_CONFIG_SUBSYSTEM    0x2c
 #define PCI_CONFIG_CAPABILITIES 0x34
 #define PCI_CONFIG_IRQ          0x3c
 
-#define PCI_READ8(DEV, OFFSET)  (uint8_t) legacy_io_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET))
-#define PCI_READ16(DEV, OFFSET) (uint16_t) legacy_io_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET))
-#define PCI_READ32(DEV, OFFSET) (uint32_t) legacy_io_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET))
-
-#define PCI_WRITE8(DEV, OFFSET, VALUE)  legacy_io_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), UINT8_MAX)
-#define PCI_WRITE16(DEV, OFFSET, VALUE) legacy_io_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), UINT16_MAX)
-#define PCI_WRITE32(DEV, OFFSET, VALUE) legacy_io_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), UINT32_MAX)
-
 struct mcfg_entry {
-    uint64_t base_address;
+    uint64_t ecm_base_addr;
     uint16_t segment;
     uint8_t bus_start;
     uint8_t bus_end;
@@ -55,7 +50,6 @@ union msi_address {
         uint32_t dest_id : 8;
         uint32_t base_address : 12;
     };
-
     uint32_t raw;
 };
 
@@ -68,14 +62,11 @@ union msi_data {
         uint32_t trig_mode : 1;
         uint32_t : 16;
     };
-
     uint32_t raw;
 };
 
-/*
 static struct mcfg_entry* mcfg_entries = NULL;
 static size_t mcfg_entry_count = 0;
-*/
 
 static void enumerate_bus(uint8_t bus);
 static void enumerate_slot(uint8_t bus, uint8_t slot);
@@ -87,28 +78,103 @@ static struct pci_driver* pci_drivers[] = {
     &ata_driver,
 };
 
-static uint32_t legacy_io_read(uint8_t bus, uint8_t slot, uint8_t function, uint32_t offset) {
-    uint32_t address = (1 << 31) | (offset & ~3) | ((uint32_t) function << 8) | ((uint32_t) slot << 11) | ((uint32_t) bus << 16);
+static uint32_t legacy_io_read(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
+    uint32_t address =  ((bus << 16) | (slot << 11) | (function << 8) | (offset & 0xfffc) | (1u << 31));
     outl(PCI_CONFIG_ADDR_PORT, address);
 
-    uint32_t value = inl(PCI_CONFIG_DATA_PORT);
-    return value >>= (offset & 3) * 8;
+    switch (access_size) {
+        case 1:
+            return inb(PCI_CONFIG_DATA_PORT + (offset & 3));
+        case 2:
+            return inw(PCI_CONFIG_DATA_PORT + (offset & 2));
+        case 4:
+            return inl(PCI_CONFIG_DATA_PORT);
+        default:
+            return (uint32_t) -1;
+    }
 }
 
-static void legacy_io_write(uint8_t bus, uint8_t slot, uint8_t function, uint32_t offset, uint32_t value, uint32_t access_mask){
-    uint32_t address = (1 << 31) | (offset & ~3) | ((uint32_t) function << 8) | ((uint32_t) slot << 11) | ((uint32_t) bus << 16);
+static void legacy_io_write(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size){
+    uint32_t address =  ((bus << 16) | (slot << 11) | (function << 8) | (offset & 0xfffc) | (1u << 31));
     outl(PCI_CONFIG_ADDR_PORT, address);
 
-    uint32_t old = inl(PCI_CONFIG_DATA_PORT);
-
-    int bitoffset = (offset & 3) * 8;
-    value = (value & access_mask) << bitoffset;
-    old &= ~(access_mask << bitoffset);
-    old |= value;
-
-    outl(PCI_CONFIG_DATA_PORT, address);
-    outl(PCI_CONFIG_DATA_PORT, old);
+    switch (access_size) {
+        case 1:
+            outb(PCI_CONFIG_DATA_PORT + (offset & 3), value);
+            break;
+        case 2:
+            outw(PCI_CONFIG_DATA_PORT + (offset & 2), value);
+            break;
+        case 4:
+            outl(PCI_CONFIG_DATA_PORT, value);
+            break;
+        default:
+            break;
+    }
 }
+
+static uint32_t ecm_read(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
+    struct mcfg_entry* entry = NULL;
+
+    for (size_t i = 0; i < mcfg_entry_count; i++) {
+        struct mcfg_entry* iter = &mcfg_entries[i];
+        // legacy PCI only
+        if (iter->segment == 0 && bus >= iter->bus_start && bus <= iter->bus_end) {
+            entry = iter;
+            break;
+        }
+    }
+
+    if (entry == NULL) {
+        return (uint32_t) -1;
+    }
+
+    void* addr = (void*) (((entry->ecm_base_addr + (((bus - entry->bus_start) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+
+    switch (access_size) {
+        case 1:
+            return *(volatile uint8_t*) addr;
+        case 2:
+            return *(volatile uint16_t*) addr;
+        case 4:
+            return *(volatile uint32_t*) addr;
+        default:
+            return (uint32_t) -1;
+    }
+}
+
+static void ecm_write(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size) {
+    struct mcfg_entry* entry = NULL;
+
+    for (size_t i = 0; i < mcfg_entry_count; i++) {
+        struct mcfg_entry* iter = &mcfg_entries[i];
+        // legacy PCI only
+        if (iter->segment == 0 && bus >= iter->bus_start && bus <= iter->bus_end) {
+            break;
+        }
+    }
+
+    if (entry == NULL) {
+        return;
+    }
+
+    void* addr = (void*) (((entry->ecm_base_addr + (((bus - entry->bus_start) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+
+    switch (access_size) {
+        case 1:
+            *(volatile uint8_t*) addr = value;
+            break;
+        case 2:
+            *(volatile uint16_t*) addr = value;
+            break;
+        case 4:
+            *(volatile uint32_t*) addr = value;
+            break;
+    }
+}
+
+uint32_t (*pci_read)(uint8_t, uint8_t, uint8_t, uint16_t, uint8_t);
+void (*pci_write)(uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint8_t);
 
 static const char* get_class_name(uint8_t class) {
     switch (class) {
@@ -134,11 +200,9 @@ static const char* get_class_name(uint8_t class) {
         case 0x13: return "Non-Esssential Instrumentation";
         case 0x40: return "Co-Processor";
     }
-
     if (class > 0x13 && class < 0x40) {
         return "Reserved";
     }
-
     return "Unassigned";
 }
 
@@ -191,15 +255,15 @@ static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
 }
 
 static void enumerate_slot(uint8_t bus, uint8_t slot) {
-    if (legacy_io_read(bus, slot, 0, PCI_CONFIG_ID) == (uint32_t) -1) {
+    if ((uint16_t) pci_read(bus, slot, 0, PCI_CONFIG_VENDOR_ID, 2) == 0xffff) {
         return;
     }
 
     enumerate_function(bus, slot, 0);
 
-    if (legacy_io_read(bus, slot, 0, PCI_CONFIG_INFO) & 0x800000) {
+    if ((uint16_t) pci_read(0, 0, 0, PCI_CONFIG_HEADER_TYPE, 2) & 0x80) {
         for (uint8_t function = 1; function < 8; function++) {
-            if (legacy_io_read(bus, slot, function, PCI_CONFIG_ID) == (uint32_t) -1) {
+            if ((uint16_t) pci_read(bus, slot, function, PCI_CONFIG_VENDOR_ID, 2) == 0xffff) {
                 continue;
             }
 
@@ -248,13 +312,6 @@ void pci_register_driver(struct pci_driver* driver) {
             driver->init(dev);
         }
     }
-}
-
-void pci_set_command_flags(struct pci_device* dev, uint16_t flags) {
-    uint16_t command = PCI_READ16(dev, PCI_CONFIG_COMMAND);
-    command &= ~7;
-    command |= flags & 7;
-    PCI_WRITE16(dev, PCI_CONFIG_COMMAND, command);
 }
 
 struct pci_bar pci_get_bar(struct pci_device* dev, uint8_t index) {
@@ -397,6 +454,20 @@ bool pci_mask_irq(struct pci_device* dev, size_t index, bool mask) {
     return true;
 }
 
+void pci_write_command_flags(struct pci_device* dev, uint16_t flags) {
+    uint16_t command = PCI_READ16(dev, PCI_CONFIG_COMMAND);
+    command &= ~7;
+    command |= flags & 7;
+    PCI_WRITE16(dev, PCI_CONFIG_COMMAND, command);
+}
+
+void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if) {
+    uint32_t class = PCI_READ32(dev, PCI_CONFIG_CLASS);
+    class = (class & 0xffff00ff) | (prog_if << 8);
+    PCI_WRITE32(dev, PCI_CONFIG_CLASS, class);
+    dev->prog_if = prog_if;
+}
+
 void pci_init(void) {
     pci_devices = vector_create(sizeof(struct pci_device*));
     if (pci_devices == NULL) {
@@ -404,15 +475,24 @@ void pci_init(void) {
     }
 
     struct mcfg* mcfg = (struct mcfg*) acpi_find_sdt("MCFG");
-    if (mcfg != NULL) {
-        // TODO: implement new PCIE ECAM usage
+    if (mcfg != NULL || mcfg->length < sizeof(struct mcfg) + sizeof(struct mcfg_entry)) {
+        mcfg_entries = mcfg->entries;
+        mcfg_entry_count = (mcfg->length - sizeof(struct mcfg)) / sizeof(struct mcfg_entry);
+
+        klog("[pci] using ECM for device I/O\n");
+        pci_read = ecm_read;
+        pci_write = ecm_write;
+    } else {
+        klog("[pci] using legacy I/O ports for device I/O\n");
+        pci_read = legacy_io_read;
+        pci_write = legacy_io_write;
     }
 
     enumerate_bus(0);
 
-    if (legacy_io_read(0, 0, 0, PCI_CONFIG_INFO) & 0x800000) {
+    if ((uint16_t) pci_read(0, 0, 0, PCI_CONFIG_HEADER_TYPE, 2) & 0x80) {
         for (uint8_t function = 1; function < 8; function++) {
-            if (legacy_io_read(0, 0, function, PCI_CONFIG_ID) == (uint32_t) -1) {
+            if ((uint16_t) pci_read(0, 0, function, PCI_CONFIG_VENDOR_ID, 2) == 0xffff) {
                 continue;
             }
 

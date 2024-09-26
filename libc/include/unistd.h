@@ -30,6 +30,7 @@ int execvp(const char*, char* const[]);
 __attribute__((noreturn)) void _exit(int);
 int fchdir(int);
 pid_t fork(void);
+int fsync(int);
 int ftruncate(int, off_t);
 char* getcwd(char*, size_t);
 int getopt(int, char* const[], const char*);

@@ -1,6 +1,6 @@
 include ../config.mk
 
-CFLAGS := -O2 -std=gnu11 -ffreestanding -fstack-protector-strong -fno-stack-check -fno-lto \
+CFLAGS := -O3 -std=gnu11 -ffreestanding -fstack-protector-strong -fno-stack-check -fno-lto \
 		  -fms-extensions -fno-omit-frame-pointer -fno-strict-aliasing -fpie \
 		  -m64 -march=x86-64 -mgeneral-regs-only -mno-red-zone \
 		  -Wall -Wextra -pedantic -Wpointer-arith -Wcast-align -Winline -Wno-long-long \

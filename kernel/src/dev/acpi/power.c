@@ -3,6 +3,7 @@
 #include <cpu/smp.h>
 #include <dev/acpi/acpi.h>
 #include <dev/lapic.h>
+#include <dev/pci.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
 
@@ -47,7 +48,6 @@ __attribute__((noreturn)) void acpi_reboot(void) {
     uint8_t reset_value = *(uint8_t*) ((uintptr_t) fadt + 128);
     struct acpi_gas* reset_register = (struct acpi_gas*) ((uintptr_t) fadt + 116);
 
-    // TODO: handle PCI bus reset register
     switch (reset_register->address_space) {
         case GAS_ADDRESS_SPACE_MEMORY:
             vmm_map_page(kernel_pagemap, reset_register->base, reset_register->base, PTE_PRESENT | PTE_WRITABLE | PTE_NX);
@@ -55,6 +55,14 @@ __attribute__((noreturn)) void acpi_reboot(void) {
             break;
         case GAS_ADDRESS_SPACE_IO:
             outb(reset_register->base, reset_value);
+            break;
+        case GAS_ADDRESS_SPACE_PCI:
+            pci_write(0,                                    /* bus */
+                    (reset_register->base >> 32) & 0xff,    /* slot */
+                    (reset_register->base >> 16) & 0xff,    /* function */
+                    reset_register->base & 0xffff,          /* offset */
+                    reset_value,
+                    1);
             break;
         default:
             legacy_8042_reset();

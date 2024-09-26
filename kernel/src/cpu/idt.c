@@ -298,10 +298,6 @@ void idt_set_gate(uint8_t vector, uintptr_t handler, uint8_t ist) {
     idt[vector].offset_high32 = (uint32_t) (handler >> 32);
 }
 
-void idt_set_ist(uint8_t vector, uint8_t ist) {
-    idt[vector].ist = ist;
-}
-
 void idt_init(void) {
     idt_set_gate(0, (uintptr_t) &_isr0, 0);
     idt_set_gate(1, (uintptr_t) &_isr1, 1);

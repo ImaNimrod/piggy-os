@@ -3,6 +3,7 @@
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
+#include <sys/sched.h>
 #include <utils/log.h>
 #include <utils/math.h>
 #include <utils/panic.h>
@@ -61,7 +62,9 @@ static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, s
     return vaddr;
 }
 
-static void page_fault_handler(struct registers* r) {
+static void page_fault_handler(struct registers* r, void* ctx) {
+    (void) ctx;
+
     uintptr_t faulting_addr = read_cr2();
     bool is_present = r->error_code & FAULT_PRESENT;
     bool is_writing = r->error_code & FAULT_WRITABLE;
@@ -78,8 +81,9 @@ static void page_fault_handler(struct registers* r) {
         struct process* current_process = current_thread->process;
 
         if (current_process->pid != 0) {
-            klog("[vmm] terminating process (pid = %d) due to page fault\n", current_process->pid);
-            process_exit(current_process, -1);
+            klog("[vmm] killing thread (pid: %d, tid: %d) due to page fault\n", current_process->pid, current_thread->tid);
+            sched_thread_dequeue(current_thread);
+            sched_yield();
             return;
         }
     } 
@@ -429,7 +433,7 @@ void vmm_init(void) {
     vmm_switch_pagemap(kernel_pagemap);
     klog("[vmm] switched to new kernel pagemap\n");
 
-    isr_install_handler(PAGE_FAULT_VECTOR, page_fault_handler);
+    isr_install_handler(PAGE_FAULT_VECTOR, page_fault_handler, NULL);
 
     klog("[vmm] initialized virtual memory manager\n");
 }

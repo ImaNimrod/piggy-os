@@ -20,8 +20,8 @@ int execvp(const char* file, char* const argv[]) {
             size_t length = strcspn(path_env, ":");
             if (length == 0) {
                 int fd = open(file, O_PATH);
-                close(fd);
                 if (fd >= 0) {
+                    close(fd);
                     file_path = file;
                     break;
                 }
@@ -35,8 +35,8 @@ int execvp(const char* file, char* const argv[]) {
                 stpcpy(stpcpy(alloc_str + length, "/"), file);
 
                 int fd = open(alloc_str, O_PATH);
-                close(fd);
                 if (fd >= 0) {
+                    close(fd);
                     file_path = alloc_str;
                     break;
                 }

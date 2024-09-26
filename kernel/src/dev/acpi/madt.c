@@ -29,7 +29,7 @@ void madt_init(void) {
             case MADT_LAPIC_ENTRY: break;
             case MADT_IOAPIC_ENTRY:
                 ioapic = (struct madt_ioapic*) entry;
-                if (ioapic->gsi_base < ISR_HANDLER_NUM) {
+                if (ioapic->gsi_base < ISR_NUM) {
                     register_ioapic(ioapic->apic_id, (uintptr_t) ioapic->address, ioapic->gsi_base);
                 } else { 
                     klog("[acpi] ioapic #%u GSI base out of range\n", ioapic->apic_id);

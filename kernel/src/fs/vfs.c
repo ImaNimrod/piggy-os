@@ -49,6 +49,11 @@ static int truncate_stub(struct vfs_node* node, off_t length) {
     return -EPERM; 
 }
 
+static int sync_stub(struct vfs_node* node) {
+    (void) node;
+    return 0;
+}
+
 static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {
     struct vfs_node* dot = vfs_create_node(node->fs, node, ".", false);
     struct vfs_node* dotdot = vfs_create_node(node->fs, node, "..", false);
@@ -146,6 +151,7 @@ struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* par
     node->write = write_stub;
     node->ioctl = ioctl_stub;
     node->truncate = truncate_stub;
+    node->sync = sync_stub;
 
     return node;
 }

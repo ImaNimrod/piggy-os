@@ -192,6 +192,11 @@ void syscall_read(struct registers* r) {
         return;
     }
 
+    if (S_ISBLK(node->stat.st_mode) && (count % node->stat.st_blksize)) {
+        r->rax = -EINVAL;
+        return;
+    }
+
     spinlock_acquire(&node->lock);
 
     USER_ACCESS_BEGIN;
@@ -238,6 +243,11 @@ void syscall_write(struct registers* r) {
 
     if (S_ISDIR(node->stat.st_mode)) {
         r->rax = -EISDIR;
+        return;
+    }
+
+    if (S_ISBLK(node->stat.st_mode) && (count % node->stat.st_blksize)) {
+        r->rax = -EINVAL;
         return;
     }
 
@@ -315,8 +325,8 @@ void syscall_seek(struct registers* r) {
         return;
     }
 
-    if (S_ISBLK(node->stat.st_mode) && (offset % node->stat.st_blksize) != 0) {
-        r->rax = -ESPIPE;
+    if (S_ISBLK(node->stat.st_mode) && (offset % node->stat.st_blksize)) {
+        r->rax = -EINVAL;
         return;
     }
 
@@ -378,6 +388,34 @@ void syscall_truncate(struct registers* r) {
 
     spinlock_acquire(&node->lock);
     r->rax = node->truncate(node, length);
+    spinlock_release(&node->lock);
+}
+
+void syscall_fsync(struct registers* r) {
+    int fdnum = r->rdi;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_fsync (fdnum: %d) on (pid: %u, tid: %u)\n",
+            fdnum, current_process->pid, current_thread->tid);
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
+        r->rax = -EBADF;
+        return;
+    }
+
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
+        r->rax = -EPERM;
+        return;
+    }
+
+    struct vfs_node* node = fd->node;
+
+    spinlock_acquire(&node->lock);
+    r->rax = node->sync(node);
     spinlock_release(&node->lock);
 }
 

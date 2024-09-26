@@ -7,7 +7,7 @@
 
 #define PCI_COMMAND_FLAG_IO_SPACE       (1 << 0)
 #define PCI_COMMAND_FLAG_MEMORY_SPACE   (1 << 1)
-#define PCI_COMMAND_FLAG_BUS_MASTER     (1 << 2)
+#define PCI_COMMAND_FLAG_BUSMASTER      (1 << 2)
 
 struct pci_device {
     uint8_t bus;
@@ -61,11 +61,23 @@ struct pci_driver {
     } match_data;
 };
 
+extern uint32_t (*pci_read)(uint8_t, uint8_t, uint8_t, uint16_t, uint8_t);
+extern void (*pci_write)(uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint8_t);
+
+#define PCI_READ8(DEV, OFFSET)  (uint8_t) pci_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), 1)
+#define PCI_READ16(DEV, OFFSET) (uint16_t) pci_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), 2)
+#define PCI_READ32(DEV, OFFSET) (uint32_t) pci_read((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), 4)
+
+#define PCI_WRITE8(DEV, OFFSET, VALUE)  pci_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), 1)
+#define PCI_WRITE16(DEV, OFFSET, VALUE) pci_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), 2)
+#define PCI_WRITE32(DEV, OFFSET, VALUE) pci_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), 4)
+
 struct pci_bar pci_get_bar(struct pci_device* dev, uint8_t index);
 bool pci_map_bar(struct pci_bar bar);
-void pci_set_command_flags(struct pci_device* dev, uint16_t flags);
 bool pci_setup_irq(struct pci_device* dev, size_t index, uint8_t vector);
 bool pci_mask_irq(struct pci_device* dev, size_t index, bool mask);
+void pci_write_command_flags(struct pci_device* dev, uint16_t flags);
+void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if);
 void pci_init(void);
 
 #endif /* _KERNEL_DEV_PCI_H */

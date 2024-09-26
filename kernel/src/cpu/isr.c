@@ -2,8 +2,10 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
 #include <sys/process.h> 
+#include <sys/sched.h> 
 #include <utils/math.h>
 #include <utils/panic.h>
+#include <utils/log.h>
 
 static const char* exception_messages[ISR_EXCEPTION_NUM] = {
     "Divide by Zero",
@@ -40,30 +42,41 @@ static const char* exception_messages[ISR_EXCEPTION_NUM] = {
     "Reserved",
 };
 
-static isr_handler_t isr_handlers[ISR_HANDLER_NUM] = {0};
+struct isr_table_entry {
+    isr_handler_t handler;
+    void* ctx;
+};
 
-void isr_install_handler(uint8_t vector, isr_handler_t handler) {
-    isr_handlers[vector] = handler;
+static struct isr_table_entry isr_table[ISR_NUM] = {0};
+
+void isr_install_handler(uint8_t vector, isr_handler_t handler, void* ctx) {
+    isr_table[vector] = (struct isr_table_entry) { .handler = handler, .ctx = ctx };
 }
 
 void isr_uninstall_handler(uint8_t vector) {
-    isr_handlers[vector] = NULL;
+    isr_table[vector] = (struct isr_table_entry) {0};
 }
 
 void isr_handler(struct registers* r) {
-	if (r->cs & 3) {
-		swapgs();
+    if (r->cs & 3) {
+        swapgs();
     }
 
     uint8_t int_number = r->int_number & 0xff;
-    if (isr_handlers[int_number] != NULL) {
-        isr_handlers[int_number](r);
+
+    struct isr_table_entry entry = isr_table[int_number];
+    if (entry.handler != NULL) {
+        entry.handler(r, entry.ctx);
     } else if (int_number < ISR_EXCEPTION_NUM) {
-        kpanic(r, true, "unhandled %s", exception_messages[int_number]);
-        return;
+        if (r->cs & 3) {
+            sched_thread_dequeue(this_cpu()->running_thread);
+            sched_yield();
+        } else {
+            kpanic(r, true, "unhandled %s", exception_messages[int_number]);
+        }
     }
 
-	if (r->cs & 3) {
-		swapgs();
+    if (r->cs & 3) {
+        swapgs();
     }
 } 
