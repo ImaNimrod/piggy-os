@@ -158,7 +158,7 @@ void fbdev_init(void) {
         return;
     }
 
-    char fbdev_name[4] = "fb";
+    char fbdev_name[10];
 
     struct stat fbdev_stat = {
         .st_dev = makedev(0, 1),
@@ -203,8 +203,7 @@ void fbdev_init(void) {
         fb_info->fixed.visual = 2;
         fb_info->fixed.line_length = framebuffer->pitch;
 
-        // TODO: fix this hack
-        fbdev_name[2] = i + '0';
+        snprintf(fbdev_name, sizeof(fbdev_name), "fb%u", i);
 
         struct vfs_node* fbdev_node = devfs_create_device(strdup(fbdev_name));
         if (fbdev_node == NULL) {

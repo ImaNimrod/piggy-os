@@ -8,6 +8,7 @@
 #define PCI_COMMAND_FLAG_IO_SPACE       (1 << 0)
 #define PCI_COMMAND_FLAG_MEMORY_SPACE   (1 << 1)
 #define PCI_COMMAND_FLAG_BUSMASTER      (1 << 2)
+#define PCI_COMMAND_FLAG_INTX_DISABLE   (1 << 10)
 
 struct pci_device {
     uint8_t bus;
@@ -23,9 +24,6 @@ struct pci_device {
 
     bool msi_supported;
     uint8_t msi_offset;
-
-    bool msix_supported;
-    uint8_t msix_offset;
 };
 
 struct pci_bar {
@@ -73,9 +71,8 @@ extern void (*pci_write)(uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint8_t)
 #define PCI_WRITE32(DEV, OFFSET, VALUE) pci_write((DEV)->bus, (DEV)->slot, (DEV)->function, (OFFSET), (VALUE), 4)
 
 struct pci_bar pci_get_bar(struct pci_device* dev, uint8_t index);
-bool pci_map_bar(struct pci_bar bar);
-bool pci_setup_irq(struct pci_device* dev, size_t index, uint8_t vector);
-bool pci_mask_irq(struct pci_device* dev, size_t index, bool mask);
+bool pci_setup_irq(struct pci_device* dev, uint8_t vector);
+bool pci_mask_irq(struct pci_device* dev, bool mask);
 void pci_write_command_flags(struct pci_device* dev, uint16_t flags);
 void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if);
 void pci_init(void);

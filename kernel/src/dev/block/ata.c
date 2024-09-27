@@ -1,12 +1,16 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <dev/block/ata.h>
+#include <dev/block/partition.h>
+#include <dev/hpet.h>
 #include <dev/ioapic.h>
 #include <dev/lapic.h>
 #include <errno.h>
 #include <fs/devfs.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <stdbool.h>
+#include <stddef.h>
 #include <sys/sched.h>
 #include <sys/time.h>
 #include <types.h>
@@ -47,7 +51,6 @@
 #define ATA_COMMAND_WRITE_DMA           0xca
 #define ATA_COMMAND_WRITE_DMA_EXT       0x35
 
-#define ATA_CONTROL_ZERO                0x00
 #define ATA_CONTROL_SOFTWARE_RESET      0x04
 
 #define ATA_BUSMASTER_REGISTER_COMMAND  0x00
@@ -130,11 +133,9 @@ static inline void io_wait_400ns(struct ata_channel* channel) {
 }
 
 static inline void software_reset_channel(struct ata_channel* channel) {
-    outb(channel->control_base, 0x04);
-    inb(channel->control_base);
-    io_wait_400ns(channel);
-    outb(channel->control_base, 0x00);
-    inb(channel->control_base);
+    outb(channel->control_base, ATA_CONTROL_SOFTWARE_RESET);
+    hpet_sleep_ns(5000); // 5 microseconds
+    outb(channel->control_base, 0);
 
     uint8_t status;
     do {
@@ -143,12 +144,7 @@ static inline void software_reset_channel(struct ata_channel* channel) {
 }
 
 static void ata_channel_identify_device(struct ata_channel* channel, bool is_secondary) {
-    outb(channel->io_base + ATA_REGISTER_DEVICE, 0xe0 | (is_secondary << 4u));
-    io_wait_400ns(channel);
-
-    outb(channel->io_base + ATA_REGISTER_FEATURES, 1);
     outb(channel->control_base, 0);
-
     outb(channel->io_base + ATA_REGISTER_DEVICE, 0xe0 | (is_secondary << 4u));
     io_wait_400ns(channel);
 
@@ -157,6 +153,7 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
         status = inb(channel->io_base + ATA_REGISTER_STATUS);
     } while (status & (ATA_STATUS_DATA_REQUEST_READY | ATA_STATUS_BUSY));
 
+    /* the spec requires that sector count and LBA are zeroed before running IDENTIFY_DEVICE command*/
     outb(channel->io_base + ATA_REGISTER_SECTOR_COUNT, 0);
     outb(channel->io_base + ATA_REGISTER_LBA_LOW, 0);
     outb(channel->io_base + ATA_REGISTER_LBA_MID, 0);
@@ -178,6 +175,7 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
         return;
     }
 
+    /* read device indentification */
     uint16_t data[256];
     for (size_t i = 0; i < 256; i++) {
         data[i] = inw(channel->io_base + ATA_REGISTER_DATA);
@@ -245,8 +243,8 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
     copy_ata_string(device->firmware_revision, sizeof(device->firmware_revision), &data[23]);
     copy_ata_string(device->model_number, sizeof(device->model_number), &data[27]);
 
-    char ata_node_name[5] = "ataX";
-    ata_node_name[3] = ata_device_count + '0';
+    char ata_node_name[10];
+    snprintf(ata_node_name, sizeof(ata_node_name), "ata%u", ata_device_count);
 
     struct vfs_node* ata_node = devfs_create_device(strdup(ata_node_name));
     if (ata_node == NULL) {
@@ -255,14 +253,14 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
 
     ata_node->stat = (struct stat) {
         .st_dev = makedev(0, 1),
-            .st_mode = S_IFBLK,
-            .st_rdev = makedev(ATA_MAJ, ata_device_count++),
-            .st_size = sector_count * sector_size,
-            .st_blksize = sector_size,
-            .st_blocks = sector_count,
-            .st_atim = time_realtime,
-            .st_mtim = time_realtime,
-            .st_ctim = time_realtime
+        .st_mode = S_IFBLK,
+        .st_rdev = makedev(ATA_MAJ, ata_device_count++),
+        .st_size = sector_count * sector_size,
+        .st_blksize = sector_size,
+        .st_blocks = sector_count,
+        .st_atim = time_realtime,
+        .st_mtim = time_realtime,
+        .st_ctim = time_realtime,
     };
 
     ata_node->private = device;
@@ -273,6 +271,8 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
 
     klog("[ata] %s device detected of size %uGB with %uB sectors (%s)\n",
             ata_device_type_names[device->type], total_size >> 30, sector_size, dma_supported ? "DMA mode" : "PIO mode");
+
+    partition_scan(ata_node);
 }
 
 static bool ata_channel_finish_dma(struct ata_channel* channel) {
@@ -289,7 +289,7 @@ static bool ata_channel_finish_dma(struct ata_channel* channel) {
 
     if (channel->error) {
         uint8_t value = inb(channel->io_base + ATA_REGISTER_ERROR);
-        klog("[ata] ATA channel error 0x%x\n", value);
+        klog("[ata] ATA error 0x%02x\n", value);
         return false;
     }
 
@@ -566,6 +566,9 @@ static ssize_t ata_read(struct vfs_node* node, void* buf, off_t offset, size_t c
     }
 
     struct ata_device* device = (struct ata_device*) node->private;
+    if (device->type != ATA_DEVICE_TYPE_PATA && device->type != ATA_DEVICE_TYPE_SATA) {
+        return -EPERM;
+    }
 
     size_t sector_count = count / device->sector_size;
     uint64_t lba = offset / device->sector_size;
@@ -607,6 +610,9 @@ static ssize_t ata_write(struct vfs_node* node, const void* buf, off_t offset, s
     }
 
     struct ata_device* device = (struct ata_device*) node->private;
+    if (device->type != ATA_DEVICE_TYPE_PATA && device->type != ATA_DEVICE_TYPE_SATA) {
+        return -EPERM;
+    }
 
     size_t sector_count = count / device->sector_size;
     uint64_t lba = offset / device->sector_size;
@@ -641,6 +647,8 @@ static ssize_t ata_write(struct vfs_node* node, const void* buf, off_t offset, s
 }
 
 static void ata_init(struct pci_device* dev) {
+    klog("[ata] ATA controller detected\n");
+
     if (!(dev->prog_if & 0x80)) {
         klog("[ata] ATA controller does not support DMA\n");
         return;

@@ -6,7 +6,8 @@ CFLAGS := -O3 -std=gnu11 -ffreestanding -fstack-protector-strong -fno-stack-chec
 		  -Wall -Wextra -pedantic -Wpointer-arith -Wcast-align -Winline -Wno-long-long \
 		  -Wnested-externs -Wstrict-prototypes -Wredundant-decls -Wshadow -Wvla
 
-CPPFLAGS := -I include -D FLANTERM_FB_DISABLE_BUMP_ALLOC=1 -D GIT_VERSION=\"$(shell git describe --always --tags)\"
+CPPFLAGS := -I include -D FLANTERM_FB_DISABLE_BUMP_ALLOC=1 -D GIT_VERSION=\"$(shell git describe --always --tags)\" \
+			-D PRINTF_DISABLE_SUPPORT_EXPONENTIAL -D PRINTF_DISABLE_SUPPORT_FLOAT -D PRINTF_DISABLE_SUPPORT_LONG_LONG
 
 LDFLAGS := -m elf_x86_64 -nostdlib -static -pie \
 		   --no-dynamic-linker -z text -z max-page-size=0x1000
