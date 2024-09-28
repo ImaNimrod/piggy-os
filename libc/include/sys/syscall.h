@@ -22,16 +22,17 @@
 #define SYS_IOCTL           16
 #define SYS_SEEK            17
 #define SYS_TRUNCATE        18
-#define SYS_FSYNC           19
-#define SYS_STAT            20
-#define SYS_CHDIR           21
-#define SYS_GETCWD          22
-#define SYS_GETDENTS        23
-#define SYS_UTSNAME         24
-#define SYS_SYSACT          25
-#define SYS_SLEEP           26
-#define SYS_CLOCK_GETTIME   27
-#define SYS_CLOCK_SETTIME   28
+#define SYS_FCNTL           19
+#define SYS_FSYNC           20
+#define SYS_STAT            21
+#define SYS_CHDIR           22
+#define SYS_GETCWD          23
+#define SYS_GETDENTS        24
+#define SYS_UTSNAME         25
+#define SYS_SYSACT          26
+#define SYS_SLEEP           27
+#define SYS_CLOCK_GETTIME   28
+#define SYS_CLOCK_SETTIME   29
 
 extern uint64_t syscall0(uint64_t);
 extern uint64_t syscall1(uint64_t, uint64_t);

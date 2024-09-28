@@ -22,6 +22,7 @@ extern int opterr, optind, optopt;
 
 int chdir(const char*);
 int close(int);
+int dup(int);
 int execl(const char*, const char*, ...);
 int execlp(const char*, const char*, ...);
 int execv(const char*, char* const[]);
