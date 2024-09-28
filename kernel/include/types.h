@@ -25,6 +25,13 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#define F_DUPFD         0
+#define F_DUPFD_CLOEXEC 1
+#define F_GETFD         2
+#define F_SETFD         3
+#define F_GETFL         4
+#define F_SETFL         5
+
 #define S_IFMT      0x0f000
 #define S_IFBLK     0x01000
 #define S_IFCHR     0x08000

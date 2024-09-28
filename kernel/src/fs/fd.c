@@ -44,26 +44,48 @@ int fd_close(struct process* p, int fdnum) {
     return 0;
 }
 
-bool fd_dup(struct process* old_process, int old_fdnum, struct process* new_process, int new_fdnum) {
+int fd_dup(struct process* old_process, int old_fdnum, struct process* new_process, int new_fdnum, bool exact, bool cloexec) {
     if (old_fdnum == new_fdnum && old_process == new_process) {
-        return false;
+        return -EINVAL;
     }
 
     struct file_descriptor* old_fd = fd_from_fdnum(old_process, old_fdnum);
     if (old_fd == NULL) {
-        return false;
+        return -EBADF;
     }
 
     struct file_descriptor* new_fd = kmalloc(sizeof(struct file_descriptor));
     if (new_fd == NULL) {
-        return false;
+        return -ENOMEM;
     }
 
     memcpy(new_fd, old_fd, sizeof(struct file_descriptor));
-    new_process->file_descriptors[new_fdnum] = new_fd;
+    if (cloexec) {
+        new_fd->flags |= O_CLOEXEC;
+    }
+
+    if (!exact) {
+        int i;
+        for (i = new_fdnum; i < MAX_FDS; i++) {
+            if (!new_process->file_descriptors[i]) {
+                new_process->file_descriptors[i] = new_fd;
+                new_fdnum = i;
+                break;
+            }
+        }
+
+        if (i == MAX_FDS - 1) {
+            return -EMFILE;
+        }
+    } else {
+        if (new_process->file_descriptors[new_fdnum] != NULL) {
+            fd_close(new_process, new_fdnum);
+        }
+        new_process->file_descriptors[new_fdnum] = new_fd;
+    }
 
     old_fd->refcount++;
-    return true;
+    return new_fdnum;
 }
 
 int fd_alloc_fdnum(struct process* p, struct file_descriptor* fd) {

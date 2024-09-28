@@ -97,7 +97,7 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
                 continue;
             }
 
-            if (!fd_dup(old, i, new, i)) {
+            if (fd_dup(old, i, new, i, true, false) < 0) {
                 goto error;
             }
         }

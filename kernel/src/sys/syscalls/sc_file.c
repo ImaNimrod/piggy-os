@@ -180,7 +180,11 @@ void syscall_read(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_RDONLY)) {
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
+        return;
+    }
+    if (acc_mode != O_RDWR && acc_mode != O_RDONLY) {
         r->rax = -EPERM;
         return;
     }
@@ -234,7 +238,11 @@ void syscall_write(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
+        return;
+    }
+    if (acc_mode != O_RDWR && acc_mode != O_WRONLY) {
         r->rax = -EPERM;
         return;
     }
@@ -284,7 +292,7 @@ void syscall_ioctl(struct registers* r) {
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH) {
-        r->rax = -EPERM;
+        r->rax = -EBADF;
         return;
     }
 
@@ -314,7 +322,7 @@ void syscall_seek(struct registers* r) {
 
     int acc_mode = fd->flags & O_ACCMODE;
     if (acc_mode & O_PATH) {
-        r->rax = -EPERM;
+        r->rax = -EBADF;
         return;
     }
 
@@ -374,7 +382,11 @@ void syscall_truncate(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
+        return;
+    }
+    if (acc_mode != O_RDWR && acc_mode != O_WRONLY) {
         r->rax = -EPERM;
         return;
     }
@@ -389,6 +401,42 @@ void syscall_truncate(struct registers* r) {
     spinlock_acquire(&node->lock);
     r->rax = node->truncate(node, length);
     spinlock_release(&node->lock);
+}
+
+void syscall_fcntl(struct registers* r) {
+    int fdnum = r->rdi;
+    int cmd = r->rsi;
+    int arg = r->rdx;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
+
+    klog("[syscall] running syscall_fcntl (fdnum: %d, cmd: %d, arg: %d) on (pid: %u, tid: %u)\n",
+            fdnum, cmd, arg, current_process->pid, current_thread->tid);
+
+    struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
+    if (fd == NULL) {
+        r->rax = -EBADF;
+        return;
+    }
+
+    int acc_mode = fd->flags & O_ACCMODE;
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
+        return;
+    }
+
+    switch (cmd) {
+        case F_DUPFD:
+            r->rax = fd_dup(current_process, fdnum, current_process, arg, false, false);
+            break;
+        case F_DUPFD_CLOEXEC:
+            r->rax = fd_dup(current_process, fdnum, current_process, arg, false, true);
+            break;
+        default:
+            r->rax = -EINVAL;
+            break;
+    }
 }
 
 void syscall_fsync(struct registers* r) {
@@ -407,8 +455,8 @@ void syscall_fsync(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_WRONLY)) {
-        r->rax = -EPERM;
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
         return;
     }
 
@@ -524,7 +572,11 @@ void syscall_getdents(struct registers* r) {
     }
 
     int acc_mode = fd->flags & O_ACCMODE;
-    if (acc_mode & O_PATH || (acc_mode != O_RDWR && acc_mode != O_RDONLY)) {
+    if (acc_mode & O_PATH) {
+        r->rax = -EBADF;
+        return;
+    }
+    if (acc_mode != O_RDWR && acc_mode != O_RDONLY) {
         r->rax = -EPERM;
         return;
     }
