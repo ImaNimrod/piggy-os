@@ -4,16 +4,15 @@
 #include <utils/string.h>
 
 struct file_descriptor* fd_create(struct vfs_node* node, int flags) {
-    node->refcount++;
-
     struct file_descriptor* fd = kmalloc(sizeof(struct file_descriptor));
     if (fd == NULL) {
-        node->refcount--;
         return NULL;
     }
 
+    node->refcount++;
+
     fd->node = node;
-    fd->flags = flags;
+    fd->flags = flags & FILE_FLAGS_MASK;
     fd->offset = 0;
     fd->refcount = 1;
     fd->lock = (spinlock_t) {0};

@@ -63,7 +63,7 @@ void syscall_exec(struct registers* r) {
 
     USER_ACCESS_BEGIN;
 
-    klog("[syscall] running syscall_exec (path: %s, argv: 0x%x, envp: 0x%x) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_exec (path: %s, argv: 0x%p, envp: 0x%p) on (pid: %u, tid: %u)\n",
             path, (uintptr_t) argv, (uintptr_t) envp, current_process->pid, current_thread->tid);
 
     struct pagemap* old_pagemap = current_process->pagemap;
@@ -183,7 +183,7 @@ void syscall_wait(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_wait (pid: %d, status: 0x%x, flags: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_wait (pid: %d, status: 0x%p, flags: %d) on (pid: %u, tid: %u)\n",
             pid, (uintptr_t) status, flags, current_process->pid, current_thread->tid);
 
     if (status != NULL) {
@@ -246,7 +246,7 @@ void syscall_thread_create(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_thread_create (entry: 0x%x) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_thread_create (entry: 0x%p) on (pid: %u, tid: %u)\n",
             entry, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr((void*) entry)) {
@@ -279,7 +279,7 @@ void syscall_sbrk(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_sbrk (size: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_sbrk (size: %ld) on (pid: %u, tid: %u)\n",
             size, current_process->pid, current_thread->tid);
 
     r->rax = (uint64_t) process_sbrk(current_process, size);

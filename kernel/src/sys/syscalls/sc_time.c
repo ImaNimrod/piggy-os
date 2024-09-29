@@ -14,8 +14,8 @@ void syscall_sleep(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_sleep (duration: 0x%x) on (pid: %u, tid: %u)\n",
-            (uintptr_t) duration, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_sleep (duration: 0x%p) on (pid: %u, tid: %u)\n", 
+            duration, current_process->pid, current_thread->tid);
 
     struct timespec duration_copy;
     if (copy_from_user(&duration_copy, duration, sizeof(struct timespec)) == NULL) {
@@ -42,8 +42,8 @@ void syscall_clock_gettime(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_getclock (clk_id: %d, ts: 0x%x) on (pid: %u, tid: %u)\n",
-            clk_id, (uintptr_t) ts, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_getclock (clk_id: %d, ts: 0x%p) on (pid: %u, tid: %u)\n",
+            clk_id, ts, current_process->pid, current_thread->tid);
 
     int ret = 0;
 
@@ -83,8 +83,8 @@ void syscall_clock_settime(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_setclock (clk_id: %d, ts: 0x%x) on (pid: %u, tid: %u)\n",
-            clk_id, (uintptr_t) ts, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_setclock (clk_id: %d, ts: 0x%p) on (pid: %u, tid: %u)\n",
+            clk_id, ts, current_process->pid, current_thread->tid);
 
     int ret = 0;
 

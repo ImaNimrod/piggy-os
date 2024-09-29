@@ -22,8 +22,8 @@ void syscall_utsname(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_utsname (utsname: 0x%x) on (pid: %u, tid: %u)\n",
-            (uintptr_t) utsname, current_process->pid, current_thread->tid);
+    klog("[syscall] running syscall_utsname (utsname: 0x%p) on (pid: %u, tid: %u)\n",
+            utsname, current_process->pid, current_thread->tid);
 
     if (copy_to_user(utsname, &system_utsname, sizeof(struct utsname)) == NULL) {
         r->rax = -EFAULT;
@@ -36,12 +36,12 @@ void syscall_sysact(struct registers* r) {
     uint64_t magic1 = r->rdi;
     uint64_t magic2 = r->rsi;
     uint64_t magic3 = r->rdx;
-    uint64_t action = r->r10;
+    int action = r->r10;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_sysact (magic1: 0x%x, magic2: 0x%x, magic3: 0x%x, action: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_sysact (magic1: 0x%lx, magic2: 0x%lx, magic3: 0x%lx, action: %d) on (pid: %u, tid: %u)\n",
             magic1, magic2, magic3, action, current_process->pid, current_thread->tid);
 
     if (magic1 != SYSACT_MAGIC1 || magic2 != SYSACT_MAGIC2 || magic3 != SYSACT_MAGIC3) {

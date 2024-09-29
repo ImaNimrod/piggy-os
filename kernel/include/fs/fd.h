@@ -9,6 +9,10 @@
 #include <types.h>
 #include <utils/spinlock.h>
 
+#define FD_FLAGS_MASK (O_CLOEXEC)
+#define FILE_CREATION_FLAGS_MASK (O_ACCMODE | O_CREAT | O_DIRECTORY | O_TRUNC | O_APPEND | O_EXCL | O_NONBLOCK)
+#define FILE_FLAGS_MASK (FILE_CREATION_FLAGS_MASK | FD_FLAGS_MASK)
+
 struct process;
 
 struct file_descriptor {

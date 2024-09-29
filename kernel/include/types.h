@@ -18,8 +18,8 @@
 #define O_TRUNC     00020
 #define O_APPEND    00040
 #define O_EXCL      00100
-#define O_CLOEXEC   00400
-#define O_NONBLOCK  01000
+#define O_NONBLOCK  00400
+#define O_CLOEXEC   01000
 
 #define SEEK_SET 0
 #define SEEK_CUR 1

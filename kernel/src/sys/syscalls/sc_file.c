@@ -36,11 +36,6 @@ void syscall_open(struct registers* r) {
         goto end;
     }
 
-    if (flags & ~(O_ACCMODE | O_CREAT | O_DIRECTORY | O_TRUNC | O_APPEND | O_EXCL | O_CLOEXEC | O_NONBLOCK)) {
-        ret = -EINVAL;
-        goto end;
-    }
-
     struct vfs_node* node = vfs_get_node(current_process->cwd, path);
     if (node && (flags & O_CREAT) && (flags & O_EXCL)) {
         ret = -EINVAL;
@@ -165,7 +160,7 @@ void syscall_read(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_read (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_read (fdnum: %d, buf: 0x%p, count: %zu) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(buf)) {
@@ -223,7 +218,7 @@ void syscall_write(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_write (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_write (fdnum: %d, buf: 0x%p, count: %zu) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(buf)) {
@@ -281,7 +276,7 @@ void syscall_ioctl(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_ioctl (fdnum: %d, request: 0x%x, argp: 0x%x) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_ioctl (fdnum: %d, request: 0x%x, argp: 0x%p) on (pid: %u, tid: %u)\n",
             fdnum, request, (uintptr_t) argp, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
@@ -311,7 +306,7 @@ void syscall_seek(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_seek (fdnum: %d, offset: %d, whence: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_seek (fdnum: %d, offset: %ld, whence: %d) on (pid: %u, tid: %u)\n",
             fdnum, offset, whence, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
@@ -372,7 +367,7 @@ void syscall_truncate(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_truncate (fdnum: %d, length: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_truncate (fdnum: %d, length: %ld) on (pid: %u, tid: %u)\n",
             fdnum, length, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
@@ -433,6 +428,20 @@ void syscall_fcntl(struct registers* r) {
         case F_DUPFD_CLOEXEC:
             r->rax = fd_dup(current_process, fdnum, current_process, arg, false, true);
             break;
+        case F_GETFD:
+            r->rax = fd->flags & FD_FLAGS_MASK;
+            break;
+        case F_SETFD:
+            fd->flags = arg & FD_FLAGS_MASK;
+            r->rax = 0;
+            break;
+        case F_GETFL:
+            r->rax = fd->flags & FILE_CREATION_FLAGS_MASK;
+            break;
+        case F_SETFL:
+            fd->flags = arg & FILE_CREATION_FLAGS_MASK;
+            r->rax = 0;
+            break;
         default:
             r->rax = -EINVAL;
             break;
@@ -474,7 +483,7 @@ void syscall_stat(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_stat (fdnum: %d, stat: 0x%x) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_stat (fdnum: %d, stat: 0x%p) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) stat, current_process->pid, current_thread->tid);
 
     struct file_descriptor* fd = fd_from_fdnum(current_process, fdnum);
@@ -530,7 +539,7 @@ void syscall_getcwd(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_getcwd (buffer: 0x%x, length: %d) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_getcwd (buffer: 0x%p, length: %zu) on (pid: %u, tid: %u)\n",
             (uintptr_t) buffer, length, current_process->pid, current_thread->tid);
 
     char temp_buffer[PATH_MAX];
@@ -557,7 +566,7 @@ void syscall_getdents(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    klog("[syscall] running syscall_getdents (fdnum: %d, buf: 0x%x, count: %u) on (pid: %u, tid: %u)\n",
+    klog("[syscall] running syscall_getdents (fdnum: %d, buf: 0x%p, count: %zu) on (pid: %u, tid: %u)\n",
             fdnum, (uintptr_t) buf, count, current_process->pid, current_thread->tid);
 
     if (!check_user_ptr(buf)) {
