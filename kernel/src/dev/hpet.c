@@ -5,8 +5,6 @@
 #include <utils/log.h>
 #include <utils/panic.h>
 
-#define HPET_VADDR 0xfffffffffffff000
-
 #define HPET_ID                 0x000
 #define HPET_CONFIG             0x010
 #define HPET_STATUS             0x020
@@ -29,14 +27,15 @@ struct hpet_table {
     uint8_t page_protection;
 } __attribute__((packed));
 
+static uintptr_t hpet_base_addr = 0;
 uint32_t hpet_clock_period = 0;
 
 static inline uint64_t hpet_read(uint32_t reg) {
-    return *((volatile uint64_t*) (HPET_VADDR + reg));
+    return *((volatile uint64_t*) (hpet_base_addr + reg));
 }
 
 static inline void hpet_write(uint32_t reg, uint64_t value) {
-    *((volatile uint64_t*) (HPET_VADDR + reg)) = value;
+    *((volatile uint64_t*) (hpet_base_addr + reg)) = value;
 }
 
 uint64_t hpet_count(void) {
@@ -57,6 +56,7 @@ void hpet_sleep_ns(uint64_t ns) {
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 void hpet_init(void) {
     struct hpet_table* hpet_table = (struct hpet_table*) acpi_find_sdt("HPET");
     if (hpet_table == NULL) {
@@ -64,8 +64,9 @@ void hpet_init(void) {
     }
 
     uintptr_t hpet_paddr = hpet_table->address.base;
+    hpet_base_addr = hpet_paddr + HIGH_VMA;
 
-    vmm_map_page(kernel_pagemap, HPET_VADDR, hpet_paddr,
+    vmm_map_page(kernel_pagemap, hpet_base_addr, hpet_paddr,
             PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
 
     hpet_clock_period = hpet_read(HPET_ID) >> 32;
@@ -73,5 +74,5 @@ void hpet_init(void) {
     hpet_write(HPET_COUNT, 0);
     hpet_write(HPET_CONFIG, 1);
 
-    klog("[hpet] hpet (address=0x%x) initialized\n", hpet_paddr);
+    klog("[hpet] initialized hpet: address: 0x%lx, period: %u\n", hpet_paddr, hpet_clock_period);
 }

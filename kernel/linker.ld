@@ -8,7 +8,6 @@ PHDRS
     text    PT_LOAD    FLAGS((1 << 0) | (1 << 2)) ;
     rodata  PT_LOAD    FLAGS((1 << 2)) ;
     data    PT_LOAD    FLAGS((1 << 1) | (1 << 2)) ;
-    dynamic PT_DYNAMIC FLAGS((1 << 1) | (1 << 2)) ;
 }
 
 SECTIONS
@@ -19,6 +18,12 @@ SECTIONS
 
     .text : {
         *(.text .text.*)
+
+        . += CONSTANT(MAXPAGESIZE);
+
+        unmap_after_init_start_addr = .;
+        *(.unmap_after_init .unmap_after_init.*)
+        unmap_after_init_end_addr = .;
     } :text
 
     text_end_addr = .;
@@ -40,10 +45,6 @@ SECTIONS
     .data : {
         *(.data .data.*)
     } :data
-
-    .dynamic : {
-        *(.dynamic)
-    } :data :dynamic
 
     .bss : {
         *(.bss .bss.*)

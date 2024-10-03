@@ -229,11 +229,11 @@ static int tty_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     return ret;
 }
 
+__attribute__((section(".unmap_after_init")))
 void tty_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
     if (framebuffer_response->framebuffer_count == 0) {
         kpanic(NULL, false, "no framebuffers available for tty");
-        return;
     }
 
     struct tty* tty = kmalloc(sizeof(struct tty));

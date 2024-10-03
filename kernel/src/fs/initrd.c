@@ -52,12 +52,13 @@ static inline uint64_t oct2int(const char* str, size_t len) {
     return value;
 }
 
+__attribute__((section(".unmap_after_init")))
 bool initrd_unpack(void) {
     struct limine_module_response* module_response = module_request.response;
     struct limine_file* initrd_module = NULL;
 
     for (size_t i = 0; i < module_response->module_count; i++) {
-        if (!strcmp(module_response->modules[i]->path, "/initrd.tar")) {
+        if (!strcmp(module_response->modules[i]->path, "/boot/initrd.tar")) {
             initrd_module = module_response->modules[i];
             break;
         }

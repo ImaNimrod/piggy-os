@@ -7,6 +7,7 @@ uintptr_t madt_lapic_addr;
 struct madt_iso* madt_iso_entries[ISA_IRQ_NUM];
 struct madt_lapic_nmi* madt_lapic_nmi_entries[LAPIC_NMI_NUM];
 
+__attribute__((section(".unmap_after_init")))
 void madt_init(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
     if (madt == NULL) {
@@ -14,7 +15,7 @@ void madt_init(void) {
     }
 
     if (madt->flags & 1) {
-        disable_pic();
+        pic_disable();
     }
 
     madt_lapic_addr = (uintptr_t) madt->lapic_addr;
@@ -30,7 +31,7 @@ void madt_init(void) {
             case MADT_IOAPIC_ENTRY:
                 ioapic = (struct madt_ioapic*) entry;
                 if (ioapic->gsi_base < ISR_NUM) {
-                    register_ioapic(ioapic->apic_id, (uintptr_t) ioapic->address, ioapic->gsi_base);
+                    ioapic_init(ioapic->apic_id, (uintptr_t) ioapic->address, ioapic->gsi_base);
                 } else { 
                     klog("[acpi] ioapic #%u GSI base out of range\n", ioapic->apic_id);
                 }

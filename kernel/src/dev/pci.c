@@ -186,6 +186,7 @@ static const char* get_class_name(uint8_t class) {
     return "Unassigned";
 }
 
+__attribute__((section(".unmap_after_init")))
 static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
     struct pci_device* dev = kmalloc(sizeof(struct pci_device));
     if (dev == NULL) {
@@ -206,7 +207,7 @@ static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
     dev->subclass = (uint8_t) (class >> 16);
     dev->prog_if = (uint8_t) (class >> 8);
 
-    if ((dev->class == 0x6) && (dev->subclass == 0x4)) {
+    if ((dev->class == 0x06) && (dev->subclass == 0x04)) {
         uint8_t secondary_bus = (PCI_READ16(dev, PCI_CONFIG_BUS) >> 8) & 0xff;
         enumerate_bus(secondary_bus);
     }
@@ -230,6 +231,7 @@ static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
     vector_push_back(pci_devices, dev);
 }
 
+__attribute__((section(".unmap_after_init")))
 static void enumerate_slot(uint8_t bus, uint8_t slot) {
     if ((uint16_t) pci_read(bus, slot, 0, PCI_CONFIG_VENDOR_ID, 2) == 0xffff) {
         return;
@@ -248,45 +250,10 @@ static void enumerate_slot(uint8_t bus, uint8_t slot) {
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 static void enumerate_bus(uint8_t bus) {
     for (uint8_t slot = 0; slot < 32; slot++) {
         enumerate_slot(bus, slot);
-    }
-}
-
-void pci_register_driver(struct pci_driver* driver) {
-    for (size_t i = 0; i < pci_devices->size; i++) {
-        struct pci_device* dev = (struct pci_device*) pci_devices->data[i];
-
-        if (driver->match_condition & PCI_DRIVER_MATCH_VENDOR_AND_DEVICE_ID) {
-            if (driver->match_data.vendor_id != dev->vendor_id) {
-                continue;
-            }
-
-            for (size_t j = 0; j < driver->match_data.device_count; j++) {
-                if (driver->match_data.device_ids[j] == dev->device_id) {
-                    driver->init(dev);
-                    break;
-                }
-            }
-        } else if (driver->match_condition & PCI_DRIVER_MATCH_ADDRESS) {
-            if ((driver->match_condition & PCI_DRIVER_MATCH_CLASS)
-                    && (driver->match_data.class != dev->class)) {
-                continue;
-            }
-
-            if ((driver->match_condition & PCI_DRIVER_MATCH_SUBCLASS)
-                    && (driver->match_data.subclass != dev->subclass)) {
-                continue;
-            }
-
-            if ((driver->match_condition & PCI_DRIVER_MATCH_PROG_IF)
-                    && (driver->match_data.prog_if != dev->prog_if)) {
-                continue;
-            }
-
-            driver->init(dev);
-        }
     }
 }
 
@@ -376,6 +343,7 @@ void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if) {
     dev->prog_if = prog_if;
 }
 
+__attribute__((section(".unmap_after_init")))
 void pci_init(void) {
     pci_devices = vector_create(sizeof(struct pci_device*));
     if (pci_devices == NULL) {

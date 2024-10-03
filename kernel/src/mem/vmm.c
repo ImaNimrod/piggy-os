@@ -15,6 +15,7 @@
 extern uint8_t text_start_addr[], text_end_addr[];
 extern uint8_t rodata_start_addr[], rodata_end_addr[];
 extern uint8_t data_start_addr[], data_end_addr[];
+extern uint8_t unmap_after_init_start_addr[], unmap_after_init_end_addr[];
 
 struct pagemap* kernel_pagemap = NULL;
 
@@ -70,7 +71,7 @@ static void page_fault_handler(struct registers* r, void* ctx) {
     bool is_writing = r->error_code & FAULT_WRITABLE;
     bool is_user = r->error_code & FAULT_USER;
 
-    klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%x\n",
+    klog("[vmm] page fault occurred when %s process tried to %s %spresent page entry for address 0x%p\n",
             is_user ? "user-mode" : "supervisor-mode",
             is_writing ? "write to" : "read from",
             is_present ? "\0" : "non-",
@@ -352,6 +353,20 @@ end:
     return ret;
 }
 
+void vmm_unmap_code_after_init(void) {
+    uintptr_t unmap_after_init_start = ALIGN_DOWN((uintptr_t) unmap_after_init_start_addr, PAGE_SIZE),
+              unmap_after_init_end = ALIGN_UP((uintptr_t) unmap_after_init_end_addr, PAGE_SIZE);
+
+    for (uintptr_t unmap_after_init_addr = unmap_after_init_start; unmap_after_init_addr < unmap_after_init_end; unmap_after_init_addr += PAGE_SIZE) {
+        vmm_unmap_page(kernel_pagemap, unmap_after_init_addr);
+    }
+
+    struct limine_kernel_address_response* kaddr_response = kaddr_request.response;
+    uintptr_t start_paddr = unmap_after_init_start - kaddr_response->virtual_base + kaddr_response->physical_base;
+    pmm_free(start_paddr, DIV_CEIL(unmap_after_init_end, unmap_after_init_start));
+}
+
+__attribute__((section(".unmap_after_init")))
 void vmm_init(void) {
     klog("[vmm] initializing virtual memory manager...\n");
 

@@ -2,11 +2,10 @@
 #include <dev/ioapic.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
+#include <stddef.h>
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/panic.h>
-
-#define IOAPIC_VADDR_TOP 0xffffffffffffd000
 
 #define IOREGSEL 0x00
 #define IOREGWIN 0x10
@@ -22,13 +21,13 @@
 #define IOAPIC_TRIGGER_EDGE  0
 #define IOAPIC_TRIGGER_LEVEL 1
 
-struct ioapic_device {
+struct ioapic {
     uint8_t id;
     uint8_t max_rentry;
     uint8_t version;
-    uintptr_t address;
+    uintptr_t base_addr;
     uint32_t gsi_base;
-    LIST_ENTRY(struct ioapic_device) list;
+    LIST_ENTRY(struct ioapic) list;
 };
 
 union ioapic_rentry {
@@ -47,7 +46,7 @@ union ioapic_rentry {
     uint64_t raw;
 } __attribute__((packed));
 
-static LIST_HEAD(struct ioapic_device) ioapics;
+static LIST_HEAD(struct ioapic) ioapics;
 static size_t ioapic_count = 0;
 
 static inline uint32_t get_ioapic_rentry_index(uint8_t irq) {
@@ -79,25 +78,23 @@ static void ioapic_write64(uintptr_t ioapic_base, uint32_t reg, uint64_t value) 
     *((volatile uint32_t*) (ioapic_base + IOREGWIN)) = (uint32_t) ((value >> 32) & 0xffffffff);
 }
 
-static struct ioapic_device* get_ioapic_by_id(uint8_t id) {
-    struct ioapic_device* ioapic;
-    LIST_FOREACH(ioapic, &ioapics, list) {
-        if (ioapic->id == id) {
-            return ioapic;
+static struct ioapic* get_ioapic_by_id(uint8_t id) {
+    struct ioapic* iter;
+    LIST_FOREACH(iter, &ioapics, list) {
+        if (iter->id == id) {
+            return iter;
         }
     }
-
     return NULL;
 }
 
-static struct ioapic_device* get_ioapic_for_interrupt(uint8_t irq) {
-    struct ioapic_device* ioapic;
-    LIST_FOREACH(ioapic, &ioapics, list) {
-        if (irq >= ioapic->gsi_base && irq < ioapic->gsi_base + ioapic->max_rentry) {
-            return ioapic;
+static struct ioapic* get_ioapic_for_interrupt(uint8_t irq) {
+    struct ioapic* iter;
+    LIST_FOREACH(iter, &ioapics, list) {
+        if (irq >= iter->gsi_base && irq < iter->gsi_base + iter->max_rentry) {
+            return iter;
         }
     }
-
     return NULL;
 }
 
@@ -113,13 +110,13 @@ static uint32_t get_iso_gsi_for_irq(uint8_t irq) {
     return irq;
 }
 
-static void redirect_gsi(uint32_t gsi, uint8_t vector, uint16_t flags) {
-    struct ioapic_device* ioapic = get_ioapic_for_interrupt(gsi);
-    if (!ioapic) {
-        kpanic(NULL, true, "no ioapic for IRQ%u", gsi);
+static bool redirect_gsi(uint32_t gsi, uint8_t vector, uint16_t flags) {
+    struct ioapic* ioapic = get_ioapic_for_interrupt(gsi);
+    if (ioapic == NULL) {
+        return false;
     }
 
-    union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->address, get_ioapic_rentry_index(gsi)) };
+    union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->base_addr, get_ioapic_rentry_index(gsi)) };
     rentry.vector = vector;
 
     uint8_t polarity = flags & 0x03;
@@ -128,7 +125,7 @@ static void redirect_gsi(uint32_t gsi, uint8_t vector, uint16_t flags) {
     } else if (polarity == 0x01) {
         rentry.polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
     } else {
-        kpanic(NULL, true, "invalid ioapic pin polarity %u", polarity);
+        return false;
     }
 
     uint8_t trigger_mode = (flags >> 2) & 0x03;
@@ -137,56 +134,57 @@ static void redirect_gsi(uint32_t gsi, uint8_t vector, uint16_t flags) {
     } else if (trigger_mode == 0x03) {
         rentry.trigger_mode = IOAPIC_TRIGGER_LEVEL;
     } else {
-        kpanic(NULL, true, "invalid ioapic trigger mode %u", trigger_mode);
+        return false;
     }
 
-    ioapic_write64(ioapic->address, get_ioapic_rentry_index(gsi), rentry.raw);
+    ioapic_write64(ioapic->base_addr, get_ioapic_rentry_index(gsi), rentry.raw);
+    return true;
 }
 
-void ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
+bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     struct madt_iso* iso;
     for (size_t i = 0; i < ISA_IRQ_NUM; i++) {
         iso = madt_iso_entries[i];
         if (iso != NULL && iso->irq_source == irq) {
-            redirect_gsi(iso->gsi, vector, iso->flags);
-            return;
+            return redirect_gsi(iso->gsi, vector, iso->flags);
         }
     }
 
-    redirect_gsi(irq, vector, 0);
+    return redirect_gsi(irq, vector, 0);
 }
 
-void ioapic_set_irq_mask(uint8_t irq, bool mask) {
-    struct ioapic_device* ioapic = get_ioapic_for_interrupt(irq);
-    if (!ioapic) {
-        kpanic(NULL, true, "no ioapic for IRQ%u", irq);
+bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
+    struct ioapic* ioapic = get_ioapic_for_interrupt(irq);
+    if (ioapic == NULL) {
+        return false;
     }
 
     uint32_t gsi = get_iso_gsi_for_irq(irq);
 
-    union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->address, get_ioapic_rentry_index(gsi)) };
-    rentry.mask = mask & 1;
+    union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->base_addr, get_ioapic_rentry_index(gsi)) };
+    rentry.mask = mask & 0x01;
 
-    ioapic_write64(ioapic->address, get_ioapic_rentry_index(gsi), rentry.raw);
+    ioapic_write64(ioapic->base_addr, get_ioapic_rentry_index(gsi), rentry.raw);
+    return true;
 }
 
-void register_ioapic(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
+__attribute__((section(".unmap_after_init")))
+void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
     if (get_ioapic_by_id(id) != NULL) {
         klog("[ioapic] duplicate ioapic with id #%u found... skipping initialization\n", id);
         return;
     }
 
-    uintptr_t vaddr = IOAPIC_VADDR_TOP - (ioapic_count * PAGE_SIZE);
+    uintptr_t vaddr = paddr + HIGH_VMA;
+
     if (!vmm_map_page(kernel_pagemap, vaddr, paddr,
             PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
         kpanic(NULL, true, "failed to map IOAPIC");
     }
 
-    klog("[ioapic] initializing ioapic #%u (address=0x%x, GSI base=%d)\n", id, paddr, gsi_base);
-
-    struct ioapic_device* ioapic = kmalloc(sizeof(struct ioapic_device));
+    struct ioapic* ioapic = kmalloc(sizeof(struct ioapic));
     ioapic->id = id;
-    ioapic->address = vaddr;
+    ioapic->base_addr = vaddr;
     ioapic->gsi_base = gsi_base;
 
     uint32_t version = ioapic_read(vaddr, IOAPIC_VERSION);
@@ -201,4 +199,6 @@ void register_ioapic(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
 
     LIST_ADD_FRONT(&ioapics, ioapic, list);
     ioapic_count++;
+
+    klog("[ioapic] initialized ioapic: id: %02u, address: 0x%lx, GSI base: %u\n", id, paddr, gsi_base);
 }

@@ -151,6 +151,7 @@ static int fbdev_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     return ret;
 } 
 
+__attribute__((section(".unmap_after_init")))
 void fbdev_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
     if (!framebuffer_response || framebuffer_response->framebuffer_count == 0) {
@@ -172,7 +173,7 @@ void fbdev_init(void) {
     for (size_t i = 0; i < framebuffer_response->framebuffer_count; i++) {
         struct limine_framebuffer* framebuffer = framebuffer_response->framebuffers[i];
 
-        klog("[fbdev] found framebuffer #%u with mode %ux%ux%u at 0x%x\n",
+        klog("[fbdev] found framebuffer #%u with mode %ux%ux%u at 0x%lx\n",
                 i, framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
 
         struct fb_info* fb_info = kmalloc(sizeof(struct fb_info));

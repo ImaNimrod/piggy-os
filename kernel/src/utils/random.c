@@ -108,6 +108,7 @@ void rng_seed(struct rng_state* rng, uint64_t seed) {
     spinlock_release(&rng->lock);
 }
 
+__attribute__((section(".unmap_after_init")))
 void random_init(void) {
     uint32_t ebx = 0, ecx = 0, unused;
     if (cpuid(7, 0, &unused, &ebx, &unused, &unused) && ebx & (1 << 18)) {

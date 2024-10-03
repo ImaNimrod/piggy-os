@@ -179,6 +179,7 @@ struct cache* slab_cache_create(const char* name, size_t object_size) {
     return new_cache;
 }
 
+__attribute__((section(".unmap_after_init")))
 void slab_init(void) {
     root_cache.name = "cache cache";
     root_cache.object_size = sizeof(struct cache);

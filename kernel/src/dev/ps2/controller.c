@@ -7,21 +7,22 @@
 #define PS2_COMMAND_PORT    0x64
 #define PS2_STATUS_PORT     0x64
 
-static bool port_enum_and_init_device(bool second_port) {
+__attribute__((section(".unmap_after_init")))
+static void port_enum_and_init_device(bool second_port) {
     if (ps2_send_device_command(PS2_DEVICE_COMMAND_RESET, second_port) != 0xfa) {
-        return false;
+        return;
     }
     if (ps2_read_data() != 0xaa) {
-        return false;
+        return;
     }
 
     ps2_flush_buffer();
 
     if (ps2_send_device_command(PS2_DEVICE_COMMAND_DISABLE_SCANNING, second_port) != 0xfa) {
-        return false;
+        return;
     }
     if (ps2_send_device_command(PS2_DEVICE_COMMAND_IDENTIFY, second_port) != 0xfa) {
-        return false;
+        return;
     }
 
     uint8_t id = ps2_read_data();
@@ -33,11 +34,7 @@ static bool port_enum_and_init_device(bool second_port) {
         }
     } else if (id == 0x00 || id == 0x03 || id == 0x04) {
         klog("[ps2] PS/2 mouse detected\n");
-    } else {
-        return false;
     }
-
-    return true;
 }
 
 uint8_t ps2_read_data(void) {
@@ -126,6 +123,7 @@ uint8_t ps2_send_device_command_with_data(uint8_t command, uint8_t data, bool ac
     return res;
 }
 
+__attribute__((section(".unmap_after_init")))
 void ps2_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (fadt != NULL) {

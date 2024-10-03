@@ -30,6 +30,7 @@ __attribute__((noreturn)) void __stack_chk_fail(void) {
 
 static void kernel_main(void) {
     time_init();
+
     vfs_init();
     devfs_init();
     tmpfs_init();
@@ -54,10 +55,13 @@ static void kernel_main(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
+    vmm_unmap_code_after_init();
+
     sched_thread_dequeue(this_cpu()->running_thread);
     sched_yield();
 }
 
+__attribute__((section(".unmap_after_init")))
 void kernel_entry(void) {
     pmm_init();
     slab_init();

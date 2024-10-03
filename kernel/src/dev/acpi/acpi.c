@@ -64,6 +64,7 @@ struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
     return NULL;
 }
 
+__attribute__((section(".unmap_after_init")))
 void acpi_init(void) {
     struct limine_rsdp_response* rsdp_response = rsdp_request.response;
     rsdp = rsdp_response->address;

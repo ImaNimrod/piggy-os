@@ -47,6 +47,7 @@ char* cmdline_get(const char* key) {
     return NULL;
 }
 
+__attribute__((section(".unmap_after_init")))
 void cmdline_parse(void) {
     struct limine_kernel_file_response* kernel_file_response = kernel_file_request.response;
 

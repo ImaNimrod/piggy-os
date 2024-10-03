@@ -11,21 +11,23 @@ all: $(IMAGE_NAME)
 .NOTPARALLEL:
 $(IMAGE_NAME): limine kernel libc userspace initrd
 	rm -rf iso_root
-	mkdir -p iso_root
-	cp -v kernel/$(KERNEL_FILE) $(INITRD_NAME) limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
+	mkdir -p iso_root/boot/limine
+	cp -v kernel/$(KERNEL_FILE) iso_root/boot/
+	cp -v $(INITRD_FILE) iso_root/boot/
+	cp -v limine.conf limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/boot/limine
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
 	cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/
-	xorriso -as mkisofs -b limine-bios-cd.bin \
+	xorriso -as mkisofs -b boot/limine/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
-		--efi-boot limine-uefi-cd.bin \
+		--efi-boot boot/limine/limine-uefi-cd.bin \
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
 		iso_root -o $@
 	./limine/limine bios-install $@
 	rm -rf iso_root
 
+.PHONY: limine
 limine:
-	git clone https://github.com/limine-bootloader/limine.git --branch=v7.11.0-binary --depth=1
 	$(MAKE) -C limine
 
 .PHONY: kernel
@@ -43,7 +45,7 @@ userspace:
 
 .PHONY: initrd
 initrd:
-	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_NAME) *
+	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_FILE) *
 
 .PHONY: toolchain
 toolchain:
@@ -66,7 +68,7 @@ todolist:
 
 .PHONY: clean
 clean:
-	$(RM) -r $(IMAGE_NAME) $(INITRD_NAME) iso_root
+	$(RM) -r $(IMAGE_NAME) $(INITRD_FILE) iso_root
 	$(MAKE) -C kernel clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C libm clean
@@ -74,5 +76,5 @@ clean:
 
 .PHONY: distclean
 distclean:
-	$(RM) -r limine
+	$(MAKE) -C limine clean
 	$(MAKE) -C kernel distclean

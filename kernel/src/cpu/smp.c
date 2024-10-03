@@ -35,6 +35,7 @@ static void hang(struct limine_smp_info* smp_info) {
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 static void single_cpu_init(struct limine_smp_info* smp_info) {
     struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
 
@@ -134,6 +135,7 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 void smp_init(void) {
     struct limine_smp_response* smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;

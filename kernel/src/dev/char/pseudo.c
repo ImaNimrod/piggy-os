@@ -53,6 +53,7 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
     return written;
 }
 
+__attribute__((section(".unmap_after_init")))
 void pseudo_init(void) {
     struct stat pseudo_stat = {
         .st_dev = makedev(0, 1),

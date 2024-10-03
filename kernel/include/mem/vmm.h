@@ -43,6 +43,7 @@ void vmm_switch_pagemap(struct pagemap* pagemap);
 bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
 bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr);
 uintptr_t vmm_get_page_mapping(struct pagemap* pagemap, uintptr_t vaddr);
+void vmm_unmap_code_after_init(void);
 void vmm_init(void);
 
 #endif /* _KERNEL_MEM_VMM_H */

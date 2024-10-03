@@ -155,6 +155,7 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
     return new_node;
 }
 
+__attribute__((section(".unmap_after_init")))
 void tmpfs_init(void) {
     vfs_register_filesystem("tmpfs", tmpfs_mount);
 }

@@ -224,6 +224,7 @@ void sched_thread_sleep(struct thread* t, uint64_t ns) {
     sched_yield();
 }
 
+__attribute__((section(".unmap_after_init")))
 void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, schedule, NULL);
     kernel_process = process_create(NULL, kernel_pagemap);

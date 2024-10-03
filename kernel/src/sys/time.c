@@ -58,6 +58,7 @@ void time_update_timers(void) {
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 void time_init(void) {
     cmos_init();
     cmos_get_rtc_time(&time_realtime);

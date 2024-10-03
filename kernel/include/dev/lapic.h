@@ -13,6 +13,6 @@ void lapic_timer_oneshot(uint8_t vector, uint64_t us);
 void lapic_timer_stop(void);
 void lapic_init(uint32_t lapic_id);
 
-void disable_pic(void);
+void pic_disable(void);
 
 #endif /* _KERNEL_DEV_LAPIC_H */

@@ -10,11 +10,11 @@
 #define PS2_COMMAND_READ_CONFIG         0x20
 #define PS2_COMMAND_WRITE_CONFIG        0x60
 #define PS2_COMMAND_TEST_PORT1          0xab
-#define PS2_COMMAND_DISABLE_PORT1       0xad
-#define PS2_COMMAND_ENABLE_PORT1        0xae
-#define PS2_COMMAND_DISABLE_PORT2       0xa7
-#define PS2_COMMAND_ENABLE_PORT2        0xa8
 #define PS2_COMMAND_TEST_PORT2          0xa9
+#define PS2_COMMAND_DISABLE_PORT1       0xad
+#define PS2_COMMAND_DISABLE_PORT2       0xa7
+#define PS2_COMMAND_ENABLE_PORT1        0xae
+#define PS2_COMMAND_ENABLE_PORT2        0xa8
 #define PS2_COMMAND_SELF_TEST           0xaa
 #define PS2_COMMAND_SEND_TO_SECOND_PORT 0xd4
 

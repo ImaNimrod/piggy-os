@@ -4,3 +4,7 @@
 [submodule "kernel/src/utils/printf"]
 	path = kernel/src/utils/printf
 	url = https://github.com/mpaland/printf.git
+[submodule "limine"]
+	path = limine
+	url = https://github.com/limine-bootloader/limine.git
+	branch = v8.x-binary

@@ -17,6 +17,7 @@ void serial_putc(uint16_t port, char c) {
     outb(port, c);
 }
 
+__attribute__((section(".unmap_after_init")))
 bool serial_init(uint16_t port) {
     outb(port + 7, 0xae);
     if (inb(port + 7) != 0xae) {

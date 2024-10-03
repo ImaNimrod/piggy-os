@@ -95,6 +95,7 @@ void pmm_free(uintptr_t addr, size_t pages) {
     spinlock_release(&pmm_lock);
 }
 
+__attribute__((section(".unmap_after_init")))
 void pmm_init(void) {
     struct limine_memmap_response* memmap_response = memmap_request.response;
     struct limine_memmap_entry** entries = memmap_response->entries;

@@ -381,6 +381,7 @@ bool vfs_unregister_filesystem(const char* fs_name) {
     return hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
 }
 
+__attribute__((section(".unmap_after_init")))
 void vfs_init(void) {
     vfs_node_cache = slab_cache_create("vfs_node cache", sizeof(struct vfs_node));
     if (vfs_node_cache == NULL) {

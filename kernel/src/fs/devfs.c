@@ -32,6 +32,7 @@ struct vfs_node* devfs_create_device(const char* name) {
     return dev_node;
 }
 
+__attribute__((section(".unmap_after_init")))
 void devfs_init(void) {
     devfs_root = vfs_create_node(&devfs, NULL, "dev", true);
 

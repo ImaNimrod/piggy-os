@@ -6,7 +6,6 @@
 #include <mem/vmm.h>
 #include <utils/panic.h>
 
-#define LAPIC_VADDR 0xffffffffffffe000
 #define NMI_VECTOR 2
 
 // TODO: maybe do x2apic?
@@ -15,6 +14,7 @@
 #define LAPIC_REG_TPR           0x080
 #define LAPIC_REG_EOI           0x0b0
 #define LAPIC_REG_SVR           0x0f0
+#define LAPIC_REG_ESR           0x280
 #define LAPIC_REG_CMCI          0x2f0
 #define LAPIC_REG_ICR0          0x300
 #define LAPIC_REG_ICR1          0x310
@@ -28,14 +28,17 @@
 #define LAPIC_REG_TIMER_CURCNT  0x390
 #define LAPIC_REG_TIMER_DIV     0x3e0
 
+#define LAPIC_IRQ_MASK          0x10000
+
 static uint32_t lapic_read(uint32_t reg) {
-    return *((volatile uint32_t*) (LAPIC_VADDR + reg));
+    return *((volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + reg));
 }
 
 static void lapic_write(uint32_t reg, uint32_t value) {
-    *((volatile uint32_t*) (LAPIC_VADDR + reg)) = value;
+    *((volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + reg)) = value;
 }
 
+__attribute__((section(".unmap_after_init")))
 static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t target_lapic_id, uint16_t flags, uint8_t lint) {
     if (target_lapic_id == 0xff) {
         if (current_lapic_id != target_lapic_id) {
@@ -61,6 +64,7 @@ static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t tar
     }
 }
 
+__attribute__((section(".unmap_after_init")))
 static void lapic_timer_calibrate(void) {
     const uint32_t init_ticks = 0xffffffff;
 
@@ -105,16 +109,23 @@ void lapic_timer_stop(void) {
     lapic_write(LAPIC_REG_LVT_TIMER, 0x10000);
 }
 
+__attribute__((section(".unmap_after_init")))
 void lapic_init(uint32_t lapic_id) {
     uint64_t lapic_msr = rdmsr(IA32_APIC_BASE_MSR);
     wrmsr(IA32_APIC_BASE_MSR, lapic_msr | (1 << 11));
 
-    if (!vmm_map_page(kernel_pagemap, LAPIC_VADDR, madt_lapic_addr,
-            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
+    if (!vmm_map_page(kernel_pagemap, madt_lapic_addr, madt_lapic_addr + HIGH_VMA,
+                PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
         kpanic(NULL, true, "failed to map LAPIC");
     }
 
     lapic_write(LAPIC_REG_SVR, lapic_read(LAPIC_REG_SVR) | (1 << 8));
+
+    lapic_timer_calibrate();
+
+    if (((lapic_read(LAPIC_REG_VER) >> 16) & 0xff) >= 4) {
+        lapic_write(LAPIC_REG_LVT_PERFCNT, LAPIC_IRQ_MASK);
+    }
 
     struct madt_lapic_nmi* nmi;
     for (size_t i = 0; i < LAPIC_NMI_NUM; i++) {
@@ -124,12 +135,34 @@ void lapic_init(uint32_t lapic_id) {
         }
     }
 
-    lapic_timer_calibrate();
+    lapic_write(LAPIC_REG_LVT_LINT0, LAPIC_IRQ_MASK);
+    lapic_write(LAPIC_REG_LVT_LINT1, LAPIC_IRQ_MASK);
+
+    lapic_write(LAPIC_REG_LVT_ERROR, LAPIC_IRQ_MASK);
+
+    lapic_write(LAPIC_REG_ESR, 0);
+    lapic_write(LAPIC_REG_ESR, 0);
+
+    lapic_eoi();
 
     lapic_write(LAPIC_REG_TPR, 0);
 }
 
-void disable_pic(void) {
-    outb(0x21, 0xff);
-    outb(0xa1, 0xff);
+#define PIC1_COMMAND_PORT   0x20
+#define PIC1_DATA_PORT      0x21
+#define PIC2_COMMAND_PORT   0xa0
+#define PIC2_DATA_PORT      0xa1
+
+__attribute__((section(".unmap_after_init")))
+void pic_disable(void) {
+    outb(PIC1_COMMAND_PORT, 0x11);
+    outb(PIC2_COMMAND_PORT, 0x11);
+    outb(PIC1_DATA_PORT, 0x20);
+    outb(PIC2_DATA_PORT, 0x28);
+    outb(PIC1_DATA_PORT, 0x04);
+    outb(PIC2_DATA_PORT, 0x02);
+    outb(PIC1_DATA_PORT, 0x01);
+    outb(PIC2_DATA_PORT, 0x01);
+    outb(PIC1_DATA_PORT, 0xff);
+    outb(PIC2_DATA_PORT, 0xff);
 }

@@ -25,6 +25,7 @@ static vector_t* dead_processes;
 static pid_t next_pid;
 static spinlock_t process_list_lock = {0};
 
+__attribute__((section(".unmap_after_init")))
 static bool create_std_file_descriptors(struct process* p, const char* console_path) {
     struct vfs_node* console_node = vfs_get_node(p->cwd, console_path);
     if (console_node == NULL) {
@@ -136,6 +137,7 @@ end:
     return new;
 }
 
+__attribute__((section(".unmap_after_init")))
 bool process_create_init(void) {
     char* init_path = cmdline_get("init");
     if (!init_path) {
@@ -558,6 +560,7 @@ void thread_destroy(struct thread* t) {
     cache_free_object(thread_cache, t);
 }
 
+__attribute__((section(".unmap_after_init")))
 void process_init(void) {
     process_cache = slab_cache_create("process cache", sizeof(struct process));
     if (process_cache == NULL) {

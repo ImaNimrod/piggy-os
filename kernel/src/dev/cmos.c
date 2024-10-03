@@ -82,6 +82,7 @@ void cmos_get_rtc_time(struct timespec* tp) {
     tp->tv_nsec = 0;
 }
 
+__attribute__((section(".unmap_after_init")))
 void cmos_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (fadt != NULL) {
