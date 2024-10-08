@@ -2,7 +2,7 @@
 #include <mem/vmm.h>
 #include <mem/slab.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/string.h>
 
 #define BIG_ALLOC_HEADER_MAGIC 0xfafeceedabcdeffe
@@ -27,10 +27,10 @@ struct big_alloc_header {
     size_t size;
 };
 
-static struct cache* cache_list;
-static struct cache root_cache = {0};
+READONLY_AFTER_INIT static struct cache root_cache = {0};
+READONLY_AFTER_INIT static struct cache* kmalloc_caches[11] = {0};
 
-static struct cache* kmalloc_caches[11] = {0};
+static struct cache* cache_list;
 
 static struct slab* cache_alloc_slab(struct cache* cache) {
     struct slab* new_slab = (struct slab*) (pmm_allocz(cache->pages_per_slab) + HIGH_VMA);
@@ -179,8 +179,7 @@ struct cache* slab_cache_create(const char* name, size_t object_size) {
     return new_cache;
 }
 
-__attribute__((section(".unmap_after_init")))
-void slab_init(void) {
+UNMAP_AFTER_INIT void slab_init(void) {
     root_cache.name = "cache cache";
     root_cache.object_size = sizeof(struct cache);
     root_cache.pages_per_slab = DIV_CEIL(sizeof(struct cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE);

@@ -1,9 +1,8 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
-#include <sys/process.h> 
 #include <sys/sched.h> 
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/log.h>
 
@@ -65,7 +64,7 @@ void isr_handler(struct registers* r) {
     uint8_t int_number = r->int_number & 0xff;
 
     struct isr_table_entry entry = isr_table[int_number];
-    if (entry.handler != NULL) {
+    if (likely(entry.handler != NULL)) {
         entry.handler(r, entry.ctx);
     } else if (int_number < ISR_EXCEPTION_NUM) {
         if (r->cs & 3) {

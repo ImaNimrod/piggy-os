@@ -1,4 +1,5 @@
 #include <cpu/idt.h>
+#include <mem/vmm.h>
 
 struct idt_entry {
     uint16_t offset_low16;
@@ -272,16 +273,14 @@ extern void _isr253(void);
 extern void _isr254(void);
 extern void _isr255(void);
 
-static struct idt_entry idt[256] = {0};
+READONLY_AFTER_INIT static struct idt_entry idt[256] = {0};
 
-__attribute__((section(".unmap_after_init")))
-void idt_reload(void) {
+UNMAP_AFTER_INIT void idt_reload(void) {
     struct idt_ptr idtr = (struct idt_ptr) { sizeof(idt) - 1, (uint64_t) &idt };
     __asm__ volatile("lidtq %0" :: "m" (idtr));
 }
 
-__attribute__((section(".unmap_after_init")))
-void idt_set_gate(uint8_t vector, uintptr_t handler, uint8_t ist) {
+UNMAP_AFTER_INIT void idt_set_gate(uint8_t vector, uintptr_t handler, uint8_t ist) {
     idt[vector].offset_low16 = (uint16_t) handler;
     idt[vector].selector = 8;
     idt[vector].ist = ist;
@@ -300,8 +299,7 @@ void idt_set_gate(uint8_t vector, uintptr_t handler, uint8_t ist) {
     idt[vector].offset_high32 = (uint32_t) (handler >> 32);
 }
 
-__attribute__((section(".unmap_after_init")))
-void idt_init(void) {
+UNMAP_AFTER_INIT void idt_init(void) {
     idt_set_gate(0, (uintptr_t) &_isr0, 0);
     idt_set_gate(1, (uintptr_t) &_isr1, 1);
     idt_set_gate(2, (uintptr_t) &_isr2, 1);

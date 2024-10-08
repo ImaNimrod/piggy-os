@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <utils/list.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 
 #define IOREGSEL 0x00
@@ -47,7 +48,7 @@ union ioapic_rentry {
 } __attribute__((packed));
 
 static LIST_HEAD(struct ioapic) ioapics;
-static size_t ioapic_count = 0;
+READONLY_AFTER_INIT static size_t ioapic_count = 0;
 
 static inline uint32_t get_ioapic_rentry_index(uint8_t irq) {
     return (IOAPIC_RENTRY_BASE + (irq * 2));
@@ -112,7 +113,7 @@ static uint32_t get_iso_gsi_for_irq(uint8_t irq) {
 
 static bool redirect_gsi(uint32_t gsi, uint8_t vector, uint16_t flags) {
     struct ioapic* ioapic = get_ioapic_for_interrupt(gsi);
-    if (ioapic == NULL) {
+    if (unlikely(ioapic == NULL)) {
         return false;
     }
 
@@ -155,7 +156,7 @@ bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
 
 bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     struct ioapic* ioapic = get_ioapic_for_interrupt(irq);
-    if (ioapic == NULL) {
+    if (unlikely(ioapic == NULL)) {
         return false;
     }
 
@@ -168,17 +169,16 @@ bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     return true;
 }
 
-__attribute__((section(".unmap_after_init")))
-void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
-    if (get_ioapic_by_id(id) != NULL) {
+UNMAP_AFTER_INIT void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
+    if (unlikely(get_ioapic_by_id(id) != NULL)) {
         klog("[ioapic] duplicate ioapic with id #%u found... skipping initialization\n", id);
         return;
     }
 
     uintptr_t vaddr = paddr + HIGH_VMA;
 
-    if (!vmm_map_page(kernel_pagemap, vaddr, paddr,
-            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
+    if (unlikely(!vmm_map_page(kernel_pagemap, vaddr, paddr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
         kpanic(NULL, true, "failed to map IOAPIC");
     }
 

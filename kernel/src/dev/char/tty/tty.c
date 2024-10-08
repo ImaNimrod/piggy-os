@@ -5,8 +5,9 @@
 #include <fs/vfs.h>
 #include <limine.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
 #include <utils/user_access.h>
@@ -229,25 +230,24 @@ static int tty_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     return ret;
 }
 
-__attribute__((section(".unmap_after_init")))
-void tty_init(void) {
+UNMAP_AFTER_INIT void tty_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
-    if (framebuffer_response->framebuffer_count == 0) {
+    if (unlikely(framebuffer_response->framebuffer_count == 0)) {
         kpanic(NULL, false, "no framebuffers available for tty");
     }
 
     struct tty* tty = kmalloc(sizeof(struct tty));
-    if (tty == NULL) {
+    if (unlikely(tty == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for tty");
     }
 
     tty->input_buf = ringbuf_create(8192, sizeof(char));
-    if (tty->input_buf == NULL) {
+    if (unlikely(tty->input_buf == NULL)) {
         kpanic(NULL, false ,"failed to create tty input buffer");
     }
 
     tty->canon_buf = ringbuf_create(256, sizeof(ringbuf_t*));
-    if (tty->canon_buf == NULL) {
+    if (unlikely(tty->canon_buf == NULL)) {
         kpanic(NULL, false, "failed to create tty canonical line buffer");
     }
 
@@ -287,7 +287,7 @@ void tty_init(void) {
     active_tty = tty;
 
     struct vfs_node* tty_node = devfs_create_device("tty0");
-    if (tty_node == NULL) {
+    if (unlikely(tty_node == NULL)) {
         kpanic(NULL, false, "failed to create tty node in devfs");
     }
 

@@ -44,6 +44,12 @@ SECTIONS
 
     .data : {
         *(.data .data.*)
+
+        . += CONSTANT(MAXPAGESIZE);
+
+        ro_after_init_start_addr = .;
+        *(.ro_after_init .ro_after_init.*)
+        ro_after_init_end_addr = .;
     } :data
 
     .bss : {

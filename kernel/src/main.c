@@ -22,7 +22,7 @@
 #include <utils/panic.h>
 #include <utils/random.h>
 
-uintptr_t __stack_chk_guard;
+READONLY_AFTER_INIT uintptr_t __stack_chk_guard;
 
 __attribute__((noreturn)) void __stack_chk_fail(void) {
     kpanic(NULL, true, "stack smashing detected");
@@ -55,14 +55,14 @@ static void kernel_main(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
-    vmm_unmap_code_after_init();
+    vmm_readonly_data_after_init();
+    vmm_unmap_text_after_init();
 
     sched_thread_dequeue(this_cpu()->running_thread);
     sched_yield();
 }
 
-__attribute__((section(".unmap_after_init")))
-void kernel_entry(void) {
+UNMAP_AFTER_INIT void kernel_entry(void) {
     pmm_init();
     slab_init();
 

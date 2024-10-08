@@ -1,13 +1,15 @@
 #include <fs/devfs.h>
 #include <fs/vfs.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
 #include <utils/hashmap.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
-static struct vfs_filesystem devfs = {0};
-static struct vfs_node* devfs_root;
+READONLY_AFTER_INIT static struct vfs_filesystem devfs = {0};
+READONLY_AFTER_INIT static struct vfs_node* devfs_root;
 
 static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* source, const char* name) {
     (void) parent;
@@ -17,12 +19,12 @@ static struct vfs_node* devfs_mount(struct vfs_node* parent, struct vfs_node* so
 }
 
 struct vfs_node* devfs_create_device(const char* name) {
-    if (vfs_get_node(devfs_root, name) != NULL) {
+    if (unlikely(vfs_get_node(devfs_root, name) != NULL)) {
         return NULL;
     }
 
     struct vfs_node* dev_node = vfs_create_node(&devfs, devfs_root, name, false);
-    if (dev_node == NULL) {
+    if (unlikely(dev_node == NULL)) {
         kpanic(NULL, false, "failed to create devfs node");
     }
 
@@ -32,8 +34,7 @@ struct vfs_node* devfs_create_device(const char* name) {
     return dev_node;
 }
 
-__attribute__((section(".unmap_after_init")))
-void devfs_init(void) {
+UNMAP_AFTER_INIT void devfs_init(void) {
     devfs_root = vfs_create_node(&devfs, NULL, "dev", true);
 
     devfs_root->stat = (struct stat) {

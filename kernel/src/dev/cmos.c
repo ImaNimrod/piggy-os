@@ -1,14 +1,16 @@
 #include <cpu/asm.h>
 #include <dev/acpi/acpi.h>
 #include <dev/cmos.h>
+#include <mem/vmm.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 
 #define CMOS_ADDRESS_PORT   0x70
 #define CMOS_DATA_PORT      0x71
 
-static bool bcd_mode = false;
-static bool xxiv_hr_mode = false;
-static uint8_t century_register = 0;
+READONLY_AFTER_INIT static bool bcd_mode = false;
+READONLY_AFTER_INIT static bool xxiv_hr_mode = false;
+READONLY_AFTER_INIT static uint8_t century_register = 0;
 
 static inline int bcd_to_bin(uint8_t val) {
     return (val & 0x0f) + ((val & 0xf0) >> 4) * 10;
@@ -82,10 +84,9 @@ void cmos_get_rtc_time(struct timespec* tp) {
     tp->tv_nsec = 0;
 }
 
-__attribute__((section(".unmap_after_init")))
-void cmos_init(void) {
+UNMAP_AFTER_INIT void cmos_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (fadt != NULL) {
+    if (unlikely(fadt != NULL)) {
         uint8_t acpi_century_register = *(uint8_t*) ((uintptr_t) fadt + 108);
         if (acpi_century_register != 0) {
             century_register = acpi_century_register;

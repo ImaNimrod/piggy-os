@@ -1,9 +1,11 @@
 #include <cpu/percpu.h>
 #include <dev/cmos.h>
 #include <dev/pit.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
 #include <types.h> 
 #include <utils/log.h>
+#include <utils/macros.h>
 
 #define TIMER_FREQUENCY 1000
 
@@ -52,14 +54,13 @@ void time_update_timers(void) {
     time_realtime = timespec_add(time_realtime, interval);
 
     struct thread* current_thread = this_cpu()->running_thread;
-    if (current_thread != NULL) {
+    if (likely(current_thread != NULL)) {
         current_thread->ticks = timespec_add(current_thread->ticks, interval);
         current_thread->process->ticks = timespec_add(current_thread->process->ticks, interval);
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-void time_init(void) {
+UNMAP_AFTER_INIT void time_init(void) {
     cmos_init();
     cmos_get_rtc_time(&time_realtime);
 

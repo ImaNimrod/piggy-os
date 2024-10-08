@@ -8,54 +8,52 @@
 #include <sys/sched.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
 #include <utils/vector.h>
 
 #define STACK_SIZE 0x40000
 
-static struct cache* process_cache;
-static struct cache* dead_process_cache;
-static struct cache* thread_cache;
-
 // TODO: use actual tree data structure for processes
-static vector_t* running_processes;
-static vector_t* dead_processes;
+READONLY_AFTER_INIT static struct cache* process_cache;
+READONLY_AFTER_INIT static struct cache* dead_process_cache;
+READONLY_AFTER_INIT static struct cache* thread_cache;
+READONLY_AFTER_INIT static vector_t* running_processes;
+READONLY_AFTER_INIT static vector_t* dead_processes;
 static pid_t next_pid;
 static spinlock_t process_list_lock = {0};
 
-__attribute__((section(".unmap_after_init")))
-static bool create_std_file_descriptors(struct process* p, const char* console_path) {
+UNMAP_AFTER_INIT static bool create_std_file_descriptors(struct process* p, const char* console_path) {
     struct vfs_node* console_node = vfs_get_node(p->cwd, console_path);
-    if (console_node == NULL) {
+    if (unlikely(console_node == NULL)) {
         return false;
     }
 
     struct file_descriptor* stdin = fd_create(console_node, O_RDONLY);
-    if (stdin == NULL) {
+    if (unlikely(stdin == NULL)) {
         return false;
     }
 
-    if (fd_alloc_fdnum(p, stdin) < 0) {
+    if (unlikely(fd_alloc_fdnum(p, stdin) < 0)) {
         return false;
     }
 
     struct file_descriptor* stdout = fd_create(console_node, O_WRONLY);
-    if (stdout == NULL) {
+    if (unlikely(stdout == NULL)) {
         return false;
     }
 
-    if (fd_alloc_fdnum(p, stdout) < 0) {
+    if (unlikely(fd_alloc_fdnum(p, stdout) < 0)) {
         return false;
     }
 
     struct file_descriptor* stderr = fd_create(console_node, O_WRONLY);
-    if (stderr == NULL) {
+    if (unlikely(stderr == NULL)) {
         return false;
     }
 
-    if (fd_alloc_fdnum(p, stderr) < 0) {
+    if (unlikely(fd_alloc_fdnum(p, stderr) < 0)) {
         return false;
     }
 
@@ -64,19 +62,19 @@ static bool create_std_file_descriptors(struct process* p, const char* console_p
 
 struct process* process_create(struct process* old, struct pagemap* pagemap) {
     struct process* new = cache_alloc_object(process_cache);
-    if (new == NULL) {
+    if (unlikely(new == NULL)) {
         return NULL;
     }
 
     new->state = PROCESS_RUNNING;
 
     new->children = vector_create(sizeof(struct process*));
-    if (new->children == NULL) {
+    if (unlikely(new->children == NULL)) {
         goto error;
     }
 
     new->threads = vector_create(sizeof(struct thread*));
-    if (new->threads == NULL) {
+    if (unlikely(new->threads == NULL)) {
         goto error;
     }
 
@@ -84,7 +82,7 @@ struct process* process_create(struct process* old, struct pagemap* pagemap) {
         strncpy(new->name, old->name, sizeof(new->name));
 
         new->pagemap = vmm_fork_pagemap(old->pagemap);
-        if (new->pagemap == NULL) {
+        if (unlikely(new->pagemap == NULL)) {
             goto error;
         }
 
@@ -137,8 +135,7 @@ end:
     return new;
 }
 
-__attribute__((section(".unmap_after_init")))
-bool process_create_init(void) {
+UNMAP_AFTER_INIT bool process_create_init(void) {
     char* init_path = cmdline_get("init");
     if (!init_path) {
         init_path = "/bin/init";
@@ -147,14 +144,14 @@ bool process_create_init(void) {
     klog("[process] creating init process (pid = 1) using %s\n", init_path);
 
     struct vfs_node* init_node = vfs_get_node(vfs_root, init_path);
-    if (init_node == NULL) {
+    if (unlikely(init_node == NULL)) {
         return false;
     }
 
     struct pagemap* init_pagemap = vmm_new_pagemap();
 
     uintptr_t entry;
-    if (elf_load(init_node, init_pagemap, &entry) < 0) {
+    if (unlikely(elf_load(init_node, init_pagemap, &entry) < 0)) {
         vmm_destroy_pagemap(init_pagemap);
         return false;
     }
@@ -163,12 +160,12 @@ bool process_create_init(void) {
     const char* envp[] = { NULL };
 
     struct process* init_process = process_create(NULL, init_pagemap);
-    if (init_process == NULL) {
+    if (unlikely(init_process == NULL)) {
         vmm_destroy_pagemap(init_pagemap);
         return false;
     }
 
-    if (!create_std_file_descriptors(init_process, "/dev/tty0")) {
+    if (unlikely(!create_std_file_descriptors(init_process, "/dev/tty0"))) {
         process_exit(init_process, -1);
         return false;
     };
@@ -177,7 +174,7 @@ bool process_create_init(void) {
     vfs_get_pathname(vfs_root, init_process->name, sizeof(init_process->name) - 1);
 
     struct thread* init_thread = thread_create(init_process, entry, NULL, argv, envp, true);
-    if (init_thread == NULL) {
+    if (unlikely(init_thread == NULL)) {
         process_exit(init_process, -1);
         return false;
     }
@@ -187,7 +184,7 @@ bool process_create_init(void) {
 }
 
 void process_destroy(struct process* p) {
-    if (p->parent) {
+    if (likely(p->parent != NULL)) {
         vector_remove_by_value(p->parent->children, p);
     }
 
@@ -220,7 +217,7 @@ void process_destroy(struct process* p) {
 }
 
 void process_exit(struct process* p, int status) {
-    if (p->pid < 2) {
+    if (unlikely(p->pid < 2)) {
         kpanic(NULL, true, "tried to exit init process");
     }
 
@@ -331,7 +328,7 @@ pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
 
     p->state = PROCESS_RUNNING;
 
-    if (status) {
+    if (likely(status)) {
         *status = child->status;
     }
 
@@ -340,7 +337,7 @@ pid_t process_wait(struct process* p, pid_t pid, int* status, int flags) {
 
 struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, const char** argv, const char** envp, bool is_user) {
     struct thread* t = cache_alloc_object(thread_cache);
-    if (t == NULL) {
+    if (unlikely(t == NULL)) {
         return NULL;
     }
 
@@ -352,7 +349,7 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
     uintptr_t user_stack_paddr = 0;
 
     t->kernel_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
-    if (t->kernel_stack == 0) {
+    if (unlikely(t->kernel_stack == 0)) {
         goto error;
     }
     t->kernel_stack += STACK_SIZE + HIGH_VMA;
@@ -364,15 +361,15 @@ struct thread* thread_create(struct process* p, uintptr_t entry, void* arg, cons
         t->ctx.ss = 0x1b;
 
         user_stack_paddr = pmm_alloc(STACK_SIZE / PAGE_SIZE);
-        if (user_stack_paddr == 0) {
+        if (unlikely(user_stack_paddr == 0)) {
             goto error;
         }
 
         for (size_t i = 0; i < STACK_SIZE / PAGE_SIZE; i++) {
-            if (!vmm_map_page(p->pagemap,
+            if (unlikely(!vmm_map_page(p->pagemap,
                         (p->thread_stack_top - STACK_SIZE) + (i * PAGE_SIZE),
                         user_stack_paddr + (i * PAGE_SIZE),
-                        PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX)) {
+                        PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX))) {
                 goto error;
             }
         }
@@ -494,7 +491,7 @@ end:
 
 struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
     struct thread* new_thread = cache_alloc_object(thread_cache);
-    if (new_thread == NULL) {
+    if (unlikely(new_thread == NULL)) {
         return NULL;
     }
 
@@ -504,13 +501,13 @@ struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
     new_thread->timeslice = old_thread->timeslice;
 
     new_thread->kernel_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
-    if (new_thread->kernel_stack == 0) {
+    if (unlikely(new_thread->kernel_stack == 0)) {
         goto error;
     }
     new_thread->kernel_stack += STACK_SIZE + HIGH_VMA;
 
     new_thread->page_fault_stack = pmm_alloc(STACK_SIZE / PAGE_SIZE);
-    if (new_thread->page_fault_stack == 0) {
+    if (unlikely(new_thread->page_fault_stack == 0)) {
         goto error;
     }
     new_thread->page_fault_stack += STACK_SIZE + HIGH_VMA;
@@ -521,7 +518,7 @@ struct thread* thread_fork(struct process* forked, struct thread* old_thread) {
     new_thread->ctx.rax = 0;
 
     new_thread->fpu_storage = (void*) pmm_alloc(DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE));
-    if (new_thread->fpu_storage == NULL) {
+    if (unlikely(new_thread->fpu_storage == NULL)) {
         goto error;
     }
     new_thread->fpu_storage = (void*) ((uintptr_t) new_thread->fpu_storage + HIGH_VMA);
@@ -551,7 +548,7 @@ end:
 void thread_destroy(struct thread* t) {
     pmm_free(t->kernel_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
 
-    if (t->is_user) {
+    if (likely(t->is_user)) {
         pmm_free(t->page_fault_stack - STACK_SIZE - HIGH_VMA, STACK_SIZE / PAGE_SIZE);
         pmm_free((uintptr_t) t->fpu_storage - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_storage_size, PAGE_SIZE));
     }
@@ -560,30 +557,29 @@ void thread_destroy(struct thread* t) {
     cache_free_object(thread_cache, t);
 }
 
-__attribute__((section(".unmap_after_init")))
-void process_init(void) {
+UNMAP_AFTER_INIT void process_init(void) {
     process_cache = slab_cache_create("process cache", sizeof(struct process));
-    if (process_cache == NULL) {
+    if (unlikely(process_cache == NULL)) {
         kpanic(NULL, false, "failed to initialize object cache for process structures");
     }
 
     dead_process_cache = slab_cache_create("dead process cache", sizeof(struct dead_process));
-    if (dead_process_cache == NULL) {
+    if (unlikely(dead_process_cache == NULL)) {
         kpanic(NULL, false, "failed to initialize object cache for dead process metadata structures");
     }
 
     thread_cache = slab_cache_create("thread cache", sizeof(struct thread));
-    if (thread_cache == NULL) {
+    if (unlikely(thread_cache == NULL)) {
         kpanic(NULL, false, "failed to initialize object cache for thread structures");
     }
 
     running_processes = vector_create(sizeof(struct process*));
-    if (running_processes == NULL) {
+    if (unlikely(running_processes == NULL)) {
         kpanic(NULL, false, "failed to create running process vector");
     }
 
     dead_processes = vector_create(sizeof(struct dead_process*));
-    if (dead_processes == NULL) {
+    if (unlikely(dead_processes == NULL)) {
         kpanic(NULL, false, "failed to create dead process vector");
     }
 }

@@ -7,7 +7,7 @@
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/vector.h>
 
@@ -45,8 +45,8 @@ struct mcfg {
     struct mcfg_entry entries[];
 } __attribute__((packed));
 
-static struct mcfg_entry* mcfg_entries = NULL;
-static size_t mcfg_entry_count = 0;
+READONLY_AFTER_INIT static struct mcfg_entry* mcfg_entries = NULL;
+READONLY_AFTER_INIT static size_t mcfg_entry_count = 0;
 
 static void enumerate_bus(uint8_t bus);
 static void enumerate_slot(uint8_t bus, uint8_t slot);
@@ -105,7 +105,7 @@ static uint32_t ecm_read(uint8_t bus, uint8_t slot, uint8_t function, uint16_t o
         }
     }
 
-    if (entry == NULL) {
+    if (unlikely(entry == NULL)) {
         return (uint32_t) -1;
     }
 
@@ -134,7 +134,7 @@ static void ecm_write(uint8_t bus, uint8_t slot, uint8_t function, uint16_t offs
         }
     }
 
-    if (entry == NULL) {
+    if (unlikely(entry == NULL)) {
         return;
     }
 
@@ -186,10 +186,9 @@ static const char* get_class_name(uint8_t class) {
     return "Unassigned";
 }
 
-__attribute__((section(".unmap_after_init")))
-static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
+UNMAP_AFTER_INIT static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
     struct pci_device* dev = kmalloc(sizeof(struct pci_device));
-    if (dev == NULL) {
+    if (unlikely(dev == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for PCI device structure");
     }
 
@@ -231,8 +230,7 @@ static void enumerate_function(uint8_t bus, uint8_t slot, uint8_t function) {
     vector_push_back(pci_devices, dev);
 }
 
-__attribute__((section(".unmap_after_init")))
-static void enumerate_slot(uint8_t bus, uint8_t slot) {
+UNMAP_AFTER_INIT static void enumerate_slot(uint8_t bus, uint8_t slot) {
     if ((uint16_t) pci_read(bus, slot, 0, PCI_CONFIG_VENDOR_ID, 2) == 0xffff) {
         return;
     }
@@ -250,8 +248,7 @@ static void enumerate_slot(uint8_t bus, uint8_t slot) {
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-static void enumerate_bus(uint8_t bus) {
+UNMAP_AFTER_INIT static void enumerate_bus(uint8_t bus) {
     for (uint8_t slot = 0; slot < 32; slot++) {
         enumerate_slot(bus, slot);
     }
@@ -260,7 +257,7 @@ static void enumerate_bus(uint8_t bus) {
 struct pci_bar pci_get_bar(struct pci_device* dev, uint8_t index) {
     struct pci_bar result = {0};
 
-    if (index > 5) {
+    if (unlikely(index > 5)) {
         return result;
     }
 
@@ -296,27 +293,23 @@ bool pci_setup_irq(struct pci_device* dev, uint8_t vector) {
         return false;
     }
 
-    if (dev->msi_supported) {
-        uint16_t control = PCI_READ16(dev, dev->msi_offset + 2);
-        uint8_t data_offset = (control & PCI_MSI_64BIT) ? 12 : 8;
+    uint16_t control = PCI_READ16(dev, dev->msi_offset + 2);
+    uint8_t data_offset = (control & PCI_MSI_64BIT) ? 12 : 8;
 
-        control |= 0x01;
+    control |= 0x01;
 
-        if ((control >> 1) & 7) {
-            control &= ~0x70;
-        }
-
-        uint32_t address = 0xfee00000 | (this_cpu()->lapic_id << 12);
-        uint16_t data = vector;
-
-        PCI_WRITE16(dev, dev->msi_offset + 4, address);
-        PCI_WRITE16(dev, dev->msi_offset + data_offset, data);
-        PCI_WRITE16(dev, dev->msi_offset + 2, control);
-
-        return true;
+    if ((control >> 1) & 7) {
+        control &= ~0x70;
     }
 
-    return false;
+    uint32_t address = 0xfee00000 | (this_cpu()->lapic_id << 12);
+    uint16_t data = vector;
+
+    PCI_WRITE16(dev, dev->msi_offset + 4, address);
+    PCI_WRITE16(dev, dev->msi_offset + data_offset, data);
+    PCI_WRITE16(dev, dev->msi_offset + 2, control);
+
+    return true;
 }
 
 bool pci_mask_irq(struct pci_device* dev, bool mask) {
@@ -343,15 +336,14 @@ void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if) {
     dev->prog_if = prog_if;
 }
 
-__attribute__((section(".unmap_after_init")))
-void pci_init(void) {
+UNMAP_AFTER_INIT void pci_init(void) {
     pci_devices = vector_create(sizeof(struct pci_device*));
-    if (pci_devices == NULL) {
+    if (unlikely(pci_devices == NULL)) {
         kpanic(NULL, false, "failed to create PCI device vector");
     }
 
     struct mcfg* mcfg = (struct mcfg*) acpi_find_sdt("MCFG");
-    if (mcfg != NULL || mcfg->length < sizeof(struct mcfg) + sizeof(struct mcfg_entry)) {
+    if (likely(mcfg != NULL || mcfg->length < sizeof(struct mcfg) + sizeof(struct mcfg_entry))) {
         mcfg_entries = mcfg->entries;
         mcfg_entry_count = (mcfg->length - sizeof(struct mcfg)) / sizeof(struct mcfg_entry);
 

@@ -1,20 +1,21 @@
 #include <dev/acpi/madt.h>
 #include <dev/ioapic.h>
+#include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 
-uintptr_t madt_lapic_addr;
-struct madt_iso* madt_iso_entries[ISA_IRQ_NUM];
-struct madt_lapic_nmi* madt_lapic_nmi_entries[LAPIC_NMI_NUM];
+READONLY_AFTER_INIT uintptr_t madt_lapic_addr;
+READONLY_AFTER_INIT struct madt_iso* madt_iso_entries[ISA_IRQ_NUM];
+READONLY_AFTER_INIT struct madt_lapic_nmi* madt_lapic_nmi_entries[LAPIC_NMI_NUM];
 
-__attribute__((section(".unmap_after_init")))
-void madt_init(void) {
+UNMAP_AFTER_INIT void madt_init(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
-    if (madt == NULL) {
+    if (unlikely(madt == NULL)) {
         kpanic(NULL, false, "system does not have a MADT");
     }
 
-    if (madt->flags & 1) {
+    if (likely(madt->flags & 1)) {
         pic_disable();
     }
 

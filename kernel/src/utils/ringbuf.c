@@ -1,10 +1,11 @@
 #include <mem/slab.h>
+#include <utils/macros.h>
 #include <utils/ringbuf.h>
 #include <utils/string.h>
 
 ringbuf_t* ringbuf_create(size_t size, size_t elem_size) {
     ringbuf_t* r = kmalloc(sizeof(ringbuf_t));
-    if (r == NULL) {
+    if (unlikely(r == NULL)) {
         return NULL;
     }
 
@@ -16,7 +17,7 @@ ringbuf_t* ringbuf_create(size_t size, size_t elem_size) {
     r->write_ptr = -1;
 
     r->data = kmalloc(size * elem_size);
-    if (r->data == NULL) {
+    if (unlikely(r->data == NULL)) {
         kfree(r);
         return NULL;
     }

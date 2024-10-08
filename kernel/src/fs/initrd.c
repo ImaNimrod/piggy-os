@@ -6,7 +6,7 @@
 #include <mem/vmm.h>
 #include <types.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
 
@@ -45,15 +45,14 @@ static volatile struct limine_module_request module_request = {
 
 static inline uint64_t oct2int(const char* str, size_t len) {
     uint64_t value = 0;
-    while (*str && len > 0) {
+    while (*str != '\0' && len > 0) {
         value = value * 8 + (*str++ - '0');
         len--;
     }
     return value;
 }
 
-__attribute__((section(".unmap_after_init")))
-bool initrd_unpack(void) {
+UNMAP_AFTER_INIT bool initrd_unpack(void) {
     struct limine_module_response* module_response = module_request.response;
     struct limine_file* initrd_module = NULL;
 
@@ -64,7 +63,7 @@ bool initrd_unpack(void) {
         }
     }
 
-    if (initrd_module == NULL) {
+    if (unlikely(initrd_module == NULL)) {
         return false;
     }
 

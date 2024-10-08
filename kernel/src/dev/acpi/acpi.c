@@ -3,13 +3,9 @@
 #include <limine.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
-
-static volatile struct limine_rsdp_request rsdp_request = {
-    .id = LIMINE_RSDP_REQUEST,
-    .revision = 0
-};
 
 struct rsdp {
     char signature[8];
@@ -23,10 +19,15 @@ struct rsdp {
     char reserved[3];
 } __attribute__((packed));
 
-bool use_acpi_rev2 = false;
+static volatile struct limine_rsdp_request rsdp_request = {
+    .id = LIMINE_RSDP_REQUEST,
+    .revision = 0
+};
 
-static struct rsdp* rsdp;
-static struct acpi_sdt* rsdt;
+READONLY_AFTER_INIT static struct rsdp* rsdp;
+READONLY_AFTER_INIT static struct acpi_sdt* rsdt;
+
+READONLY_AFTER_INIT bool use_acpi_rev2 = false;
 
 static bool verify_checksum(struct acpi_sdt* sdt) {
     uint8_t sum = 0;
@@ -64,8 +65,7 @@ struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
     return NULL;
 }
 
-__attribute__((section(".unmap_after_init")))
-void acpi_init(void) {
+UNMAP_AFTER_INIT void acpi_init(void) {
     struct limine_rsdp_response* rsdp_response = rsdp_request.response;
     rsdp = rsdp_response->address;
 
@@ -73,12 +73,12 @@ void acpi_init(void) {
 
     if (use_acpi_rev2) {
         rsdt = (struct acpi_sdt*) (rsdp->xsdt_addr + HIGH_VMA);
-        if (memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt)) {
+        if (unlikely(memcmp(rsdt, "XSDT", 4) || !verify_checksum(rsdt))) {
             kpanic(NULL, false, "XSDT corrupted or not present");
         }
     } else {
         rsdt = (struct acpi_sdt*) (rsdp->rsdt_addr + HIGH_VMA);
-        if (memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt)) {
+        if (unlikely(memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt))) {
             kpanic(NULL, false, "RSDT corrupted or not present");
         }
     }

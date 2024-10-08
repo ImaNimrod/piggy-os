@@ -1,4 +1,5 @@
 #include <cpu/gdt.h>
+#include <mem/vmm.h>
 #include <utils/spinlock.h>
 
 struct gdt_descriptor {
@@ -59,8 +60,7 @@ static struct gdt gdt = {
 
 static spinlock_t gdt_lock = {0};
 
-__attribute__((section(".unmap_after_init")))
-void gdt_load_tss(struct tss* tss) {
+UNMAP_AFTER_INIT void gdt_load_tss(struct tss* tss) {
     uintptr_t tss_addr = (uintptr_t) tss;
 
     spinlock_acquire(&gdt_lock);
@@ -79,8 +79,7 @@ void gdt_load_tss(struct tss* tss) {
     spinlock_release(&gdt_lock);
 }
 
-__attribute__((section(".unmap_after_init")))
-void gdt_reload(void) {
+UNMAP_AFTER_INIT void gdt_reload(void) {
     struct gdt_ptr gdtr = (struct gdt_ptr) { sizeof(gdt) - 1, (uint64_t) &gdt };
     __asm__ volatile(
         "lgdtq %0\n\t"

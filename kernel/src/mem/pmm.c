@@ -1,7 +1,7 @@
 #include <mem/pmm.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
@@ -11,10 +11,10 @@ volatile struct limine_memmap_request memmap_request = {
     .revision = 0
 };
 
-static uint8_t* pmm_bitmap = NULL;
+READONLY_AFTER_INIT static uint8_t* pmm_bitmap = NULL;
+READONLY_AFTER_INIT static size_t reserved_pages = 0;
+READONLY_AFTER_INIT static size_t usable_pages = 0;
 static spinlock_t pmm_lock = {0};
-static size_t usable_pages = 0;
-static size_t reserved_pages = 0;
 static size_t used_pages = 0;
 static size_t last_used_index = 0;
 static size_t highest_page_index = 0;
@@ -95,8 +95,7 @@ void pmm_free(uintptr_t addr, size_t pages) {
     spinlock_release(&pmm_lock);
 }
 
-__attribute__((section(".unmap_after_init")))
-void pmm_init(void) {
+UNMAP_AFTER_INIT void pmm_init(void) {
     struct limine_memmap_response* memmap_response = memmap_request.response;
     struct limine_memmap_entry** entries = memmap_response->entries;
 

@@ -1,4 +1,5 @@
 #include <mem/slab.h>
+#include <utils/macros.h>
 #include <utils/string.h>
 
 int memcmp(const void* ptr1, const void* ptr2, size_t n) {
@@ -23,7 +24,7 @@ void* memmove(void* dest, const void* src, size_t n) {
     char* d = dest;
     const char* s = src;
 
-    if (d == s) {
+    if (unlikely(d == s)) {
         return d;
     }
 
@@ -129,7 +130,7 @@ char* strdup(const char* str) {
     size_t len = strlen(str) + 1;
 
     char* dup = kmalloc(len);
-    if (!dup) {
+    if (unlikely(dup == NULL)) {
         return NULL;
     }
 
@@ -143,19 +144,6 @@ size_t strlen(const char* str) {
         s++;
     }
     return (size_t) s - (size_t) str;
-}
-
-char* strstr(const char* haystack, const char* needle) {
-    size_t n = strlen(needle);
-
-    while (*haystack != '\0') {
-        if (*haystack == *needle && strncmp(haystack, needle, n)) {
-            return (char*) haystack;
-        }
-        haystack++;
-    }
-
-    return NULL;
 }
 
 char* basename(char* str) {

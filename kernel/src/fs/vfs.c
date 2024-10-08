@@ -1,10 +1,11 @@
 #include <errno.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
 
@@ -13,8 +14,8 @@ struct path2node_res {
     struct vfs_node* node;
 };
 
-static struct cache* vfs_node_cache;
-static hashmap_t* vfs_filesystems;
+READONLY_AFTER_INIT static struct cache* vfs_node_cache;
+READONLY_AFTER_INIT static hashmap_t* vfs_filesystems;
 
 struct vfs_node* vfs_root;
 
@@ -66,7 +67,7 @@ static void create_dotentries(struct vfs_node* parent, struct vfs_node* node) {
 }
 
 static struct path2node_res path2node(struct vfs_node* parent, const char* path) {
-    if (!path || *path == '\0') {
+    if (unlikely(!path || *path == '\0')) {
         return (struct path2node_res) {0};
     }
 
@@ -135,7 +136,7 @@ static struct path2node_res path2node(struct vfs_node* parent, const char* path)
 
 struct vfs_node* vfs_create_node(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, bool is_dir) {
     struct vfs_node* node = cache_alloc_object(vfs_node_cache);
-    if (node == NULL) {
+    if (unlikely(node == NULL)) {
         return NULL;
     }
 
@@ -272,7 +273,7 @@ struct vfs_node* vfs_create(struct vfs_node* parent, const char* name, mode_t mo
     const char* new_node_name = (const char*) basename((char*) name);
     struct vfs_node* new_node = fs->create(fs, r.parent, new_node_name, mode);
 
-    if (!hashmap_set(r.parent->children, new_node_name, strlen(new_node_name), new_node)) {
+    if (unlikely(!hashmap_set(r.parent->children, new_node_name, strlen(new_node_name), new_node))) {
         spinlock_release(&parent->lock);
         return NULL;
     }
@@ -381,10 +382,9 @@ bool vfs_unregister_filesystem(const char* fs_name) {
     return hashmap_remove(vfs_filesystems, fs_name, strlen(fs_name));
 }
 
-__attribute__((section(".unmap_after_init")))
-void vfs_init(void) {
+UNMAP_AFTER_INIT void vfs_init(void) {
     vfs_node_cache = slab_cache_create("vfs_node cache", sizeof(struct vfs_node));
-    if (vfs_node_cache == NULL) {
+    if (unlikely(vfs_node_cache == NULL)) {
         kpanic(NULL, false, "failed to initialize object cache for vfs nodes");
     }
 

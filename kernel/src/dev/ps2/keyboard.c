@@ -7,6 +7,7 @@
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
 #include <types.h>
 #include <utils/panic.h>
@@ -16,7 +17,7 @@
 #define KEYBOARD_IRQ 1
 #define KEYBUFFER_SIZE 256
 
-static char keymap_regular[] = {
+READONLY_AFTER_INIT static char keymap_regular[] = {
     '\0', '\0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
     '-', '=', '\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i',
     'o', 'p', '[', ']', '\n', '\0', 'a', 's', 'd', 'f', 'g', 'h',
@@ -24,7 +25,7 @@ static char keymap_regular[] = {
     'b', 'n', 'm', ',', '.',  '/', '\0', '\0', '\0', ' '
 };
 
-static char keymap_shift_nocaps[] = {
+READONLY_AFTER_INIT static char keymap_shift_nocaps[] = {
     '\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')',
     '_', '+', '\b', '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I',
     'O', 'P', '{', '}', '\n', '\0', 'A', 'S', 'D', 'F', 'G', 'H',
@@ -32,7 +33,7 @@ static char keymap_shift_nocaps[] = {
     'B', 'N', 'M', '<', '>', '?', '\0', '\0', '\0', ' '
 };
 
-static char keymap_shift_caps[] = {
+READONLY_AFTER_INIT static char keymap_shift_caps[] = {
     '\0', '\0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')',
     '_', '+', '\b', '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i',
     'o', 'p', '{', '}', '\n',  '\0', 'a', 's', 'd', 'f', 'g', 'h',
@@ -120,8 +121,7 @@ static void keyboard_irq_handler(struct registers* r, void* ctx) {
     lapic_eoi();
 }
 
-__attribute__((section(".unmap_after_init")))
-void ps2_keyboard_init(void) {
+UNMAP_AFTER_INIT void ps2_keyboard_init(void) {
     ps2_send_device_command_with_data(PS2_DEVICE_COMMAND_KEYBOARD_SET_LED, 7, false, false);
     ps2_send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
 

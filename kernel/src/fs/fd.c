@@ -1,11 +1,12 @@
 #include <errno.h>
 #include <fs/fd.h>
 #include <mem/slab.h>
+#include <utils/macros.h>
 #include <utils/string.h>
 
 struct file_descriptor* fd_create(struct vfs_node* node, int flags) {
     struct file_descriptor* fd = kmalloc(sizeof(struct file_descriptor));
-    if (fd == NULL) {
+    if (unlikely(fd == NULL)) {
         return NULL;
     }
 
@@ -28,7 +29,7 @@ int fd_close(struct process* p, int fdnum) {
     spinlock_acquire(&p->fd_lock);
 
     struct file_descriptor* fd = p->file_descriptors[fdnum];
-    if (fd == NULL) {
+    if (unlikely(fd == NULL)) {
         spinlock_release(&p->fd_lock);
         return -EBADF;
     }
@@ -44,17 +45,17 @@ int fd_close(struct process* p, int fdnum) {
 }
 
 int fd_dup(struct process* old_process, int old_fdnum, struct process* new_process, int new_fdnum, bool exact, bool cloexec) {
-    if (old_fdnum == new_fdnum && old_process == new_process) {
+    if (unlikely(old_fdnum == new_fdnum && old_process == new_process)) {
         return -EINVAL;
     }
 
     struct file_descriptor* old_fd = fd_from_fdnum(old_process, old_fdnum);
-    if (old_fd == NULL) {
+    if (unlikely(old_fd == NULL)) {
         return -EBADF;
     }
 
     struct file_descriptor* new_fd = kmalloc(sizeof(struct file_descriptor));
-    if (new_fd == NULL) {
+    if (unlikely(new_fd == NULL)) {
         return -ENOMEM;
     }
 
@@ -110,7 +111,7 @@ struct file_descriptor* fd_from_fdnum(struct process* p, int fdnum) {
     spinlock_acquire(&p->fd_lock);
 
     struct file_descriptor* fd = p->file_descriptors[fdnum];
-    if (fd != NULL) {
+    if (likely(fd != NULL)) {
         fd->refcount++;
     }
 

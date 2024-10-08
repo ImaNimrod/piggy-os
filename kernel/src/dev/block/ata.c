@@ -15,6 +15,7 @@
 #include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
@@ -246,7 +247,7 @@ static void ata_channel_identify_device(struct ata_channel* channel, bool is_sec
     char ata_node_name[10];
     snprintf(ata_node_name, sizeof(ata_node_name), "ata%u", ata_device_count);
 
-    struct vfs_node* ata_node = devfs_create_device(strdup(ata_node_name));
+    struct vfs_node* ata_node = devfs_create_device(ata_node_name);
     if (ata_node == NULL) {
         kpanic(NULL, false, "failed to create device node for ata device #%u in devfs", ata_device_count);
     }
@@ -701,7 +702,7 @@ static void ata_init(struct pci_device* dev) {
     uintptr_t prdt_paddr = pmm_allocz(1);
 
     struct ata_channel* channel0 = kmalloc(sizeof(struct ata_channel));
-    if (channel0 == NULL) {
+    if (unlikely(channel0 == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for ata_channel struct");
     }
     channel0->io_base = io_base1;
@@ -712,7 +713,7 @@ static void ata_init(struct pci_device* dev) {
     channel0->dma_area_paddr = pmm_allocz(1);
 
     struct ata_channel* channel1 = kmalloc(sizeof(struct ata_channel));
-    if (channel1 == NULL) {
+    if (unlikely(channel1 == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for ata_channel struct");
     }
     channel1->io_base = io_base2;

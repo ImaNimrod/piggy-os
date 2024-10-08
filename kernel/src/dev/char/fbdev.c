@@ -8,7 +8,7 @@
 #include <types.h>
 #include <utils/log.h>
 #include <utils/panic.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/user_access.h>
@@ -151,10 +151,9 @@ static int fbdev_ioctl(struct vfs_node* node, uint64_t request, void* argp) {
     return ret;
 } 
 
-__attribute__((section(".unmap_after_init")))
-void fbdev_init(void) {
+UNMAP_AFTER_INIT void fbdev_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
-    if (!framebuffer_response || framebuffer_response->framebuffer_count == 0) {
+    if (unlikely(!framebuffer_response || framebuffer_response->framebuffer_count == 0)) {
         klog("[fbdev] no framebuffers available\n");
         return;
     }
@@ -177,7 +176,7 @@ void fbdev_init(void) {
                 i, framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
 
         struct fb_info* fb_info = kmalloc(sizeof(struct fb_info));
-        if (fb_info == NULL) {
+        if (unlikely(fb_info == NULL)) {
             kpanic(NULL, false, "failed to allocate memory for framebuffer device info");
         }
 
@@ -206,8 +205,8 @@ void fbdev_init(void) {
 
         snprintf(fbdev_name, sizeof(fbdev_name), "fb%u", i);
 
-        struct vfs_node* fbdev_node = devfs_create_device(strdup(fbdev_name));
-        if (fbdev_node == NULL) {
+        struct vfs_node* fbdev_node = devfs_create_device(fbdev_name);
+        if (unlikely(fbdev_node == NULL)) {
             kpanic(NULL, false, "failed to create device node for framebuffer #%u in devfs", i);
         }
 

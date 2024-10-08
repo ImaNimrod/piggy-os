@@ -1,5 +1,8 @@
-#ifndef _KERNEL_UTILS_MATH_H
-#define _KERNEL_UTILS_MATH_H
+#ifndef _KERNEL_UTILS_MACROS_H
+#define _KERNEL_UTILS_MACROS_H
+
+#define likely(x)   __builtin_expect(!!(x), 1) 
+#define unlikely(x) __builtin_expect(!!(x), 0)
 
 #define MIN(A, B) ((A) < (B) ? (A) : (B))
 #define MAX(A, B) ((A) > (B) ? (A) : (B))
@@ -14,6 +17,6 @@
 #define BITMAP_CLEAR(a, b) ((a)[(b) / 8] &= ~(1 << ((b) % 8)))
 #define BITMAP_TEST(a, b) ((a)[(b) / 8] & (1 << ((b) % 8)))
 
-#define SIZEOF_ARRAY(XS) (sizeof(XS) / sizeof(XS[0]))
+#define SIZEOF_ARRAY(XS) (sizeof((XS)) / sizeof((XS[0])))
 
-#endif /* _KERNEL_UTILS_MATH_H */
+#endif /* _KERNEL_UTILS_MACROS_H */

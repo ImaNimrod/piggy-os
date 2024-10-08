@@ -14,16 +14,15 @@
 
 #define CPU_STACK_SIZE 0x8000
 
-struct percpu* percpus = NULL;
-size_t smp_cpu_count = 0;
-
 static volatile struct limine_smp_request smp_request = {
     .id = LIMINE_SMP_REQUEST,
     .revision = 0
 };
 
-static uint32_t bsp_lapic_id = 0;
-static size_t initialized_cpus = 0;
+READONLY_AFTER_INIT struct percpu* percpus = NULL;
+READONLY_AFTER_INIT size_t smp_cpu_count = 0;
+READONLY_AFTER_INIT static uint32_t bsp_lapic_id = 0;
+READONLY_AFTER_INIT static size_t initialized_cpus = 0;
 
 extern void syscall_entry(void);
 
@@ -35,8 +34,7 @@ static void hang(struct limine_smp_info* smp_info) {
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-static void single_cpu_init(struct limine_smp_info* smp_info) {
+UNMAP_AFTER_INIT static void single_cpu_init(struct limine_smp_info* smp_info) {
     struct percpu* percpu = (struct percpu*) smp_info->extra_argument;
 
     gdt_reload();
@@ -135,11 +133,9 @@ static void single_cpu_init(struct limine_smp_info* smp_info) {
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-void smp_init(void) {
+UNMAP_AFTER_INIT void smp_init(void) {
     struct limine_smp_response* smp_response = smp_request.response;
     smp_cpu_count = smp_response->cpu_count;
-    bsp_lapic_id = smp_response->bsp_lapic_id;
 
     klog("[smp] %u processor%c detected\n", smp_cpu_count, (smp_cpu_count == 1 ? '\0' : 's'));
 
@@ -161,7 +157,7 @@ void smp_init(void) {
         percpus[i].cpu_number = i;
         percpus[i].lapic_id = i;
 
-        if (cpu->lapic_id != bsp_lapic_id) {
+        if (cpu->lapic_id != smp_response->bsp_lapic_id) {
             __atomic_store_n(&cpu->goto_address, cpu_goto_fn, __ATOMIC_SEQ_CST);
         } else {
             idt_init();

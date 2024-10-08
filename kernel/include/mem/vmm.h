@@ -27,6 +27,9 @@
 #define FAULT_RESERVED  (1 << 3)
 #define FAULT_FETCH     (1 << 4)
 
+#define READONLY_AFTER_INIT __attribute__((section(".ro_after_init")))
+#define UNMAP_AFTER_INIT    __attribute__((noinline, section(".unmap_after_init")))
+
 extern volatile struct limine_hhdm_request hhdm_request;
 extern struct pagemap* kernel_pagemap;
 
@@ -39,11 +42,17 @@ struct pagemap {
 struct pagemap* vmm_new_pagemap(void);
 void vmm_destroy_pagemap(struct pagemap* pagemap);
 struct pagemap* vmm_fork_pagemap(struct pagemap* old_pagemap);
+
 void vmm_switch_pagemap(struct pagemap* pagemap);
+
 bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
 bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr);
+bool vmm_update_flags(struct pagemap* pagemap, uintptr_t vaddr, uint64_t flags);
 uintptr_t vmm_get_page_mapping(struct pagemap* pagemap, uintptr_t vaddr);
-void vmm_unmap_code_after_init(void);
+
+void vmm_readonly_data_after_init(void);
+void vmm_unmap_text_after_init(void);
+
 void vmm_init(void);
 
 #endif /* _KERNEL_MEM_VMM_H */

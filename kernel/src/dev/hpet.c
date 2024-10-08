@@ -3,6 +3,7 @@
 #include <dev/hpet.h>
 #include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 
 #define HPET_ID                 0x000
@@ -27,8 +28,8 @@ struct hpet_table {
     uint8_t page_protection;
 } __attribute__((packed));
 
-static uintptr_t hpet_base_addr = 0;
-uint32_t hpet_clock_period = 0;
+READONLY_AFTER_INIT uint32_t hpet_clock_period = 0;
+READONLY_AFTER_INIT static uintptr_t hpet_base_addr = 0;
 
 static inline uint64_t hpet_read(uint32_t reg) {
     return *((volatile uint64_t*) (hpet_base_addr + reg));
@@ -56,10 +57,9 @@ void hpet_sleep_ns(uint64_t ns) {
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-void hpet_init(void) {
+UNMAP_AFTER_INIT void hpet_init(void) {
     struct hpet_table* hpet_table = (struct hpet_table*) acpi_find_sdt("HPET");
-    if (hpet_table == NULL) {
+    if (unlikely(hpet_table == NULL)) {
         kpanic(NULL, false, "system does not have a HPET");
     }
 

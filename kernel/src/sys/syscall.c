@@ -2,8 +2,9 @@
 #include <cpu/isr.h>
 #include <cpu/percpu.h>
 #include <errno.h>
+#include <mem/vmm.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 
 #define SYS_EXIT            0
 #define SYS_FORK            1
@@ -69,7 +70,7 @@ extern void syscall_sleep(struct registers* r);
 extern void syscall_clock_gettime(struct registers* r);
 extern void syscall_clock_settime(struct registers* r);
 
-static syscall_handler_t syscall_table[] = {
+READONLY_AFTER_INIT static syscall_handler_t syscall_table[] = {
     [SYS_EXIT]          = syscall_exit,
     [SYS_FORK]          = syscall_fork,
     [SYS_EXEC]          = syscall_exec,

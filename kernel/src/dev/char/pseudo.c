@@ -2,8 +2,10 @@
 #include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
+#include <mem/vmm.h>
 #include <sys/time.h>
 #include <types.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/random.h>
 #include <utils/string.h>
@@ -53,8 +55,7 @@ static ssize_t pseudo_write(struct vfs_node* node, const void* buf, off_t offset
     return written;
 }
 
-__attribute__((section(".unmap_after_init")))
-void pseudo_init(void) {
+UNMAP_AFTER_INIT void pseudo_init(void) {
     struct stat pseudo_stat = {
         .st_dev = makedev(0, 1),
         .st_mode = S_IFCHR,
@@ -67,7 +68,7 @@ void pseudo_init(void) {
     };
 
     struct vfs_node* null_node = devfs_create_device("null");
-    if (null_node == NULL) {
+    if (unlikely(null_node == NULL)) {
         kpanic(NULL, false, "failed to create null device node in devfs");
     }
 
@@ -78,7 +79,7 @@ void pseudo_init(void) {
     null_node->write = pseudo_write;
 
     struct vfs_node* zero_node = devfs_create_device("zero");
-    if (zero_node == NULL) {
+    if (unlikely(zero_node == NULL)) {
         kpanic(NULL, false, "failed to create zero device node in devfs");
     }
 
@@ -89,12 +90,12 @@ void pseudo_init(void) {
     zero_node->write = pseudo_write;
 
     struct rng_state* rng = rng_create();
-    if (rng == NULL) {
+    if (unlikely(rng == NULL)) {
         kpanic(NULL, false, "failed to initialize PRNG for random device");
     }
 
     struct vfs_node* random_node = devfs_create_device("random");
-    if (random_node == NULL) {
+    if (unlikely(random_node == NULL)) {
         kpanic(NULL, false, "failed to create random device node in devfs");
     }
 
@@ -107,7 +108,7 @@ void pseudo_init(void) {
     random_node->write = pseudo_write;
 
     struct vfs_node* full_node = devfs_create_device("full");
-    if (full_node == NULL) {
+    if (unlikely(full_node == NULL)) {
         kpanic(NULL, false, "failed to create full device node in devfs");
     }
 

@@ -1,14 +1,15 @@
 #include <cpu/asm.h>
 #include <dev/acpi/acpi.h>
 #include <dev/ps2.h>
+#include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 
 #define PS2_DATA_PORT       0x60
 #define PS2_COMMAND_PORT    0x64
 #define PS2_STATUS_PORT     0x64
 
-__attribute__((section(".unmap_after_init")))
-static void port_enum_and_init_device(bool second_port) {
+UNMAP_AFTER_INIT static void port_enum_and_init_device(bool second_port) {
     if (ps2_send_device_command(PS2_DEVICE_COMMAND_RESET, second_port) != 0xfa) {
         return;
     }
@@ -123,10 +124,9 @@ uint8_t ps2_send_device_command_with_data(uint8_t command, uint8_t data, bool ac
     return res;
 }
 
-__attribute__((section(".unmap_after_init")))
-void ps2_init(void) {
+UNMAP_AFTER_INIT void ps2_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (fadt != NULL) {
+    if (unlikely(fadt != NULL)) {
         uint16_t iapc_boot_arch_flags = *(uint16_t*) ((uintptr_t) fadt + 109);
         if (!(iapc_boot_arch_flags & (1 << 1))) {
             klog("[ps2] system lacks a PS/2 controller\n");

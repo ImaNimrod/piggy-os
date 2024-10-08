@@ -2,37 +2,38 @@
 #include <mem/pmm.h>
 #include <sys/elf.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
 int elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
-    struct elf_header header;
+    int ret = 0;
 
     spinlock_acquire(&node->lock);
 
-    if (node->read(node, &header, 0, sizeof(header), 0) < 0) {
-        spinlock_release(&node->lock);
-        return -EIO;
+    struct elf_header header;
+    if (unlikely(node->read(node, &header, 0, sizeof(header), 0) < 0)) {
+        ret = -EIO;
+        goto end;
     }
 
     if (memcmp(header.e_ident, ELFMAG, 4) != 0) {
-        spinlock_release(&node->lock);
-        return -ENOEXEC;
+        ret = -ENOEXEC;
+        goto end;
     }
 
     if (header.e_ident[EI_CLASS] != ELFCLASS64 || header.e_ident[EI_DATA] != ELFDATA2LSB ||
             header.e_ident[EI_OSABI] != 0 || header.e_machine != 62) {
-        spinlock_release(&node->lock);
-        return -ENOEXEC;
+        ret = -ENOEXEC;
+        goto end;
     }
 
     struct elf_program_header pheader;
 
     for (size_t i = 0; i < header.e_phnum; i++) {
-        if (node->read(node, &pheader, header.e_phoff + (i * header.e_phentsize), sizeof(pheader), 0) < 0) {
-            spinlock_release(&node->lock);
-            return -EIO;
+        if (unlikely(node->read(node, &pheader, header.e_phoff + (i * header.e_phentsize), sizeof(pheader), 0) < 0)) {
+            ret = -EIO;
+            goto end;
         }
 
         if (pheader.p_type != PT_LOAD) {
@@ -44,8 +45,8 @@ int elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
 
         uintptr_t phys_pages = pmm_allocz(page_count);
         if (!phys_pages) {
-            spinlock_release(&node->lock);
-            return -ENOMEM;
+            ret = -ENOMEM;
+            goto end;
         }
 
         uint64_t vmm_flags = PTE_PRESENT | PTE_USER;
@@ -60,20 +61,23 @@ int elf_load(struct vfs_node* node, struct pagemap* pagemap, uintptr_t* entry) {
         for (size_t j = 0; j < page_count; j++) {
             uintptr_t vaddr = pheader.p_vaddr + (j * PAGE_SIZE);
             uintptr_t paddr = phys_pages + (j * PAGE_SIZE);
-            vmm_map_page(pagemap, vaddr, paddr, vmm_flags);
+            if (!vmm_map_page(pagemap, vaddr, paddr, vmm_flags)) {
+                ret = -EFAULT;
+                goto end;
+            }
         }
 
-        if (node->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_offset, pheader.p_filesz, 0) < 0) {
-            spinlock_release(&node->lock);
-            return -EIO;
+        if (unlikely(node->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_offset, pheader.p_filesz, 0) < 0)) {
+            ret = -EIO;
+            goto end;
         }
     }
 
-    spinlock_release(&node->lock);
-
-    if (entry) {
+    if (likely(entry)) {
         *entry = header.e_entry;
     }
 
-    return 0;
+end:
+    spinlock_release(&node->lock);
+    return ret;
 }

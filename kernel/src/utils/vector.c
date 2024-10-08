@@ -1,10 +1,11 @@
 #include <mem/slab.h>
+#include <utils/macros.h>
 #include <utils/string.h>
 #include <utils/vector.h>
 
 vector_t* vector_create(size_t elem_size) {
     vector_t* v = kmalloc(sizeof(vector_t));
-    if (v == NULL) {
+    if (unlikely(v == NULL)) {
         return NULL;
     }
 
@@ -13,7 +14,7 @@ vector_t* vector_create(size_t elem_size) {
     v->capacity = VECTOR_INITIAL_CAPACITY;
 
     v->data = kmalloc(elem_size * VECTOR_INITIAL_CAPACITY);
-    if (v->data == NULL) {
+    if (unlikely(v->data == NULL)) {
         kfree(v);
         return NULL;
     }
@@ -22,7 +23,7 @@ vector_t* vector_create(size_t elem_size) {
 }
 
 void vector_destroy(vector_t* v) {
-    if (!v) {
+    if (unlikely(!v)) {
         return;
     }
 
@@ -33,7 +34,7 @@ void vector_destroy(vector_t* v) {
 }
 
 void* vector_get(vector_t* v, size_t index) {
-    if (!v || !v->data || index >= v->size) {
+    if (unlikely(!v || !v->data || index >= v->size)) {
         return NULL;
     }
 
@@ -41,7 +42,7 @@ void* vector_get(vector_t* v, size_t index) {
 }
 
 bool vector_set(vector_t* v, size_t index, void* value) {
-    if (!v || !v->data || index >= v->size) {
+    if (unlikely(!v || !v->data || index >= v->size)) {
         return false;
     }
 
@@ -50,7 +51,7 @@ bool vector_set(vector_t* v, size_t index, void* value) {
 }
 
 bool vector_remove(vector_t* v, size_t index) {
-    if (!v || !v->data || index >= v->size) {
+    if (unlikely(!v || !v->data || index >= v->size)) {
         return false;
     }
 
@@ -65,7 +66,7 @@ bool vector_remove(vector_t* v, size_t index) {
 }
 
 bool vector_remove_by_value(vector_t* v, void* value) {
-    if (!v || !v->data) {
+    if (unlikely(!v || !v->data)) {
         return false;
     }
 
@@ -80,7 +81,7 @@ bool vector_remove_by_value(vector_t* v, void* value) {
 }
 
 bool vector_push_back(vector_t* v, void* value) {
-    if (!v || !v->data) {
+    if (unlikely(!v || !v->data)) {
         return false;
     }
 
@@ -94,7 +95,7 @@ bool vector_push_back(vector_t* v, void* value) {
 }
 
 void* vector_pop_back(vector_t* v) {
-    if (!v || !v->data) {
+    if (unlikely(!v || !v->data)) {
         return NULL;
     }
 

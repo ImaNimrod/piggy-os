@@ -1,14 +1,16 @@
 #include <cpu/asm.h>
 #include <dev/hpet.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/random.h>
 
-struct rng_state* kgp_rng;
+READONLY_AFTER_INIT struct rng_state* kgp_rng;
 
-static bool use_rdseed = false;
-static bool use_rdrand = false;
+READONLY_AFTER_INIT static bool use_rdseed = false;
+READONLY_AFTER_INIT static bool use_rdrand = false;
 
 static uint64_t get_hardware_rand(void) {
     if (use_rdseed) {
@@ -108,8 +110,7 @@ void rng_seed(struct rng_state* rng, uint64_t seed) {
     spinlock_release(&rng->lock);
 }
 
-__attribute__((section(".unmap_after_init")))
-void random_init(void) {
+UNMAP_AFTER_INIT void random_init(void) {
     uint32_t ebx = 0, ecx = 0, unused;
     if (cpuid(7, 0, &unused, &ebx, &unused, &unused) && ebx & (1 << 18)) {
         klog("[random] using rdseed to seed PRNGs\n");
@@ -122,7 +123,7 @@ void random_init(void) {
     }
     
     kgp_rng = rng_create();
-    if (kgp_rng == NULL) {
+    if (unlikely(kgp_rng == NULL)) {
         kpanic(NULL, false, "failed to create kernel general purpose RNG");
     }
 }

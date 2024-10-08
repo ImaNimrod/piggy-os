@@ -1,5 +1,7 @@
 #include <cpu/asm.h>
 #include <dev/serial.h>
+#include <mem/vmm.h>
+#include <utils/macros.h>
 
 char serial_getc(uint16_t port) {
     while (!(inb(port + 5) & 0x01)) {
@@ -17,10 +19,9 @@ void serial_putc(uint16_t port, char c) {
     outb(port, c);
 }
 
-__attribute__((section(".unmap_after_init")))
-bool serial_init(uint16_t port) {
+UNMAP_AFTER_INIT bool serial_init(uint16_t port) {
     outb(port + 7, 0xae);
-    if (inb(port + 7) != 0xae) {
+    if (unlikely(inb(port + 7) != 0xae)) {
         return false;
     }
 

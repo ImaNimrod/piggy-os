@@ -1,8 +1,10 @@
 #include <limine.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <utils/cmdline.h>
 #include <utils/hashmap.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/string.h>
 
 static volatile struct limine_kernel_file_request kernel_file_request = {
@@ -10,7 +12,7 @@ static volatile struct limine_kernel_file_request kernel_file_request = {
     .revision = 0
 };
 
-static hashmap_t* cmdline_map;
+READONLY_AFTER_INIT static hashmap_t* cmdline_map;
 static const char* klog_token = "klog";
 
 bool cmdline_early_get_klog(void) {
@@ -20,7 +22,7 @@ bool cmdline_early_get_klog(void) {
     }
 
     struct limine_kernel_file_response* kernel_file_response = kernel_file_request.response;
-    if (kernel_file_response == NULL || kernel_file_response->kernel_file == NULL) {
+    if (unlikely(kernel_file_response == NULL || kernel_file_response->kernel_file == NULL)) {
         return false;
     }
 
@@ -41,23 +43,22 @@ bool cmdline_early_get_klog(void) {
 }
 
 char* cmdline_get(const char* key) {
-    if (cmdline_map != NULL) {
+    if (likely(cmdline_map != NULL)) {
         return hashmap_get(cmdline_map, key, strlen(key));
     }
     return NULL;
 }
 
-__attribute__((section(".unmap_after_init")))
-void cmdline_parse(void) {
+UNMAP_AFTER_INIT void cmdline_parse(void) {
     struct limine_kernel_file_response* kernel_file_response = kernel_file_request.response;
 
     char* cmdline = kernel_file_response->kernel_file->cmdline;
-    if (cmdline == NULL || *cmdline == '\0') {
+    if (unlikely(cmdline == NULL || *cmdline == '\0')) {
         return;
     }
 
     cmdline_map = hashmap_create(20);
-    if (cmdline_map == NULL) {
+    if (unlikely(cmdline_map == NULL)) {
         return;
     }
 

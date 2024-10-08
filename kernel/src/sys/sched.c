@@ -7,7 +7,7 @@
 #include <utils/log.h>
 #include <utils/spinlock.h>
 
-struct process* kernel_process;
+READONLY_AFTER_INIT struct process* kernel_process;
 
 static struct thread* runnable_threads = NULL;
 static struct thread* blocking_threads = NULL;
@@ -224,8 +224,7 @@ void sched_thread_sleep(struct thread* t, uint64_t ns) {
     sched_yield();
 }
 
-__attribute__((section(".unmap_after_init")))
-void sched_init(void) {
+UNMAP_AFTER_INIT void sched_init(void) {
     isr_install_handler(SCHED_VECTOR, schedule, NULL);
     kernel_process = process_create(NULL, kernel_pagemap);
 

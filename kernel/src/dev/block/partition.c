@@ -6,9 +6,13 @@
 #include <sys/time.h>
 #include <types.h>
 #include <utils/log.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
+
+#define GPT_ATTRIBUTES_IMPORTANT    (1 << 0)
+#define GPT_ATTRIBUTES_DONTMOUNT    (1 << 1)
+#define GPT_ATTRIBUTES_LEGACY       (1 << 2)
 
 struct gpt_header {
     char signature[8];
@@ -38,10 +42,6 @@ struct gpt_entry {
     uint64_t attributes;
     uint16_t name[36];
 };
-
-#define GPT_ATTRIBUTES_IMPORTANT    (1 << 0)
-#define GPT_ATTRIBUTES_DONTMOUNT    (1 << 1)
-#define GPT_ATTRIBUTES_LEGACY       (1 << 2)
 
 struct mbr_entry {
     uint8_t status;
@@ -88,7 +88,7 @@ static void enum_gpt(struct vfs_node* device_node, struct gpt_header* gpt_header
     off_t offset = gpt_header->partition_lba * device_node->stat.st_blksize;
 
     uint8_t* entries = kmalloc(aligned_size);
-    if (device_node->read(device_node, entries, offset, aligned_size, 0) != aligned_size) {
+    if (unlikely(device_node->read(device_node, entries, offset, aligned_size, 0) != aligned_size)) {
         klog("[partition] failed to read from %s\n", device_node->name);
         return;
     }
@@ -97,7 +97,7 @@ static void enum_gpt(struct vfs_node* device_node, struct gpt_header* gpt_header
 
     struct gpt_entry* entry = (struct gpt_entry*) entries;
     for (size_t i = 0; i < gpt_header->entry_count; i++) {
-        if (entry->unique_guid_low == 0 && entry->unique_guid_high == 0) {
+        if (unlikely(entry->unique_guid_low == 0 && entry->unique_guid_high == 0)) {
             continue;
         }
 
@@ -111,7 +111,7 @@ static void enum_gpt(struct vfs_node* device_node, struct gpt_header* gpt_header
                 device_node->name, entry->start_lba, sector_count);
 
         struct partition_metadata* metadata = kmalloc(sizeof(struct partition_metadata));
-        if (metadata == NULL) {
+        if (unlikely(metadata == NULL)) {
             kpanic(NULL, false, "failed to allocate partition metadata struct");
         }
 
@@ -121,8 +121,8 @@ static void enum_gpt(struct vfs_node* device_node, struct gpt_header* gpt_header
 
         snprintf(partition_name, sizeof(partition_name), "%sp%u", device_node->name, i);
 
-        struct vfs_node* partition_node = devfs_create_device(strdup(partition_name));
-        if (partition_node == NULL) {
+        struct vfs_node* partition_node = devfs_create_device(partition_name);
+        if (unlikely(partition_node == NULL)) {
             kpanic(NULL, false, "failed to create device node for partition device %s in devfs", partition_name);
         }
 
@@ -166,7 +166,7 @@ static void enum_mbr(struct vfs_node* device_node) {
 
     struct mbr_entry* entry = (struct mbr_entry*) (mbr + 446);
     for (size_t i = 0; i < 4; i++) {
-        if (entry->type == 0) {
+        if (unlikely(entry->type == 0)) {
             continue;
         }
 
@@ -174,7 +174,7 @@ static void enum_mbr(struct vfs_node* device_node) {
                 device_node->name, entry->start_lba, entry->sector_count, entry->type);
 
         struct partition_metadata* metadata = kmalloc(sizeof(struct partition_metadata));
-        if (metadata == NULL) {
+        if (unlikely(metadata == NULL)) {
             kpanic(NULL, false, "failed to allocate partition metadata struct");
         }
 
@@ -184,8 +184,8 @@ static void enum_mbr(struct vfs_node* device_node) {
 
         snprintf(partition_name, sizeof(partition_name), "%sp%u", device_node->name, i);
 
-        struct vfs_node* partition_node = devfs_create_device(strdup(partition_name));
-        if (partition_node == NULL) {
+        struct vfs_node* partition_node = devfs_create_device(partition_name);
+        if (unlikely(partition_node == NULL)) {
             kpanic(NULL, false, "failed to create device node for partition device %s in devfs", partition_name);
         }
 
@@ -215,7 +215,7 @@ static void enum_mbr(struct vfs_node* device_node) {
 
 void partition_scan(struct vfs_node* device_node) {
     uint8_t* buf = kmalloc(device_node->stat.st_blksize);
-    if (device_node->read(device_node, buf, 512, device_node->stat.st_blksize, 0) != device_node->stat.st_blksize) {
+    if (unlikely(device_node->read(device_node, buf, 512, device_node->stat.st_blksize, 0) != device_node->stat.st_blksize)) {
         klog("[partition] failed to read from %s\n", device_node->name);
         return;
     }

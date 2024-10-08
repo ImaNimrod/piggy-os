@@ -4,7 +4,7 @@
 #include <mem/slab.h>
 #include <sys/time.h>
 #include <types.h>
-#include <utils/math.h>
+#include <utils/macros.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/user_access.h>
@@ -19,9 +19,9 @@ struct tmp_node_metadata {
     void* data;
 };
 
-static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode);
-
 static uint8_t tmpfs_minor = 0;
+
+static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode);
 
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, off_t offset, size_t count, int flags) {
     (void) flags;
@@ -52,7 +52,7 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, off_t offset,
         }
 
         void* new_data = krealloc(node_metadata->data, new_capacity);
-        if (new_data == NULL) {
+        if (unlikely(new_data == NULL)) {
             return -ENOMEM;
         }
 
@@ -82,7 +82,7 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
         }
 
         void* new_data = krealloc(node_metadata->data, new_capacity);
-        if (new_data == NULL) {
+        if (unlikely(new_data == NULL)) {
             return -ENOMEM;
         }
 
@@ -115,13 +115,13 @@ static struct vfs_node* tmpfs_mount(struct vfs_node* parent, struct vfs_node* so
 
 static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node* parent, const char* name, mode_t mode) {
     struct vfs_node* new_node = vfs_create_node(fs, parent, name, S_ISDIR(mode));
-    if (new_node == NULL) {
+    if (unlikely(new_node == NULL)) {
         return NULL;
     }
 
     if (S_ISREG(mode)) {
         struct tmp_node_metadata* node_metadata = kmalloc(sizeof(struct tmp_node_metadata));
-        if (node_metadata == NULL) {
+        if (unlikely(node_metadata == NULL)) {
             vfs_destroy_node(new_node);
             return NULL;
         }
@@ -129,7 +129,7 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
         node_metadata->capacity = 4096;
 
         node_metadata->data = kmalloc(4096);
-        if (node_metadata->data == NULL) {
+        if (unlikely(node_metadata->data == NULL)) {
             kfree(node_metadata);
             vfs_destroy_node(new_node);
             return NULL;
@@ -155,7 +155,6 @@ static struct vfs_node* tmpfs_create(struct vfs_filesystem* fs, struct vfs_node*
     return new_node;
 }
 
-__attribute__((section(".unmap_after_init")))
-void tmpfs_init(void) {
+UNMAP_AFTER_INIT void tmpfs_init(void) {
     vfs_register_filesystem("tmpfs", tmpfs_mount);
 }

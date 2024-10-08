@@ -4,6 +4,7 @@
 #include <dev/hpet.h>
 #include <dev/lapic.h>
 #include <mem/vmm.h>
+#include <utils/macros.h>
 #include <utils/panic.h>
 
 #define NMI_VECTOR 2
@@ -38,8 +39,7 @@ static void lapic_write(uint32_t reg, uint32_t value) {
     *((volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + reg)) = value;
 }
 
-__attribute__((section(".unmap_after_init")))
-static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t target_lapic_id, uint16_t flags, uint8_t lint) {
+UNMAP_AFTER_INIT static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t target_lapic_id, uint16_t flags, uint8_t lint) {
     if (target_lapic_id == 0xff) {
         if (current_lapic_id != target_lapic_id) {
             return;
@@ -64,8 +64,7 @@ static void lapic_set_nmi(uint8_t vector, uint32_t current_lapic_id, uint8_t tar
     }
 }
 
-__attribute__((section(".unmap_after_init")))
-static void lapic_timer_calibrate(void) {
+UNMAP_AFTER_INIT static void lapic_timer_calibrate(void) {
     const uint32_t init_ticks = 0xffffffff;
 
 	lapic_write(LAPIC_REG_TIMER_DIV, 0);
@@ -109,13 +108,12 @@ void lapic_timer_stop(void) {
     lapic_write(LAPIC_REG_LVT_TIMER, 0x10000);
 }
 
-__attribute__((section(".unmap_after_init")))
-void lapic_init(uint32_t lapic_id) {
+UNMAP_AFTER_INIT void lapic_init(uint32_t lapic_id) {
     uint64_t lapic_msr = rdmsr(IA32_APIC_BASE_MSR);
     wrmsr(IA32_APIC_BASE_MSR, lapic_msr | (1 << 11));
 
-    if (!vmm_map_page(kernel_pagemap, madt_lapic_addr, madt_lapic_addr + HIGH_VMA,
-                PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX)) {
+    if (unlikely(!vmm_map_page(kernel_pagemap, madt_lapic_addr, madt_lapic_addr + HIGH_VMA,
+                PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
         kpanic(NULL, true, "failed to map LAPIC");
     }
 
@@ -153,8 +151,7 @@ void lapic_init(uint32_t lapic_id) {
 #define PIC2_COMMAND_PORT   0xa0
 #define PIC2_DATA_PORT      0xa1
 
-__attribute__((section(".unmap_after_init")))
-void pic_disable(void) {
+UNMAP_AFTER_INIT void pic_disable(void) {
     outb(PIC1_COMMAND_PORT, 0x11);
     outb(PIC2_COMMAND_PORT, 0x11);
     outb(PIC1_DATA_PORT, 0x20);
