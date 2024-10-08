@@ -9,4 +9,4 @@ EMU=$(TOOLCHAIN_DIR)/build/bin/qemu-system-x86_64
 
 IMAGE_NAME=piggy-os.iso
 KERNEL_FILE=kernel.elf
-INITRD_NAME=initrd.tar
+INITRD_FILE=initrd.tar
