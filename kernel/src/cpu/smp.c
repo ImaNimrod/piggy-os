@@ -14,6 +14,7 @@
 
 extern struct limine_mp_request mp_request;
 
+uintptr_t bsp_lapic_addr = 0;
 size_t cpu_count = 1;
 bool use_x2apic = false;
 
@@ -153,6 +154,11 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     wrmsr(IA32_GS_BASE_MSR, (uint64_t) cpu_local);
 
+    /* use the same lapic base address mapping for all cpus */ 
+    if (cpu_local->lapic_id != bsp_lapic_id) {
+        wrmsr(IA32_APIC_BASE_MSR, bsp_lapic_addr | (rdmsr(IA32_APIC_BASE_MSR) & 0xfff));
+    }
+
     lapic_init();
 
     klog("[smp] processor #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
@@ -186,7 +192,9 @@ void smp_init(void) {
             idt_init();
 
             if (!use_x2apic) {
-                if (unlikely(!pagemap_map(kernel_pagemap, madt_lapic_addr + HIGH_VMA, madt_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
+                bsp_lapic_addr = rdmsr(IA32_APIC_BASE_MSR) & ~0xfff;
+
+                if (unlikely(!pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
                     kpanic(NULL, false, "failed to create page table mapping for LAPIC");
                 }
 

@@ -69,6 +69,7 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
 
     struct virtio_queue* queue = &dev->queues[queue_number];
     queue->size = mmio_read16(&dev->common_config->queue_size);
+    queue->lock = (spinlock_t) {0};
 
     uintptr_t descriptor_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE));
     queue->descriptors = (void*) (descriptor_paddr + HIGH_VMA);

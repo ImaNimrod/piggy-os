@@ -12,7 +12,6 @@
 #define MADT_IOAPIC_ENTRY               0x01
 #define MADT_ISO_ENTRY                  0x02
 #define MADT_LAPIC_NMI_ENTRY            0x04
-#define MADT_LAPIC_ADDR_OVERRIDE_ENTRY  0x05
 
 struct madt {
     struct acpi_sdt;
@@ -49,14 +48,6 @@ struct madt_lapic_nmi {
     uint8_t lint;
 } __attribute__((packed));
 
-struct madt_lapic_address_override {
-    struct madt_entry_header;
-    uint16_t : 16;
-    uint64_t lapic_addr;
-} __attribute__((packed));
-
-uintptr_t madt_lapic_addr = 0;
-
 void madt_parse(void) {
     struct madt* madt = (struct madt*) acpi_find_sdt("APIC");
     if (unlikely(madt == NULL)) {
@@ -67,8 +58,6 @@ void madt_parse(void) {
         legacy_pic_disable();
         klog("[acpi] disabled legacy 8259 PIC\n");
     }
-
-    madt_lapic_addr = (uintptr_t) madt->lapic_addr;
 
     struct madt_ioapic* ioapic;
     struct madt_iso* iso;
@@ -109,9 +98,6 @@ void madt_parse(void) {
                 }
 
                 ioapic_set_isa_iso(iso->irq_source, iso->gsi, polarity, trigger_mode);
-                break;
-            case MADT_LAPIC_ADDR_OVERRIDE_ENTRY:
-                madt_lapic_addr = ((struct madt_lapic_address_override*) entry)->lapic_addr;
                 break;
         }
     }

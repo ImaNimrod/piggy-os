@@ -45,6 +45,8 @@ static void virtio_net_irq_handler(struct registers* r, void* ctx) {
     struct virtio_net_device* net_dev = ctx;
     struct virtio_queue* rx_queue = &net_dev->dev->queues[0];
 
+    spinlock_acquire(&rx_queue->lock);
+
     for (uint16_t i = rx_queue->last_used; i != rx_queue->used->index; i = (i + 1) % rx_queue->size) {
         volatile struct virtio_queue_descriptor* descriptor = &rx_queue->descriptors[i];
 
@@ -56,6 +58,8 @@ static void virtio_net_irq_handler(struct registers* r, void* ctx) {
     }
 
     rx_queue->last_used = rx_queue->used->index;
+
+    spinlock_release(&rx_queue->lock);
 }
 
 // TODO: figure out these two functions
@@ -63,7 +67,13 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
     struct virtio_net_device* net_dev = netif->device;
     struct virtio_queue* tx_queue = &net_dev->dev->queues[1];
 
+    spinlock_acquire(&tx_queue->lock);
+
     uint16_t desc = virtio_queue_alloc_descriptor(tx_queue);
+    if (desc == 0xffff) {
+        spinlock_release(&tx_queue->lock);
+        return false;
+    }
 
     volatile struct virtio_queue_descriptor* descriptor = &tx_queue->descriptors[desc];
     descriptor->address = pmm_alloc_zero(1);
@@ -75,6 +85,7 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
 
     virtio_queue_insert(tx_queue, desc);
 
+    spinlock_release(&tx_queue->lock);
     return true;
 }
 

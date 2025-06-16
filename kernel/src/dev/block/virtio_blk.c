@@ -48,11 +48,22 @@ struct virtio_blk_device {
     size_t sector_count;
     size_t sector_size;
     struct virtio_blk_io_waiter* io_waiter_list;
-    spinlock_t lock;
 };
 
 static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint64_t lba, uintptr_t paddr, size_t block_count) {
     if (type == VIRTIO_BLK_T_OUT && blk_dev->features & VIRTIO_BLK_F_RO) {
+        return false;
+    }
+
+    struct virtio_queue* queue = &blk_dev->dev->queues[0];
+
+    spinlock_acquire(&queue->lock);
+
+    uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
+    uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
+    uint16_t desc2 = virtio_queue_alloc_descriptor(queue);
+    if (desc0 == 0xffff || desc1 == 0xffff || desc2 == 0xffff) {
+        spinlock_release(&queue->lock);
         return false;
     }
 
@@ -63,12 +74,6 @@ static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint6
     request->reserved = 0;
     request->sector = lba;
     request->status = 0;
-
-    struct virtio_queue* queue = &blk_dev->dev->queues[0];
-
-    uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
-    uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
-    uint16_t desc2 = virtio_queue_alloc_descriptor(queue);
 
     queue->descriptors[desc0].address = request_paddr;
     queue->descriptors[desc0].length = 16;
@@ -100,6 +105,8 @@ static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint6
     virtio_queue_insert(queue, desc0);
     virtio_queue_notify(queue);
 
+    spinlock_release(&queue->lock);
+
     scheduler_thread_block(this_cpu()->running_thread);
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + 16);
@@ -110,10 +117,9 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
     (void) r;
 
     struct virtio_blk_device* blk_dev = ctx;
-
-    spinlock_acquire(&blk_dev->lock);
-
     struct virtio_queue* queue = &blk_dev->dev->queues[0];
+
+    spinlock_acquire(&queue->lock);
 
     for (uint16_t i = queue->last_used; i != queue->used->index; i = (i + 1) % queue->size) {
         uint16_t desc0 = queue->used->ring[i].id;
@@ -138,7 +144,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
 
     queue->last_used = queue->used->index;
 
-    spinlock_release(&blk_dev->lock);
+    spinlock_release(&queue->lock);
 }
 
 void virtio_blk_init(struct virtio_device* dev) {

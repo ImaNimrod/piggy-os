@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <utils/spinlock.h>
 
 #define VIRTIO_STATUS_ACKNOWLEDGE           (1 << 0)
 #define VIRTIO_STATUS_DRIVER                (1 << 1)
@@ -71,6 +72,7 @@ struct virtio_queue {
     struct virtio_queue_available* available;
     struct virtio_queue_used* used;
     uint32_t* notify;
+    spinlock_t lock;
 };
 
 struct virtio_device {

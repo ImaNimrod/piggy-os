@@ -27,8 +27,6 @@ struct acpi_gas {
     uint64_t base;
 } __attribute__((packed));
 
-extern uintptr_t madt_lapic_addr;
-
 struct acpi_sdt* acpi_find_sdt(const char signature[static 4]);
 void acpi_init(void);
 

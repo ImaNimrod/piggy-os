@@ -35,6 +35,7 @@ struct cpu_local {
     uint32_t lapic_frequency;
 };
 
+extern uintptr_t bsp_lapic_addr;
 extern size_t cpu_count;
 extern bool use_x2apic;
 
