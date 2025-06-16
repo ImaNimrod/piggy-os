@@ -6,7 +6,7 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 
-#include "../utils/flanterm/backends/fb.h"
+#include "../utils/flanterm/src/flanterm_backends/fb.h"
 
 extern struct limine_framebuffer_request framebuffer_request;
 

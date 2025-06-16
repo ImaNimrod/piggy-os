@@ -4,7 +4,7 @@
 #include <utils/log.h>
 #include <utils/spinlock.h>
 
-#include "flanterm/flanterm.h"
+#include "flanterm/src/flanterm.h"
 #include "printf/printf.h"
 
 static spinlock_t print_lock = {0};
