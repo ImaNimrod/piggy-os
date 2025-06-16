@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <dev/lapic.h>
-#include <mem/vmm.h>
+#include <mem/paging.h>
 #include <stdarg.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>

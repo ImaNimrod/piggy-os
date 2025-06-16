@@ -1,9 +1,9 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <dev/net/virtio_net.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <net/netif.h>
 #include <net/packet.h>
 #include <stddef.h>

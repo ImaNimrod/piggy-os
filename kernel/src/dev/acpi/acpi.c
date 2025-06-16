@@ -1,6 +1,6 @@
 #include <dev/acpi.h>
 #include <limine.h>
-#include <mem/vmm.h>
+#include <mem/paging.h>
 #include <stdbool.h>
 #include <utils/log.h>
 #include <utils/macros.h>

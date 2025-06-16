@@ -2,9 +2,9 @@
 #include <dev/block/virtio_blk.h>
 #include <dev/net/virtio_net.h>
 #include <dev/virtio.h>
+#include <mem/paging.h> 
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h> 
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>

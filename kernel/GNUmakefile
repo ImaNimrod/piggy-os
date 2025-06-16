@@ -5,8 +5,7 @@ override KERNEL_FILE := kernel.elf
 
 CFLAGS := \
 		  -std=gnu11 \
-		  -g \
-		  -O2 \
+		  -O3 \
 		  -fms-extensions \
 		  -ffreestanding \
 		  -fno-stack-protector \

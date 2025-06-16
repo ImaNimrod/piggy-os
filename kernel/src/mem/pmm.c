@@ -1,5 +1,5 @@
+#include <mem/paging.h>
 #include <mem/pmm.h>
-#include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>

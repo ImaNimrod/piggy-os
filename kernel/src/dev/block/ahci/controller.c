@@ -2,8 +2,8 @@
 #include <cpu/isr.h>
 #include <dev/hpet.h>
 #include <dev/pci.h>
+#include <mem/paging.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
@@ -33,8 +33,7 @@ static void enumerate_ports(struct ahci_controller* controller) {
 
         struct hba_port* hba_port = &controller->hba_registers->ports[i];
 
-        /* switch port into idle state prior to any real initialization */
-        /*
+        /* switch port into idle state prior to any initialization */
         mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_ST);
         while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_CR) {
             pause();
@@ -44,7 +43,6 @@ static void enumerate_ports(struct ahci_controller* controller) {
         while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_FR) {
             pause();
         }
-        */
 
         ahci_device_try_init(controller, hba_port);
     }
@@ -100,7 +98,7 @@ static void ahci_init(struct pci_device* pci_dev) {
 
             timeout = 300;
             while (timeout != 0) {
-                if (!(mmio_read32(&hba_registers->bohc) & BOHC_BOS) && !(mmio_read32(&hba_registers->bohc) & BOHC_BB) && mmio_read32(&hba_registers->bohc) & BOHC_OOS) {
+                if (!(mmio_read32(&hba_registers->bohc) & (BOHC_BOS & BOHC_BB)) && mmio_read32(&hba_registers->bohc) & BOHC_OOS) {
                     break;
                 }
                 hpet_sleep_ns(MS_TO_NS(1));
@@ -131,7 +129,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    /* enable AHCI mode and disable interrupts */
+    /* nable AHCI mode and disable interrupts */
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_AE);
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) & ~GHC_IE);
 
@@ -154,7 +152,7 @@ static void ahci_init(struct pci_device* pci_dev) {
     isr_register_handler(vector, ahci_irq_handler, controller);
 
     if (!pci_setup_msi(pci_dev, vector)) {
-        klog("failed to setup PCI interrupts for AHCI controller\n");
+        klog("[ahci] failed to setup PCI interrupts for AHCI controller\n");
         goto error;
     }
 
@@ -163,7 +161,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         goto error;
     }
 
-    klog("[ahci] initialized AHCI controller: version: %x.%x, link speed: %s\n",
+    klog("[ahci] initialized AHCI controller (version: %x.%x, link speed: %s)\n",
          (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
          interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 

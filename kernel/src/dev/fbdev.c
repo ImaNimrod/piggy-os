@@ -1,7 +1,7 @@
 #include <dev/fbdev.h>
 #include <limine.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
-#include <mem/vmm.h>
 #include <stddef.h>
 #include <utils/log.h>
 #include <utils/macros.h>

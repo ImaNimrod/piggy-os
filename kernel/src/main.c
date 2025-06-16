@@ -7,9 +7,9 @@
 #include <dev/pci.h>
 #include <dev/serial.h>
 #include <limine.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <net/netif.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
@@ -65,7 +65,7 @@ NORETURN static void kernel_main(void) {
 
     pci_init();
 
-    klog("hey pig...\n");
+    klog("\nhey pig...\n");
 
     thread_destroy(this_cpu()->running_thread);
     scheduler_thread_dequeue(this_cpu()->running_thread);
@@ -89,7 +89,7 @@ NORETURN void kernel_entry(void) {
 
     fbdev_init();
 
-    vmm_init();
+    paging_init();
 
     acpi_init();
     madt_parse();

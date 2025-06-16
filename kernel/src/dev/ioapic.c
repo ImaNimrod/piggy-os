@@ -1,8 +1,8 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <dev/ioapic.h>
+#include <mem/paging.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -147,7 +147,7 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, int polarity, int trigger_mod
 void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
     uintptr_t vaddr = paddr + HIGH_VMA;
 
-    if (unlikely(!vmm_map_page(kernel_pagemap, vaddr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
+    if (unlikely(!pagemap_map(kernel_pagemap, vaddr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
         kpanic(NULL, false, "failed to create page table mapping for ioapic");
     }
 

@@ -1,5 +1,5 @@
-#ifndef _KERNEL_MEM_VMM_H
-#define _KERNEL_MEM_VMM_H 1
+#ifndef _KERNEL_MEM_PAGING_H
+#define _KERNEL_MEM_PAGING_H 1
 
 #include <limine.h>
 #include <stdbool.h>
@@ -8,6 +8,7 @@
 extern volatile struct limine_hhdm_request hhdm_request;
 
 #define HIGH_VMA (hhdm_request.response->offset)
+
 #define PAGE_SIZE       (0x1000)
 #define BIGPAGE_SIZE    (0x200000)
 
@@ -24,11 +25,11 @@ struct pagemap;
 
 extern struct pagemap* kernel_pagemap;
 
-bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
-bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr);
-struct pagemap* vmm_create_pagemap(void);
-bool vmm_destroy_pagemap(struct pagemap* pagemap);
-void vmm_switch_pagemap(struct pagemap* pagemap);
-void vmm_init(void);
+struct pagemap* pagemap_create(void);
+bool pagemap_destroy(struct pagemap* pagemap);
+void pagemap_load(struct pagemap* pagemap);
+bool pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
+bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr);
+void paging_init(void);
 
-#endif /* _KERNEL_MEM_VMM_H */
+#endif /* _KERNEL_MEM_PAGING_H */

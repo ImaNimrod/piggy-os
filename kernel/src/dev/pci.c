@@ -5,9 +5,9 @@
 #include <dev/net/e1000.h>
 #include <dev/pci.h>
 #include <dev/virtio.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
@@ -291,7 +291,7 @@ bool pci_map_bar(struct pci_bar* bar) {
     }
 
     for (size_t i = 0; i < page_count; i++) {
-        if (!vmm_map_page(kernel_pagemap, bar->base_address + HIGH_VMA + (i * PAGE_SIZE), bar->base_address + (i * PAGE_SIZE), flags)) {
+        if (!pagemap_map(kernel_pagemap, bar->base_address + HIGH_VMA + (i * PAGE_SIZE), bar->base_address + (i * PAGE_SIZE), flags)) {
             return false;
         }
     }

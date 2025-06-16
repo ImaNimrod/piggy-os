@@ -11,7 +11,6 @@
 #define BOHC_OOS    (1 << 1)
 #define BOHC_BB     (1 << 4)
 
-#define CAP_SALP    (1 << 26)
 #define CAP_SSS     (1 << 27)
 #define CAP_S64A    (1 << 31)
 
@@ -23,14 +22,9 @@
 
 #define HBA_PxCMD_ST            (1 << 0)
 #define HBA_PxCMD_SUD           (1 << 1)
-#define HBA_PxCMD_POD	        (1 << 2)
 #define HBA_PxCMD_FRE           (1 << 4)
 #define HBA_PxCMD_FR            (1 << 14)
 #define HBA_PxCMD_CR            (1 << 15)
-#define HBA_PxCMD_CPD           (1 << 20)
-#define HBA_PxCMD_ASP           (1 << 27)
-#define HBA_PxCMD_ICC_MASK      (15 << 28)
-#define HBA_PxCMD_ICC_ACTIVE    (1 << 28)
 
 #define HBA_PxIE_DHRE       (1 << 0)
 #define HBA_PxIE_PSE        (1 << 1)
@@ -38,10 +32,6 @@
 #define HBA_PxIE_SDBE       (1 << 3)
 #define HBA_PxIE_DPE        (1 << 5)
 #define HBA_PxIE_ERROR_MASK 0x7dc00050
-
-#define HBA_PxSCTL_NOPART (1 << 8)
-#define HBA_PxSCTL_NOSLUM (1 << 9)
-#define HBA_PxSCTL_NODSLP (1 << 10)
 
 #define HBA_PxSIG_ATA   0x00000101
 #define	HBA_PxSIG_ATAPI 0xeb140101

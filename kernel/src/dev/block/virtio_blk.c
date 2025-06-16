@@ -2,9 +2,9 @@
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <dev/block/virtio_blk.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/scheduler.h>

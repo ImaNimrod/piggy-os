@@ -1,8 +1,8 @@
 #include <cpu/asm.h>
 #include <dev/hpet.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <stdbool.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -24,7 +24,7 @@ static inline size_t sector_size_log2(struct ahci_device* device) {
 static int find_command_slot(struct ahci_device* device) {
     spinlock_acquire(&device->lock);
 
-    uint32_t slots = (device->hba_port->sact | device->hba_port->ci);
+    uint32_t slots = mmio_read32(&device->hba_port->sact) | mmio_read32(&device->hba_port->ci);
 
     int i = -1;
     for (i = 0; i < device->controller->slot_count; i++) {
@@ -86,11 +86,13 @@ bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, 
 
     spinlock_acquire(&device->lock);
 
-    while ((device->hba_port->tfd & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
+    struct hba_port* hba_port = device->hba_port;
+
+    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
         pause();
     }
 
-    device->hba_port->ci |= (1 << slot);
+    mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
     spinlock_release(&device->lock);
     return true;
@@ -128,20 +130,20 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
 
     struct hba_port* hba_port = device->hba_port;
 
-    while ((hba_port->tfd & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
+    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
         pause();
     }
 
-    hba_port->ci |= (1 << slot);
+    mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
-    while (hba_port->ci & (1 << slot)) {
-        if (hba_port->is & (1 << 30)) {
+    while (mmio_read32(&hba_port->ci) & (1 << slot)) {
+        if (mmio_read32(&hba_port->is) & (1 << 30)) {
             return false;
         }
         hpet_sleep_ns(MS_TO_NS(1));
     }
 
-    if (hba_port->is & (1 << 30)) {
+    if (mmio_read32(&hba_port->is) & (1 << 30)) {
         return false;
     }
 
@@ -182,48 +184,29 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     mmio_write32(&hba_port->fb, (uint32_t) fis_paddr);
     mmio_write32(&hba_port->fbu, (uint32_t) (fis_paddr >> 32));
 
-    uintptr_t command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
-
-    struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
-    for (uint8_t i = 0; i < controller->slot_count; i++) {
-        uintptr_t paddr = command_table_paddr + (i * sizeof(struct hba_command_table));
-        command_header[i].ctba = (uint32_t) paddr;
-        command_header[i].ctbau = (uint32_t) (paddr >> 32);
-        command_header[i].prdtl = 8;
-    }
-
     mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_FRE);
+
+    mmio_write32(&hba_port->ie, 0);
+    mmio_write32(&hba_port->is, mmio_read32(&hba_port->is));
 
     if (mmio_read32(&controller->hba_registers->cap) & CAP_SSS) {
         mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_SUD);
     }
 
+    hpet_sleep_ns(MS_TO_NS(10));
+
     uint32_t ssts = mmio_read32(&hba_port->ssts);
-    klog("ssts: 0x%x\n", ssts);
     uint8_t det = ssts & 0xf;
     uint8_t ipm = (ssts >> 8) & 0xf;
     if (det != 3 || ipm != 1) {
-        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
-        pmm_free(clb_and_fis_paddr, 1);
-        return;
+        goto early_error;
     }
 
-    /*
-    hba_port->sctl |= (HBA_PxSCTL_NOPART | HBA_PxSCTL_NOSLUM | HBA_PxSCTL_NODSLP);
+    mmio_write32(&hba_port->serr, 0xffffffff);
 
-    if (controller->hba_registers->cap & CAP_SALP) {
-        hba_port->cmd &= ~HBA_PxCMD_ASP;
-    }
-
-    if (hba_port->cmd & HBA_PxCMD_CPD) {
-        hba_port->cmd |= HBA_PxCMD_POD;
-    }
-
-
-    int timeout = 10;
+    int timeout = 100;
     while (timeout != 0) {
-        uint8_t det = hba_port->ssts & 0xf;
-        if (det == 1 || det == 3) {
+        if (!(mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ))) {
             break;
         }
         hpet_sleep_ns(MS_TO_NS(1));
@@ -231,40 +214,20 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     }
 
     if (timeout == 0) {
-        hba_port->cmd &= ~HBA_PxCMD_FRE;
-        pmm_free(clb_and_fis_paddr, 1);
-        return;
+        klog("[ahci] port timed out during initialization\n");
+        goto early_error;
     }
-
-    hba_port->serr = 0xffffffff;
-
-    timeout = 10;
-    while (timeout != 0) {
-        if (!(hba_port->tfd & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ))) {
-            break;
-        }
-        hpet_sleep_ns(MS_TO_NS(1));
-        timeout--;
-    }
-
-    if (timeout == 0) {
-        klog("[ahci] device appears to be connected but hung during initialization\n");
-        hba_port->cmd &= ~HBA_PxCMD_FRE;
-        pmm_free(clb_and_fis_paddr, 1);
-        return;
-    }
-    */
 
     ata_device_type_t type;
-    if (hba_port->sig == HBA_PxSIG_ATA) {
+
+    uint32_t sig = mmio_read32(&hba_port->sig);
+    if (sig == HBA_PxSIG_ATA) {
         type = ATA_DEVICE_TYPE_SATA;
-    } else if (hba_port->sig == HBA_PxSIG_ATAPI) {
+    } else if (sig == HBA_PxSIG_ATAPI) {
         type = ATA_DEVICE_TYPE_SATAPI;
     } else {
         klog("[ahci] unknown device found\n");
-        hba_port->cmd &= ~HBA_PxCMD_FRE;
-        pmm_free(clb_and_fis_paddr, 1);
-        return;
+        goto early_error;
     }
 
     struct ahci_device* device = kmalloc(sizeof(struct ahci_device));
@@ -274,10 +237,18 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     device->controller = controller;
     device->hba_port = hba_port;
 
+    device->type = type;
+
     device->clb_and_fis_paddr = clb_and_fis_paddr;
-    device->command_table_paddr = command_table_paddr;
-    hba_port->ie = 0;
-    hba_port->is = hba_port->is;
+    device->command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
+
+    struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
+    for (uint8_t i = 0; i < controller->slot_count; i++) {
+        uintptr_t paddr = device->command_table_paddr + (i * sizeof(struct hba_command_table));
+        command_header[i].ctba = (uint32_t) paddr;
+        command_header[i].ctbau = (uint32_t) (paddr >> 32);
+        command_header[i].prdtl = 8;
+    }
 
     start_command_engine(device);
 
@@ -306,8 +277,6 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
         }
     }
 
-    device->type = type;
-
     copy_ata_string(device->serial_number, sizeof(device->serial_number), (uint8_t*) &identity_buffer[10]);
     copy_ata_string(device->firmware_revision, sizeof(device->firmware_revision), (uint8_t*) &identity_buffer[23]);
     copy_ata_string(device->model_number, sizeof(device->model_number), (uint8_t*) &identity_buffer[27]);
@@ -326,10 +295,14 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
          ata_device_type_str(type), total_size / 1000000000, sector_size);
 
     /* renable interrupts for the port */
-    hba_port->is = hba_port->is;
-    hba_port->ie = HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK;
+    mmio_write32(&hba_port->ie, HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK);
 
     vector_push(controller->devices, &device);
+    return;
+
+early_error:
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
+    pmm_free(clb_and_fis_paddr, 1);
     return;
 
 error:
@@ -343,10 +316,10 @@ error:
 }
 
 void ahci_device_irq_handler(struct ahci_device* device) {
-    uint32_t is = device->hba_port->is;
+    uint32_t is = mmio_read32(&device->hba_port->is);
     if (is & HBA_PxIE_ERROR_MASK) {
-        klog("AHCI error!");
+        klog("AHCI device error!");
     }
 
-    device->hba_port->is = is;
+    mmio_write32(&device->hba_port->is, is);
 }

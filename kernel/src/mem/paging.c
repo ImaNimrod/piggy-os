@@ -1,14 +1,12 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
-
-#include <cpu/smp.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
 
@@ -36,7 +34,32 @@ static void page_fault_handler(struct registers* r, void* arg) {
     kpanic(r, false, "pagefault!\n");
 }
 
-bool vmm_map_page(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
+struct pagemap* pagemap_create(void) {
+    struct pagemap* new_pagemap = slab_cache_alloc(pagemap_cache);
+    if (unlikely(new_pagemap == NULL)) {
+        return NULL;
+    }
+
+    new_pagemap->top_level = (uint64_t*) (pmm_alloc_zero(1) + HIGH_VMA);
+    new_pagemap->lock = (spinlock_t) {0};
+
+    for (size_t i = 256; i < 512; i++) {
+        new_pagemap->top_level[i] = kernel_pagemap->top_level[i];
+    }
+
+    return new_pagemap;
+}
+
+bool pagemap_destroy(struct pagemap* pagemap) {
+    pmm_free((uintptr_t) pagemap->top_level - HIGH_VMA, 1);
+    return slab_cache_free(pagemap_cache, pagemap);
+}
+
+void pagemap_load(struct pagemap* pagemap) {
+    write_cr3((uint64_t) pagemap->top_level - HIGH_VMA);
+}
+
+bool pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
     spinlock_acquire(&pagemap->lock);
 
     bool ret = false;
@@ -93,7 +116,7 @@ end:
     return ret;
 }
 
-bool vmm_unmap_page(struct pagemap* pagemap, uintptr_t vaddr) {
+bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
     spinlock_acquire(&pagemap->lock);
 
     bool ret = false;
@@ -137,32 +160,7 @@ end:
     return ret;
 }
 
-struct pagemap* vmm_create_pagemap(void) {
-    struct pagemap* new_pagemap = slab_cache_alloc(pagemap_cache);
-    if (unlikely(new_pagemap == NULL)) {
-        return NULL;
-    }
-
-    new_pagemap->top_level = (uint64_t*) (pmm_alloc_zero(1) + HIGH_VMA);
-    new_pagemap->lock = (spinlock_t) {0};
-
-    for (size_t i = 256; i < 512; i++) {
-        new_pagemap->top_level[i] = kernel_pagemap->top_level[i];
-    }
-
-    return new_pagemap;
-}
-
-bool vmm_destroy_pagemap(struct pagemap* pagemap) {
-    pmm_free((uintptr_t) pagemap->top_level - HIGH_VMA, 1);
-    return slab_cache_free(pagemap_cache, pagemap);
-}
-
-void vmm_switch_pagemap(struct pagemap* pagemap) {
-    write_cr3((uint64_t) pagemap->top_level - HIGH_VMA);
-}
-
-void vmm_init(void) {
+void paging_init(void) {
     pagemap_cache = slab_cache_create("struct pagemap cache", sizeof(struct pagemap));
     if (unlikely(pagemap_cache == NULL)) {
         kpanic(NULL, false, "failed to create object cache for pagemap structs");
@@ -183,8 +181,8 @@ void vmm_init(void) {
     uintptr_t paddr = 0;
 
     for (size_t i = 1; i < 0x800; i++) {
-        vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
-                     PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, paddr + HIGH_VMA, paddr,
+                    PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
         paddr += BIGPAGE_SIZE;
     }
 
@@ -199,8 +197,8 @@ void vmm_init(void) {
         paddr = ALIGN_DOWN(memmap_entry->base, BIGPAGE_SIZE);
 
         for (size_t j = 0; j < DIV_CEIL(memmap_entry->length, BIGPAGE_SIZE); j++) {
-            vmm_map_page(kernel_pagemap, paddr + HIGH_VMA, paddr,
-                         PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
+            pagemap_map(kernel_pagemap, paddr + HIGH_VMA, paddr,
+                        PTE_PRESENT | PTE_WRITABLE | PTE_SIZE | PTE_GLOBAL | PTE_NX);
             paddr += BIGPAGE_SIZE;
         }
     }
@@ -221,27 +219,27 @@ void vmm_init(void) {
 
     for (uintptr_t limine_requests_addr = limine_requests_start; limine_requests_addr < limine_requests_end; limine_requests_addr += PAGE_SIZE) {
         paddr = limine_requests_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        vmm_map_page(kernel_pagemap, limine_requests_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, limine_requests_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL | PTE_NX);
     }
 
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
         paddr = text_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        vmm_map_page(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
+        pagemap_map(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
     }
 
     for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
         paddr = rodata_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        vmm_map_page(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
     }
 
     for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
         paddr = data_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        vmm_map_page(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
     }
 
-    vmm_switch_pagemap(kernel_pagemap);
+    pagemap_load(kernel_pagemap);
 
     isr_register_handler(14, page_fault_handler, NULL);
 
-    klog("[vmm] initialized virtual memory manager\n");
+    klog("[paging] initialized kernel pagemap\n");
 }

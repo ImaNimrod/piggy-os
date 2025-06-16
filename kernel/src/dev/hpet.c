@@ -3,7 +3,7 @@
 #include <dev/acpi.h>
 #include <dev/hpet.h>
 #include <dev/ioapic.h>
-#include <mem/vmm.h>
+#include <mem/paging.h>
 #include <stddef.h>
 #include <sys/timer.h>
 #include <utils/log.h>
@@ -68,7 +68,7 @@ void hpet_init(uint32_t hz) {
     uintptr_t hpet_paddr = hpet_table->address.base;
     hpet_addr = hpet_paddr + HIGH_VMA;
 
-    if (unlikely(!vmm_map_page(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
+    if (unlikely(!pagemap_map(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
         kpanic(NULL, false, "failed to create page table mapping for HPET");
     }
 

@@ -2,7 +2,7 @@
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <dev/lapic.h>
-#include <mem/vmm.h>
+#include <mem/paging.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/list.h>
@@ -93,7 +93,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     }
 
     if (next_thread != this_cpu()->idle_thread && (current_thread == NULL || current_thread->process != next_thread->process)) {
-        vmm_switch_pagemap(next_thread->process->pagemap);
+        pagemap_load(next_thread->process->pagemap);
     }
 
     if (r->cs & 0x03) {

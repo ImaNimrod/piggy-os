@@ -3,9 +3,9 @@
 #include <dev/hpet.h>
 #include <dev/ioapic.h>
 #include <dev/pci.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <net/netif.h>
 #include <net/packet.h>
 #include <stdbool.h>

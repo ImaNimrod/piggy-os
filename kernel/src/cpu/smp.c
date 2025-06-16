@@ -4,8 +4,8 @@
 #include <dev/acpi.h>
 #include <dev/lapic.h>
 #include <limine.h>
+#include <mem/paging.h>
 #include <mem/pmm.h>
-#include <mem/vmm.h>
 #include <sys/scheduler.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
@@ -64,7 +64,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     gdt_set_tss(&cpu_local->gdt, &cpu_local->tss);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
-        vmm_switch_pagemap(kernel_pagemap);
+        pagemap_load(kernel_pagemap);
     }
 
     uint64_t cr0 = read_cr0();
@@ -186,7 +186,7 @@ void smp_init(void) {
             idt_init();
 
             if (!use_x2apic) {
-                if (unlikely(!vmm_map_page(kernel_pagemap, madt_lapic_addr + HIGH_VMA, madt_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
+                if (unlikely(!pagemap_map(kernel_pagemap, madt_lapic_addr + HIGH_VMA, madt_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
                     kpanic(NULL, false, "failed to create page table mapping for LAPIC");
                 }
 

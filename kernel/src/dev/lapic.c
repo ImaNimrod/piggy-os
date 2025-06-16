@@ -3,7 +3,7 @@
 #include <dev/acpi.h>
 #include <dev/hpet.h>
 #include <dev/lapic.h>
-#include <mem/vmm.h>
+#include <mem/paging.h>
 #include <utils/log.h>
 
 #define LAPIC_REG_ID            0x020
