@@ -173,7 +173,7 @@ static void stop_command_engine(struct ahci_device* device) {
     mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
 }
 
-void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* hba_port) {
+void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_number, struct hba_port* hba_port) {
     uintptr_t clb_and_fis_paddr = pmm_alloc_zero(1);
 
     uintptr_t clb_paddr = clb_and_fis_paddr;
@@ -189,6 +189,7 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     mmio_write32(&hba_port->ie, 0);
     mmio_write32(&hba_port->is, mmio_read32(&hba_port->is));
 
+    /* if staggered spin up is supported, spin up port */
     if (mmio_read32(&controller->hba_registers->cap) & CAP_SSS) {
         mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_SUD);
     }
@@ -214,7 +215,7 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     }
 
     if (timeout == 0) {
-        klog("[ahci] port timed out during initialization\n");
+        klog("[ahci] port #%u timed out during initialization\n", port_number);
         goto early_error;
     }
 
@@ -226,7 +227,7 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     } else if (sig == HBA_PxSIG_ATAPI) {
         type = ATA_DEVICE_TYPE_SATAPI;
     } else {
-        klog("[ahci] unknown device found\n");
+        klog("[ahci] unknown device found on port #%u\n", port_number);
         goto early_error;
     }
 
@@ -235,6 +236,7 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
         kpanic(NULL, false, "failed to allocate memory for AHCI device");
     }
     device->controller = controller;
+    device->port_number = port_number;
     device->hba_port = hba_port;
 
     device->type = type;
@@ -291,8 +293,8 @@ void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* h
     device->sector_count = sector_count;
     device->sector_size = sector_size;
 
-    klog("[ahci] found %s device (size: %zuGB, block size: %zuB)\n",
-         ata_device_type_str(type), total_size / 1000000000, sector_size);
+    klog("[ahci] found %s device on port #%u (size: %zuGB, block size: %zuB)\n",
+         ata_device_type_str(type), port_number, total_size / 1000000000, sector_size);
 
     /* renable interrupts for the port */
     mmio_write32(&hba_port->ie, HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK);

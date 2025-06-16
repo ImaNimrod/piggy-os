@@ -146,6 +146,7 @@ struct ahci_controller {
 struct ahci_device {
     struct ahci_controller* controller;
 
+    uint8_t port_number;
     struct hba_port* hba_port;
     uintptr_t clb_and_fis_paddr;
     uintptr_t command_table_paddr;
@@ -162,7 +163,7 @@ struct ahci_device {
 
 bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, uint64_t lba, uint16_t block_count, bool write);
 
-void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* hba_port);
+void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_number, struct hba_port* hba_port);
 void ahci_device_irq_handler(struct ahci_device* device);
 
 #endif /* _AHCI_DEFINITIONS_H */

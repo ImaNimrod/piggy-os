@@ -32,19 +32,7 @@ static void enumerate_ports(struct ahci_controller* controller) {
         }
 
         struct hba_port* hba_port = &controller->hba_registers->ports[i];
-
-        /* switch port into idle state prior to any initialization */
-        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_ST);
-        while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_CR) {
-            pause();
-        }
-
-        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
-        while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_FR) {
-            pause();
-        }
-
-        ahci_device_try_init(controller, hba_port);
+        ahci_device_try_init(controller, i, hba_port);
     }
 }
 
