@@ -1,0 +1,6 @@
+#ifndef _KERNEL_DEV_NET_LOOPBACK_H
+#define _KERNEL_DEV_NET_LOOPBACK_H 1
+
+void loopback_init(void);
+
+#endif /* _KERNEL_DEV_NET_LOOPBACK_H */
