@@ -42,7 +42,7 @@ struct pci_device {
 
     bool msix_supported;
     uint8_t msix_offset;
-    volatile uint32_t* msix_table;
+    uint32_t* msix_table;
     uint16_t msix_irq_count;
 
     bool is_pcie;

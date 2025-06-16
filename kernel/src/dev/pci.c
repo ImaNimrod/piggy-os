@@ -60,7 +60,7 @@ static size_t mcfg_entry_count = 0;
 static struct slab_cache* pci_device_cache = NULL;
 static vector_t* pci_devices = NULL;
 static struct pci_driver* pci_drivers[] = {
-    //&ahci_driver,
+    &ahci_driver,
     &ata_driver,
     &e1000_driver,
     &virtio_driver,
@@ -82,11 +82,11 @@ static uint32_t ecm_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t fu
 
             switch (access_size) {
                 case 1:
-                    return *(volatile uint8_t*) addr;
+                    return mmio_read8(addr);
                 case 2:
-                    return *(volatile uint16_t*) addr;
+                    return mmio_read16(addr);
                 case 4:
-                    return *(volatile uint32_t*) addr;
+                    return mmio_read32(addr);
             }
 
             kpanic(NULL, false, "invalid PCI access size");
@@ -107,17 +107,19 @@ static void ecm_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t funct
 
             switch (access_size) {
                 case 1:
-                    *(volatile uint8_t*) addr = value;
-                    return;
+                    mmio_write8(addr, value);
+                    break;
                 case 2:
-                    *(volatile uint16_t*) addr = value;
-                    return;
+                    mmio_write16(addr, value);
+                    break;
                 case 4:
-                    *(volatile uint32_t*) addr = value;
-                    return;
+                    mmio_write32(addr, value);
+                    break;
+                default:
+                    kpanic(NULL, false, "invalid PCI access size");
             }
 
-            kpanic(NULL, false, "invalid PCI access size");
+            return;
         }
     }
 
@@ -354,7 +356,7 @@ bool pci_enable_msix(struct pci_device* dev) {
         return false;
     }
 
-    dev->msix_table = (volatile void*) (bar.base_address + HIGH_VMA);
+    dev->msix_table = (void*) (bar.base_address + HIGH_VMA);
 
     uint16_t control = pci_read(dev, dev->msix_offset + 2, 2);
 
@@ -388,7 +390,7 @@ bool pci_setup_msix(struct pci_device* dev, uint16_t index, uint8_t vector) {
         .delivery = 0,
     };
 
-    dev->msix_table[(index * 4) + 0] = address.raw & 0xffffffff;
+    dev->msix_table[(index * 4) + 0] = address.raw;
     dev->msix_table[(index * 4) + 1] = 0;
     dev->msix_table[(index * 4) + 2] = data.raw;
 
@@ -404,7 +406,7 @@ bool pci_set_msix_mask(struct pci_device* dev, uint16_t index, bool mask) {
         return false;
     }
 
-    dev->msix_table[index * 4 + 3] = mask ? 1 : 0;
+    dev->msix_table[(index * 4) + 3] = mask ? 1 : 0;
     return true;
 }
 

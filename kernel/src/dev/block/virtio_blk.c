@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <dev/block/virtio_blk.h>
@@ -57,7 +58,7 @@ static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint6
 
     uintptr_t request_paddr = pmm_alloc(1);
 
-    volatile struct virtio_blk_request* request = (volatile void*) (request_paddr + HIGH_VMA);
+    struct virtio_blk_request* request = (void*) (request_paddr + HIGH_VMA);
     request->type = type;
     request->reserved = 0;
     request->sector = lba;
@@ -141,7 +142,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
 }
 
 void virtio_blk_init(struct virtio_device* dev) {
-    dev->common_config->status |= VIRTIO_STATUS_DRIVER;
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_DRIVER);
 
     uint64_t features = VIRTIO_BLK_F_RO | VIRTIO_BLK_F_FLUSH;
     if ((features = virtio_negotiate_features(dev, features)) == (uint64_t) -1) {
@@ -165,7 +166,7 @@ void virtio_blk_init(struct virtio_device* dev) {
     }
     blk_dev->dev = dev;
     blk_dev->features = features;
-    blk_dev->sector_count = ((volatile struct virtio_blk_config*) dev->device_config)->capacity;
+    blk_dev->sector_count = ((struct virtio_blk_config*) dev->device_config)->capacity;
     blk_dev->sector_size = 512;
 
     isr_register_handler(vector, virtio_blk_irq_handler, blk_dev);
@@ -173,5 +174,5 @@ void virtio_blk_init(struct virtio_device* dev) {
     klog("[virtio_blk] initialized VirtIO block device (size: %zuGB, block size: %zuB)\n",
          (blk_dev->sector_count * blk_dev->sector_size) / 1000000000, blk_dev->sector_size);
 
-    dev->common_config->status |= VIRTIO_STATUS_DRIVER_OK;
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 }

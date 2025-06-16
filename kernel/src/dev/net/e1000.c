@@ -112,21 +112,21 @@ struct e1000_device {
     uintptr_t mmio_base;
     bool has_eeprom;
 
-    volatile struct rx_descriptor* rx_descs;
+    struct rx_descriptor* rx_descs;
     uintptr_t rx_buffer_paddr;
     uint16_t rx_tail;
 
-    volatile struct tx_descriptor* tx_descs;
+    struct tx_descriptor* tx_descs;
     uintptr_t tx_buffer_paddr;
     uint16_t tx_tail;
 };
 
 static inline uint32_t e1000_read(struct e1000_device* device, uint16_t reg) {
-    return *(volatile uint32_t*) (device->mmio_base + reg);
+    return mmio_read32((void*) (device->mmio_base + reg));
 }
 
 static inline void e1000_write(struct e1000_device* device, uint16_t reg, uint32_t value) {
-    *(volatile uint32_t*) (device->mmio_base + reg) = value;
+    mmio_write32((void*) (device->mmio_base + reg), value);
 }
 
 static inline void e1000_flush(struct e1000_device* device) {
@@ -178,7 +178,7 @@ static void init_rx(struct e1000_device* device) {
 
     uintptr_t rx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_RX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE));
     for (size_t i = 0; i < NUM_RX_DESCRIPTORS; i++) {
-        volatile struct rx_descriptor* desc = &device->rx_descs[i];
+        struct rx_descriptor* desc = &device->rx_descs[i];
         desc->address = rx_buffers + (i * BUFFER_SIZE);
         desc->status = 0;
     }
@@ -203,7 +203,7 @@ static void init_tx(struct e1000_device* device) {
 
     uintptr_t tx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_TX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE));
     for (size_t i = 0; i < NUM_TX_DESCRIPTORS; i++) {
-        volatile struct tx_descriptor* desc = &device->tx_descs[i];
+        struct tx_descriptor* desc = &device->tx_descs[i];
         desc->address = tx_buffers + (i * BUFFER_SIZE);
         desc->status = 0;
         desc->cmd = (1 << 0);
@@ -242,9 +242,9 @@ static void read_mac_address(struct e1000_device* device) {
         netif->mac[4] = mac45 & 0xff;
         netif->mac[5] = (mac45 >> 8) & 0xff;
     } else {
-        volatile uint32_t* mem_base_mac = (volatile uint32_t*) (device->mmio_base + 0x5400);
-        uint32_t mac0123 = mem_base_mac[0];
-        uint32_t mac45 = mem_base_mac[1];
+        uint32_t* mem_base_mac = (uint32_t*) (device->mmio_base + 0x5400);
+        uint32_t mac0123 = mmio_read32(&mem_base_mac[0]);
+        uint32_t mac45 = mmio_read32(&mem_base_mac[1]);
         netif->mac[0] = mac0123 & 0xff;
         netif->mac[1] = (mac0123 >> 8) & 0xff;
         netif->mac[2] = (mac0123 >> 16) & 0xff;
@@ -338,7 +338,7 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 static bool e1000_send_packet(struct netif* netif, struct packet* packet) {
     struct e1000_device* device = netif->device;
 
-    volatile struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
+    struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
 
     memcpy((void*) (tx_desc->address + HIGH_VMA), packet->buf, packet->length);
     tx_desc->length = packet->length;

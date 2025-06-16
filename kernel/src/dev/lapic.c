@@ -32,19 +32,21 @@
 #define PORT_PIC2_COMMAND   0xa0
 #define PORT_PIC2_DATA      0xa1
 
-static uint32_t lapic_read(uint32_t reg) {
+static inline uint32_t lapic_read(uint32_t reg) {
     if (use_x2apic) {
         return rdmsr(0x800 + (reg >> 4));
     }
-    return *(volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + reg);
+
+    return mmio_read32((void*) (madt_lapic_addr + HIGH_VMA + reg));
 }
 
-static void lapic_write(uint32_t reg, uint32_t value) {
+static inline void lapic_write(uint32_t reg, uint32_t value) {
     if (use_x2apic) {
         wrmsr(0x800 + (reg >> 4), value);
         return;
     }
-    *(volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + reg) = value;
+
+    mmio_write32((void*) (madt_lapic_addr + HIGH_VMA + reg), value);
 }
 
 static void lapic_timer_calibrate(void) {
@@ -89,8 +91,8 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
     if (use_x2apic) {
         wrmsr(0x830, ((uint64_t) icr_high << 32) | icr_low);
     } else {
-        *(volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + LAPIC_REG_ICR_HIGH) = icr_high;
-        *(volatile uint32_t*) (madt_lapic_addr + HIGH_VMA + LAPIC_REG_ICR_LOW) = icr_low;
+        mmio_write32((void*) (madt_lapic_addr + HIGH_VMA + LAPIC_REG_ICR_HIGH), icr_high);
+        mmio_write32((void*) (madt_lapic_addr + HIGH_VMA + LAPIC_REG_ICR_LOW), icr_low);
     }
 }
 

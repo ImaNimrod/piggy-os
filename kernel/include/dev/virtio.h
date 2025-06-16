@@ -67,19 +67,19 @@ struct virtio_queue_used {
 struct virtio_queue {
     uint16_t size;
     uint16_t last_used;
-    volatile struct virtio_queue_descriptor* descriptors;
-    volatile struct virtio_queue_available* available;
-    volatile struct virtio_queue_used* used;
-    volatile uint32_t* notify;
+    struct virtio_queue_descriptor* descriptors;
+    struct virtio_queue_available* available;
+    struct virtio_queue_used* used;
+    uint32_t* notify;
 };
 
 struct virtio_device {
     struct pci_device* pci_dev;
 
-    volatile struct virtio_common_config* common_config;
-    volatile void* device_config;
+    struct virtio_common_config* common_config;
+    void* device_config;
 
-    volatile uint32_t* notify_begin;
+    uint32_t* notify_begin;
     uint32_t notify_offset_multiplier;
 
     struct virtio_queue* queues;

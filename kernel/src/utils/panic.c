@@ -56,7 +56,7 @@ NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...
     if (stack_trace) {
         printf("\n===============================================================================================");
         uintptr_t* base_ptr;
-        __asm__ volatile("movq %%rbp, %0" : "=r" (base_ptr) ::);
+        asm volatile("movq %%rbp, %0" : "=r" (base_ptr) ::);
         print_stack_trace(base_ptr);
     }
 

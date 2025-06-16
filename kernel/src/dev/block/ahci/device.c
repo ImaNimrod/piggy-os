@@ -43,7 +43,7 @@ bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, 
         return false;
     }
 
-    volatile struct hba_command_header* header = (void*) (device->clb_and_fis_paddr + HIGH_VMA);
+    struct hba_command_header* header = (void*) (device->clb_and_fis_paddr + HIGH_VMA);
     header += slot;
 
     header->cfl = sizeof(struct hba_fis_h2d)  / sizeof(uint32_t);
@@ -51,11 +51,11 @@ bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, 
     header->prdtl = (uint16_t) ((block_count - 1) >> 4) + 1;
     header->prdbc = 0;
 
-    volatile struct hba_command_table* table = (void*) (device->command_table_paddr + HIGH_VMA);
+    struct hba_command_table* table = (void*) (device->command_table_paddr + HIGH_VMA);
     table += slot;
 
     uint16_t i;
-    volatile struct hba_prdt* prdt;
+    struct hba_prdt* prdt;
 
     for (i = 0; i < header->prdtl - 1; i++) {
         prdt = &table->prdt[i];
@@ -70,7 +70,7 @@ bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, 
     prdt->dbau = (uint32_t) (paddr >> 32);
     prdt->dbc = (block_count << sector_size_log2(device)) - 1;
 
-    volatile struct hba_fis_h2d* fis = (void*) &table->cfis;
+    struct hba_fis_h2d* fis = (void*) &table->cfis;
     fis->type = FIS_TYPE_REG_H2D;
     fis->c = true;
     fis->command = command;
@@ -102,7 +102,7 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
         return false;
     }
 
-    volatile struct hba_command_header* header = (void*) (device->clb_and_fis_paddr + HIGH_VMA);
+    struct hba_command_header* header = (void*) (device->clb_and_fis_paddr + HIGH_VMA);
     header += slot;
 
     header->cfl = sizeof(struct hba_fis_h2d)  / sizeof(uint32_t);
@@ -110,15 +110,15 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
     header->prdtl = 1;
     header->prdbc = 0;
 
-    volatile struct hba_command_table* table = (void*) (device->command_table_paddr + HIGH_VMA);
+    struct hba_command_table* table = (void*) (device->command_table_paddr + HIGH_VMA);
     table += slot;
 
-    volatile struct hba_prdt* prdt = &table->prdt[0];
+    struct hba_prdt* prdt = &table->prdt[0];
     prdt->dba = (uint32_t) identify_buffer_paddr;
     prdt->dbau = (uint32_t) (identify_buffer_paddr >> 32);
     prdt->dbc = 512 - 1;
 
-    volatile struct hba_fis_h2d* fis = (void*) &table->cfis;
+    struct hba_fis_h2d* fis = (void*) &table->cfis;
     fis->type = FIS_TYPE_REG_H2D;
     fis->c = true;
     fis->command = ATA_COMMAND_IDENTIFY_DEVICE;
@@ -126,7 +126,7 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
     fis->count = 0;
     fis->device = (1 << 6);
 
-    volatile struct hba_port* hba_port = device->hba_port;
+    struct hba_port* hba_port = device->hba_port;
 
     while ((hba_port->tfd & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
         pause();
@@ -149,53 +149,61 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
 }
 
 static void start_command_engine(struct ahci_device* device) {
-    volatile struct hba_port* hba_port = device->hba_port;
+    struct hba_port* hba_port = device->hba_port;
 
-    hba_port->cmd &= ~HBA_PxCMD_ST;
-
-    while (hba_port->cmd & HBA_PxCMD_CR) {
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_ST);
+    while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_CR) {
         pause();
     }
 
-    hba_port->cmd |= HBA_PxCMD_FRE;
-    hba_port->cmd |= HBA_PxCMD_ST;
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_FRE);
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_ST);
 }
 
 static void stop_command_engine(struct ahci_device* device) {
-    volatile struct hba_port* hba_port = device->hba_port;
+    struct hba_port* hba_port = device->hba_port;
 
-    hba_port->cmd &= ~HBA_PxCMD_ST;
-    while (hba_port->cmd & HBA_PxCMD_CR) {
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_ST);
+    while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_CR) {
         pause();
     }
 
-    hba_port->cmd &= ~HBA_PxCMD_FRE;
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
 }
 
-void ahci_device_try_init(struct ahci_controller* controller, volatile struct hba_port* hba_port) {
+void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* hba_port) {
     uintptr_t clb_and_fis_paddr = pmm_alloc_zero(1);
 
     uintptr_t clb_paddr = clb_and_fis_paddr;
-    hba_port->clb = (uint32_t) clb_paddr;
-    hba_port->clbu = (uint32_t) (clb_paddr >> 32);
+    mmio_write32(&hba_port->clb, (uint32_t) clb_paddr);
+    mmio_write32(&hba_port->clbu, (uint32_t) (clb_paddr >> 32));
 
     uintptr_t fis_paddr = clb_and_fis_paddr + 2048;
-    hba_port->fb = (uint32_t) fis_paddr;
-    hba_port->fbu = (uint32_t) (fis_paddr >> 32);
+    mmio_write32(&hba_port->fb, (uint32_t) fis_paddr);
+    mmio_write32(&hba_port->fbu, (uint32_t) (fis_paddr >> 32));
 
-    hba_port->cmd |= HBA_PxCMD_FRE;
+    uintptr_t command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
 
-    hba_port->serr = hba_port->serr;
-
-    if (controller->hba_registers->cap & CAP_SSS) {
-        hba_port->cmd |= HBA_PxCMD_SUD;
+    struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
+    for (uint8_t i = 0; i < controller->slot_count; i++) {
+        uintptr_t paddr = command_table_paddr + (i * sizeof(struct hba_command_table));
+        command_header[i].ctba = (uint32_t) paddr;
+        command_header[i].ctbau = (uint32_t) (paddr >> 32);
+        command_header[i].prdtl = 8;
     }
 
-    uint32_t ssts = hba_port->ssts;
+    mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_FRE);
+
+    if (mmio_read32(&controller->hba_registers->cap) & CAP_SSS) {
+        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_SUD);
+    }
+
+    uint32_t ssts = mmio_read32(&hba_port->ssts);
+    klog("ssts: 0x%x\n", ssts);
     uint8_t det = ssts & 0xf;
     uint8_t ipm = (ssts >> 8) & 0xf;
     if (det != 3 || ipm != 1) {
-        hba_port->cmd &= ~HBA_PxCMD_FRE;
+        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
         pmm_free(clb_and_fis_paddr, 1);
         return;
     }
@@ -211,9 +219,6 @@ void ahci_device_try_init(struct ahci_controller* controller, volatile struct hb
         hba_port->cmd |= HBA_PxCMD_POD;
     }
 
-    if (controller->hba_registers->cap & CAP_SSS) {
-        hba_port->cmd |= HBA_PxCMD_SUD;
-    }
 
     int timeout = 10;
     while (timeout != 0) {
@@ -270,16 +275,7 @@ void ahci_device_try_init(struct ahci_controller* controller, volatile struct hb
     device->hba_port = hba_port;
 
     device->clb_and_fis_paddr = clb_and_fis_paddr;
-    device->command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
-
-    volatile struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
-    for (uint8_t i = 0; i < controller->slot_count; i++) {
-        uintptr_t paddr = device->command_table_paddr + (i * sizeof(struct hba_command_table));
-        command_header[i].ctba = (uint32_t) paddr;
-        command_header[i].ctbau = (uint32_t) (paddr >> 32);
-        command_header[i].prdtl = 8;
-    }
-
+    device->command_table_paddr = command_table_paddr;
     hba_port->ie = 0;
     hba_port->is = hba_port->is;
 

@@ -17,20 +17,20 @@
 #define VIRTIO_TYPE_BLOCK   2
 
 uint64_t virtio_negotiate_features(struct virtio_device* dev, uint64_t features) {
-    dev->common_config->device_feature_select = 0;
-    uint64_t available = dev->common_config->device_feature;
-    dev->common_config->device_feature_select = 1;
-    available |= (uint64_t) dev->common_config->device_feature << 32;
+    mmio_write32(&dev->common_config->device_feature_select, 0);
+    uint64_t available = mmio_read32(&dev->common_config->device_feature);
+    mmio_write32(&dev->common_config->device_feature_select, 1);
+    available |= (uint64_t) mmio_read32(&dev->common_config->device_feature) << 32;
 
     uint64_t negotiable = features & available;
 
-    dev->common_config->driver_feature_select = 0;
-    dev->common_config->driver_feature = negotiable & 0xffffffff;
-    dev->common_config->driver_feature_select = 1;
-    dev->common_config->driver_feature = (negotiable >> 32) & 0xffffffff;
+    mmio_write32(&dev->common_config->driver_feature_select, 0);
+    mmio_write32(&dev->common_config->driver_feature, (uint32_t) negotiable);
+    mmio_write32(&dev->common_config->driver_feature_select, 1);
+    mmio_write32(&dev->common_config->driver_feature, (uint32_t) (negotiable >> 32));
 
-    dev->common_config->status |= VIRTIO_STATUS_FEATURES_OK;
-    if (!(dev->common_config->status & VIRTIO_STATUS_FEATURES_OK)) {
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_FEATURES_OK);
+    if (!(mmio_read8(&dev->common_config->status) & VIRTIO_STATUS_FEATURES_OK)) {
         return (uint64_t) -1;
     }
 
@@ -61,31 +61,31 @@ void virtio_queue_free_descriptor(struct virtio_queue* queue, uint16_t descripto
 }
 
 bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t irq_vector) {
-    if (queue_number > dev->common_config->queue_count) {
+    if (queue_number > mmio_read16(&dev->common_config->queue_count)) {
         return false;
     }
 
     // TODO: figure out exact alloc sizes for available and used spaces
 
     struct virtio_queue* queue = &dev->queues[queue_number];
-    queue->size = dev->common_config->queue_size;
+    queue->size = mmio_read16(&dev->common_config->queue_size);
 
     uintptr_t descriptor_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE));
-    queue->descriptors = (volatile void*) (descriptor_paddr + HIGH_VMA);
+    queue->descriptors = (void*) (descriptor_paddr + HIGH_VMA);
     uintptr_t available_paddr = pmm_alloc_zero(2);
-    queue->available = (volatile void*) (available_paddr + HIGH_VMA);
+    queue->available = (void*) (available_paddr + HIGH_VMA);
     uintptr_t used_paddr = pmm_alloc_zero(2);
-    queue->used = (volatile void*) (used_paddr + HIGH_VMA);
+    queue->used = (void*) (used_paddr + HIGH_VMA);
 
-    queue->notify = dev->notify_begin + (dev->common_config->queue_notify_offset * dev->notify_offset_multiplier);
+    queue->notify = dev->notify_begin + (mmio_read16(&dev->common_config->queue_notify_offset) * dev->notify_offset_multiplier);
 
-    dev->common_config->queue_select = queue_number;
-    dev->common_config->queue_desc = descriptor_paddr;
-    dev->common_config->queue_driver = available_paddr;
-    dev->common_config->queue_device = used_paddr;
+    mmio_write16(&dev->common_config->queue_select, queue_number);
+    mmio_write64(&dev->common_config->queue_desc, descriptor_paddr);
+    mmio_write64(&dev->common_config->queue_driver, available_paddr);
+    mmio_write64(&dev->common_config->queue_device, used_paddr);
 
     if (irq_vector != 0xff) {
-        dev->common_config->queue_msix_vector = queue_number;
+        mmio_write16(&dev->common_config->queue_msix_vector, queue_number);
 
         if (!pci_setup_msix(dev->pci_dev, queue_number, irq_vector)) {
             return false;
@@ -93,7 +93,7 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
         pci_set_msix_mask(dev->pci_dev, queue_number, false);
     }
 
-    dev->common_config->queue_enable = 1;
+    mmio_write16(&dev->common_config->queue_enable, 1);
     return true;
 }
 
@@ -103,7 +103,7 @@ void virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor) {
 }
 
 void virtio_queue_notify(struct virtio_queue* queue) {
-    *queue->notify = 0;
+    mmio_write32(queue->notify, 0);
 }
 
 static void virtio_init(struct pci_device* pci_dev) {
@@ -159,9 +159,9 @@ static void virtio_init(struct pci_device* pci_dev) {
 
     pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER);
 
-    dev->common_config = (volatile void*) (bar.base_address + HIGH_VMA + common_config_offset);
-    dev->device_config = (volatile void*) (bar.base_address + HIGH_VMA + device_config_offset);
-    dev->notify_begin = (volatile void*) (bar.base_address + HIGH_VMA + notify_offset);
+    dev->common_config = (void*) (bar.base_address + HIGH_VMA + common_config_offset);
+    dev->device_config = (void*) (bar.base_address + HIGH_VMA + device_config_offset);
+    dev->notify_begin = (void*) (bar.base_address + HIGH_VMA + notify_offset);
 
     if (!pci_enable_msix(pci_dev)) {
         klog("[virtio] failed to setup interrupts for VirtIO device\n");
@@ -176,13 +176,13 @@ static void virtio_init(struct pci_device* pci_dev) {
     dev->queues = queues;
 
     /* first, reset the device */
-    dev->common_config->status = 0;
-    while (dev->common_config->status != 0) {
+    mmio_write8(&dev->common_config->status, 0);
+    while (mmio_read8(&dev->common_config->status) != 0) {
         pause();
     }
 
     /* then, acknowlege the device */
-    dev->common_config->status |= VIRTIO_STATUS_ACKNOWLEDGE;
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_ACKNOWLEDGE);
 
     switch (pci_read_subsystem_id(pci_dev)) {
         case VIRTIO_TYPE_NET:

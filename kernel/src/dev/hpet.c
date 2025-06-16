@@ -38,11 +38,11 @@ static uintptr_t hpet_addr = 0;
 static uint32_t clock_period_ns = 0;
 
 static inline uint64_t hpet_read(uint32_t reg) {
-    return *((volatile uint64_t*) (hpet_addr + reg));
+    return mmio_read64((void*) (hpet_addr + reg));
 }
 
 static inline void hpet_write(uint32_t reg, uint64_t value) {
-    *((volatile uint64_t*) (hpet_addr + reg)) = value;
+    mmio_write64((void*) (hpet_addr + reg), value);
 }
 
 static void hpet_irq_handler(struct registers* r, void* arg) {

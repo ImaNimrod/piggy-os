@@ -98,7 +98,7 @@ void cmos_get_rtc_time(struct timespec* tp) {
 void cmos_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (likely(fadt != NULL)) {
-        uint8_t acpi_century_register = *(volatile uint8_t*) ((uintptr_t) fadt + 108);
+        uint8_t acpi_century_register = *((uint8_t*) fadt + 108);
         if (acpi_century_register != 0) {
             century_register = acpi_century_register;
         }

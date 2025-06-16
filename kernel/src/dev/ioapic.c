@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <dev/ioapic.h>
 #include <mem/slab.h>
@@ -49,28 +50,28 @@ static struct ioapic* ioapic_list = NULL;
 static struct isa_iso* isa_isos[ISA_IRQ_NUM] = {0};
 
 static inline uint32_t ioapic_read(uintptr_t base, uint32_t reg) {
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg;
-    return *((volatile uint32_t*) (base + IOREGWIN));
+    mmio_write32((void*) (base + IOREGSEL), reg);
+    return mmio_read32((void*) (base + IOREGWIN));
 }
 
 static inline void ioapic_write(uintptr_t base, uint32_t reg, uint32_t value) {
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg;
-    *((volatile uint32_t*) (base + IOREGWIN)) = value;
+    mmio_write32((void*) (base + IOREGSEL), reg);
+    mmio_write32((void*) (base + IOREGWIN), value);
 }
 
-static uint64_t ioapic_read64(uintptr_t base, uint32_t reg) {
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg;
-    uint64_t value = *((volatile uint32_t*) (base + IOREGWIN));
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg + 1;
-    value |= ((uint64_t) *((volatile uint32_t*) (base + IOREGWIN))) << 32;
+static inline uint64_t ioapic_read64(uintptr_t base, uint32_t reg) {
+    mmio_write32((void*) (base + IOREGSEL), reg);
+    uint64_t value = mmio_read32((void*) (base + IOREGWIN));
+    mmio_write32((void*) (base + IOREGSEL), reg + 1);
+    value |= ((uint64_t) mmio_read32((void*) (base + IOREGWIN))) << 32;
     return value;
 }
 
-static void ioapic_write64(uintptr_t base, uint32_t reg, uint64_t value) {
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg;
-    *((volatile uint32_t*) (base + IOREGWIN)) = (uint32_t) (value & 0xffffffff);
-    *((volatile uint32_t*) (base + IOREGSEL)) = reg + 1;
-    *((volatile uint32_t*) (base + IOREGWIN)) = (uint32_t) ((value >> 32) & 0xffffffff);
+static inline void ioapic_write64(uintptr_t base, uint32_t reg, uint64_t value) {
+    mmio_write32((void*) (base + IOREGSEL), reg);
+    mmio_write32((void*) (base + IOREGWIN), (uint32_t) value);
+    mmio_write32((void*) (base + IOREGSEL), reg + 1);
+    mmio_write32((void*) (base + IOREGWIN), (uint32_t) (value >> 32));
 }
 
 static struct ioapic* get_ioapic_for_irq(uint8_t irq) {

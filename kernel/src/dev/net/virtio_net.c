@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <dev/net/virtio_net.h>
 #include <mem/pmm.h>
@@ -83,7 +84,7 @@ static void virtio_net_update_flags(struct netif* netif, uint16_t old_flags) {
 }
 
 void virtio_net_init(struct virtio_device* dev) {
-    dev->common_config->status |= VIRTIO_STATUS_DRIVER;
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_DRIVER);
 
     uint64_t features = VIRTIO_NET_F_MTU | VIRTIO_NET_F_MAC;
     if ((features = virtio_negotiate_features(dev, features)) == (uint64_t) -1) {
@@ -151,5 +152,5 @@ void virtio_net_init(struct virtio_device* dev) {
 
     klog("[virtio_net] initialized VirtIO network device (mac: " MAC_ADDRESS_FORMAT ")\n", MAC_ADDRESS_PRINT(netif->mac));
 
-    dev->common_config->status |= VIRTIO_STATUS_DRIVER_OK;
+    mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 }

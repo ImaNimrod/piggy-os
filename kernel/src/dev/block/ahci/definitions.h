@@ -86,7 +86,7 @@ struct hba_registers {
     uint32_t cap2;
     uint32_t reserved[29];
     uint32_t vendor[24];
-    volatile struct hba_port ports[];
+    struct hba_port ports[];
 } __attribute__((packed));
 
 struct hba_command_header {
@@ -102,7 +102,7 @@ struct hba_command_header {
     uint8_t pmp: 4;
 
     uint16_t prdtl;
-    volatile uint32_t prdbc;
+    uint32_t prdbc;
 
     uint32_t ctba;
     uint32_t ctbau;
@@ -147,7 +147,7 @@ struct hba_fis_h2d {
 } __attribute__((packed));
 
 struct ahci_controller {
-    volatile struct hba_registers* hba_registers;
+    struct hba_registers* hba_registers;
     uint8_t port_count;
     uint8_t slot_count;
     vector_t* devices;
@@ -156,7 +156,7 @@ struct ahci_controller {
 struct ahci_device {
     struct ahci_controller* controller;
 
-    volatile struct hba_port* hba_port;
+    struct hba_port* hba_port;
     uintptr_t clb_and_fis_paddr;
     uintptr_t command_table_paddr;
 
@@ -172,7 +172,7 @@ struct ahci_device {
 
 bool send_command(struct ahci_device* device, uint8_t command, uintptr_t paddr, uint64_t lba, uint16_t block_count, bool write);
 
-void ahci_device_try_init(struct ahci_controller* controller, volatile struct hba_port* hba_port);
+void ahci_device_try_init(struct ahci_controller* controller, struct hba_port* hba_port);
 void ahci_device_irq_handler(struct ahci_device* device);
 
 #endif /* _AHCI_DEFINITIONS_H */

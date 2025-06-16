@@ -80,95 +80,135 @@ static ALWAYS_INLINE void outl(uint16_t port, uint32_t data) {
     asm volatile("outl %%eax, %%dx" :: "d" (port), "a" (data));
 }
 
+static ALWAYS_INLINE uint8_t mmio_read8(void* address) {
+    uint8_t value;
+    asm volatile("movb (%1), %0" : "=r"(value) : "r"(address) : "memory");
+    return value;
+}
+
+static ALWAYS_INLINE void mmio_write8(void* address, uint8_t value) {
+    asm volatile("movb %0, (%1)" : : "r"(value), "r"(address) : "memory");
+}
+
+static ALWAYS_INLINE uint16_t mmio_read16(void* address) {
+    uint16_t value;
+    asm volatile("movw (%1), %0" : "=r"(value) : "r"(address) : "memory");
+    return value;
+}
+
+static ALWAYS_INLINE void mmio_write16(void* address, uint16_t value) {
+    asm volatile("movw %0, (%1)" : : "r"(value), "r"(address) : "memory");
+}
+
+static ALWAYS_INLINE uint32_t mmio_read32(void* address) {
+    uint32_t value;
+    asm volatile("movl (%1), %0" : "=r"(value) : "r"(address) : "memory");
+    return value;
+}
+
+static ALWAYS_INLINE void mmio_write32(void* address, uint32_t value) {
+    asm volatile("movl %0, (%1)" : : "r"(value), "r"(address) : "memory");
+}
+
+static ALWAYS_INLINE uint64_t mmio_read64(void* address) {
+    uint64_t value;
+    asm volatile("movq (%1), %0" : "=r"(value) : "r"(address) : "memory");
+    return value;
+}
+
+static ALWAYS_INLINE void mmio_write64(void* address, uint64_t value) {
+    asm volatile("movq %0, (%1)" : : "r"(value), "r"(address) : "memory");
+}
+
 static ALWAYS_INLINE uint64_t read_cr0(void) {
     uint64_t ret;
-    asm volatile ("mov %%cr0, %0" : "=r" (ret) :: "memory");
+    asm volatile ("mov %%cr0, %0" : "=r"(ret) :: "memory");
     return ret;
 }
 
 static ALWAYS_INLINE uint64_t read_cr2(void) {
     uint64_t ret;
-    asm volatile ("mov %%cr2, %0" : "=r" (ret) :: "memory");
+    asm volatile ("mov %%cr2, %0" : "=r"(ret) :: "memory");
     return ret;
 }
 
 static ALWAYS_INLINE uint64_t read_cr3(void) {
     uint64_t ret;
-    asm volatile ("mov %%cr3, %0" : "=r" (ret) :: "memory");
+    asm volatile ("mov %%cr3, %0" : "=r"(ret) :: "memory");
     return ret;
 }
 
 static ALWAYS_INLINE uint64_t read_cr4(void) {
     uint64_t ret;
-    asm volatile ("mov %%cr4, %0" : "=r" (ret) :: "memory");
+    asm volatile ("mov %%cr4, %0" : "=r"(ret) :: "memory");
     return ret;
 }
 
 static ALWAYS_INLINE void write_cr0(uint64_t value) {
-    asm volatile ("mov %0, %%cr0" :: "r" (value) : "memory");
+    asm volatile ("mov %0, %%cr0" :: "r"(value) : "memory");
 }
 
 static ALWAYS_INLINE void write_cr3(uint64_t value) {
-    asm volatile ("mov %0, %%cr3" :: "r" (value) : "memory");
+    asm volatile ("mov %0, %%cr3" :: "r"(value) : "memory");
 }
 
 static ALWAYS_INLINE void write_cr4(uint64_t value) {
-    asm volatile ("mov %0, %%cr4" :: "r" (value) : "memory");
+    asm volatile ("mov %0, %%cr4" :: "r"(value) : "memory");
 }
 
 static ALWAYS_INLINE void write_xcr0(uint64_t value) {
     uint32_t eax = value;
     uint32_t edx = value >> 32;
-    asm volatile("xsetbv" :: "a" (eax), "d" (edx), "c" (0) : "memory");
+    asm volatile("xsetbv" :: "a"(eax), "d"(edx), "c"(0) : "memory");
 }
 
 static ALWAYS_INLINE uint64_t rdmsr(uint32_t msr) {
     uint32_t eax = 0, edx = 0;
-    asm volatile("rdmsr" : "=a" (eax), "=d" (edx) : "c" (msr) : "memory");
+    asm volatile("rdmsr" : "=a"(eax), "=d"(edx) : "c"(msr) : "memory");
     return ((uint64_t) edx << 32) | eax;
 }
 
 static ALWAYS_INLINE uint64_t wrmsr(uint32_t msr, uint64_t val) {
     uint32_t eax = (uint32_t) val;
     uint32_t edx = (uint32_t) (val >> 32);
-    asm volatile("wrmsr" :: "a" (eax), "d" (edx), "c" (msr) : "memory");
+    asm volatile("wrmsr" :: "a"(eax), "d"(edx), "c"(msr) : "memory");
     return ((uint64_t) edx << 32) | eax;
 }
 
 static inline void fxsave(void* ctx) {
-    asm volatile("fxsave (%0)" :: "r" (ctx) : "memory");
+    asm volatile("fxsave (%0)" :: "r"(ctx) : "memory");
 }
 
 static inline void fxrstor(void* ctx) {
-    asm volatile ("fxrstor (%0)" :: "r" (ctx) : "memory");
+    asm volatile ("fxrstor (%0)" :: "r"(ctx) : "memory");
 }
 
 static inline void xsave(void* ctx) {
-    asm volatile ("xsave (%0)" :: "r" (ctx), "a" (0xffffffff), "d" (0xffffffff) : "memory");
+    asm volatile ("xsave (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
 }
 
 static inline void xrstor(void* ctx) {
-    asm volatile ("xrstor (%0)" :: "r" (ctx), "a" (0xffffffff), "d" (0xffffffff) : "memory");
+    asm volatile ("xrstor (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
 }
 
 static inline uint64_t rdfsbase(void) {
     uint64_t fs;
-    asm volatile ("rdfsbase %0" : "=r" (fs) :: "memory");
+    asm volatile ("rdfsbase %0" : "=r"(fs) :: "memory");
     return fs;
 }
 
 static inline void wrfsbase(uint64_t fs) {
-    asm volatile ("wrfsbase %0" :: "r" (fs) : "memory");
+    asm volatile ("wrfsbase %0" :: "r"(fs) : "memory");
 }
 
 static inline uint64_t rdgsbase(void) {
     uint64_t gs;
-    asm volatile ("rdgsbase %0" : "=r" (gs) :: "memory");
+    asm volatile ("rdgsbase %0" : "=r"(gs) :: "memory");
     return gs;
 }
 
 static inline void wrgsbase(uint64_t gs) {
-    asm volatile ("wrgsbase %0" :: "r" (gs) : "memory");
+    asm volatile ("wrgsbase %0" :: "r"(gs) : "memory");
 }
 
 #endif /* _KERNEL_CPU_ASM_H */

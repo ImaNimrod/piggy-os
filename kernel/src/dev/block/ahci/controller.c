@@ -25,25 +25,26 @@ static inline const char* interface_speed_str(uint8_t iss) {
 }
 
 static void enumerate_ports(struct ahci_controller* controller) {
-    controller->hba_registers->is = controller->hba_registers->is;
-
-    uint32_t pi = controller->hba_registers->pi;
+    uint32_t pi = mmio_read32(&controller->hba_registers->pi);
     for (uint8_t i = 0; i < controller->port_count; i++) {
         if (!(pi & (1 << i))) {
             continue;
         }
 
-        volatile struct hba_port* hba_port = &controller->hba_registers->ports[i];
+        struct hba_port* hba_port = &controller->hba_registers->ports[i];
 
         /* switch port into idle state prior to any real initialization */
-        hba_port->cmd &= ~HBA_PxCMD_ST;
-        while (hba_port->cmd & HBA_PxCMD_CR) {
+        /*
+        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_ST);
+        while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_CR) {
             pause();
         }
-        hba_port->cmd &= ~HBA_PxCMD_FRE;
-        while (hba_port->cmd & HBA_PxCMD_FR) {
+
+        mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
+        while (mmio_read32(&hba_port->cmd) & HBA_PxCMD_FR) {
             pause();
         }
+        */
 
         ahci_device_try_init(controller, hba_port);
     }
@@ -53,8 +54,9 @@ static void ahci_irq_handler(struct registers* r, void* arg) {
     (void) r;
 
     struct ahci_controller* controller = arg;
+    struct hba_registers* hba_registers = controller->hba_registers;
 
-    uint32_t is = controller->hba_registers->is;
+    uint32_t is = mmio_read32(&hba_registers->is);
     for (uint8_t i = 0; i < controller->port_count; i++) {
         if (is & (1 << i)) {
             struct ahci_device* device = *vector_get(controller->devices, i);
@@ -62,7 +64,7 @@ static void ahci_irq_handler(struct registers* r, void* arg) {
                 ahci_device_irq_handler(device);
             }
 
-            controller->hba_registers->is |= (1 << i);
+            mmio_write32(&hba_registers->is, mmio_read32(&hba_registers->is) | (1 << i));
         }
     }
 }
@@ -82,9 +84,9 @@ static void ahci_init(struct pci_device* pci_dev) {
 
     pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER);
 
-    volatile struct hba_registers* hba_registers = (volatile void*) (bar5.base_address + HIGH_VMA);
+    struct hba_registers* hba_registers = (void*) (bar5.base_address + HIGH_VMA);
 
-    if (!(hba_registers->cap & CAP_S64A)) {
+    if (!(mmio_read32(&hba_registers->cap) & CAP_S64A)) {
         klog("[ahci] AHCI controller does not support 64-bit addressing\n");
         return;
     }
@@ -92,13 +94,13 @@ static void ahci_init(struct pci_device* pci_dev) {
     int timeout;
 
     /* perform BIOS/OS handoff if needed */
-    if (hba_registers->cap2 & (1 << 0)) {
-        if (hba_registers->bohc & BOHC_BOS) {
-            hba_registers->bohc |= BOHC_OOS;
+    if (mmio_read32(&hba_registers->cap2) & (1 << 0)) {
+        if (mmio_read32(&hba_registers->bohc) & BOHC_BOS) {
+            mmio_write32(&hba_registers->bohc, mmio_read32(&hba_registers->bohc) | BOHC_OOS);
 
             timeout = 300;
             while (timeout != 0) {
-                if (!(hba_registers->bohc & BOHC_BOS) && !(hba_registers->bohc & BOHC_BB) && hba_registers->bohc & BOHC_OOS) {
+                if (!(mmio_read32(&hba_registers->bohc) & BOHC_BOS) && !(mmio_read32(&hba_registers->bohc) & BOHC_BB) && mmio_read32(&hba_registers->bohc) & BOHC_OOS) {
                     break;
                 }
                 hpet_sleep_ns(MS_TO_NS(1));
@@ -113,11 +115,11 @@ static void ahci_init(struct pci_device* pci_dev) {
     }
 
     /* reset controller */
-    hba_registers->ghc |= GHC_HR;
+    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_HR);
 
-    timeout = 100;
+    timeout = 1000;
     while (timeout != 0) {
-        if (!(hba_registers->ghc & GHC_HR)) {
+        if (!(mmio_read32(&hba_registers->ghc) & GHC_HR)) {
             break;
         }
         hpet_sleep_ns(MS_TO_NS(1));
@@ -130,11 +132,8 @@ static void ahci_init(struct pci_device* pci_dev) {
     }
 
     /* enable AHCI mode and disable interrupts */
-    hba_registers->ghc |= GHC_AE;
-    while (!(hba_registers->ghc & GHC_AE)) {
-        pause();
-    }
-    hba_registers->ghc &= ~GHC_IE;
+    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_AE);
+    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) & ~GHC_IE);
 
     struct ahci_controller* controller = kmalloc(sizeof(struct ahci_controller));
     if (unlikely(controller == NULL)) {
@@ -145,8 +144,8 @@ static void ahci_init(struct pci_device* pci_dev) {
     if (unlikely(controller->devices == NULL)) {
         kpanic(NULL, false, "failed to create device vector for AHCI controller");
     }
-    controller->port_count = (hba_registers->cap & 0x1f) + 1;
-    controller->slot_count = ((hba_registers->cap >> 8) & 0x1f) + 1;
+    controller->port_count = (mmio_read32(&hba_registers->cap) & 0x1f) + 1;
+    controller->slot_count = ((mmio_read32(&hba_registers->cap) >> 8) & 0x1f) + 1;
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {
@@ -165,12 +164,12 @@ static void ahci_init(struct pci_device* pci_dev) {
     }
 
     klog("[ahci] initialized AHCI controller: version: %x.%x, link speed: %s\n",
-         (hba_registers->vs >> 16) & 0xffff, hba_registers->vs & 0xffff,
-         interface_speed_str((hba_registers->cap >> 20) & 0xf));
+         (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
+         interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
     /* renable interrupts for the controller */
     pci_set_msi_mask(pci_dev, false);
-    hba_registers->ghc |= (1 << 1);
+    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_IE);
     return;
 
 error:
