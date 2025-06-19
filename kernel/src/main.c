@@ -17,6 +17,7 @@
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/panic.h>
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
 
@@ -47,6 +48,11 @@ LIMINE_REQUEST volatile struct limine_memmap_request memmap_request = {
     .revision = 0,
 };
 
+LIMINE_REQUEST volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .revision = 0,
+};
+
 LIMINE_REQUEST volatile struct limine_mp_request mp_request = {
     .id = LIMINE_MP_REQUEST,
     .revision = 0,
@@ -67,8 +73,11 @@ NORETURN static void kernel_main(void) {
 
     klog("\nhey pig...\n");
 
+    if (!process_create_init()) {
+        kpanic(NULL, false, "failed to create init process");
+    }
+
     thread_destroy(this_cpu()->running_thread);
-    scheduler_thread_dequeue(this_cpu()->running_thread);
     scheduler_await();
 }
 
@@ -100,6 +109,6 @@ NORETURN void kernel_entry(void) {
 
     smp_init();
 
-    scheduler_thread_enqueue(kthread_create((uintptr_t) kernel_main, NULL));
+    thread_create_kernel((uintptr_t) kernel_main, NULL);
     scheduler_await();
 }

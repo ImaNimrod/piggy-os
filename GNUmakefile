@@ -4,10 +4,10 @@ MAKEFLAGS += -rR
 override IMAGE_NAME := piggy
 
 EMUOPTS := -machine q35 \
-		   -smp 2 \
+		   -m 4G \
 		   -cpu host \
 		   -enable-kvm \
-		   -m 4G \
+		   -smp 2 \
 		   -serial stdio \
 		   -bios /usr/share/edk2/x64/OVMF.4m.fd
 
@@ -48,7 +48,7 @@ kernel:
 $(IMAGE_NAME).iso: limine/limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp -v kernel/kernel.elf iso_root/boot/
+	cp -v kernel/kernel.elf test/test iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT

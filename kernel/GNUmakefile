@@ -4,8 +4,9 @@ MAKEFLAGS += -rR
 override KERNEL_FILE := kernel.elf
 
 CFLAGS := \
+		  -g \
 		  -std=gnu11 \
-		  -O3 \
+		  -O2 \
 		  -fms-extensions \
 		  -ffreestanding \
 		  -fno-stack-protector \

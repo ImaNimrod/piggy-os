@@ -298,8 +298,8 @@ void idt_set_ist(uint8_t vector, uint8_t ist) {
 
 void idt_init(void) {
     idt_set_gate(0, (uintptr_t) &_isr0, 0);
-    idt_set_gate(1, (uintptr_t) &_isr1, 1);
-    idt_set_gate(2, (uintptr_t) &_isr2, 1);
+    idt_set_gate(1, (uintptr_t) &_isr1, 0);
+    idt_set_gate(2, (uintptr_t) &_isr2, 0);
     idt_set_gate(3, (uintptr_t) &_isr3, 0);
     idt_set_gate(4, (uintptr_t) &_isr4, 0);
     idt_set_gate(5, (uintptr_t) &_isr5, 0);

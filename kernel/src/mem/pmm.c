@@ -76,9 +76,7 @@ uintptr_t pmm_alloc(size_t page_count) {
 
 uintptr_t pmm_alloc_zero(size_t page_count) {
     uintptr_t ret = pmm_alloc(page_count);
-    if (ret != 0) {
-        memset64((void*) (ret + HIGH_VMA), 0, (PAGE_SIZE * page_count) >> 3);
-    }
+    memset64((void*) (ret + HIGH_VMA), 0, (PAGE_SIZE * page_count) >> 3);
     return ret;
 }
 
@@ -144,16 +142,22 @@ void pmm_init(void) {
 
         pmm_bitmap = (uint8_t*) (entry->base + HIGH_VMA);
         memset8(pmm_bitmap, 0xff, pmm_bitmap_size);
-        entry->length -= pmm_bitmap_size;
-        entry->base += pmm_bitmap_size;
         break;
     }
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            for (uint64_t j = 0; j < entry->length; j += PAGE_SIZE) {
-                BITMAP_CLEAR(pmm_bitmap, (entry->base + j) / PAGE_SIZE);
+            uintptr_t base = entry->base;
+            size_t length = entry->length;
+
+            if (((uintptr_t) pmm_bitmap - HIGH_VMA) >= base && ((uintptr_t) pmm_bitmap - HIGH_VMA) < base + length) {
+                base += pmm_bitmap_size;
+                length -= pmm_bitmap_size;
+            }
+
+            for (uint64_t j = 0; j < length; j += PAGE_SIZE) {
+                BITMAP_CLEAR(pmm_bitmap, (base + j) / PAGE_SIZE);
             }
         }
     }

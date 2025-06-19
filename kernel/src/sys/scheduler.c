@@ -53,10 +53,11 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     struct thread* next_thread = get_next_runnable_thread(current_thread);
 
     /* save the current thread's context */
-    if (current_thread != this_cpu()->idle_thread) {
+    if (current_thread != this_cpu()->idle_thread && current_thread != NULL) {
         spinlock_release(&current_thread->yield_lock);
 
-        memcpy(&current_thread->registers, r, sizeof(struct registers));
+        /* we know that sizeof(struct registers) is a multiple of 8 bytes */
+        memcpy64((void*) &current_thread->registers, (const void*) r, sizeof(struct registers) >> 3);
 
         if (current_thread->is_user) {
             this_cpu()->fpu_save(current_thread->fpu_context);
@@ -96,7 +97,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
         pagemap_load(next_thread->process->pagemap);
     }
 
-    if (r->cs & 0x03) {
+    if (next_thread->registers.cs & 0x03) {
         swapgs();
     }
 

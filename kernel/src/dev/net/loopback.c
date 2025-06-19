@@ -22,7 +22,7 @@ void loopback_init(void) {
     netif->send_packet = loopback_send_packet;
     netif->update_flags = loopback_update_flags;
 
-    memset(netif->mac, 0, sizeof(mac_address_t));
+    memset8(netif->mac, 0, sizeof(mac_address_t));
     netif->ipv4_address = IPV4_ADDRESS(127, 0, 0, 1);
     netif->ipv4_gateway = IPV4_ADDRESS(0, 0, 0, 0);
     netif->ipv4_subnet_mask = IPV4_ADDRESS(255, 0, 0, 0);

@@ -12,13 +12,14 @@ struct cpu_local {
     struct cpu_local* self;
     size_t cpu_number;
 
+    uintptr_t kernel_stack;
+    uintptr_t user_stack;
+
     struct thread* idle_thread;
     struct thread* running_thread;
 
     struct gdt gdt;
     struct tss tss;
-    uintptr_t kernel_stack;
-    uintptr_t user_stack;
 
     size_t fpu_context_size;
     void (*fpu_save)(void*);

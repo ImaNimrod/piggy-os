@@ -15,9 +15,18 @@ int memcmp(const void* ptr1, const void* ptr2, size_t n) {
     return 0;
 }
 
-void* memcpy(void* restrict dest, const void* restrict src, size_t n) {
+uint8_t* memcpy8(uint8_t* restrict dest, const uint8_t* restrict src, size_t n) {
     asm volatile("cld; rep movsb" : "=c"((int){0}) : "D"(dest), "S"(src), "c"(n) : "flags", "memory");
     return dest;
+}
+
+uint64_t* memcpy64(uint64_t* restrict dest, const uint64_t* restrict src, size_t n) {
+    asm volatile("cld; rep movsq" : "=c"((int){0}) : "D"(dest), "S"(src), "c"(n) : "flags", "memory");
+    return dest;
+}
+
+void* memcpy(void* restrict dest, const void* restrict src, size_t n) {
+    return memcpy8(dest, src, n);
 }
 
 void* memmove(void* dest, const void* src, size_t n) {
@@ -29,7 +38,7 @@ void* memmove(void* dest, const void* src, size_t n) {
     const char* s = src;
 
     if (s + n <= d || d + n <= s) {
-        return memcpy(dest, src, n);
+        return memcpy8(dest, src, n);
     }
 
     if (d < s) {
@@ -112,7 +121,7 @@ char* strdup(const char* str) {
         return NULL;
     }
 
-    memcpy(dup, str, len);
+    memcpy8((uint8_t*) dup, (const uint8_t*) str, len);
     return dup;
 }
 

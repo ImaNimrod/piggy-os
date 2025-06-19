@@ -22,6 +22,8 @@ static uint32_t bsp_lapic_id = 0;
 static size_t initialized_cpus = 0;
 static struct cpu_local* cpu_local_data = NULL;
 
+extern void syscall_entry(void);
+
 static inline uint64_t read_fs_base_msr(void) {
     return rdmsr(IA32_FS_BASE_MSR);
 }
@@ -146,10 +148,10 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     wrmsr(IA32_EFER_MSR, efer);
 
     wrmsr(IA32_STAR_MSR, 0x13000800000000);
-    wrmsr(IA32_LSTAR_MSR, (uint64_t) NULL); // TODO: set syscall entry when syscalls are a thing
+    wrmsr(IA32_LSTAR_MSR, (uint64_t) syscall_entry);
     wrmsr(IA32_SFMASK_MSR, (uint64_t) 0x700);
 
-    cpu_local->idle_thread = kthread_create((uintptr_t) idle, NULL);
+    cpu_local->idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
     cpu_local->running_thread = cpu_local->idle_thread;
 
     wrmsr(IA32_GS_BASE_MSR, (uint64_t) cpu_local);
@@ -192,12 +194,8 @@ void smp_init(void) {
             idt_init();
 
             if (!use_x2apic) {
-                bsp_lapic_addr = rdmsr(IA32_APIC_BASE_MSR) & ~0xfff;
-
-                if (unlikely(!pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX))) {
-                    kpanic(NULL, false, "failed to create page table mapping for LAPIC");
-                }
-
+                bsp_lapic_addr = rdmsr(IA32_APIC_BASE_MSR) & ~(0xffful);
+                pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
                 klog("[smp] processor is using XAPIC\n");
             } else {
                 klog("[smp] processor is using X2APIC\n");

@@ -15,12 +15,12 @@ static struct gdt bsp_gdt = {
     .kernel_data64 = {
         .access = 0x92,
     },
+    .user_data64 = {
+        .access = 0xf2,
+    },
     .user_code64 = {
         .access = 0xfa,
         .granularity = 0x20,
-    },
-    .user_data64 = {
-        .access = 0xf2,
     },
     .tss = {
         .length = sizeof(struct tss),

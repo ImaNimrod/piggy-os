@@ -28,8 +28,6 @@ struct thread {
     uint64_t fs_base;
     uint64_t gs_base;
 
-    uint64_t sleep_until;
-
     spinlock_t run_lock;
     spinlock_t yield_lock;
 
@@ -50,8 +48,13 @@ struct process {
 extern struct process* kernel_process;
 
 struct process* process_create(struct process* old_process, struct pagemap* pagemap);
-struct thread* kthread_create(uintptr_t entry, void* arg);
-void thread_destroy(struct thread* t);
+bool process_create_init(void);
+void process_destroy(struct process* process);
+
+struct thread* thread_create_kernel(uintptr_t entry, void* arg);
+struct thread* thread_create_user(struct process* process, uintptr_t entry);
+void thread_destroy(struct thread* thread);
+
 void process_init(void);
 
 #endif /* _KERNEL_SYS_PROCESS_H */

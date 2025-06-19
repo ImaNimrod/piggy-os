@@ -285,15 +285,13 @@ bool pci_map_bar(struct pci_bar* bar) {
 
     pmm_reserve_mmio_space(bar->base_address, page_count);
 
-    uint64_t flags = PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX;
+    uint64_t flags = PTE_PRESENT | PTE_WRITABLE | PTE_NX;
     if (!bar->mmio_prefetchable) {
         flags |= PTE_CACHE_DISABLE;
     }
 
     for (size_t i = 0; i < page_count; i++) {
-        if (!pagemap_map(kernel_pagemap, bar->base_address + HIGH_VMA + (i * PAGE_SIZE), bar->base_address + (i * PAGE_SIZE), flags)) {
-            return false;
-        }
+        pagemap_map(kernel_pagemap, bar->base_address + HIGH_VMA + (i * PAGE_SIZE), bar->base_address + (i * PAGE_SIZE), flags);
     }
 
     return true;
@@ -455,6 +453,13 @@ void pci_init(void) {
         struct mcfg_entry* entry;
         for (size_t i = 0; i < mcfg_entry_count; i++) {
             entry = &mcfg_entries[i];
+
+            size_t page_count = (entry->bus_end - entry->bus_start) * 32 * 8;
+            for (size_t j = 0; j < page_count; j++) {
+                pagemap_map(kernel_pagemap, (entry->ecm_base_address + HIGH_VMA) + (j * PAGE_SIZE), entry->ecm_base_address + (j * PAGE_SIZE),
+                            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+            }
+
             for (uint8_t bus = entry->bus_start; bus < entry->bus_end; bus++) {
                 enumerate_bus(entry->segment, bus);
             }

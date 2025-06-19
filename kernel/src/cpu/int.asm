@@ -39,15 +39,15 @@ isr_common_format:
     pop rcx
     pop rbx
     pop rax
-	add rsp, 16
+	add rsp, qword 16
 	iretq
 
 %macro isr 1
 
 global _isr%1
 _isr%1:
-	push 0
-	push %1
+	push qword 0
+	push qword %1
 	jmp isr_common_format
 
 %endmacro
@@ -56,7 +56,7 @@ _isr%1:
 
 global _isr%1
 _isr%1:
-	push %1
+	push qword %1
 	jmp isr_common_format
 
 %endmacro
