@@ -6,7 +6,6 @@
 #include <utils/macros.h>
 
 #define IA32_APIC_BASE_MSR      0x1b
-#define IA32_PAT_MSR            0x277
 #define IA32_EFER_MSR           0xc0000080
 #define IA32_STAR_MSR           0xc0000081
 #define IA32_LSTAR_MSR          0xc0000082

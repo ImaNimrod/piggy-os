@@ -18,7 +18,6 @@ struct cpu_local {
     struct thread* idle_thread;
     struct thread* running_thread;
 
-    struct gdt gdt;
     struct tss tss;
 
     size_t fpu_context_size;

@@ -1,12 +1,41 @@
 #include <cpu/gdt.h>
-#include <utils/string.h>
+#include <utils/spinlock.h>
+
+struct gdt_descriptor {
+    uint16_t limit;
+    uint16_t base_low16;
+    uint8_t base_mid8;
+    uint8_t access;
+    uint8_t granularity;
+    uint8_t base_high8;
+} __attribute__((packed));
+
+struct tss_descriptor {
+    uint16_t length;
+    uint16_t base_low16;
+    uint8_t base_mid8;
+    uint8_t flags1;
+    uint8_t flags2;
+    uint8_t base_high8;
+    uint32_t base_upper32;
+    uint32_t : 32;
+} __attribute__((packed));
+
+struct gdt {
+    struct gdt_descriptor null;
+    struct gdt_descriptor kernel_code64;
+    struct gdt_descriptor kernel_data64;
+    struct gdt_descriptor user_data64;
+    struct gdt_descriptor user_code64;
+    struct tss_descriptor tss;
+} __attribute__((aligned(16), packed));
 
 struct gdt_ptr {
     uint16_t limit;
     uint64_t base;
 } __attribute__((packed));
 
-static struct gdt bsp_gdt = {
+static struct gdt gdt = {
     .null = {0},
     .kernel_code64 = {
         .access = 0x9a,
@@ -22,20 +51,15 @@ static struct gdt bsp_gdt = {
         .access = 0xfa,
         .granularity = 0x20,
     },
-    .tss = {
-        .length = sizeof(struct tss),
-        .flags1 = 0x89,
-    },
+    .tss = {0},
 };
 
-void gdt_init(struct gdt* gdt) {
-    memcpy(gdt, &bsp_gdt, sizeof(struct gdt));
-}
+static spinlock_t gdt_lock = {0};
 
-void gdt_reload(struct gdt* gdt) {
+void gdt_reload(void) {
     struct gdt_ptr gdtr = {
         sizeof(struct gdt) - 1,
-        (uint64_t) gdt,
+        (uint64_t) &gdt,
     };
 
     asm volatile(
@@ -57,10 +81,12 @@ void gdt_reload(struct gdt* gdt) {
     );
 }
 
-void gdt_set_tss(struct gdt* gdt, struct tss* tss) {
+void gdt_set_tss(struct tss* tss) {
+    spinlock_acquire(&gdt_lock);
+
     uintptr_t tss_addr = (uintptr_t) tss;
 
-    gdt->tss = (struct tss_descriptor) {
+    gdt.tss = (struct tss_descriptor) {
         .length = sizeof(struct tss),
         .base_low16 = (uint16_t) tss_addr,
         .base_mid8 = (uint8_t) (tss_addr >> 16),
@@ -70,4 +96,6 @@ void gdt_set_tss(struct gdt* gdt, struct tss* tss) {
     };
 
     asm volatile("ltrw %0" :: "rm" ((uint16_t) 0x28));
+
+    spinlock_release(&gdt_lock);
 }

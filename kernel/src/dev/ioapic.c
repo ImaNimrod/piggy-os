@@ -147,7 +147,7 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, int polarity, int trigger_mod
 void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
     uintptr_t vaddr = paddr + HIGH_VMA;
 
-    pagemap_map(kernel_pagemap, vaddr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+    pagemap_map(kernel_pagemap, vaddr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
 
     struct ioapic* ioapic = kmalloc(sizeof(struct ioapic));
     if (unlikely(ioapic == NULL)) {

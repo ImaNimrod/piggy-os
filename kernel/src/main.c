@@ -73,9 +73,7 @@ NORETURN static void kernel_main(void) {
 
     klog("\nhey pig...\n");
 
-    if (!process_create_init()) {
-        kpanic(NULL, false, "failed to create init process");
-    }
+    process_create_init();
 
     thread_destroy(this_cpu()->running_thread);
     scheduler_await();

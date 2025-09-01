@@ -165,7 +165,7 @@ static void disable_pcie_master(struct e1000_device* device) {
 }
 
 static void init_rx(struct e1000_device* device) {
-    uintptr_t rx_desc_paddr = pmm_alloc_zero(DIV_CEIL(NUM_RX_DESCRIPTORS * sizeof(struct rx_descriptor), PAGE_SIZE));
+    uintptr_t rx_desc_paddr = pmm_alloc_zero(DIV_CEIL(NUM_RX_DESCRIPTORS * sizeof(struct rx_descriptor), PAGE_SIZE_4KB));
 
     device->rx_descs = (void*) (rx_desc_paddr + HIGH_VMA);
     device->rx_tail = 0;
@@ -176,7 +176,7 @@ static void init_rx(struct e1000_device* device) {
     e1000_write(device, E1000_REG_RXDESCHEAD, 0);
     e1000_write(device, E1000_REG_RXDESCTAIL, NUM_RX_DESCRIPTORS - 1);
 
-    uintptr_t rx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_RX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE));
+    uintptr_t rx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_RX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE_4KB));
     for (size_t i = 0; i < NUM_RX_DESCRIPTORS; i++) {
         struct rx_descriptor* desc = &device->rx_descs[i];
         desc->address = rx_buffers + (i * BUFFER_SIZE);
@@ -187,10 +187,12 @@ static void init_rx(struct e1000_device* device) {
 
     e1000_write(device, E1000_REG_RSRPD, 0);
     e1000_write(device, E1000_REG_RADV, 0);
+
+    e1000_flush(device);
 }
 
 static void init_tx(struct e1000_device* device) {
-    uintptr_t tx_desc_paddr = pmm_alloc_zero(DIV_CEIL(NUM_TX_DESCRIPTORS * sizeof(struct tx_descriptor), PAGE_SIZE));
+    uintptr_t tx_desc_paddr = pmm_alloc_zero(DIV_CEIL(NUM_TX_DESCRIPTORS * sizeof(struct tx_descriptor), PAGE_SIZE_4KB));
 
     device->tx_descs = (void*) (tx_desc_paddr + HIGH_VMA);
     device->tx_tail = 0;
@@ -199,9 +201,9 @@ static void init_tx(struct e1000_device* device) {
     e1000_write(device, E1000_REG_TXDESCHI, (uint32_t) (tx_desc_paddr >> 32));
     e1000_write(device, E1000_REG_TXDESCLEN, NUM_TX_DESCRIPTORS * sizeof(struct tx_descriptor));
     e1000_write(device, E1000_REG_TXDESCHEAD, 0);
-    e1000_write(device, E1000_REG_TXDESCTAIL, NUM_TX_DESCRIPTORS - 1);
+    e1000_write(device, E1000_REG_TXDESCTAIL, 0);
 
-    uintptr_t tx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_TX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE));
+    uintptr_t tx_buffers = pmm_alloc_zero(DIV_CEIL(NUM_TX_DESCRIPTORS * BUFFER_SIZE, PAGE_SIZE_4KB));
     for (size_t i = 0; i < NUM_TX_DESCRIPTORS; i++) {
         struct tx_descriptor* desc = &device->tx_descs[i];
         desc->address = tx_buffers + (i * BUFFER_SIZE);
@@ -213,6 +215,8 @@ static void init_tx(struct e1000_device* device) {
 
     e1000_write(device, E1000_REG_TIDV, 0);
     e1000_write(device, E1000_REG_TADV, 0);
+
+    e1000_flush(device);
 }
 
 static uint16_t read_eeprom(struct e1000_device* device, uint8_t address) {
@@ -474,7 +478,9 @@ static uint16_t e1000_device_ids[] = {
     0x1026, 0x1027, 0x1028,
     0x1076, 0x1078, 0x1079, 0x107a, 0x107b,
     0x10d3, 0x10ea, 0x1107, 0x1112,
-    0x1209, 0x1502, 0x1539, 0x153a, 0x15bc,
+    0x1209,
+    0x1502, 0x1539, 0x153a, 0x15bc,
+    0x1a1c,
 };
 
 struct pci_driver e1000_driver = {

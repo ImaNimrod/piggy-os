@@ -1,7 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/idt.h>
 #include <cpu/smp.h>
-#include <dev/acpi.h>
 #include <dev/lapic.h>
 #include <limine.h>
 #include <mem/paging.h>
@@ -9,8 +8,6 @@
 #include <sys/scheduler.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
-#include <utils/macros.h>
-#include <utils/panic.h>
 
 extern struct limine_mp_request mp_request;
 
@@ -24,19 +21,19 @@ static struct cpu_local* cpu_local_data = NULL;
 
 extern void syscall_entry(void);
 
-static inline uint64_t read_fs_base_msr(void) {
+static uint64_t read_fs_base_msr(void) {
     return rdmsr(IA32_FS_BASE_MSR);
 }
 
-static inline void write_fs_base_msr(uint64_t fs_base) {
+static void write_fs_base_msr(uint64_t fs_base) {
     wrmsr(IA32_FS_BASE_MSR, fs_base);
 }
 
-static inline uint64_t read_gs_base_msr(void) {
+static uint64_t read_gs_base_msr(void) {
     return rdmsr(IA32_GS_BASE_MSR);
 }
 
-static inline void write_gs_base_msr(uint64_t gs_base) {
+static void write_gs_base_msr(uint64_t gs_base) {
     wrmsr(IA32_GS_BASE_MSR, gs_base);
 }
 
@@ -60,11 +57,10 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     cpu_local->cpu_number = mp_info->processor_id;
     cpu_local->lapic_id = mp_info->lapic_id;
 
-    gdt_init(&cpu_local->gdt);
-    gdt_reload(&cpu_local->gdt);
+    gdt_reload();
     idt_reload();
 
-    gdt_set_tss(&cpu_local->gdt, &cpu_local->tss);
+    gdt_set_tss(&cpu_local->tss);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
         pagemap_load(kernel_pagemap);
@@ -184,7 +180,7 @@ void smp_init(void) {
 
     void (*cpu_goto_fn)(struct limine_mp_info*) = nosmp ? hang : single_cpu_init;
 
-    cpu_local_data = (struct cpu_local*) (pmm_alloc_zero(DIV_CEIL(sizeof(struct cpu_local) * mp_response->cpu_count, PAGE_SIZE)) + HIGH_VMA);
+    cpu_local_data = (struct cpu_local*) (pmm_alloc_zero(DIV_CEIL(sizeof(struct cpu_local) * mp_response->cpu_count, PAGE_SIZE_4KB)) + HIGH_VMA);
 
     for (size_t i = 0; i < mp_response->cpu_count; i++) {
         struct limine_mp_info* mp_info = mp_response->cpus[i];
@@ -195,7 +191,7 @@ void smp_init(void) {
 
             if (!use_x2apic) {
                 bsp_lapic_addr = rdmsr(IA32_APIC_BASE_MSR) & ~(0xffful);
-                pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+                pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
                 klog("[smp] processor is using XAPIC\n");
             } else {
                 klog("[smp] processor is using X2APIC\n");

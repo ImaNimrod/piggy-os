@@ -10,21 +10,24 @@
 
 static spinlock_t panic_lock = {0};
 
-static void print_stack_trace(uintptr_t* base_ptr) {
-    if (base_ptr == NULL) {
+static void print_stack_trace(uintptr_t* rbp) {
+    if (rbp == NULL || ((uintptr_t) rbp) < HIGH_VMA) {
         return;
     }
 
-    printf("stack trace:\n");
+    printf("stack trace:");
+
     for (;;) {
-        uintptr_t* old_bp = (uintptr_t*) base_ptr[0];
-        uintptr_t* ret_addr = (uintptr_t*) base_ptr[1];
-        if (old_bp == NULL || ret_addr == NULL || (uintptr_t) ret_addr < HIGH_VMA) {
+        uintptr_t* old_rbp = (uintptr_t*)rbp[0];
+        uintptr_t* rip = (uintptr_t*) rbp[1];
+
+        if (rip == NULL || old_rbp == NULL || ((uintptr_t) rip) < HIGH_VMA) {
             break;
         }
 
-        printf("      [0x%016lx]\n", (uintptr_t) ret_addr);
-        base_ptr = old_bp;
+        printf("\n    - 0x%016lx", rip);
+
+        rbp = old_rbp;
     }
 }
 
@@ -54,10 +57,15 @@ NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...
     }
 
     if (stack_trace) {
-        printf("\n===============================================================================================");
-        uintptr_t* base_ptr;
-        asm volatile("movq %%rbp, %0" : "=r" (base_ptr) ::);
-        print_stack_trace(base_ptr);
+        uintptr_t* rbp;
+        if (r != NULL) {
+            rbp = (uintptr_t*) r->rbp;
+        } else {
+            asm volatile("mov %%rbp, %0" : "=g" (rbp) :: "memory");
+        }
+
+        printf("\n===============================================================================================\n");
+        print_stack_trace(rbp);
     }
 
     printf("\n===============================================================================================\n");

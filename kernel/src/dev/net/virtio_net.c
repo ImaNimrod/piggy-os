@@ -144,7 +144,7 @@ void virtio_net_init(struct virtio_device* dev) {
     /* setup pakcet buffers in receieve queue */
     struct virtio_queue* rx_queue = &dev->queues[0];
 
-    uintptr_t packet_buffer = pmm_alloc(DIV_CEIL(netif->mtu * rx_queue->size, PAGE_SIZE));
+    uintptr_t packet_buffer = pmm_alloc(DIV_CEIL(netif->mtu * rx_queue->size, PAGE_SIZE_4KB));
 
     for (uint16_t i = 0; i < rx_queue->size; i++) {
         volatile struct virtio_queue_descriptor* descriptor = &rx_queue->descriptors[i];

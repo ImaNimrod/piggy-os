@@ -281,7 +281,7 @@ bool pci_map_bar(struct pci_bar* bar) {
         return false;
     }
 
-    size_t page_count = DIV_CEIL(bar->length, PAGE_SIZE);
+    size_t page_count = DIV_CEIL(bar->length, PAGE_SIZE_4KB);
 
     pmm_reserve_mmio_space(bar->base_address, page_count);
 
@@ -290,8 +290,8 @@ bool pci_map_bar(struct pci_bar* bar) {
         flags |= PTE_CACHE_DISABLE;
     }
 
-    for (size_t i = 0; i < page_count; i++) {
-        pagemap_map(kernel_pagemap, bar->base_address + HIGH_VMA + (i * PAGE_SIZE), bar->base_address + (i * PAGE_SIZE), flags);
+    for (size_t i = 0; i < (page_count * PAGE_SIZE_4KB); i += PAGE_SIZE_4KB) {
+        pagemap_map(kernel_pagemap, bar->base_address + HIGH_VMA + i, bar->base_address + i, flags, PAGE_SIZE_4KB);
     }
 
     return true;
@@ -455,9 +455,9 @@ void pci_init(void) {
             entry = &mcfg_entries[i];
 
             size_t page_count = (entry->bus_end - entry->bus_start) * 32 * 8;
-            for (size_t j = 0; j < page_count; j++) {
-                pagemap_map(kernel_pagemap, (entry->ecm_base_address + HIGH_VMA) + (j * PAGE_SIZE), entry->ecm_base_address + (j * PAGE_SIZE),
-                            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+            for (size_t j = 0; j < (page_count * PAGE_SIZE_4KB); j += PAGE_SIZE_4KB) {
+                pagemap_map(kernel_pagemap, entry->ecm_base_address + HIGH_VMA + j, entry->ecm_base_address + j,
+                            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
             }
 
             for (uint8_t bus = entry->bus_start; bus < entry->bus_end; bus++) {

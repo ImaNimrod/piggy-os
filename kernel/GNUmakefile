@@ -11,6 +11,7 @@ CFLAGS := \
 		  -ffreestanding \
 		  -fno-stack-protector \
 		  -fno-stack-check \
+		  -fno-omit-frame-pointer \
 		  -fno-PIC \
 		  -ffunction-sections \
 		  -fdata-sections \
@@ -60,7 +61,7 @@ KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.asm
 all: $(KERNEL_FILE)
 
 include/limine.h:
-	@curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
+	@cp -v ../limine/limine.h $@
 
 $(KERNEL_FILE): $(KERNEL_OBJFILES)
 	@mkdir -p "$$(dirname $@)"

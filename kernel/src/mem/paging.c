@@ -8,10 +8,6 @@
 #include <utils/macros.h>
 #include <utils/panic.h>
 
-#define PAT_WRITE_COMBINING 1
-#define PAT_WRITEBACK       6
-#define PAT_UNCACHEABLE     7
-
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
 
 extern struct limine_executable_address_request executable_address_request;
@@ -24,6 +20,8 @@ extern size_t data_start_addr[], data_end_addr[];
 
 struct pagemap* kernel_pagemap = NULL;
 
+static bool hugepages_supported = false;
+static bool pat_supported = false;
 static struct slab_cache* pagemap_cache = NULL;
 
 static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, size_t depth) {
@@ -37,34 +35,18 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
             continue;
         }
 
-        if ((level[i] & PTE_SIZE) && depth == 2) {
-            pmm_free((uintptr_t) level - HIGH_VMA, BIGPAGE_SIZE / PAGE_SIZE);
+        if (level[i] & PTE_SIZE) {
+            if (depth == 3) {
+                pmm_free((uintptr_t) level - HIGH_VMA, PAGE_SIZE_1GB / PAGE_SIZE_4KB);
+            } else if (depth == 2) {
+                pmm_free((uintptr_t) level - HIGH_VMA, PAGE_SIZE_2MB / PAGE_SIZE_4KB);
+            }
         }
 
         destroy_levels_recursive((uint64_t*) ((level[i] & ~PTE_FLAG_MASK) + HIGH_VMA), 0, 512, depth - 1);
     }
 
     pmm_free((uintptr_t) level - HIGH_VMA, 1);
-}
-
-static bool setup_pat(void) {
-    uint32_t edx, unused;
-    if (!cpuid(1, 0, &unused, &unused, &unused, &edx)) {
-        return false;
-    }
-    if (!(edx & (1 << 16))) {
-        return false;
-    }
-
-    uint64_t pat = rdmsr(IA32_PAT_MSR);
-    pat &= ~(0xfful);
-    pat |= ((uint64_t) PAT_WRITEBACK);
-    pat &= ~(0xfful << (8 * 2));
-    pat |= ((uint64_t) PAT_UNCACHEABLE << (8 * 2));
-    pat &= ~(0xfful << (8 * 3));
-    pat |= ((uint64_t) PAT_WRITE_COMBINING << (8 * 3));
-
-    return true;
 }
 
 static void page_fault_handler(struct registers* r, void* arg) {
@@ -113,7 +95,7 @@ void pagemap_load(struct pagemap* pagemap) {
     write_cr3((uint64_t) pagemap->top_level - HIGH_VMA);
 }
 
-void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags) {
+void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size) {
     spinlock_acquire(&pagemap->lock);
 
     size_t pml4_index = (vaddr >> 39) & 0x1ff;
@@ -127,14 +109,29 @@ void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+    if (size == PAGE_SIZE_1GB) {
+        spinlock_release(&pagemap->lock);
+
+        if (hugepages_supported) {
+            pml3[pml3_index] = paddr | flags | PTE_SIZE;
+        } else {
+            for (uint64_t i = 0; i < PAGE_SIZE_1GB; i += PAGE_SIZE_2MB) {
+                pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_2MB);
+            }
+        }
+
+        return;
+    }
+
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         pml3[pml3_index] = pmm_alloc_zero(1) | PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
 
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
-    if (flags & PTE_SIZE) {
-        pml2[pml2_index] = paddr | flags;
+    if (size == PAGE_SIZE_2MB) {
+        pml2[pml2_index] = paddr | flags | PTE_SIZE;
         spinlock_release(&pagemap->lock);
         return;
     }
@@ -144,8 +141,13 @@ void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint
     }
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
-    pml1[pml1_index] = paddr | flags;
 
+    if (flags & ((uint64_t) (1 << 12))) {
+        flags &= ~((uint64_t) (1 << 12));
+        flags |= ((uint64_t) (1 << 7));
+    }
+
+    pml1[pml1_index] = paddr | flags;
     spinlock_release(&pagemap->lock);
 }
 
@@ -165,6 +167,14 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+    if (pml3[pml3_index] & PTE_SIZE) {
+        pml3[pml3_index] = 0;
+        invlpg(vaddr);
+        ret = true;
+        goto end;
+    }
+
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         goto end;
     }
@@ -194,7 +204,13 @@ end:
 }
 
 void paging_init(void) {
-    bool pat_supported = setup_pat();
+    uint32_t edx, unused;
+    if (cpuid(0x80000001, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 26))) {
+        hugepages_supported = true;
+    }
+    if (cpuid(1, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 16))) {
+        pat_supported = true;
+    }
 
     pagemap_cache = slab_cache_create("struct pagemap cache", sizeof(struct pagemap));
     if (unlikely(pagemap_cache == NULL)) {
@@ -241,46 +257,46 @@ void paging_init(void) {
                 break;
         }
 
-        paddr = ALIGN_DOWN(memmap_entry->base, PAGE_SIZE);
+        paddr = ALIGN_DOWN(memmap_entry->base, PAGE_SIZE_4KB);
 
-        for (size_t j = 0; j < DIV_CEIL(memmap_entry->length, PAGE_SIZE); j++) {
-            pagemap_map(kernel_pagemap, paddr + HIGH_VMA, paddr, flags);
-            paddr += PAGE_SIZE;
+        for (size_t j = 0; j < DIV_CEIL(memmap_entry->length, PAGE_SIZE_4KB); j++) {
+            pagemap_map(kernel_pagemap, paddr + HIGH_VMA, paddr, flags, PAGE_SIZE_4KB);
+            paddr += PAGE_SIZE_4KB;
         }
     }
 
     struct limine_executable_address_response* kernel_address_response = executable_address_request.response;
 
-    uintptr_t limine_requests_start = ALIGN_DOWN((uintptr_t) limine_requests_start_addr, PAGE_SIZE);
-    uintptr_t limine_requests_end = ALIGN_UP((uintptr_t) limine_requests_end_addr, PAGE_SIZE);
+    uintptr_t limine_requests_start = ALIGN_DOWN((uintptr_t) limine_requests_start_addr, PAGE_SIZE_4KB);
+    uintptr_t limine_requests_end = ALIGN_UP((uintptr_t) limine_requests_end_addr, PAGE_SIZE_4KB);
 
-    uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE);
-    uintptr_t text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE);
+    uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE_4KB);
+    uintptr_t text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE_4KB);
 
-    uintptr_t rodata_start = ALIGN_DOWN((uintptr_t) rodata_start_addr, PAGE_SIZE);
-    uintptr_t rodata_end = ALIGN_UP((uintptr_t) rodata_end_addr, PAGE_SIZE);
+    uintptr_t rodata_start = ALIGN_DOWN((uintptr_t) rodata_start_addr, PAGE_SIZE_4KB);
+    uintptr_t rodata_end = ALIGN_UP((uintptr_t) rodata_end_addr, PAGE_SIZE_4KB);
 
-    uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE);
-    uintptr_t data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE);
+    uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE_4KB);
+    uintptr_t data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE_4KB);
 
-    for (uintptr_t limine_requests_addr = limine_requests_start; limine_requests_addr < limine_requests_end; limine_requests_addr += PAGE_SIZE) {
+    for (uintptr_t limine_requests_addr = limine_requests_start; limine_requests_addr < limine_requests_end; limine_requests_addr += PAGE_SIZE_4KB) {
         paddr = limine_requests_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, limine_requests_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, limine_requests_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
     }
 
-    for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE) {
+    for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE_4KB) {
         paddr = text_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE), PTE_PRESENT | PTE_GLOBAL);
+        pagemap_map(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL, PAGE_SIZE_4KB);
     }
 
-    for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE) {
+    for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE_4KB) {
         paddr = rodata_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, rodata_addr, paddr, PTE_PRESENT | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, rodata_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
     }
 
-    for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE) {
+    for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE_4KB) {
         paddr = data_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, data_addr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
+        pagemap_map(kernel_pagemap, data_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
     }
 
     pagemap_load(kernel_pagemap);

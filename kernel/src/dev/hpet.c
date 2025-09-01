@@ -68,9 +68,9 @@ void hpet_init(uint32_t hz) {
     uintptr_t hpet_paddr = hpet_table->address.base;
     hpet_addr = hpet_paddr + HIGH_VMA;
 
-    pagemap_map(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
+    pagemap_map(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
 
-    /* if HPET doesnt support legacy IRQ replacement, we cant use it */
+    /* if HPET doesnt support legacy IRQ replacement, we can't use it */
     if (!(hpet_read(HPET_REG_ID) & (1 << 15))) {
         kpanic(NULL, false, "HPET does not support legacy IRQ replacement mode\n");
     }

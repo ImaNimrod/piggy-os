@@ -39,16 +39,19 @@ struct process {
 
     struct pagemap* pagemap;
 
-    tid_t next_tid;
     struct process* parent;
-    vector_t* children;
+
+    struct process* children;
+    struct process* next;
+
+    tid_t next_tid;
     vector_t* threads;
 };
 
 extern struct process* kernel_process;
 
 struct process* process_create(struct process* old_process, struct pagemap* pagemap);
-bool process_create_init(void);
+void process_create_init(void);
 void process_destroy(struct process* process);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);

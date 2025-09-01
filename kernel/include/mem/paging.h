@@ -12,18 +12,21 @@ extern volatile struct limine_hhdm_request hhdm_request;
 
 #define HIGH_VMA (hhdm_request.response->offset)
 
-#define PAGE_SIZE       ((size_t) 0x1000)
-#define BIGPAGE_SIZE    ((size_t) 0x200000)
-
 #define PTE_PRESENT         (1ul << 0)
 #define PTE_WRITABLE        (1ul << 1)
 #define PTE_USER            (1ul << 2)
 #define PTE_CACHE_DISABLE   (1ul << 4)
-#define PTE_WRITE_COMBINE   (1ul << 3) | (1ul << 4)
+#define PTE_WRITE_COMBINE   (1ul << 12) | (1ul << 3)
 #define PTE_SIZE            (1ul << 7)
 #define PTE_GLOBAL          (1ul << 8)
 #define PTE_NX              (1ul << 63)
 #define PTE_FLAG_MASK       (0x8000000000000ffful)
+
+typedef enum {
+    PAGE_SIZE_4KB = 0x1000,
+    PAGE_SIZE_2MB = 0x200000,
+    PAGE_SIZE_1GB = 0x40000000,
+} page_size_t;
 
 struct pagemap {
     uint64_t* top_level;
@@ -36,7 +39,7 @@ extern struct pagemap* kernel_pagemap;
 struct pagemap* pagemap_create(void);
 bool pagemap_destroy(struct pagemap* pagemap);
 void pagemap_load(struct pagemap* pagemap);
-void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags);
+void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size);
 bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr);
 void paging_init(void);
 

@@ -44,7 +44,7 @@ static uintptr_t inner_alloc(size_t pages, uint64_t last_limit) {
                     BITMAP_SET(pmm_bitmap, i);
                 }
 
-                return page * PAGE_SIZE;
+                return page * PAGE_SIZE_4KB;
             }
         } else {
             last_used_index++;
@@ -76,12 +76,12 @@ uintptr_t pmm_alloc(size_t page_count) {
 
 uintptr_t pmm_alloc_zero(size_t page_count) {
     uintptr_t ret = pmm_alloc(page_count);
-    memset64((void*) (ret + HIGH_VMA), 0, (PAGE_SIZE * page_count) >> 3);
+    memset64((void*) (ret + HIGH_VMA), 0, (PAGE_SIZE_4KB * page_count) >> 3);
     return ret;
 }
 
 void pmm_free(uintptr_t paddr, size_t page_count) {
-    size_t page = paddr / PAGE_SIZE;
+    size_t page = paddr / PAGE_SIZE_4KB;
     if ((page + page_count) > highest_page_index) {
         kpanic(NULL, true, "tried to free physical pages that are outside bounds of physical memory");
     }
@@ -96,7 +96,7 @@ void pmm_free(uintptr_t paddr, size_t page_count) {
 }
 
 void pmm_reserve_mmio_space(uintptr_t paddr, size_t page_count) {
-    size_t page = paddr / PAGE_SIZE;
+    size_t page = paddr / PAGE_SIZE_4KB;
     if ((page + page_count) > highest_page_index) {
         return;
     }
@@ -124,15 +124,15 @@ void pmm_init(void) {
              i, entry->base, entry->length, memmap_type_str(entry->type));
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            usable_pages += DIV_CEIL(entry->length, PAGE_SIZE);
+            usable_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
             highest_paddr = MAX(highest_paddr, entry->base + entry->length);
         } else {
-            reserved_pages += DIV_CEIL(entry->length, PAGE_SIZE);
+            reserved_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
         }
     }
 
-    highest_page_index = highest_paddr / PAGE_SIZE;
-    size_t pmm_bitmap_size = ALIGN_UP(highest_page_index / 8, PAGE_SIZE);
+    highest_page_index = highest_paddr / PAGE_SIZE_4KB;
+    size_t pmm_bitmap_size = ALIGN_UP(highest_page_index / 8, PAGE_SIZE_4KB);
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
@@ -156,13 +156,13 @@ void pmm_init(void) {
                 length -= pmm_bitmap_size;
             }
 
-            for (uint64_t j = 0; j < length; j += PAGE_SIZE) {
-                BITMAP_CLEAR(pmm_bitmap, (base + j) / PAGE_SIZE);
+            for (uint64_t j = 0; j < length; j += PAGE_SIZE_4KB) {
+                BITMAP_CLEAR(pmm_bitmap, (base + j) / PAGE_SIZE_4KB);
             }
         }
     }
 
     klog("[pmm] usable memory: %zuMiB | reserved memory: %zuMiB\n",
-         (usable_pages * PAGE_SIZE) >> 20, (reserved_pages * PAGE_SIZE) >> 20);
+         (usable_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);
     klog("[pmm] initialized physical memory manager\n");
 }

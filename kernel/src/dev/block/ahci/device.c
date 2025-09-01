@@ -242,7 +242,7 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
     device->type = type;
 
     device->clb_and_fis_paddr = clb_and_fis_paddr;
-    device->command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
+    device->command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE_4KB));
 
     struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
     for (uint8_t i = 0; i < controller->slot_count; i++) {
@@ -311,7 +311,7 @@ error:
     pmm_free(identity_buffer_paddr, 1);
 
     stop_command_engine(device);
-    pmm_free(device->command_table_paddr, DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE));
+    pmm_free(device->command_table_paddr, DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE_4KB));
     pmm_free(device->clb_and_fis_paddr, 1);
 
     kfree(device);

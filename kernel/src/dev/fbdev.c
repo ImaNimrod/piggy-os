@@ -13,11 +13,11 @@ extern struct limine_framebuffer_request framebuffer_request;
 struct flanterm_context* fb_context = NULL;
 
 static void* flanterm_alloc(size_t size) {
-    return (void*) (pmm_alloc(DIV_CEIL(size, PAGE_SIZE)) + HIGH_VMA);
+    return (void*) (pmm_alloc(DIV_CEIL(size, PAGE_SIZE_4KB)) + HIGH_VMA);
 }
 
 static void flanterm_free(void* ptr, size_t size) {
-    pmm_free((uintptr_t) ptr - HIGH_VMA, DIV_CEIL(size, PAGE_SIZE));
+    pmm_free((uintptr_t) ptr - HIGH_VMA, DIV_CEIL(size, PAGE_SIZE_4KB));
 }
 
 void fbdev_init(void) {

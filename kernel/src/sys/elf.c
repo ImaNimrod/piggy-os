@@ -111,8 +111,8 @@ bool elf_load(struct pagemap* pagemap, uintptr_t* entry) {
             continue;
         }
 
-        size_t misalign = pheader->p_vaddr & (PAGE_SIZE - 1);
-        size_t page_count = (misalign + pheader->p_memsz + (PAGE_SIZE - 1)) / PAGE_SIZE;
+        size_t misalign = pheader->p_vaddr & (PAGE_SIZE_4KB - 1);
+        size_t page_count = (misalign + pheader->p_memsz + (PAGE_SIZE_4KB - 1)) / PAGE_SIZE_4KB;
 
         uintptr_t phys_pages = pmm_alloc_zero(page_count);
 
@@ -128,14 +128,14 @@ bool elf_load(struct pagemap* pagemap, uintptr_t* entry) {
             prot &= ~VMM_FLAG_PROT_EXEC;
         }
 
-        if (unlikely(!vmm_map(pagemap, pheader->p_vaddr, (page_count * PAGE_SIZE), prot))) {
+        if (unlikely(!vmm_map(pagemap, pheader->p_vaddr, (page_count * PAGE_SIZE_4KB), prot))) {
             return false;
         }
 
-        for (size_t j = 0; j < page_count; j++) {
-            uintptr_t vaddr = pheader->p_vaddr + (j * PAGE_SIZE);
-            uintptr_t paddr = phys_pages + (j * PAGE_SIZE);
-            pagemap_map(pagemap, vaddr, paddr, vmm_flags);
+        for (size_t j = 0; j < (page_count * PAGE_SIZE_4KB); j += PAGE_SIZE_4KB) {
+            uintptr_t vaddr = pheader->p_vaddr + j;
+            uintptr_t paddr = phys_pages + j;
+            pagemap_map(pagemap, vaddr, paddr, vmm_flags, PAGE_SIZE_4KB);
         }
 
         memcpy((void*) (phys_pages + HIGH_VMA + misalign), (void*) ((uintptr_t) data + pheader->p_offset), pheader->p_filesz);

@@ -41,7 +41,7 @@ bool vmm_handle_page_fault(struct pagemap* pagemap, uintptr_t fault_addr) {
         return false;
     }
 
-    pagemap_map(pagemap, fault_addr & ~0xffful, pmm_alloc(1), vmm_flags_to_pte_flags(vma->flags));
+    pagemap_map(pagemap, fault_addr & ~0xffful, pmm_alloc(1), vmm_flags_to_pte_flags(vma->flags), PAGE_SIZE_4KB);
 
     return true;
 }

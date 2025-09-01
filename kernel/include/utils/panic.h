@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include <utils/macros.h>
 
-#define PANIC_IPI_VECTOR 254
+#define PANIC_IPI_VECTOR 253
 
 NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...);
 

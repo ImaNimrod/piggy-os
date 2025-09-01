@@ -127,7 +127,7 @@ struct slab_cache* slab_cache_create(const char* name, size_t object_size) {
 
     strncpy(new_cache->name, name, CACHE_NAME_MAX_LEN);
     new_cache->object_size = object_size;
-    new_cache->pages_per_slab = DIV_CEIL(object_size * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE);
+    new_cache->pages_per_slab = DIV_CEIL(object_size * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE_4KB);
 
     return new_cache;
 }
@@ -201,7 +201,7 @@ bool slab_cache_free(struct slab_cache* cache, void* object) {
 void slab_init(void) {
     strncpy(cache_cache.name, "struct slab_cache cache", CACHE_NAME_MAX_LEN);
     cache_cache.object_size = sizeof(struct slab_cache);
-    cache_cache.pages_per_slab = DIV_CEIL(sizeof(struct slab_cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE);
+    cache_cache.pages_per_slab = DIV_CEIL(sizeof(struct slab_cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE_4KB);
 
     kmalloc_caches[0] = slab_cache_create("kmalloc_16 cache", 16);
     kmalloc_caches[1] = slab_cache_create("kmalloc_24 cache", 24);

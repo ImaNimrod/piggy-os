@@ -71,7 +71,7 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
     queue->size = mmio_read16(&dev->common_config->queue_size);
     queue->lock = (spinlock_t) {0};
 
-    uintptr_t descriptor_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE));
+    uintptr_t descriptor_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB));
     queue->descriptors = (void*) (descriptor_paddr + HIGH_VMA);
     uintptr_t available_paddr = pmm_alloc_zero(2);
     queue->available = (void*) (available_paddr + HIGH_VMA);
@@ -116,7 +116,7 @@ static void virtio_init(struct pci_device* pci_dev) {
 
     struct virtio_device* dev = kmalloc(sizeof(struct virtio_device));
     if (unlikely(dev == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for virtio device");
+        kpanic(NULL, false, "failed to allocate memory for VirtIO device");
     }
     dev->pci_dev = pci_dev;
 
@@ -172,7 +172,7 @@ static void virtio_init(struct pci_device* pci_dev) {
 
     struct virtio_queue* queues = kmalloc(sizeof(struct virtio_queue) * dev->common_config->queue_count);
     if (unlikely(queues == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for virtio device queues");
+        kpanic(NULL, false, "failed to allocate memory for VirtIO device queues");
     }
     dev->queues = queues;
 
