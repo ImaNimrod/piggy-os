@@ -1,2 +1,5 @@
 *.iso
 *.img
+
+toolchain/build/
+toolchain/tarballs/

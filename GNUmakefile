@@ -1,6 +1,8 @@
 MAKEFLAGS += -rR
 .SUFFIXES:
 
+include ./config.mk
+
 override IMAGE_NAME := piggy
 
 EMUOPTS := -machine q35 \
@@ -19,7 +21,7 @@ run: run-virtio
 
 .PHONY: run-virtio
 run-virtio:
-	qemu-system-x86_64 $(EMUOPTS) \
+	$(EMU) $(EMUOPTS) \
 		-drive id=disk,file=disk.img,format=raw,if=none -device virtio-blk-pci,drive=disk \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
@@ -27,11 +29,16 @@ run-virtio:
 
 .PHONY: run-realhw
 run-realhw:
-	qemu-system-x86_64 $(EMUOPTS) \
-		-hda disk.img \
+	$(EMU) $(EMUOPTS) \
+		-drive file=disk.img,if=none,id=D22 \
+		-device nvme,drive=D22,serial=1234 \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso
+
+.PHONY: toolchain
+toolchain:
+	./toolchain/build.sh
 
 .PHONY: todolist
 todolist:
@@ -48,7 +55,7 @@ kernel:
 $(IMAGE_NAME).iso: limine/limine kernel
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp -v kernel/kernel.elf test/test iso_root/boot/
+	cp -v kernel/kernel.elf iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
