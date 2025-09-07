@@ -76,8 +76,9 @@ NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
 
-    int ret = vfs_mount(NULL, vfs_root, "/", "tmpfs");
-    klog("mount: %d\n", ret);
+    if (vfs_mount(NULL, vfs_root, "/", "tmpfs") < 0) {
+        kpanic(NULL, false, "failed to mount root filesystem");
+    }
 
     struct limine_module_response* module_response = module_request.response;
     if (unlikely(module_response == NULL)) {
@@ -97,17 +98,6 @@ NORETURN static void kernel_main(void) {
     }
 
     initrd_unpack(initrd_module);
-
-    klog("creating\n");
-    ret = vfs_create(vfs_root, "/dev", VFS_TYPE_DIRECTORY, NULL);
-    klog("create: %d\n", ret);
-
-    ret = vfs_mount(NULL, vfs_root, "/dev", "devfs");
-    klog("mount: %d\n", ret);
-
-    struct vfs_node* bruh;
-    ret = vfs_lookup(vfs_root, "./linker.ld", false, NULL, &bruh);
-    klog("lookup: %d\n", ret);
 
     net_init();
 

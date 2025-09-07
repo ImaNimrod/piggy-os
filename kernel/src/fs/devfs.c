@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -36,7 +37,7 @@ static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, st
 
     struct vfs_filesystem* vfs = kmalloc(sizeof(struct vfs_filesystem));
     if (unlikely(vfs == NULL)) {
-        return -1;
+        return -ENOMEM;
     }
 
     *result = vfs;

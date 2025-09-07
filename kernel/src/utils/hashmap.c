@@ -18,6 +18,7 @@ struct hashmap_entry {
 
 struct hashmap {
     size_t capacity;
+    size_t size;
     struct hashmap_entry** entries;
 };
 
@@ -135,6 +136,7 @@ bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
         }
 
         hm->entries[hash % hm->capacity] = new_entry;
+        hm->size++;
     }
 
     return true;
@@ -164,5 +166,14 @@ bool hashmap_remove(hashmap_t* hm, const void* key, size_t key_size) {
 
     kfree(entry->key);
     kfree(entry);
+
+    hm->size--;
     return true;
+}
+
+size_t hashmap_size(hashmap_t* hm) {
+    if (likely(hm != NULL)) {
+        return hm->size;
+    }
+    return 0;
 }

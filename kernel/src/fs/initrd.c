@@ -64,10 +64,10 @@ void initrd_unpack(struct limine_file* initrd_module) {
             continue;
         }
 
-        size_t size = oct2int(current_file->size, sizeof(current_file->size));
+        off_t size = oct2int(current_file->size, sizeof(current_file->size));
 
         int error = 0;
-        struct vfs_node* node;
+        struct vfs_node* node = NULL;
 
         switch (current_file->type) {
             case TAR_FILE_TYPE_NORMAL:
@@ -76,11 +76,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                     break;
                 }
 
-                node->ops->unlock(node);
-                /*
                 error = node->ops->write(node, (const void*) ((uintptr_t) current_file + TAR_BLOCK_SIZE), size, 0);
-                VFS_NODE_UNREF(node);
-                */
                 break;
             case TAR_FILE_TYPE_DIRECTORY:
                 error = vfs_create(vfs_root, name, VFS_TYPE_DIRECTORY, &node);
@@ -94,11 +90,22 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 break;
         }
 
+        if (error == 0 && node != NULL) {
+            time_t mtime = oct2int(current_file->mtime, sizeof(current_file->mtime));
+            struct timespec timestamp = { .tv_sec = mtime, .tv_nsec = 0 };
+
+            struct stat stat = { .st_atim = timestamp, .st_mtim = timestamp, .st_ctim = timestamp };
+            error = node->ops->setstat(node, &stat, VFS_STAT_ST_ATIM | VFS_STAT_ST_MTIM | VFS_STAT_ST_CTIM);
+
+            node->ops->unlock(node);
+            VFS_NODE_UNREF(node);
+        }
+
         if (error != 0) {
             klog("[initrd] failed to unpack file '%s': %d\n", name, error);
         }
 
-        pmm_free((uintptr_t) current_file - HIGH_VMA, (512 + ALIGN_UP(size, 512)) / PAGE_SIZE_4KB);
+        pmm_free((uintptr_t) current_file - HIGH_VMA, (TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE)) / PAGE_SIZE_4KB);
         current_file = (struct tar_header*) ((uintptr_t) current_file + TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE));
     }
 

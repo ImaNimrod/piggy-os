@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <utils/hashmap.h>
@@ -30,7 +31,7 @@ int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* p
     struct vfs_ops* ops;
 
     if (!hashmap_get(vfs_filesystems, fs_name, strlen(fs_name), (void**) &ops)) {
-        return -1;
+        return -EINVAL;
     }
 
     struct vfs_node* mount;
@@ -43,7 +44,7 @@ int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* p
     if (mount->type != VFS_TYPE_DIRECTORY) {
         mount->ops->unlock(mount);
         VFS_NODE_UNREF(mount);
-        return -1;
+        return -ENOTDIR;
     }
 
     struct vfs_filesystem* filesystem;
@@ -70,7 +71,7 @@ int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* p
 int vfs_create(struct vfs_node* reference, char* path, vfs_type_t type, struct vfs_node** result) {
     char* component = kmalloc(strlen(path) + 1);
     if (unlikely(component == NULL)) {
-        return -1;
+        return -ENOMEM;
     }
 
     struct vfs_node* parent;
@@ -106,12 +107,12 @@ cleanup:
 
 int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char* last_component, struct vfs_node** result) {
     if (unlikely(path == NULL || *path == '\0')) {
-        return -1;
+        return -ENOENT;
     }
 
     size_t path_len = strlen(path);
     if (path_len > PATH_MAX_LENGTH) {
-        return -1;
+        return -ENAMETOOLONG;
     }
 
     struct vfs_node* current = reference;
@@ -127,7 +128,7 @@ int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char*
 
     char* comp_buffer = kmalloc(path_len + 1);
     if (unlikely(comp_buffer == NULL)) {
-        return -1;
+        return -ENOMEM;
     }
 
     strncpy(comp_buffer, path, path_len);
@@ -149,7 +150,7 @@ int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char*
         }
 
         if (current->type != VFS_TYPE_DIRECTORY) {
-            error = -1;
+            error = -ENOTDIR;
             break;
         }
 
@@ -245,6 +246,34 @@ int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char*
     kfree(comp_buffer);
     return error;
 } 
+
+int vfs_unlink(struct vfs_node* reference, char* path) {
+    char* component = kmalloc(strlen(path) + 1);
+    if (unlikely(component == NULL)) {
+        return -ENOMEM;
+    }
+
+    struct vfs_node* parent;
+
+    int error = vfs_lookup(reference, path, true, component, &parent);
+    if (error != 0) {
+        goto cleanup;
+    }
+
+    struct vfs_node* child;
+    error = parent->ops->unlink(parent, component, &child);
+
+    if (strcmp(path, "..")) {
+        parent->ops->unlock(parent);
+    }
+
+    VFS_NODE_UNREF(child);
+    VFS_NODE_UNREF(parent);
+
+cleanup:
+    kfree(component);
+    return error;
+}
 
 bool vfs_register_fs(const char* name, struct vfs_ops* ops) {
     return hashmap_set(vfs_filesystems, name, strlen(name), ops);
