@@ -2,6 +2,7 @@
 #define _KERNEL_UTILS_SPINLOCK_H 1
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef uint64_t spinlock_t;
 

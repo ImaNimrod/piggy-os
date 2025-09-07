@@ -40,32 +40,6 @@ struct arp_cache_entry {
 static hashmap_t* arp_cache = NULL;
 static spinlock_t arp_cache_lock = {0};
 
-static bool ipv4_key_compare(const void* key1, const void* key2) {
-    return (uintptr_t) key1 == (uintptr_t) key2;
-}
-
-static void* ipv4_key_dupe(const void* key) {
-    return (void*) key;
-}
-
-static void ipv4_key_free(void* key) {
-    (void) key;
-}
-
-static size_t ipv4_key_hash(const void* key) {
-    uint32_t hash = (uintptr_t) key;
-    hash ^= hash >> 16;
-    hash *= 0x85ebca6b;
-    hash ^= hash >> 13;
-    hash *= 0xc2b2ae35;
-    hash ^= hash >> 16;
-    return hash;
-}
-
-static void mac_value_free(void* value) {
-    kfree(value);
-}
-
 static void arp_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t dip) {
     struct packet* packet = packet_alloc(netif, sizeof(struct eth_header) + sizeof(struct arp_header) + sizeof(struct arp_data_ipv4));
 
@@ -108,7 +82,7 @@ void arp_handle(struct packet* packet, void* l3_data) {
 
             void* mac = kmalloc(sizeof(mac_address_t));
             memcpy(mac, data->smac, sizeof(mac_address_t));
-            hashmap_set(arp_cache, (const void*) (uintptr_t) ntohl(data->sip), mac);
+            hashmap_set(arp_cache, (const void*) (uintptr_t) ntohl(data->sip), sizeof(ipv4_address_t), mac);
 
             spinlock_release(&arp_cache_lock);
         }
@@ -125,7 +99,7 @@ bool arp_lookup_ip(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
 
     mac_address_t* cache_mac;
 
-    bool ret = hashmap_get(arp_cache, (const void*) (uintptr_t) ip, (void**) &cache_mac);
+    bool ret = hashmap_get(arp_cache, (const void*) (uintptr_t) ip, sizeof(ipv4_address_t), (void**) &cache_mac);
     if (ret) {
         memcpy(mac, cache_mac, sizeof(mac_address_t));
     }
@@ -136,7 +110,7 @@ bool arp_lookup_ip(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
 }
 
 void arp_init(void) {
-    arp_cache = hashmap_create(20, ipv4_key_compare, ipv4_key_dupe, ipv4_key_free, ipv4_key_hash, mac_value_free);
+    arp_cache = hashmap_create(20);
     if (unlikely(arp_cache == NULL)) {
         kpanic(NULL, false, "failed to initialize ARP cache");
     }

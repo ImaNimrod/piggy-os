@@ -35,6 +35,6 @@ do { \
 } while (0)
 
 #define SLIST_FOREACH(head, iter) \
-for ((iter) = (head); (iter) != NULL; (iter) = (iter)->next)
+    for ((iter) = (head); (iter) != NULL; (iter) = (iter)->next)
 
 #endif /* _KERNEL_UTILS_LIST_H */

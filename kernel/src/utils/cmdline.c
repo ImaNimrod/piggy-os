@@ -18,7 +18,7 @@ char* cmdline_get(const char* key) {
     char* value = NULL;
 
     if (cmdline_hashmap != NULL) {
-        hashmap_get(cmdline_hashmap, key, (void**) &value);
+        hashmap_get(cmdline_hashmap, key, strlen(key), (void**) &value);
     }
 
     return value;
@@ -32,7 +32,7 @@ void cmdline_parse(void) {
         return;
     }
 
-    cmdline_hashmap = hashmap_create_string(20);
+    cmdline_hashmap = hashmap_create(20);
     if (unlikely(cmdline_hashmap == NULL)) {
         kpanic(NULL, false, "failed to create kernel command line map");
     }
@@ -82,11 +82,11 @@ void cmdline_parse(void) {
             char* value = kmalloc(value_len + 1);
             strncpy(value, &buffer[i + key_len + 1], value_len);
 
-            hashmap_set(cmdline_hashmap, &buffer[i], value);
+            hashmap_set(cmdline_hashmap, &buffer[i], key_len, value);
             i += value_len + 1;
         } else {
             char* value = strdup(&buffer[i]);
-            hashmap_set(cmdline_hashmap, &buffer[i], value);
+            hashmap_set(cmdline_hashmap, &buffer[i], key_len, value);
         }
 
         i += key_len + 1;

@@ -1,7 +1,7 @@
 MAKEFLAGS += -rR
 .SUFFIXES:
 
-override KERNEL_FILE := kernel.elf
+include ../config.mk
 
 CFLAGS := \
 		  -g \
@@ -51,11 +51,9 @@ CPPFLAGS := \
 			-MMD \
 			-MP
 
-NASMFLAGS := -f elf64
-
 KERNEL_CFILES := $(shell cd src && find . -type f -name '*.c')
-KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.asm')
-KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.asm=.o))
+KERNEL_ASFILES := $(shell cd src && find . -type f -name '*.S')
+KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.S=.o))
 
 .PHONY: all
 all: $(KERNEL_FILE)
@@ -65,15 +63,15 @@ include/limine.h:
 
 $(KERNEL_FILE): $(KERNEL_OBJFILES)
 	@mkdir -p "$$(dirname $@)"
-	ld $(LDFLAGS) $(KERNEL_OBJFILES) -o $@
+	$(LD) $(LDFLAGS) $(KERNEL_OBJFILES) -o $@
 
 obj/%.o: src/%.c include/limine.h
 	@mkdir -p "$$(dirname $@)"
-	cc $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 
-obj/%.o: src/%.asm
+obj/%.o: src/%.S
 	@mkdir -p "$$(dirname $@)"
-	nasm $(NASMFLAGS) $< -o $@
+	$(AS) $(ASFLAGS) $< -o $@
 
 .PHONY: clean
 clean:

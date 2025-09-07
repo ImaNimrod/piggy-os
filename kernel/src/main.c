@@ -6,6 +6,10 @@
 #include <dev/lapic.h>
 #include <dev/pci.h>
 #include <dev/serial.h>
+#include <fs/devfs.h>
+#include <fs/initrd.h>
+#include <fs/tmpfs.h>
+#include <fs/vfs.h>
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
@@ -18,6 +22,7 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
+#include <utils/string.h>
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
 
@@ -67,13 +72,50 @@ LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
 __attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER
 
 NORETURN static void kernel_main(void) {
+    vfs_init();
+    devfs_init();
+    tmpfs_init();
+
+    int ret = vfs_mount(NULL, vfs_root, "/", "tmpfs");
+    klog("mount: %d\n", ret);
+
+    struct limine_module_response* module_response = module_request.response;
+    if (unlikely(module_response == NULL)) {
+        kpanic(NULL, false, "missing initial ramdisk");
+    }
+
+    struct limine_file* initrd_module = NULL;
+    for (uint64_t i = 0; i < module_response->module_count; i++) {
+        if (strcmp(module_response->modules[i]->path, "/boot/initrd.tar") == 0) {
+            initrd_module = module_response->modules[i];
+            break;
+        }
+    }
+
+    if (initrd_module == NULL) {
+        kpanic(NULL, false, "missing initial ramdisk");
+    }
+
+    initrd_unpack(initrd_module);
+
+    klog("creating\n");
+    ret = vfs_create(vfs_root, "/dev", VFS_TYPE_DIRECTORY, NULL);
+    klog("create: %d\n", ret);
+
+    ret = vfs_mount(NULL, vfs_root, "/dev", "devfs");
+    klog("mount: %d\n", ret);
+
+    struct vfs_node* bruh;
+    ret = vfs_lookup(vfs_root, "./linker.ld", false, NULL, &bruh);
+    klog("lookup: %d\n", ret);
+
     net_init();
 
     pci_init();
 
     klog("\nhey pig...\n");
 
-    process_create_init();
+    //process_create_init();
 
     thread_destroy(this_cpu()->running_thread);
     scheduler_await();

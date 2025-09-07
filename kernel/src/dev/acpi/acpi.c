@@ -23,6 +23,7 @@ extern struct limine_rsdp_request rsdp_request;
 
 static struct rsdp* rsdp = NULL;
 static struct acpi_sdt* rsdt = NULL;
+static size_t rsdt_entry_count = 0;
 static bool use_acpi_rev2 = false;
 
 static bool verify_checksum(struct acpi_sdt* sdt) {
@@ -37,9 +38,8 @@ static bool verify_checksum(struct acpi_sdt* sdt) {
 
 struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
     struct acpi_sdt* sdt = NULL;
-    size_t entry_count = (rsdt->length - sizeof(struct acpi_sdt)) / (use_acpi_rev2 ? 8 : 4);
 
-    for (size_t i = 0; i < entry_count; i++) {
+    for (size_t i = 0; i < rsdt_entry_count; i++) {
         if (use_acpi_rev2) {
             sdt = (struct acpi_sdt*) (*((uint64_t*) (rsdt + 1) + i) + HIGH_VMA);
         } else {
@@ -52,7 +52,6 @@ struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
 
         if (!verify_checksum(sdt)) {
             kpanic(NULL, false, "APCI table '%s' has an invalid checksum", signature);
-            continue;
         }
 
         return sdt;
@@ -78,6 +77,12 @@ void acpi_init(void) {
         if (unlikely(memcmp(rsdt, "RSDT", 4) || !verify_checksum(rsdt))) {
             kpanic(NULL, false, "RSDT corrupted or not present");
         }
+    }
+
+    rsdt_entry_count = (rsdt->length - sizeof(struct acpi_sdt)) / (use_acpi_rev2 ? sizeof(uint64_t) : sizeof(uint32_t));
+    for (size_t i = 0; i < rsdt_entry_count; i++) {
+        uintptr_t table_paddr = (uintptr_t) *((uint64_t*) (rsdt + 1) + i);
+        pagemap_map(kernel_pagemap, table_paddr + HIGH_VMA, table_paddr, PTE_PRESENT | PTE_CACHE_DISABLE | PTE_NX, PAGE_SIZE_4KB);
     }
 
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");

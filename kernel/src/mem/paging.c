@@ -167,6 +167,9 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        goto end;
+    }
 
     if (pml3[pml3_index] & PTE_SIZE) {
         pml3[pml3_index] = 0;
@@ -175,20 +178,15 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
         goto end;
     }
 
-    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
         goto end;
     }
-
-    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
 
     if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
         invlpg(vaddr);
         ret = true;
-        goto end;
-    }
-
-    if (!(pml2[pml2_index] & PTE_PRESENT)) {
         goto end;
     }
 

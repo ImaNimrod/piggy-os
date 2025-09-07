@@ -68,7 +68,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER);
+    pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE);
 
     struct hba_registers* hba_registers = (void*) (bar5.base_address + HIGH_VMA);
 
@@ -117,7 +117,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    /* nable AHCI mode and disable interrupts */
+    /* enable AHCI mode and disable interrupts */
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_AE);
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) & ~GHC_IE);
 
@@ -144,14 +144,14 @@ static void ahci_init(struct pci_device* pci_dev) {
         goto error;
     }
 
+    klog("[ahci] initialized AHCI controller (version: %x.%x, link speed: %s)\n",
+            (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
+            interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
+
     enumerate_ports(controller);
     if (vector_size(controller->devices) == 0) {
         goto error;
     }
-
-    klog("[ahci] initialized AHCI controller (version: %x.%x, link speed: %s)\n",
-         (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
-         interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
     /* renable interrupts for the controller */
     pci_set_msi_mask(pci_dev, false);

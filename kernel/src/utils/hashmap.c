@@ -4,68 +4,61 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
+#define FNV_OFFSET_BASIS_32 2166136261U
+#define FNV_PRIME_32        16777619U
+
 struct hashmap_entry {
+    uint32_t hash;
     void* key;
+    size_t key_size;
     void* value;
+    struct hashmap_entry* prev;
     struct hashmap_entry* next;
 };
 
 struct hashmap {
-    size_t size;
-    key_compare_func_t key_compare_func;
-    key_dupe_func_t key_dupe_func;
-    key_free_func_t key_free_func;
-    key_hash_func_t key_hash_func;
-    value_free_func_t value_free_func;
+    size_t capacity;
     struct hashmap_entry** entries;
 };
 
-bool string_key_compare(const void* key1, const void* key2) {
-    return strcmp((const char*) key1, (const char*) key2) == 0;
-}
+static uint32_t fnv1a_hash(const void* data, size_t length) {
+    const uint8_t* bytes = (const uint8_t*) data;
 
-void* string_key_dupe(const void* key) {
-    return strdup(key);
-}
+    uint32_t hash = FNV_OFFSET_BASIS_32;
 
-void string_key_free(void* key) {
-    kfree(key);
-}
-
-size_t string_key_hash(const void* key) {
-    const char* str = key;
-
-    size_t hash = 5381;
-    while (*str != '\0') {
-        hash = ((hash << 5) + hash) + (uint8_t) (*str++);
+    for (size_t i = 0; i < length; ++i) {
+        hash ^= bytes[i];
+        hash *= FNV_PRIME_32;
     }
+
     return hash;
 }
 
-void string_value_free(void* value) {
-    kfree(value);
+static struct hashmap_entry* get_entry(hashmap_t* hm, const void* key, size_t key_size, size_t hash) {
+    struct hashmap_entry* entry = hm->entries[hash % hm->capacity];
+    while (entry != NULL) {
+        if (entry->key_size == key_size && entry->hash == hash && (memcmp(entry->key, key, key_size) == 0)) {
+            break;
+        }
+        entry = entry->next;
+    }
+
+    return entry;
 }
 
-hashmap_t* hashmap_create(size_t size, key_compare_func_t key_compare_func, key_dupe_func_t key_dupe_func, key_free_func_t key_free_func, key_hash_func_t key_hash_func, value_free_func_t value_free_func) {
+hashmap_t* hashmap_create(size_t capacity) {
     hashmap_t* hm = kmalloc(sizeof(hashmap_t));
     if (unlikely(hm == NULL)) {
         return NULL;
     }
 
-    hm->entries = kmalloc(sizeof(struct hashmap_entry*) * size);
+    hm->entries = kmalloc(sizeof(struct hashmap_entry*) * capacity);
     if (unlikely(hm->entries == NULL)) {
         kfree(hm);
         return NULL;
     }
 
-    hm->size = size;
-
-    hm->key_compare_func = key_compare_func;
-    hm->key_dupe_func = key_dupe_func;
-    hm->key_free_func = key_free_func;
-    hm->key_hash_func = key_hash_func;
-    hm->value_free_func = value_free_func;
-
+    hm->capacity = capacity;
     return hm;
 }
 
@@ -74,15 +67,14 @@ void hashmap_destroy(hashmap_t* hm) {
         return;
     }
 
-    for (size_t i = 0; i < hm->size; i++) {
+    for (size_t i = 0; i < hm->capacity; i++) {
         struct hashmap_entry* entry = hm->entries[i];
         struct hashmap_entry* next_entry;
 
         while (entry != NULL) {
             next_entry = entry->next;
 
-            hm->key_free_func(entry->key);
-            hm->value_free_func(entry->value);
+            kfree(entry->key);
             kfree(entry);
 
             entry = next_entry;
@@ -93,72 +85,84 @@ void hashmap_destroy(hashmap_t* hm) {
     kfree(hm);
 }
 
-bool hashmap_get(hashmap_t* hm, const void* key, void** value) {
-    if (unlikely(hm == NULL)) {
-        return NULL;
-    }
-
-    size_t index = hm->key_hash_func(key) % hm->size;
-
-    struct hashmap_entry* entry = hm->entries[index];
-    while (entry != NULL) {
-        if (hm->key_compare_func(entry->key, key)) {
-            *value = entry->value;
-            return true;
-        }
-        entry = entry->next;
-    }
-
-    return false;
-}
-
-bool hashmap_set(hashmap_t* hm, const void* key, void* value) {
+bool hashmap_get(hashmap_t* hm, const void* key, size_t key_size, void** value) {
     if (unlikely(hm == NULL)) {
         return false;
     }
 
-    size_t index = hm->key_hash_func(key) % hm->size;
+    uint32_t hash = fnv1a_hash(key, key_size);
 
-    struct hashmap_entry* entry1 = hm->entries[index];
-    if (entry1 == NULL) {
-        struct hashmap_entry* new_entry = kmalloc(sizeof(struct hashmap_entry));
-        if (unlikely(new_entry == NULL)) {
-            return false;
-        }
-        new_entry->key = hm->key_dupe_func(key);
-        new_entry->value = value;
-        new_entry->next = NULL;
+    struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
+    if (entry == NULL) {
+        return false;
+    }
 
-        hm->entries[index] = new_entry;
+    *value = entry->value;
+    return true;
+}
+
+bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
+    if (unlikely(hm == NULL)) {
+        return false;
+    }
+
+    uint32_t hash = fnv1a_hash(key, key_size);
+
+    struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
+    if (entry != NULL) {
+        entry->value = value;
     } else {
-        struct hashmap_entry* entry2 = NULL;
-        do {
-            if (hm->key_compare_func(entry1->key, key)) {
-                entry1->value = value;
-                return true;
-            } else {
-                entry2 = entry1;
-                entry1 = entry1->next;
-            }
-        } while (entry1 != NULL);
-
         struct hashmap_entry* new_entry = kmalloc(sizeof(struct hashmap_entry));
         if (unlikely(new_entry == NULL)) {
             return false;
         }
-        new_entry->key = hm->key_dupe_func(key);
-        new_entry->value = value;
-        new_entry->next = NULL;
 
-        entry2->next = new_entry;
+        new_entry->key = kmalloc(key_size);
+        if (unlikely(new_entry->key == NULL)) {
+            kfree(new_entry);
+            return false;
+        }
+
+        new_entry->hash = hash;
+        memcpy(new_entry->key, key, key_size);
+        new_entry->key_size = key_size;
+        new_entry->value = value;
+
+        new_entry->prev = NULL;
+        new_entry->next = hm->entries[hash % hm->capacity];
+        if (new_entry->next != NULL) {
+            new_entry->next->prev = new_entry;
+        }
+
+        hm->entries[hash % hm->capacity] = new_entry;
     }
 
     return true;
 }
 
-// TODO: implement hashmap_remove
-bool hashmap_remove(hashmap_t* hm, const void* key) {
-    (void) hm;
-    (void) key;
-    return false;
+bool hashmap_remove(hashmap_t* hm, const void* key, size_t key_size) {
+    if (unlikely(hm == NULL)) {
+        return false;
+    }
+
+    uint32_t hash = fnv1a_hash(key, key_size);
+
+    struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
+    if (entry == NULL) {
+        return false;
+    }
+
+    if (entry->prev != NULL) {
+        entry->prev->next = entry->next;
+    } else {
+        hm->entries[hash % hm->capacity] = entry->next;
+    }
+
+    if (entry->next != NULL) {
+        entry->next->prev = entry->prev;
+    }
+
+    kfree(entry->key);
+    kfree(entry);
+    return true;
 }

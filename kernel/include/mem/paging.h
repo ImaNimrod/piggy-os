@@ -41,6 +41,7 @@ bool pagemap_destroy(struct pagemap* pagemap);
 void pagemap_load(struct pagemap* pagemap);
 void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size);
 bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr);
+uintptr_t pagemap_vaddr_to_paddr(struct pagemap* pagemap, uintptr_t vaddr);
 void paging_init(void);
 
 #endif /* _KERNEL_MEM_PAGING_H */

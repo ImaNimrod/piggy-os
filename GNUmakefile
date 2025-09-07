@@ -52,10 +52,14 @@ limine/limine:
 kernel:
 	$(MAKE) -C kernel
 
-$(IMAGE_NAME).iso: limine/limine kernel
+.PHONY: initrd
+initrd:
+	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_FILE) *
+
+$(IMAGE_NAME).iso: limine/limine kernel initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp -v kernel/kernel.elf iso_root/boot/
+	cp -v kernel/$(KERNEL_FILE) $(INITRD_FILE) iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
@@ -72,10 +76,10 @@ $(IMAGE_NAME).iso: limine/limine kernel
 
 .PHONY: clean
 clean:
+	rm -rf iso_root $(IMAGE_NAME).iso $(INITRD_FILE)
 	$(MAKE) -C kernel clean
-	rm -rf iso_root $(IMAGE_NAME).iso
 
 .PHONY: distclean
 distclean:
+	$(MAKE) -C limine clean
 	$(MAKE) -C kernel distclean
-	rm -rf *.iso iso_root limine

@@ -1,0 +1,273 @@
+#include <fs/vfs.h>
+#include <mem/slab.h>
+#include <utils/hashmap.h>
+#include <utils/list.h>
+#include <utils/log.h>
+#include <utils/macros.h>
+#include <utils/panic.h>
+#include <utils/string.h>
+
+struct vfs_node* vfs_root = NULL;
+
+static struct vfs_filesystem* filesystem_list = NULL;
+static spinlock_t filesystem_lock = {0};
+
+static hashmap_t* vfs_filesystems = NULL; 
+
+static int nop(struct vfs_node* node);
+
+static struct vfs_node_ops root_node_ops = {
+    .lock = nop,
+    .unlock = nop,
+};
+
+static int nop(struct vfs_node* node) {
+    (void) node;
+    return 0;
+}
+
+int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* path, char* fs_name) {
+    struct vfs_ops* ops;
+
+    if (!hashmap_get(vfs_filesystems, fs_name, strlen(fs_name), (void**) &ops)) {
+        return -1;
+    }
+
+    struct vfs_node* mount;
+
+    int error = vfs_lookup(path_reference, path, false, NULL, &mount);
+    if (error != 0) {
+        return error;
+    }
+
+    if (mount->type != VFS_TYPE_DIRECTORY) {
+        mount->ops->unlock(mount);
+        VFS_NODE_UNREF(mount);
+        return -1;
+    }
+
+    struct vfs_filesystem* filesystem;
+
+    error = ops->mount(backing, mount, &filesystem);
+    if (error != 0) {
+        mount->ops->unlock(mount);
+        VFS_NODE_UNREF(mount);
+        return error;
+    }
+
+    spinlock_acquire(&filesystem_lock);
+    SLIST_PUSH_FRONT(filesystem_list, filesystem);
+    spinlock_release(&filesystem_lock);
+
+    mount->mounted = filesystem;
+    filesystem->node = mount;
+
+    mount->ops->unlock(mount);
+    return 0;
+}
+
+
+int vfs_create(struct vfs_node* reference, char* path, vfs_type_t type, struct vfs_node** result) {
+    char* component = kmalloc(strlen(path) + 1);
+    if (unlikely(component == NULL)) {
+        return -1;
+    }
+
+    struct vfs_node* parent;
+
+    int error = vfs_lookup(reference, path, true, component, &parent);
+    if (error != 0) {
+        goto cleanup;
+    }
+
+    struct vfs_node* new_node;
+    error = parent->ops->create(parent, component, type, &new_node);
+
+    VFS_NODE_UNREF(parent);
+
+    if (error != 0) {
+        parent->ops->unlock(parent);
+        goto cleanup;
+    }
+
+    if (result != NULL) {
+        *result = new_node;
+    } else {
+        new_node->ops->unlock(new_node);
+        VFS_NODE_UNREF(new_node);
+    }
+
+    parent->ops->unlock(parent);
+
+cleanup:
+    kfree(component);
+    return error;
+}
+
+int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char* last_component, struct vfs_node** result) {
+    if (unlikely(path == NULL || *path == '\0')) {
+        return -1;
+    }
+
+    size_t path_len = strlen(path);
+    if (path_len > PATH_MAX_LENGTH) {
+        return -1;
+    }
+
+    struct vfs_node* current = reference;
+
+    int error = 0;
+
+    while (error == 0 && current->mounted != NULL) {
+        error = current->mounted->ops->root(current->mounted, &current);
+    }
+    if (error != 0) {
+        return error;
+    }
+
+    char* comp_buffer = kmalloc(path_len + 1);
+    if (unlikely(comp_buffer == NULL)) {
+        return -1;
+    }
+
+    strncpy(comp_buffer, path, path_len);
+
+    for (size_t i = 0; i < path_len; i++) {
+        if (comp_buffer[i] == '/') {
+            comp_buffer[i] = '\0';
+        }
+    }
+
+    struct vfs_node* next;
+
+    VFS_NODE_REF(current);
+    current->ops->lock(current);
+
+    for (size_t i = 0; i < path_len; i++) {
+        if (comp_buffer[i] == '\0') {
+            continue;
+        }
+
+        if (current->type != VFS_TYPE_DIRECTORY) {
+            error = -1;
+            break;
+        }
+
+        char* component = &comp_buffer[i];
+        size_t comp_len = strlen(component);
+
+        bool is_last = i + comp_len == path_len;
+        if (!is_last) {
+            volatile size_t j;
+            for (j = i + comp_len; j < path_len && comp_buffer[j] == '\0'; j++) {}
+            is_last = j == path_len;
+        }
+
+        if (is_last && lookup_parent) {
+            strncpy(last_component, component, comp_len);
+            break;
+        }
+
+        bool is_dotdot = strcmp(component, "..") == 0;
+        if (is_dotdot) {
+            struct vfs_node* root = NULL;
+
+            while (error == 0 && vfs_root->mounted != NULL) {
+                error = vfs_root->mounted->ops->root(vfs_root->mounted, &root);
+            }
+            if (error != 0) {
+                break;
+            }
+
+            if (root == current) {
+                i += comp_len;
+                continue;
+            }
+
+            if (current->flags & VFS_FLAG_ROOT) {
+                struct vfs_node* low = current;
+                while (low->flags & VFS_FLAG_ROOT) {
+                    low = low->filesystem->node;
+                }
+
+                if (low != current) {
+                    VFS_NODE_REF(low);
+                    current->ops->unlock(current);
+                    VFS_NODE_UNREF(current);
+                    current = low;
+                    current->ops->lock(current);
+                }
+            }
+        }
+
+        error = current->ops->lookup(current, component, &next);
+        if (error != 0) {
+            break;
+        }
+
+        if (current != next && !is_dotdot) {
+            current->ops->unlock(current);
+        }
+
+        struct vfs_node* r = next;
+        while (error == 0 && r->mounted != NULL) {
+            error = r->mounted->ops->root(r->mounted, &r);
+        }
+
+        if (error != 0) {
+            if (current != next) {
+                next->ops->unlock(next);
+            }
+            VFS_NODE_UNREF(next);
+            break;
+        }
+
+        if (r != next) {
+            VFS_NODE_REF(r);
+            next->ops->unlock(next);
+            VFS_NODE_UNREF(next);
+            next = r;
+            next->ops->lock(next);
+        }
+
+        current->ops->unlock(current);
+        current = next;
+        i += comp_len;
+    }
+
+    if (error != 0) {
+        current->ops->unlock(current);
+        VFS_NODE_UNREF(current);
+    } else {
+        *result = current;
+    }
+
+    kfree(comp_buffer);
+    return error;
+} 
+
+bool vfs_register_fs(const char* name, struct vfs_ops* ops) {
+    return hashmap_set(vfs_filesystems, name, strlen(name), ops);
+}
+
+bool vfs_unregister_fs(const char* name) {
+    return hashmap_remove(vfs_filesystems, name, strlen(name));
+}
+
+void vfs_init(void) {
+    klog("[vfs] VFS subsystem initialized\n");
+
+    vfs_filesystems = hashmap_create(10);
+    if (unlikely(vfs_filesystems == NULL)) {
+        kpanic(NULL, false, "failed to create VFS filesystem map");
+    }
+
+    vfs_root = kmalloc(sizeof(struct vfs_node));
+    if (unlikely(vfs_root == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for VFS root node");
+    }
+
+    vfs_root->type = VFS_TYPE_DIRECTORY;
+    vfs_root->ops = &root_node_ops;
+    vfs_root->refcount = 1;
+}
