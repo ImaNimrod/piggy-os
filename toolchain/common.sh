@@ -1,0 +1,50 @@
+UNAME=$(uname)
+
+NPROC=1
+if [ ${UNAME} == "Darwin" ]; then
+    NPROC=$(sysctl -n hw.ncpu)
+elif [ ${UNAME} == "Linux" ]; then
+    NPROC=$(nproc)
+else
+    echo "trying to build toolchain on possibly unsupported host platform..."
+fi
+
+source "$DIR/toolchain.config"
+
+export CFLAGS="-g0 -O2 -mtune=native -pipe"
+export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
+export PATH="$PATH:$PREFIX/bin"
+
+function download_and_extract() {
+    declare -n PKG=${1^^}_PKG
+    declare -n NAME=${1^^}_NAME
+    declare -n BASE_URL=${1^^}_BASE_URL
+    declare -n MD5SUM=${1^^}_MD5SUM
+
+    if [ ! -d ${NAME} ]; then
+        local md5=""
+
+        if [ -e ${PKG} ]; then
+            md5="$(md5sum ${PKG} | cut -f1 -d ' ')"
+        fi
+
+        if [ "$md5" != ${MD5SUM} ] ; then
+            rm -f ${PKG}
+            echo "downloading ${PKG}..."
+            curl -LO ${BASE_URL}/${PKG}
+
+            md5="$(md5sum ${PKG} | cut -f1 -d ' ')"
+            if [ "$md5" != ${MD5SUM} ] ; then
+                echo "md5sum comparision failed for ${PKG}"
+                exit 1
+            fi
+        else
+            echo "skipped downloading ${NAME}"
+        fi
+
+        echo "extracting ${NAME}..."
+        tar -xf ${PKG}
+    else
+        echo "using existing ${NAME} source"
+    fi
+}

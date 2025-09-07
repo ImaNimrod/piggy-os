@@ -19,12 +19,9 @@ all: $(IMAGE_NAME).iso
 .PHONY: run
 run: run-virtio
 
-.PHONY: run-virtio
-run-virtio:
+.PHONY: run-minimal
+run-minimal:
 	$(EMU) $(EMUOPTS) \
-		-drive id=disk,file=disk.img,format=raw,if=none -device virtio-blk-pci,drive=disk \
-		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
-		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso
 
 .PHONY: run-realhw
@@ -36,9 +33,18 @@ run-realhw:
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso
 
+.PHONY: run-virtio
+run-virtio:
+	$(EMU) $(EMUOPTS) \
+		-drive id=disk,file=disk.img,format=raw,if=none -device virtio-blk-pci,drive=disk \
+		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
+		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
+		-cdrom $(IMAGE_NAME).iso
+
 .PHONY: toolchain
 toolchain:
-	./toolchain/build.sh
+	./toolchain/build_gcc.sh
+	./toolchain/build_qemu.sh
 
 .PHONY: todolist
 todolist:
