@@ -135,51 +135,62 @@ NORETURN void scheduler_await(void) {
     __builtin_unreachable();
 }
 
-void scheduler_yield(void) {
-    cli();
-    lapic_timer_stop();
-    sti();
-
-    struct thread* thread = this_cpu()->running_thread;
-    spinlock_acquire(&thread->yield_lock);
-
-    lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
-
-    spinlock_acquire(&thread->yield_lock);
-    spinlock_release(&thread->yield_lock);
-}
-
-void scheduler_thread_enqueue(struct thread* t) {
+void scheduler_block(struct thread* t) {
     spinlock_acquire(&thread_state_lock);
-    SLIST_PUSH_BACK(thread_list, t);
+    t->state = THREAD_BLOCKED;
     spinlock_release(&thread_state_lock);
+
+    scheduler_yield(true);
 }
 
-void scheduler_thread_dequeue(struct thread* t) {
+void scheduler_dequeue(struct thread* t) {
     spinlock_acquire(&thread_state_lock);
     SLIST_REMOVE(thread_list, t);
     spinlock_release(&thread_state_lock);
 }
 
-void scheduler_thread_block(struct thread* t) {
+void scheduler_enqueue(struct thread* t) {
     spinlock_acquire(&thread_state_lock);
-    t->state = THREAD_BLOCKED;
+    SLIST_PUSH_BACK(thread_list, t);
     spinlock_release(&thread_state_lock);
-
-    scheduler_yield();
 }
 
-void scheduler_thread_sleep(struct thread* t, const struct timespec* tp) {
+void scheduler_sleep(struct thread* t, const struct timespec* tp) {
     timer_sleep_thread(t, tp);
-    scheduler_thread_block(t);
+    scheduler_block(t);
 }
 
-void scheduler_thread_unblock(struct thread* t) {
+void scheduler_unblock(struct thread* t) {
     spinlock_acquire(&thread_state_lock);
     if (t->state == THREAD_BLOCKED) {
         t->state = THREAD_READY;
     }
     spinlock_release(&thread_state_lock);
+}
+
+void scheduler_yield(bool save) {
+    cli();
+    lapic_timer_stop();
+    sti();
+
+    struct thread* thread = this_cpu()->running_thread;
+
+    if (save) {
+        spinlock_acquire(&thread->yield_lock);
+    } else {
+        this_cpu()->running_thread = NULL;
+    }
+
+    lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
+
+    if (save) {
+        spinlock_acquire(&thread->yield_lock);
+        spinlock_release(&thread->yield_lock);
+    } else {
+        for (;;) {
+            hlt();
+        }
+    }
 }
 
 void scheduler_init(void) {

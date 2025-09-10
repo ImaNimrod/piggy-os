@@ -31,6 +31,14 @@ static ALWAYS_INLINE void sti(void) {
     asm volatile("sti");
 }
 
+static ALWAYS_INLINE void clac(void) {
+    asm volatile("clac");
+}
+
+static ALWAYS_INLINE void stac(void) {
+    asm volatile("stac");
+}
+
 static ALWAYS_INLINE void swapgs(void) {
     asm volatile("swapgs");
 }

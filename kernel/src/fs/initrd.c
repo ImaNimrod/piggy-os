@@ -105,7 +105,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
             klog("[initrd] failed to unpack file '%s': %d\n", name, error);
         }
 
-        pmm_free((uintptr_t) current_file - HIGH_VMA, (TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE)) / PAGE_SIZE_4KB);
+        //pmm_free((uintptr_t) current_file - HIGH_VMA, (TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE)) / PAGE_SIZE_4KB);
         current_file = (struct tar_header*) ((uintptr_t) current_file + TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE));
     }
 

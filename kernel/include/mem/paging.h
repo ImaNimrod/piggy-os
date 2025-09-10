@@ -2,7 +2,6 @@
 #define _KERNEL_MEM_PAGING_H 1
 
 #include <limine.h>
-#include <mem/vmm.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -38,10 +37,10 @@ extern struct pagemap* kernel_pagemap;
 
 struct pagemap* pagemap_create(void);
 bool pagemap_destroy(struct pagemap* pagemap);
+struct pagemap* pagemap_fork(struct pagemap* old_pagemap);
 void pagemap_load(struct pagemap* pagemap);
 void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size);
 bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr);
-uintptr_t pagemap_vaddr_to_paddr(struct pagemap* pagemap, uintptr_t vaddr);
 void paging_init(void);
 
 #endif /* _KERNEL_MEM_PAGING_H */

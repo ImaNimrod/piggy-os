@@ -76,7 +76,7 @@ void timer_update_timers(void) {
             struct thread* thread = iter->thread;
             SLIST_REMOVE(sleep_event_list, iter);
             kfree(iter);
-            scheduler_thread_unblock(thread);
+            scheduler_unblock(thread);
         }
     }
 

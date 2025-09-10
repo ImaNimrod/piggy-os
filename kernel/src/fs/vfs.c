@@ -27,7 +27,7 @@ static int nop(struct vfs_node* node) {
     return 0;
 }
 
-int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* path, char* fs_name) {
+int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, const char* path, const char* fs_name) {
     struct vfs_ops* ops;
 
     if (!hashmap_get(vfs_filesystems, fs_name, strlen(fs_name), (void**) &ops)) {
@@ -68,7 +68,7 @@ int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, char* p
 }
 
 
-int vfs_create(struct vfs_node* reference, char* path, vfs_type_t type, struct vfs_node** result) {
+int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, struct vfs_node** result) {
     char* component = kmalloc(strlen(path) + 1);
     if (unlikely(component == NULL)) {
         return -ENOMEM;
@@ -105,7 +105,7 @@ cleanup:
     return error;
 }
 
-int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char* last_component, struct vfs_node** result) {
+int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent, char* last_component, struct vfs_node** result) {
     if (unlikely(path == NULL || *path == '\0')) {
         return -ENOENT;
     }
@@ -247,7 +247,7 @@ int vfs_lookup(struct vfs_node* reference, char* path, bool lookup_parent, char*
     return error;
 } 
 
-int vfs_unlink(struct vfs_node* reference, char* path) {
+int vfs_unlink(struct vfs_node* reference, const char* path) {
     char* component = kmalloc(strlen(path) + 1);
     if (unlikely(component == NULL)) {
         return -ENOMEM;

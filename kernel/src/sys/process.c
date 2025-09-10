@@ -2,7 +2,6 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <mem/vmm.h>
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
@@ -10,10 +9,10 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
+#include <utils/string.h>
 
 #define KERNEL_STACK_SIZE   0x4000
-#define USER_STACK_SIZE     0x20000
-#define VMM_MAP_STACK_TOP   0x700000000
+#define USER_STACK_SIZE     0x10000
 
 struct process* kernel_process = NULL;
 static struct process* init_process = NULL;
@@ -37,16 +36,23 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
     }
 
     if (parent != NULL) {
+        new_process->pagemap = pagemap_fork(parent->pagemap);
+        if (unlikely(new_process->pagemap == NULL)) {
+            goto error;
+        }
+        new_process->thread_stack_top = parent->thread_stack_top;
+
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
-
-        kpanic(NULL, false, "not supported");
     } else {
         new_process->pagemap = pagemap;
+        new_process->thread_stack_top = PROCESS_STACK_TOP;
     }
 
     new_process->pid = __atomic_load_n(&next_pid, __ATOMIC_SEQ_CST);
     __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
+
+    new_process->state = PROCESS_RUNNING;
 
     goto end;
 
@@ -62,6 +68,11 @@ end:
 }
 
 void process_create_init(void) {
+    struct vfs_node* init_node;
+    if (vfs_lookup(vfs_root, "/bin/init", false, NULL, &init_node) < 0) {
+        kpanic(NULL, false, "failed to find /bin/init");
+    }
+
     struct pagemap* init_pagemap = pagemap_create();
     if (unlikely(init_pagemap == NULL)) {
         kpanic(NULL, false, "failed to create pagemap for init process");
@@ -74,21 +85,21 @@ void process_create_init(void) {
 
     uintptr_t entry;
 
-    if (!elf_load(init_pagemap, &entry)) {
+    if (elf_load(init_pagemap, init_node, &entry) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
     }
+
+    init_node->ops->unlock(init_node);
 
     struct thread* init_thread = thread_create_user(init_process, entry);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
+
+    scheduler_enqueue(init_thread);
 }
 
 void process_destroy(struct process* process) {
-    if (unlikely(process->pid == 1)) {
-        kpanic(NULL, false, "attempted to destroy init process");
-    }
-
     if (likely(process->parent != NULL)) {
         SLIST_REMOVE(process->parent->children, process);
     }
@@ -107,7 +118,7 @@ void process_destroy(struct process* process) {
 
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         struct thread* thread = *vector_get(process->threads, i);
-        scheduler_thread_dequeue(thread);
+        scheduler_dequeue(thread);
         thread_destroy(thread);
     }
     vector_destroy(process->threads);
@@ -115,6 +126,19 @@ void process_destroy(struct process* process) {
     pagemap_destroy(process->pagemap);
 
     slab_cache_free(process_cache, process);
+}
+
+void process_exit(struct process* process, int status) {
+    if (unlikely(process->pid < 2)) {
+        kpanic(NULL, false, "attempted to exit init process");
+    }
+
+    process->state = PROCESS_ZOMBIE;
+    process->exit_status = status;
+
+    for (size_t i = 0; i < vector_size(process->threads); i++) {
+        scheduler_dequeue((struct thread*) *vector_get(process->threads, i));
+    }
 }
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
@@ -127,7 +151,8 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     thread->is_user = false;
     thread->process = kernel_process;
 
-    thread->kernel_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA + KERNEL_STACK_SIZE;
+    thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
+    thread->kernel_stack = thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
     thread->registers.rdi = (uint64_t) arg;
     thread->registers.rip = entry;
@@ -136,11 +161,12 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     thread->registers.ss = 0x10;
     thread->registers.rsp = thread->kernel_stack;
 
+    spinlock_acquire(&kernel_process->lock);
+
     thread->tid = vector_size(kernel_process->threads);
     vector_push(kernel_process->threads, &thread);
 
-    scheduler_thread_enqueue(thread);
-
+    spinlock_release(&kernel_process->lock);
     return thread;
 }
 
@@ -154,19 +180,25 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry) {
     thread->is_user = true;
     thread->process = process;
 
-    thread->kernel_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA + KERNEL_STACK_SIZE;
+    thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
+    thread->kernel_stack = thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
-    if (unlikely(!vmm_map(process->pagemap, VMM_MAP_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE, VMM_FLAG_PROT_READ | VMM_FLAG_PROT_WRITE))) {
-        pmm_free(thread->kernel_stack - HIGH_VMA, KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
-        slab_cache_free(thread_cache, thread);
-        return NULL;
+    spinlock_acquire(&process->lock);
+
+    thread->user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
+
+    uintptr_t user_stack_paddr = thread->user_stack_paddr;
+    uintptr_t user_stack_vaddr = process->thread_stack_top - USER_STACK_SIZE;
+    for (size_t i = 0; i < USER_STACK_SIZE / PAGE_SIZE_4KB; i++) {
+        pagemap_map(process->pagemap, user_stack_vaddr + (i * PAGE_SIZE_4KB), user_stack_paddr + (i * PAGE_SIZE_4KB),
+                PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX, PAGE_SIZE_4KB);
     }
 
     thread->registers.rip = entry;
     thread->registers.cs = 0x23;
     thread->registers.rflags = 0x202;
     thread->registers.ss = 0x1b;
-    thread->registers.rsp = VMM_MAP_STACK_TOP;
+    thread->registers.rsp = process->thread_stack_top;
 
     thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     this_cpu()->fpu_restore(thread->fpu_context);
@@ -177,21 +209,59 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry) {
     thread->tid = vector_size(process->threads);
     vector_push(process->threads, &thread);
 
-    scheduler_thread_enqueue(thread);
-
+    spinlock_release(&process->lock);
     return thread;
 }
 
 void thread_destroy(struct thread* thread) {
-    scheduler_thread_dequeue(thread);
+    spinlock_acquire(&thread->process->lock);
 
     vector_remove_by_value(thread->process->threads, thread);
     if (vector_size(thread->process->threads) < 1) {
         process_destroy(thread->process);
     }
 
-    pmm_free(thread->kernel_stack - HIGH_VMA, KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
+    spinlock_release(&thread->process->lock);
+
+    if (thread->is_user) {
+        pmm_free((uintptr_t) thread->fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
+        pmm_free(thread->user_stack_paddr, USER_STACK_SIZE / PAGE_SIZE_4KB);
+    }
+
+    pmm_free(thread->kernel_stack_paddr, KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
+
     slab_cache_free(thread_cache, thread);
+}
+
+struct thread* thread_fork(struct process* process, struct thread* old_thread) {
+    struct thread* new_thread = slab_cache_alloc(thread_cache);
+    if (unlikely(new_thread == NULL)) {
+        return NULL;
+    }
+
+    new_thread->state = THREAD_READY;
+    new_thread->is_user = true;
+    new_thread->process = process;
+
+    new_thread->kernel_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA + KERNEL_STACK_SIZE;
+    new_thread->user_stack = old_thread->user_stack;
+
+    memcpy64((void*) &new_thread->registers, (const void*) &old_thread->registers, sizeof(struct registers) >> 3);
+    new_thread->registers.rax = 0;
+
+    new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
+    memcpy64(new_thread->fpu_context, old_thread->fpu_context, this_cpu()->fpu_context_size >> 3);
+
+    new_thread->fs_base = old_thread->fs_base;
+    new_thread->gs_base = old_thread->gs_base;
+
+    spinlock_acquire(&process->lock);
+
+    new_thread->tid = vector_size(process->threads);
+    vector_push(process->threads, &new_thread);
+
+    spinlock_release(&process->lock);
+    return new_thread;
 }
 
 void process_init(void) {

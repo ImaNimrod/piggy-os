@@ -12,15 +12,16 @@
 #define EISDIR          9
 #define EMFILE          10
 #define ENAMETOOLONG    11
-#define ENOENT          12
-#define ENOEXEC         13
-#define ENOMEM          14
-#define ENOSPC          15
-#define ENOSYS          16
-#define ENOTDIR         17
-#define ENOTEMPTY       18
-#define ENOTTY          19
-#define EPERM           20
-#define ESPIPE          21
+#define ENODEV          12
+#define ENOENT          13
+#define ENOEXEC         14
+#define ENOMEM          15
+#define ENOSPC          16
+#define ENOSYS          17
+#define ENOTDIR         18
+#define ENOTEMPTY       19
+#define ENOTTY          20
+#define EPERM           21
+#define ESPIPE          22
 
 #endif /* _KERNEL_TYPES_H */

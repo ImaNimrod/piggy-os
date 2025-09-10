@@ -1,4 +1,4 @@
-#include <limine.h>
+#include <errno.h>
 #include <mem/pmm.h>
 #include <sys/elf.h>
 #include <utils/macros.h>
@@ -73,8 +73,6 @@ struct elf_program_header {
     uint64_t p_align;
 };
 
-extern struct limine_module_request module_request;
-
 static bool elf_verify(struct elf_header* header) {
     if (memcmp(header->e_ident, ELFMAG, 4)) {
         return false;
@@ -91,59 +89,56 @@ static bool elf_verify(struct elf_header* header) {
     return true;
 }
 
-bool elf_load(struct pagemap* pagemap, uintptr_t* entry) {
-    struct limine_module_response* module_response = module_request.response;
-    struct limine_file* module = module_response->modules[0];
+int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
+    int error;
 
-    void* data = (void*) module->address;
-
-    struct elf_header* header = data;
-
-    if (!elf_verify(header)) {
-        return false;
+    struct elf_header header;
+    if ((error = node->ops->read(node, &header, sizeof(struct elf_header), 0)) < 0) {
+        return error;
     }
 
-    struct elf_program_header* pheader;
+    if (!elf_verify(&header)) {
+        return -ENOEXEC;
+    }
 
-    for (size_t i = 0; i < header->e_phnum; i++) {
-        pheader = (void*) ((uintptr_t) data + header->e_phoff + (i * header->e_phentsize));
-        if (pheader->p_type != PT_LOAD) {
+    struct elf_program_header pheader;
+
+    for (size_t i = 0; i < header.e_phnum; i++) {
+        if ((error = node->ops->read(node, (void*) &pheader, header.e_phentsize, header.e_phoff + (i * header.e_phentsize))) < 0) {
+            return error;
+        }
+
+        if (pheader.p_type != PT_LOAD) {
             continue;
         }
 
-        size_t misalign = pheader->p_vaddr & (PAGE_SIZE_4KB - 1);
-        size_t page_count = (misalign + pheader->p_memsz + (PAGE_SIZE_4KB - 1)) / PAGE_SIZE_4KB;
+        size_t misalign = pheader.p_vaddr & (PAGE_SIZE_4KB - 1);
+        size_t page_count = (misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1)) / PAGE_SIZE_4KB;
 
         uintptr_t phys_pages = pmm_alloc_zero(page_count);
 
-        uint64_t vmm_flags = PTE_PRESENT | PTE_USER;
-        int prot = VMM_FLAG_PROT_READ | VMM_FLAG_PROT_EXEC;
-        if (pheader->p_flags & PF_W) {
-            vmm_flags |= PTE_WRITABLE;
-            prot |= VMM_FLAG_PROT_WRITE;
+        uint64_t pte_flags = PTE_PRESENT | PTE_USER;
+        if (pheader.p_flags & PF_W) {
+            pte_flags |= PTE_WRITABLE;
+        }
+        if (!(pheader.p_flags & PF_X)) {
+            pte_flags |= PTE_NX;
         }
 
-        if (!(pheader->p_flags & PF_X)) {
-            vmm_flags |= PTE_NX;
-            prot &= ~VMM_FLAG_PROT_EXEC;
+        for (size_t j = 0; j < page_count; j++) {
+            uintptr_t vaddr = pheader.p_vaddr + (j * PAGE_SIZE_4KB);
+            uintptr_t paddr = phys_pages + (j * PAGE_SIZE_4KB);
+            pagemap_map(pagemap, vaddr, paddr, pte_flags, PAGE_SIZE_4KB);
         }
 
-        if (unlikely(!vmm_map(pagemap, pheader->p_vaddr, (page_count * PAGE_SIZE_4KB), prot))) {
-            return false;
+        if ((error = node->ops->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset)) < 0) {
+            return error;
         }
-
-        for (size_t j = 0; j < (page_count * PAGE_SIZE_4KB); j += PAGE_SIZE_4KB) {
-            uintptr_t vaddr = pheader->p_vaddr + j;
-            uintptr_t paddr = phys_pages + j;
-            pagemap_map(pagemap, vaddr, paddr, vmm_flags, PAGE_SIZE_4KB);
-        }
-
-        memcpy((void*) (phys_pages + HIGH_VMA + misalign), (void*) ((uintptr_t) data + pheader->p_offset), pheader->p_filesz);
     }
 
     if (likely(entry)) {
-        *entry = header->e_entry;
+        *entry = header.e_entry;
     }
 
-    return true;
+    return error;
 }

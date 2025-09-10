@@ -8,20 +8,31 @@
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
-enum thread_state {
+#define PROCESS_STACK_TOP   0x700000000
+
+typedef enum {
+    PROCESS_RUNNING,
+    PROCESS_ZOMBIE,
+} process_state_t;
+
+typedef enum {
     THREAD_READY,
     THREAD_RUNNING,
     THREAD_BLOCKED,
-};
+} thread_state_t;
 
 struct thread {
     tid_t tid;
-    enum thread_state state;
+    thread_state_t state;
     bool is_user;
 
     struct process* process;
 
+    uintptr_t kernel_stack_paddr;
     uintptr_t kernel_stack;
+
+    uintptr_t user_stack_paddr;
+    uintptr_t user_stack;
 
     struct registers registers;
     void* fpu_context;
@@ -36,8 +47,11 @@ struct thread {
 
 struct process {
     pid_t pid;
+    process_state_t state;
+    int exit_status;
 
     struct pagemap* pagemap;
+    uintptr_t thread_stack_top;
 
     struct process* parent;
 
@@ -46,6 +60,8 @@ struct process {
 
     tid_t next_tid;
     vector_t* threads;
+
+    spinlock_t lock;
 };
 
 extern struct process* kernel_process;
@@ -53,10 +69,12 @@ extern struct process* kernel_process;
 struct process* process_create(struct process* old_process, struct pagemap* pagemap);
 void process_create_init(void);
 void process_destroy(struct process* process);
+void process_exit(struct process* process, int status);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry);
 void thread_destroy(struct thread* thread);
+struct thread* thread_fork(struct process* process, struct thread* old_thread);
 
 void process_init(void);
 

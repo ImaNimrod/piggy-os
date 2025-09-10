@@ -107,7 +107,7 @@ static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint6
 
     spinlock_release(&queue->lock);
 
-    scheduler_thread_block(this_cpu()->running_thread);
+    scheduler_block(this_cpu()->running_thread);
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + 16);
     return status == VIRTIO_BLK_S_OK ? true : false;
@@ -133,7 +133,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
                 struct thread* thread = iter->thread;
                 SLIST_REMOVE(blk_dev->io_waiter_list, iter);
                 kfree(iter);
-                scheduler_thread_unblock(thread);
+                scheduler_unblock(thread);
                 break;
             }
         }

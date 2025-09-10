@@ -105,9 +105,11 @@ NORETURN static void kernel_main(void) {
 
     klog("\nhey pig...\n");
 
-    //process_create_init();
+    process_create_init();
 
+    scheduler_dequeue(this_cpu()->running_thread);
     thread_destroy(this_cpu()->running_thread);
+    this_cpu()->running_thread = NULL;
     scheduler_await();
 }
 
@@ -139,6 +141,7 @@ NORETURN void kernel_entry(void) {
 
     smp_init();
 
-    thread_create_kernel((uintptr_t) kernel_main, NULL);
+    struct thread* kmain_thread = thread_create_kernel((uintptr_t) kernel_main, NULL);
+    scheduler_enqueue(kmain_thread);
     scheduler_await();
 }

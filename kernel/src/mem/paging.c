@@ -7,6 +7,7 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
+#include <utils/string.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
 
@@ -49,24 +50,18 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
     pmm_free((uintptr_t) level - HIGH_VMA, 1);
 }
 
+static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
+    uintptr_t vaddr = 0;
+    vaddr |= pml4_index << 39;
+    vaddr |= pml3_index << 30;
+    vaddr |= pml2_index << 21;
+    vaddr |= pml1_index << 12;
+    return vaddr;
+}
+
 static void page_fault_handler(struct registers* r, void* arg) {
     (void) arg;
-
-    struct thread* current_thread = this_cpu()->running_thread;
-    if (unlikely(current_thread == NULL)) {
-        goto fatal;
-    }
-
-    struct pagemap* current_pagemap = current_thread->process->pagemap;
-
-    if (!vmm_handle_page_fault(current_pagemap, read_cr2())) {
-        goto fatal;
-    }
-
-    return;
-
-fatal:
-    kpanic(r, false, "fatal pagefault!\n");
+    kpanic(r, true, "fatal pagefault");
 }
 
 struct pagemap* pagemap_create(void) {
@@ -89,6 +84,42 @@ bool pagemap_destroy(struct pagemap* pagemap) {
     spinlock_acquire(&pagemap->lock);
     destroy_levels_recursive(pagemap->top_level, 0, 256, 4);
     return slab_cache_free(pagemap_cache, pagemap);
+}
+
+// TODO: implement COW and other speedups because this is painfully slow
+struct pagemap* pagemap_fork(struct pagemap* old_pagemap) {
+    struct pagemap* new_pagemap = pagemap_create();
+    if (unlikely(new_pagemap == NULL)) {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < 256; i++) {
+        if (old_pagemap->top_level[i] & PTE_PRESENT) {
+            uint64_t* pml4 = (uint64_t*) ((old_pagemap->top_level[i] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+            for (size_t j = 0; j < 512; j++) {
+                if (pml4[j] & PTE_PRESENT) {
+                    uint64_t* pml3 = (uint64_t*) ((pml4[j] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+                    for (size_t k = 0; k < 512; k++) {
+                        if (pml3[k] & PTE_PRESENT) {
+                            uint64_t* pml2 = (uint64_t*) ((pml3[k] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+                            for (size_t l = 0; l < 512; l++) {
+                                if (pml2[l] & PTE_PRESENT) {
+                                    uintptr_t paddr = pmm_alloc_zero(1);
+                                    memcpy64((void*) (paddr + HIGH_VMA), (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE_4KB >> 3);
+                                    pagemap_map(new_pagemap, entries_to_vaddr(i, j, k, l), paddr, pml2[l] & PTE_FLAG_MASK, PAGE_SIZE_4KB);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return new_pagemap;
 }
 
 void pagemap_load(struct pagemap* pagemap) {

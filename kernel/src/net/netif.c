@@ -34,7 +34,8 @@ struct netif* netif_create(void) {
         kpanic(NULL, false, "failed to create packet queue for network interface");
     }
 
-    thread_create_kernel((uintptr_t) netif_packet_handler, netif);
+    struct thread* netif_packet_handler_thread = thread_create_kernel((uintptr_t) netif_packet_handler, netif);
+    scheduler_enqueue(netif_packet_handler_thread);
 
     return netif;
 }

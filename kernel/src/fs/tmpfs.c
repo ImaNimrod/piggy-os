@@ -46,6 +46,7 @@ static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
 static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset);
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset);
+static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat);
 static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int tmpfs_lock(struct vfs_node* node);
@@ -58,6 +59,7 @@ static struct vfs_node_ops tmpfs_node_ops = {
     .unlink = tmpfs_unlink,
     .read = tmpfs_read,
     .write = tmpfs_write,
+    .ioctl = tmpfs_ioctl,
     .getstat = tmpfs_getstat,
     .setstat = tmpfs_setstat,
     .lock = tmpfs_lock,
@@ -268,8 +270,8 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
             new_capacity *= 2;
         }
 
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity * PAGE_SIZE_4KB);
-        void* new_data = (void*) (pmm_alloc_zero(new_capacity * PAGE_SIZE_4KB) + HIGH_VMA);
+        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
+        void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
 
         tnode->data = new_data;
         tnode->capacity = new_capacity;
@@ -284,6 +286,13 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
 
     tnode->stat.st_atim = tnode->stat.st_mtim = time_realtime;
     return 0;
+}
+
+static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp) {
+    (void) node;
+    (void) request;
+    (void) argp;
+    return -ENODEV;
 }
 
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat) {
@@ -321,7 +330,7 @@ static void tmpfs_inactive(struct vfs_node* node) {
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
 
     if (tnode->type == VFS_TYPE_REGULAR) {
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
+        pmm_free((uintptr_t) tnode->data - HIGH_VMA, DIV_CEIL(tnode->capacity, PAGE_SIZE_4KB));
     } else if (tnode->type == VFS_TYPE_DIRECTORY) {
         hashmap_destroy(tnode->children);
     }

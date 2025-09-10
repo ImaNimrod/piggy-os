@@ -6,7 +6,7 @@ include ./config.mk
 override IMAGE_NAME := piggy
 
 EMUOPTS := -machine q35 \
-		   -m 4G \
+		   -m 2G \
 		   -cpu host \
 		   -enable-kvm \
 		   -smp 2 \

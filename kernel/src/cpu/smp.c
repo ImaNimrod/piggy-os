@@ -149,6 +149,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     cpu_local->idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
     cpu_local->running_thread = cpu_local->idle_thread;
+    scheduler_enqueue(cpu_local->idle_thread);
 
     wrmsr(IA32_GS_BASE_MSR, (uint64_t) cpu_local);
 
