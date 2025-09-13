@@ -21,23 +21,23 @@ struct mcfg_entry {
     uint16_t segment;
     uint8_t bus_start;
     uint8_t bus_end;
-    uint32_t : 32;
+uint32_t : 32;
 } __attribute__((packed));
 
 struct mcfg {
     struct acpi_sdt;
-    uint64_t : 64;
-    struct mcfg_entry entries[];
+uint64_t : 64;
+           struct mcfg_entry entries[];
 } __attribute__((packed));
 
 union msi_address {
     struct {
-        uint32_t : 2;
-        uint32_t dest_mode : 1;
-        uint32_t redir_hint : 1;
-        uint32_t : 8;
-        uint32_t dest_id : 8;
-        uint32_t base_address : 12;
+uint32_t : 2;
+           uint32_t dest_mode : 1;
+           uint32_t redir_hint : 1;
+uint32_t : 8;
+           uint32_t dest_id : 8;
+           uint32_t base_address : 12;
     };
     uint32_t raw;
 };
@@ -46,10 +46,10 @@ union msi_data {
     struct {
         uint32_t vector : 8;
         uint32_t delivery : 3;
-        uint32_t : 3;
-        uint32_t level : 1;
-        uint32_t trigger_mode : 1;
-        uint32_t : 16;
+uint32_t : 3;
+           uint32_t level : 1;
+           uint32_t trigger_mode : 1;
+uint32_t : 16;
     };
     uint32_t raw;
 };

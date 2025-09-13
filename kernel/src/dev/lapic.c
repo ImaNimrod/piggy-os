@@ -3,7 +3,6 @@
 #include <dev/hpet.h>
 #include <dev/lapic.h>
 #include <mem/paging.h>
-#include <utils/log.h>
 
 #define LAPIC_REG_ID            0x020
 #define LAPIC_REG_TPR           0x080

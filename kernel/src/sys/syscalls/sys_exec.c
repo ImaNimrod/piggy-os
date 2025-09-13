@@ -72,11 +72,10 @@ void syscall_exec(struct registers* r) {
     pagemap_load(kernel_pagemap);
     pagemap_destroy(old_pagemap);
 
-
     r->rax = 0;
 
-    scheduler_dequeue(t);
-    thread_destroy(t);
+    scheduler_dequeue(this_cpu()->running_thread);
+    thread_destroy(this_cpu()->running_thread);
     this_cpu()->running_thread = NULL;
     scheduler_yield(false);
     __builtin_unreachable();

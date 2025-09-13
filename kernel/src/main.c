@@ -8,6 +8,7 @@
 #include <dev/serial.h>
 #include <fs/devfs.h>
 #include <fs/initrd.h>
+#include <fs/streams.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <limine.h>
@@ -76,9 +77,13 @@ NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
 
-    if (vfs_mount(NULL, vfs_root, "/", "tmpfs") < 0) {
-        kpanic(NULL, false, "failed to mount root filesystem");
-    }
+    streams_init();
+
+    vfs_mount(NULL, vfs_root, "/", "tmpfs");
+
+    vfs_create(vfs_root, "/dev", VFS_TYPE_DIRECTORY, NULL);
+
+    vfs_mount(NULL, vfs_root, "/dev", "devfs");
 
     struct limine_module_response* module_response = module_request.response;
     if (unlikely(module_response == NULL)) {

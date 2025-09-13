@@ -61,7 +61,7 @@ static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, s
 
 static void page_fault_handler(struct registers* r, void* arg) {
     (void) arg;
-    kpanic(r, true, "fatal pagefault");
+    kpanic(r, false, "fatal pagefault");
 }
 
 struct pagemap* pagemap_create(void) {

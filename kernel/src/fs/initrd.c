@@ -51,6 +51,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
             (uintptr_t) initrd_module->address, initrd_module->size >> 10);
 
     struct tar_header* current_file = (struct tar_header*) initrd_module->address;
+    size_t file_count = 0;
     char* name_override = NULL;
 
     while (strncmp(current_file->magic, "ustar", 5) == 0) {

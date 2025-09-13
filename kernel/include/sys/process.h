@@ -2,6 +2,7 @@
 #define _KERNEL_SYS_PROCESS_H 1
 
 #include <cpu/isr.h>
+#include <fs/vfs.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <types.h>
@@ -49,6 +50,7 @@ struct process {
     pid_t pid;
     process_state_t state;
     int exit_status;
+    struct vfs_node* cwd;
 
     struct pagemap* pagemap;
     uintptr_t thread_stack_top;

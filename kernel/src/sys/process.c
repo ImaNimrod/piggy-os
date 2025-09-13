@@ -36,6 +36,8 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
     }
 
     if (parent != NULL) {
+        new_process->cwd = parent->cwd;
+
         new_process->pagemap = pagemap_fork(parent->pagemap);
         if (unlikely(new_process->pagemap == NULL)) {
             goto error;
@@ -45,6 +47,7 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
     } else {
+        new_process->cwd = vfs_root;
         new_process->pagemap = pagemap;
         new_process->thread_stack_top = PROCESS_STACK_TOP;
     }

@@ -3,6 +3,10 @@
 
 #include <stdint.h>
 
+#define makedev(maj, min) (dev_t) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
+#define major(dev) (uint8_t) (((dev) & 0xff00u) >> 8)
+#define minor(dev) (uint8_t) ((dev) & 0x00ffu)
+
 typedef int32_t pid_t;
 typedef int32_t tid_t;
 

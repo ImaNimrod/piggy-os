@@ -10,7 +10,6 @@
 #include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
-#include <utils/log.h>
 #include <utils/string.h>
 
 struct tmpfs_filesystem {
@@ -184,12 +183,11 @@ static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
         return -ENOTDIR;
     }
 
-    void* r;
-    if (!hashmap_get(((struct tmpfs_node*) parent)->children, name, strlen(name), &r)) {
+    struct vfs_node* child;
+    if (!hashmap_get(((struct tmpfs_node*) parent)->children, name, strlen(name), (void**) &child)) {
         return -ENOENT;
     }
 
-    struct vfs_node* child = r;
     VFS_NODE_REF(child);
 
     if (strcmp(name, "..") == 0) {
@@ -200,9 +198,7 @@ static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
         child->ops->lock(child);
     }
 
-    if (likely(result != NULL)) {
-        *result = child;
-    }
+    *result = (struct vfs_node*) child;
     return 0;
 }
 
@@ -233,9 +229,7 @@ static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** r
     }
 
     VFS_NODE_UNREF((struct vfs_node*) child);
-    if (likely(result != NULL)) {
-        *result = (struct vfs_node*) child;
-    }
+    *result = (struct vfs_node*) child;
     return 0;
 }
 

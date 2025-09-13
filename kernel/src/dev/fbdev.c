@@ -29,20 +29,20 @@ void fbdev_init(void) {
     struct limine_framebuffer* framebuffer = framebuffer_response->framebuffers[0];
 
     klog("[fbdev] using framebuffer with mode %ux%ux%u at 0x%lx\n",
-         framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
+            framebuffer->width, framebuffer->height, framebuffer->bpp, framebuffer->address);
 
     fb_context = flanterm_fb_init(
-        flanterm_alloc, flanterm_free,
-        (uint32_t*) framebuffer->address,
-        framebuffer->width, framebuffer->height, framebuffer->pitch,
-        framebuffer->red_mask_size, framebuffer->red_mask_shift,
-        framebuffer->green_mask_size, framebuffer->green_mask_shift,
-        framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
-        NULL,
-        NULL, NULL,
-        NULL, NULL,
-        NULL, NULL,
-        NULL, 0, 0, 1,
-        0, 0,
-        0);
+            flanterm_alloc, flanterm_free,
+            (uint32_t*) framebuffer->address,
+            framebuffer->width, framebuffer->height, framebuffer->pitch,
+            framebuffer->red_mask_size, framebuffer->red_mask_shift,
+            framebuffer->green_mask_size, framebuffer->green_mask_shift,
+            framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
+            NULL,
+            NULL, NULL,
+            NULL, NULL,
+            NULL, NULL,
+            NULL, 0, 0, 1,
+            0, 0,
+            0);
 }

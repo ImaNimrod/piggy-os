@@ -6,5 +6,9 @@ void syscall_getppid(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    r->rax = current_process->parent->pid;
+    if (unlikely(current_process->parent == NULL)) {
+        r->rax = -1;
+    } else {
+        r->rax = current_process->parent->pid;
+    }
 }

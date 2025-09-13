@@ -1,17 +1,24 @@
 #include <errno.h>
 #include <fs/devfs.h>
-#include <fs/vfs.h>
+#include <mem/paging.h>
 #include <mem/slab.h>
+#include <sys/timer.h>
 #include <utils/hashmap.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
+#include <utils/string.h>
+#include <utils/log.h>
 
 struct devfs_node {
     struct vfs_node;
+    struct stat stat;
+    struct device_ops* devops;
 };
 
 static struct slab_cache* devfs_node_cache = NULL;
 static struct devfs_node* devfs_root_node = NULL;
+static hashmap_t* devices = NULL;
+static ino_t inode_counter = 0;
 
 static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result);
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);
@@ -21,11 +28,19 @@ static struct vfs_ops devfs_ops = {
     .root = devfs_root,
 };
 
+static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset);
+static ssize_t devfs_write(struct vfs_node* node, const void*, size_t count, off_t offset);
+static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
+static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
 static int devfs_lock(struct vfs_node* node);
 static int devfs_unlock(struct vfs_node* node);
 static void devfs_inactive(struct vfs_node* node);
 
 static struct vfs_node_ops devfs_node_ops = {
+    .read = devfs_read,
+    .write = devfs_write,
+    .ioctl = devfs_ioctl,
+    .lookup = devfs_lookup,
     .lock = devfs_lock,
     .unlock = devfs_unlock,
     .inactive = devfs_inactive,
@@ -35,13 +50,13 @@ static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, st
     (void) backing;
     (void) filesystem;
 
-    struct vfs_filesystem* vfs = kmalloc(sizeof(struct vfs_filesystem));
-    if (unlikely(vfs == NULL)) {
+    struct vfs_filesystem* devfs = kmalloc(sizeof(struct vfs_filesystem));
+    if (unlikely(devfs == NULL)) {
         return -ENOMEM;
     }
 
-    *result = vfs;
-    vfs->ops = &devfs_ops;
+    *result = devfs;
+    devfs->ops = &devfs_ops;
 
     return 0;
 }
@@ -49,6 +64,80 @@ static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, st
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result) {
     devfs_root_node->filesystem = filesystem;
     *result = (struct vfs_node*) devfs_root_node;
+    return 0;
+}
+
+static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset) {
+    if (node->type == VFS_TYPE_DIRECTORY) {
+        return -EISDIR;
+    }
+
+    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
+        return -ENODEV;
+    }
+
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->read == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->read(minor(dnode->stat.st_rdev), buf, count, offset);
+}
+
+static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset) {
+    if (node->type == VFS_TYPE_DIRECTORY) {
+        return -EISDIR;
+    }
+
+    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
+        return -ENODEV;
+    }
+
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->write == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->write(minor(dnode->stat.st_rdev), buf, count, offset);
+}
+
+static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
+    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
+        return -ENODEV;
+    }
+
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->ioctl == NULL) {
+        return -ENOTTY;
+    }
+
+    return dnode->devops->ioctl(minor(dnode->stat.st_rdev), request, argp);
+}
+
+static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result) {
+    if (parent != (struct vfs_node*) devfs_root_node) {
+        return -ENODEV;
+    }
+
+    struct vfs_node* child;
+    if (!hashmap_get(devices, name, strlen(name), (void**) &child)) {
+        return -ENOENT;
+    }
+
+    VFS_NODE_REF(child);
+
+    if (strcmp(name, "..") == 0) {
+        child->ops->unlock(parent);
+    }
+
+    if (child != parent) {
+        child->ops->lock(child);
+    }
+
+    *result = (struct vfs_node*) child;
     return 0;
 }
 
@@ -66,6 +155,43 @@ static void devfs_inactive(struct vfs_node* node) {
     slab_cache_free(devfs_node_cache, node);
 }
 
+int devfs_register_device(const char* name, vfs_type_t type, struct device_ops* ops, int major, int minor) {
+    if (type != VFS_TYPE_BLOCKDEV && type != VFS_TYPE_CHARDEV) {
+        return -EINVAL;
+    }
+
+    struct devfs_node* node = slab_cache_alloc(devfs_node_cache);
+    if (unlikely(node == NULL)) {
+        return -ENOMEM;
+    }
+
+    struct vfs_node* child;
+    if (vfs_lookup((struct vfs_node*) devfs_root_node, name, false, NULL, &child) == 0) {
+        child->ops->unlock(child);
+        VFS_NODE_UNREF(child);
+        return -EEXIST;
+    }
+
+    node->type = type;
+    node->ops = &devfs_node_ops;
+    node->filesystem = devfs_root_node->filesystem;
+    node->refcount = 1;
+
+    node->stat.st_ino = __atomic_add_fetch(&inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_rdev = makedev(major, minor);
+    node->stat.st_blksize = PAGE_SIZE_4KB;
+    node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
+
+    node->devops = ops;
+
+    if (unlikely(!hashmap_set(devices, name, strlen(name), node))) {
+        slab_cache_free(devfs_node_cache, node);
+        return -ENOMEM;
+    }
+
+    return 0;
+}
+
 void devfs_init(void) {
     devfs_node_cache = slab_cache_create("struct devfs_node cache", sizeof(struct devfs_node));
     if (unlikely(devfs_node_cache == NULL)) {
@@ -75,6 +201,11 @@ void devfs_init(void) {
     devfs_root_node = slab_cache_alloc(devfs_node_cache);
     if (unlikely(devfs_root_node == NULL)) {
         kpanic(NULL, false, "failed to create devfs root node");
+    }
+
+    devices = hashmap_create(10);
+    if (unlikely(devices == NULL)) {
+        kpanic(NULL, false, "failed to create devfs device map");
     }
 
     devfs_root_node->type = VFS_TYPE_DIRECTORY;
