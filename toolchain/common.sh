@@ -16,10 +16,11 @@ export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
 export PATH="$PATH:$PREFIX/bin"
 
 function download_and_extract() {
-    declare -n PKG=${1^^}_PKG
+    declare -n BASE=${1^^}_BASE
     declare -n NAME=${1^^}_NAME
-    declare -n BASE_URL=${1^^}_BASE_URL
+    declare -n PKG=${1^^}_PKG
     declare -n MD5SUM=${1^^}_MD5SUM
+    declare -n BASE_URL=${1^^}_BASE_URL
 
     if [ ! -d ${NAME} ]; then
         local md5=""
@@ -44,6 +45,15 @@ function download_and_extract() {
 
         echo "extracting ${NAME}..."
         tar -xf ${PKG}
+
+        if [ -d "${DIR}/patches/${BASE}" ]; then
+            echo "patching ${NAME}..."
+            pushd "${DIR}/tarballs/${NAME}"
+                for file in ${DIR}/patches/${BASE}/*.patch; do
+                    patch -p1 < $file
+                done
+            popd
+        fi
     else
         echo "using existing ${NAME} source"
     fi
