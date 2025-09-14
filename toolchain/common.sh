@@ -11,6 +11,7 @@ fi
 
 source "$DIR/toolchain.config"
 
+export CC="cc"
 export CFLAGS="-g0 -O2 -mtune=native -pipe"
 export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
 export PATH="$PATH:$PREFIX/bin"

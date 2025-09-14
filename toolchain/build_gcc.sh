@@ -28,7 +28,8 @@ pushd ${DIR}/build
             --disable-werror \
             --enable-lto \
             --enable-static \
-            --with-sysroot || exit 1
+            --with-system-zlib \
+            --with-sysroot="$SYSROOT" || exit 1
 
         echo "building ${BINUTILS_NAME}..."
 
@@ -51,9 +52,13 @@ pushd ${DIR}/build
             --prefix="$PREFIX" \
             --target="$TARGET" \
             --disable-nls \
+            --disable-shared \
             --disable-werror \
             --enable-languages=c \
             --enable-lto \
+            --enable-static \
+            --with-sysroot="$SYSROOT" \
+            --with-system-zlib \
             --without-docdir \
             $EXTRA_ARGS || exit 1
 
