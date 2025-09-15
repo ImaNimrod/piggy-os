@@ -2,6 +2,7 @@
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <errno.h>
+#include <fs/file.h>
 #include <fs/vfs.h>
 #include <mem/paging.h>
 #include <sys/elf.h>
@@ -9,8 +10,10 @@
 #include <sys/scheduler.h>
 #include <utils/macros.h>
 
-void syscall_exec(struct registers* r) {
-    const char* path = (const char*) r->rdi;
+void sys_exec(struct registers* r) {
+    const char* path = (const char*) r->rdi; // make this use safe usercopy functions
+    const char** argv = (const char**) r->rsi; // make this use safe usercopy functions
+    const char** envp = (const char**) r->rdx; // make this use safe usercopy functions
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
@@ -43,6 +46,13 @@ void syscall_exec(struct registers* r) {
 
     cli(); // no going back after this point
 
+    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
+        struct file* file = current_process->fds[i];
+        if (file != NULL && file->flags & O_CLOEXEC) {
+            file_release(file);
+        }
+    }
+
     current_process->pagemap = new_pagemap;
     current_process->thread_stack_top = PROCESS_STACK_TOP;
 
@@ -62,7 +72,7 @@ void syscall_exec(struct registers* r) {
         goto error;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, entry);
+    struct thread* new_thread = thread_create_user(current_process, entry, argv, envp);
     if (unlikely(new_thread == NULL)) {
         error = -ENOMEM;
         goto error;

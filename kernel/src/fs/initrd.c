@@ -77,7 +77,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                     break;
                 }
 
-                error = node->ops->write(node, (const void*) ((uintptr_t) current_file + TAR_BLOCK_SIZE), size, 0);
+                error = node->ops->write(node, (const void*) ((uintptr_t) current_file + TAR_BLOCK_SIZE), size, 0, 0);
                 break;
             case TAR_FILE_TYPE_DIRECTORY:
                 error = vfs_create(vfs_root, name, VFS_TYPE_DIRECTORY, &node);
@@ -106,9 +106,11 @@ void initrd_unpack(struct limine_file* initrd_module) {
             klog("[initrd] failed to unpack file '%s': %d\n", name, error);
         }
 
-        //pmm_free((uintptr_t) current_file - HIGH_VMA, (TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE)) / PAGE_SIZE_4KB);
+        file_count++;
+
+        pmm_free((uintptr_t) current_file - HIGH_VMA, (TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE)) / PAGE_SIZE_4KB);
         current_file = (struct tar_header*) ((uintptr_t) current_file + TAR_BLOCK_SIZE + ALIGN_UP(size, TAR_BLOCK_SIZE));
     }
 
-    klog("[initrd] finished unpacking initial ramdisk\n");
+    klog("[initrd] finished unpacking %zu files from initial ramdisk\n", file_count);
 }

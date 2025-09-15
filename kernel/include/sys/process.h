@@ -2,6 +2,7 @@
 #define _KERNEL_SYS_PROCESS_H 1
 
 #include <cpu/isr.h>
+#include <fs/file.h>
 #include <fs/vfs.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,6 +10,7 @@
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
+#define PROCESS_FD_COUNT    32
 #define PROCESS_STACK_TOP   0x700000000
 
 typedef enum {
@@ -52,6 +54,9 @@ struct process {
     int exit_status;
     struct vfs_node* cwd;
 
+    struct file* fds[PROCESS_FD_COUNT];
+    spinlock_t fd_lock;
+
     struct pagemap* pagemap;
     uintptr_t thread_stack_top;
 
@@ -74,7 +79,7 @@ void process_destroy(struct process* process);
 void process_exit(struct process* process, int status);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
-struct thread* thread_create_user(struct process* process, uintptr_t entry);
+struct thread* thread_create_user(struct process* process, uintptr_t entry, const char* argv[], const char* envp[]);
 void thread_destroy(struct thread* thread);
 struct thread* thread_fork(struct process* process, struct thread* old_thread);
 

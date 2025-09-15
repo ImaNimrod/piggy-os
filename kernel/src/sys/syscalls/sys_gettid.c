@@ -2,8 +2,7 @@
 #include <cpu/smp.h>
 #include <sys/process.h>
 
-void syscall_gettid(struct registers* r) {
+void sys_gettid(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
-
     r->rax = current_thread->tid;
 }

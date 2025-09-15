@@ -27,32 +27,32 @@ static int nop(struct vfs_node* node) {
     return 0;
 }
 
-int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, const char* path, const char* fs_name) {
-    struct vfs_ops* ops;
+int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name) {
+    struct vfs_ops* fs_ops;
 
-    if (!hashmap_get(vfs_filesystems, fs_name, strlen(fs_name), (void**) &ops)) {
+    if (!hashmap_get(vfs_filesystems, fs_name, strlen(fs_name), (void**) &fs_ops)) {
         return -EINVAL;
     }
 
-    struct vfs_node* mount;
+    struct vfs_node* target;
 
-    int error = vfs_lookup(path_reference, path, false, NULL, &mount);
-    if (error != 0) {
+    int error = vfs_lookup(target_reference, target_path, false, NULL, &target);
+    if (error < 0) {
         return error;
     }
 
-    if (mount->type != VFS_TYPE_DIRECTORY) {
-        mount->ops->unlock(mount);
-        VFS_NODE_UNREF(mount);
+    if (target->type != VFS_TYPE_DIRECTORY) {
+        target->ops->unlock(target);
+        VFS_NODE_UNREF(target);
         return -ENOTDIR;
     }
 
     struct vfs_filesystem* filesystem;
 
-    error = ops->mount(backing, mount, &filesystem);
-    if (error != 0) {
-        mount->ops->unlock(mount);
-        VFS_NODE_UNREF(mount);
+    error = fs_ops->mount(source, target, &filesystem);
+    if (error < 0) {
+        target->ops->unlock(target);
+        VFS_NODE_UNREF(target);
         return error;
     }
 
@@ -60,13 +60,44 @@ int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, const c
     SLIST_PUSH_FRONT(filesystem_list, filesystem);
     spinlock_release(&filesystem_lock);
 
-    mount->mounted = filesystem;
-    filesystem->node = mount;
+    target->mounted = filesystem;
+    filesystem->node = target;
 
-    mount->ops->unlock(mount);
+    target->ops->unlock(target);
     return 0;
 }
 
+// TODO: make this not be terrible
+int vfs_unmount(struct vfs_node* target_reference, const char* target_path) {
+    struct vfs_node* target;
+
+    int error = vfs_lookup(target_reference, target_path, false, NULL, &target);
+    if (error < 0) {
+        return error;
+    }
+
+    if (target->mounted == NULL) {
+        error = -EINVAL;
+        goto end;
+    }
+
+    error = target->mounted->ops->sync(target->mounted);
+    if (error < 0) {
+        goto end;
+    }
+
+    error = target->mounted->ops->unmount(target->mounted);
+    if (error < 0) {
+        goto end;
+    }
+
+    VFS_NODE_UNREF(target);
+
+end:
+    target->ops->unlock(target);
+    VFS_NODE_UNREF(target);
+    return error;
+}
 
 int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, struct vfs_node** result) {
     char* component = kmalloc(strlen(path) + 1);
@@ -77,7 +108,7 @@ int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, st
     struct vfs_node* parent;
 
     int error = vfs_lookup(reference, path, true, component, &parent);
-    if (error != 0) {
+    if (error < 0) {
         goto cleanup;
     }
 
@@ -86,7 +117,7 @@ int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, st
 
     VFS_NODE_UNREF(parent);
 
-    if (error != 0) {
+    if (error < 0) {
         parent->ops->unlock(parent);
         goto cleanup;
     }
@@ -122,7 +153,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
     while (error == 0 && current->mounted != NULL) {
         error = current->mounted->ops->root(current->mounted, &current);
     }
-    if (error != 0) {
+    if (error < 0) {
         return error;
     }
 
@@ -176,7 +207,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
             while (error == 0 && vfs_root->mounted != NULL) {
                 error = vfs_root->mounted->ops->root(vfs_root->mounted, &root);
             }
-            if (error != 0) {
+            if (error < 0) {
                 break;
             }
 
@@ -202,7 +233,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
         }
 
         error = current->ops->lookup(current, component, &next);
-        if (error != 0) {
+        if (error < 0) {
             break;
         }
 
@@ -215,7 +246,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
             error = r->mounted->ops->root(r->mounted, &r);
         }
 
-        if (error != 0) {
+        if (error < 0) {
             if (current != next) {
                 next->ops->unlock(next);
             }
@@ -236,7 +267,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
         i += comp_len;
     }
 
-    if (error != 0) {
+    if (error < 0) {
         current->ops->unlock(current);
         VFS_NODE_UNREF(current);
     } else {
@@ -256,7 +287,7 @@ int vfs_unlink(struct vfs_node* reference, const char* path) {
     struct vfs_node* parent;
 
     int error = vfs_lookup(reference, path, true, component, &parent);
-    if (error != 0) {
+    if (error < 0) {
         goto cleanup;
     }
 

@@ -33,7 +33,7 @@ struct vfs_node;
 
 struct vfs_ops {
     int (*mount)(struct vfs_node*, struct vfs_node*, struct vfs_filesystem**);
-    int (*unmount)(struct vfs_filesystem**);
+    int (*unmount)(struct vfs_filesystem*);
 
     int (*root)(struct vfs_filesystem*, struct vfs_node**);
     int (*sync)(struct vfs_filesystem*);
@@ -44,9 +44,10 @@ struct vfs_node_ops {
     int (*lookup)(struct vfs_node*, char*, struct vfs_node**);
     int (*unlink)(struct vfs_node*, char*, struct vfs_node**);
 
-    ssize_t (*read)(struct vfs_node*, void*, size_t, off_t);
-    ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t);
+    ssize_t (*read)(struct vfs_node*, void*, size_t, off_t, int);
+    ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t, int);
     int (*ioctl)(struct vfs_node*, int, void*);
+    int (*truncate)(struct vfs_node*, off_t);
 
     int (*getstat)(struct vfs_node*, struct stat*);
     int (*setstat)(struct vfs_node*, const struct stat*, int);
@@ -84,7 +85,29 @@ extern struct vfs_node* vfs_root;
     } \
 } while (0)
 
-int vfs_mount(struct vfs_node* backing, struct vfs_node* path_reference, const char* path, const char* fs_name);
+static inline mode_t vfs_type_to_mode(vfs_type_t type) {
+    mode_t mode = 0777;
+
+    switch (type) {
+        case VFS_TYPE_REGULAR:
+            mode |= S_IFREG;
+            break;
+        case VFS_TYPE_DIRECTORY:
+            mode |= S_IFDIR;
+            break;
+        case VFS_TYPE_BLOCKDEV:
+            mode |= S_IFBLK;
+            break;
+        case VFS_TYPE_CHARDEV:
+            mode |= S_IFCHR;
+            break;
+    }
+
+    return mode;
+}
+
+int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name);
+int vfs_unmount(struct vfs_node* target_reference, const char* target_path);
 int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, struct vfs_node** result);
 int vfs_unlink(struct vfs_node* reference, const char* path);
 int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent, char* last_component, struct vfs_node** result);

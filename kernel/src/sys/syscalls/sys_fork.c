@@ -4,7 +4,7 @@
 #include <sys/process.h>
 #include <sys/scheduler.h>
 
-void syscall_fork(struct registers* r) {
+void sys_fork(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 

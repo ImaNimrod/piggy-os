@@ -93,7 +93,7 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
     int error;
 
     struct elf_header header;
-    if ((error = node->ops->read(node, &header, sizeof(struct elf_header), 0)) < 0) {
+    if ((error = node->ops->read(node, &header, sizeof(struct elf_header), 0, 0)) < 0) {
         return error;
     }
 
@@ -104,7 +104,7 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
     struct elf_program_header pheader;
 
     for (size_t i = 0; i < header.e_phnum; i++) {
-        if ((error = node->ops->read(node, (void*) &pheader, header.e_phentsize, header.e_phoff + (i * header.e_phentsize))) < 0) {
+        if ((error = node->ops->read(node, (void*) &pheader, header.e_phentsize, header.e_phoff + (i * header.e_phentsize), 0)) < 0) {
             return error;
         }
 
@@ -131,7 +131,7 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
             pagemap_map(pagemap, vaddr, paddr, pte_flags, PAGE_SIZE_4KB);
         }
 
-        if ((error = node->ops->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset)) < 0) {
+        if ((error = node->ops->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
             return error;
         }
     }

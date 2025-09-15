@@ -43,9 +43,10 @@ static struct vfs_ops tmpfs_ops = {
 static int tmpfs_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result);
 static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
 static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
-static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset);
-static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset);
+static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
+static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp);
+static int tmpfs_truncate(struct vfs_node* node, off_t length);
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat);
 static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int tmpfs_lock(struct vfs_node* node);
@@ -59,6 +60,7 @@ static struct vfs_node_ops tmpfs_node_ops = {
     .read = tmpfs_read,
     .write = tmpfs_write,
     .ioctl = tmpfs_ioctl,
+    .truncate = tmpfs_truncate,
     .getstat = tmpfs_getstat,
     .setstat = tmpfs_setstat,
     .lock = tmpfs_lock,
@@ -89,14 +91,15 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
         node->capacity = PAGE_SIZE_4KB;
     }
 
-    node->stat.st_ino = __atomic_add_fetch(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, __ATOMIC_SEQ_CST);
-    node->stat.st_blksize = PAGE_SIZE_4KB;
-    node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
-
     node->type = type;
     node->ops = &tmpfs_node_ops;
     node->filesystem = filesystem;
     node->refcount = 1;
+
+    node->stat.st_ino = __atomic_add_fetch(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_mode = vfs_type_to_mode(type);
+    node->stat.st_blksize = PAGE_SIZE_4KB;
+    node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
 
     return node;
 }
@@ -233,7 +236,9 @@ static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** r
     return 0;
 }
 
-static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset) {
+static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
+    (void) flags;
+
     if (node->type == VFS_TYPE_DIRECTORY) {
         return -EISDIR;
     }
@@ -251,7 +256,9 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
     return actual_count;
 }
 
-static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset) {
+static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
+    (void) flags;
+
     if (node->type == VFS_TYPE_DIRECTORY) {
         return -EISDIR;
     }
@@ -287,6 +294,29 @@ static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp) {
     (void) request;
     (void) argp;
     return -ENODEV;
+}
+
+static int tmpfs_truncate(struct vfs_node* node, off_t length) {
+    struct tmpfs_node* tnode = (struct tmpfs_node*) node;
+
+    if ((size_t) length > tnode->capacity) {
+        size_t new_capacity = tnode->capacity;
+        while (new_capacity < (size_t) length) {
+            new_capacity *= 2;
+        }
+
+        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
+        void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
+
+        tnode->capacity = new_capacity;
+        tnode->data = new_data;
+    }
+
+    tnode->stat.st_size = length;
+    tnode->stat.st_blocks = DIV_CEIL(tnode->stat.st_size, tnode->stat.st_blksize);
+    tnode->stat.st_atim = tnode->stat.st_mtim = time_realtime;
+
+    return 0;
 }
 
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat) {

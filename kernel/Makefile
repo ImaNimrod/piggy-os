@@ -1,6 +1,3 @@
-MAKEFLAGS += -rR
-.SUFFIXES:
-
 include ../config.mk
 
 CFLAGS := \
@@ -37,8 +34,8 @@ LDFLAGS := \
 		   --build-id=none \
 		   -nostdlib \
 		   -static \
-		   -z max-page-size=0x1000 \
 		   --gc-sections \
+		   -z max-page-size=0x1000 \
 		   -T linker.ld
 
 CPPFLAGS := \
@@ -75,8 +72,8 @@ obj/%.o: src/%.S
 
 .PHONY: clean
 clean:
-	rm -rf $(KERNEL_FILE) obj
+	$(RM) -r $(KERNEL_FILE) obj
 
 .PHONY: distclean
 distclean: clean
-	rm -f include/limine.h
+	$(RM) include/limine.h

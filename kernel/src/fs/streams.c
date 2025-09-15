@@ -6,8 +6,8 @@
 #include <utils/panic.h>
 #include <utils/string.h>
 
-static ssize_t stream_read(int minor, void* buf, size_t count, off_t offset);
-static ssize_t stream_write(int minor, const void* buf, size_t count, off_t offset);
+static ssize_t stream_read(int minor, void* buf, size_t count, off_t offset, int flags);
+static ssize_t stream_write(int minor, const void* buf, size_t count, off_t offset, int flags);
 static int stream_ioctl(int minor, int request, void* argp);
 
 struct device_ops stream_ops = {
@@ -16,8 +16,9 @@ struct device_ops stream_ops = {
     .ioctl = stream_ioctl,
 };
 
-static ssize_t stream_read(int minor, void* buf, size_t count, off_t offset) {
+static ssize_t stream_read(int minor, void* buf, size_t count, off_t offset, int flags) {
     (void) offset;
+    (void) flags;
 
     ssize_t ret;
 
@@ -38,9 +39,10 @@ static ssize_t stream_read(int minor, void* buf, size_t count, off_t offset) {
     return ret;
 }
 
-static ssize_t stream_write(int minor, const void* buf, size_t count, off_t offset) {
+static ssize_t stream_write(int minor, const void* buf, size_t count, off_t offset, int flags) {
     (void) buf;
     (void) offset;
+    (void) flags;
 
     ssize_t ret;
 
@@ -68,13 +70,13 @@ static int stream_ioctl(int minor, int request, void* argp) {
 }
 
 void streams_init(void) {
-    if (unlikely(devfs_register_device("null", VFS_TYPE_CHARDEV, &stream_ops, STREAM_DEV_MAJOR, STREAM_DEV_NULL_MINOR) < 0)) {
+    if (unlikely(devfs_register_device("null", VFS_TYPE_CHARDEV, &stream_ops, makedev(STREAM_DEV_MAJOR, STREAM_DEV_NULL_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create null device");
     }
-    if (unlikely(devfs_register_device("zero", VFS_TYPE_CHARDEV, &stream_ops, STREAM_DEV_MAJOR, STREAM_DEV_ZERO_MINOR) < 0)) {
+    if (unlikely(devfs_register_device("zero", VFS_TYPE_CHARDEV, &stream_ops, makedev(STREAM_DEV_MAJOR, STREAM_DEV_ZERO_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create zero device");
     }
-    if (unlikely(devfs_register_device("full", VFS_TYPE_CHARDEV, &stream_ops, STREAM_DEV_MAJOR, STREAM_DEV_FULL_MINOR) < 0)) {
+    if (unlikely(devfs_register_device("full", VFS_TYPE_CHARDEV, &stream_ops, makedev(STREAM_DEV_MAJOR, STREAM_DEV_FULL_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create full device");
     }
 }

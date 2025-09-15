@@ -29,10 +29,10 @@ __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_
 
 LIMINE_REQUEST static volatile LIMINE_BASE_REVISION(3)
 
-LIMINE_REQUEST volatile struct limine_executable_address_request executable_address_request = {
-    .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST,
-    .revision = 0,
-};
+    LIMINE_REQUEST volatile struct limine_executable_address_request executable_address_request = {
+        .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST,
+        .revision = 0,
+    };
 
 LIMINE_REQUEST volatile struct limine_executable_cmdline_request executable_cmdline_request = {
     .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST,
@@ -73,7 +73,6 @@ LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
 __attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER
 
 NORETURN static void kernel_main(void) {
-    vfs_init();
     devfs_init();
     tmpfs_init();
 
@@ -82,7 +81,6 @@ NORETURN static void kernel_main(void) {
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
 
     vfs_create(vfs_root, "/dev", VFS_TYPE_DIRECTORY, NULL);
-
     vfs_mount(NULL, vfs_root, "/dev", "devfs");
 
     struct limine_module_response* module_response = module_request.response;
@@ -139,6 +137,8 @@ NORETURN void kernel_entry(void) {
 
     acpi_init();
     madt_parse();
+
+    vfs_init();
 
     process_init();
     scheduler_init();

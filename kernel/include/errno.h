@@ -21,7 +21,7 @@
 #define ENOTDIR         18
 #define ENOTEMPTY       19
 #define ENOTTY          20
-#define EPERM           21
+#define EOVERFLOW       21
 #define ESPIPE          22
 
 #endif /* _KERNEL_TYPES_H */

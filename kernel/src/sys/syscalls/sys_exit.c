@@ -3,7 +3,7 @@
 #include <sys/process.h>
 #include <sys/scheduler.h>
 
-void syscall_exit(struct registers* r) {
+void sys_exit(struct registers* r) {
     int status = r->rdi;
 
     struct thread* current_thread = this_cpu()->running_thread;

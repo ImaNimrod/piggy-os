@@ -28,19 +28,25 @@ static struct vfs_ops devfs_ops = {
     .root = devfs_root,
 };
 
-static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset);
-static ssize_t devfs_write(struct vfs_node* node, const void*, size_t count, off_t offset);
-static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
+static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
+static ssize_t devfs_write(struct vfs_node* node, const void*, size_t count, off_t offset, int flags);
+static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
+static int devfs_truncate(struct vfs_node* node, off_t length);
+static int devfs_getstat(struct vfs_node* node, struct stat* stat);
+static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int devfs_lock(struct vfs_node* node);
 static int devfs_unlock(struct vfs_node* node);
 static void devfs_inactive(struct vfs_node* node);
 
 static struct vfs_node_ops devfs_node_ops = {
+    .lookup = devfs_lookup,
     .read = devfs_read,
     .write = devfs_write,
     .ioctl = devfs_ioctl,
-    .lookup = devfs_lookup,
+    .truncate = devfs_truncate,
+    .getstat = devfs_getstat,
+    .setstat = devfs_setstat,
     .lock = devfs_lock,
     .unlock = devfs_unlock,
     .inactive = devfs_inactive,
@@ -67,56 +73,6 @@ static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** resul
     return 0;
 }
 
-static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset) {
-    if (node->type == VFS_TYPE_DIRECTORY) {
-        return -EISDIR;
-    }
-
-    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
-        return -ENODEV;
-    }
-
-    struct devfs_node* dnode = (struct devfs_node*) node;
-
-    if (dnode->devops->read == NULL) {
-        return -ENODEV;
-    }
-
-    return dnode->devops->read(minor(dnode->stat.st_rdev), buf, count, offset);
-}
-
-static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset) {
-    if (node->type == VFS_TYPE_DIRECTORY) {
-        return -EISDIR;
-    }
-
-    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
-        return -ENODEV;
-    }
-
-    struct devfs_node* dnode = (struct devfs_node*) node;
-
-    if (dnode->devops->write == NULL) {
-        return -ENODEV;
-    }
-
-    return dnode->devops->write(minor(dnode->stat.st_rdev), buf, count, offset);
-}
-
-static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
-    if (node->type != VFS_TYPE_BLOCKDEV && node->type != VFS_TYPE_CHARDEV) {
-        return -ENODEV;
-    }
-
-    struct devfs_node* dnode = (struct devfs_node*) node;
-
-    if (dnode->devops->ioctl == NULL) {
-        return -ENOTTY;
-    }
-
-    return dnode->devops->ioctl(minor(dnode->stat.st_rdev), request, argp);
-}
-
 static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result) {
     if (parent != (struct vfs_node*) devfs_root_node) {
         return -ENODEV;
@@ -141,6 +97,63 @@ static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
     return 0;
 }
 
+static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->read == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->read(minor(dnode->stat.st_rdev), buf, count, offset, flags);
+}
+
+static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->write == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->write(minor(dnode->stat.st_rdev), buf, count, offset, flags);
+}
+
+static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (dnode->devops->ioctl == NULL) {
+        return -ENOTTY;
+    }
+
+    return dnode->devops->ioctl(minor(dnode->stat.st_rdev), request, argp);
+}
+
+static int devfs_truncate(struct vfs_node* node, off_t length) {
+    (void) node;
+    (void) length;
+    return -ENODEV;
+}
+
+static int devfs_getstat(struct vfs_node* node, struct stat* stat) {
+    memcpy64((void*) stat, (const void*) &((struct devfs_node*) node)->stat, sizeof(struct stat) >> 3);
+    return 0;
+}
+
+static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+
+    if (flags & VFS_STAT_ST_ATIM) {
+        dnode->stat.st_atim = stat->st_atim;
+    }
+    if (flags & VFS_STAT_ST_MTIM) {
+        dnode->stat.st_mtim = stat->st_mtim;
+    }
+    if (flags & VFS_STAT_ST_CTIM) {
+        dnode->stat.st_ctim = stat->st_ctim;
+    }
+
+    return 0;
+}
+
 static int devfs_lock(struct vfs_node* node) {
     (void) node;
     return 0;
@@ -155,7 +168,7 @@ static void devfs_inactive(struct vfs_node* node) {
     slab_cache_free(devfs_node_cache, node);
 }
 
-int devfs_register_device(const char* name, vfs_type_t type, struct device_ops* ops, int major, int minor) {
+int devfs_register_device(const char* name, vfs_type_t type, struct device_ops* ops, dev_t dev) {
     if (type != VFS_TYPE_BLOCKDEV && type != VFS_TYPE_CHARDEV) {
         return -EINVAL;
     }
@@ -178,7 +191,8 @@ int devfs_register_device(const char* name, vfs_type_t type, struct device_ops* 
     node->refcount = 1;
 
     node->stat.st_ino = __atomic_add_fetch(&inode_counter, 1, __ATOMIC_SEQ_CST);
-    node->stat.st_rdev = makedev(major, minor);
+    node->stat.st_mode = vfs_type_to_mode(type);
+    node->stat.st_rdev = dev;
     node->stat.st_blksize = PAGE_SIZE_4KB;
     node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
 

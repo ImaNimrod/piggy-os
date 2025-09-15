@@ -1,9 +1,4 @@
-MAKEFLAGS += -rR
-.SUFFIXES:
-
 include ./config.mk
-
-override IMAGE_NAME := piggy
 
 EMUOPTS := -machine q35 \
 		   -m 2G \
@@ -58,11 +53,16 @@ limine/limine:
 kernel:
 	$(MAKE) -C kernel
 
+.PHONY: userspace
+userspace:
+	$(MAKE) -C userspace
+
 .PHONY: initrd
 initrd:
 	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_FILE) *
 
-$(IMAGE_NAME).iso: limine/limine kernel initrd
+.NOTPARALLEL:
+$(IMAGE_NAME).iso: limine/limine kernel userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel/$(KERNEL_FILE) $(INITRD_FILE) iso_root/boot/
@@ -82,7 +82,8 @@ $(IMAGE_NAME).iso: limine/limine kernel initrd
 
 .PHONY: clean
 clean:
-	rm -rf iso_root $(IMAGE_NAME).iso $(INITRD_FILE)
+	$(RM) -r iso_root $(IMAGE_NAME).iso $(INITRD_FILE)
+	$(MAKE) -C userspace clean
 	$(MAKE) -C kernel clean
 
 .PHONY: distclean

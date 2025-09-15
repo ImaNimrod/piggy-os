@@ -12,7 +12,7 @@
 #include <utils/string.h>
 
 #define KERNEL_STACK_SIZE   0x4000
-#define USER_STACK_SIZE     0x10000
+#define USER_STACK_SIZE     0x20000
 
 struct process* kernel_process = NULL;
 static struct process* init_process = NULL;
@@ -37,6 +37,9 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
 
     if (parent != NULL) {
         new_process->cwd = parent->cwd;
+        VFS_NODE_REF(new_process->cwd);
+
+        file_fork(parent, new_process);
 
         new_process->pagemap = pagemap_fork(parent->pagemap);
         if (unlikely(new_process->pagemap == NULL)) {
@@ -48,6 +51,8 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
         SLIST_PUSH_FRONT(parent->children, new_process);
     } else {
         new_process->cwd = vfs_root;
+        VFS_NODE_REF(vfs_root);
+
         new_process->pagemap = pagemap;
         new_process->thread_stack_top = PROCESS_STACK_TOP;
     }
@@ -71,8 +76,12 @@ end:
 }
 
 void process_create_init(void) {
+    const char* init_path = "/bin/init";
+    const char* argv[] = { init_path, NULL };
+    const char* envp[] = { NULL };
+
     struct vfs_node* init_node;
-    if (vfs_lookup(vfs_root, "/bin/init", false, NULL, &init_node) < 0) {
+    if (vfs_lookup(vfs_root, init_path, false, NULL, &init_node) < 0) {
         kpanic(NULL, false, "failed to find /bin/init");
     }
 
@@ -93,8 +102,9 @@ void process_create_init(void) {
     }
 
     init_node->ops->unlock(init_node);
+    VFS_NODE_UNREF(init_node);
 
-    struct thread* init_thread = thread_create_user(init_process, entry);
+    struct thread* init_thread = thread_create_user(init_process, entry, argv, envp);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
@@ -103,6 +113,13 @@ void process_create_init(void) {
 }
 
 void process_destroy(struct process* process) {
+    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
+        struct file* file = process->fds[i];
+        if (file != NULL) {
+            file_release(file);
+        }
+    }
+
     if (likely(process->parent != NULL)) {
         SLIST_REMOVE(process->parent->children, process);
     }
@@ -173,7 +190,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     return thread;
 }
 
-struct thread* thread_create_user(struct process* process, uintptr_t entry) {
+struct thread* thread_create_user(struct process* process, uintptr_t entry, const char* argv[], const char* envp[]) {
     struct thread* thread = slab_cache_alloc(thread_cache);
     if (unlikely(thread == NULL)) {
         return NULL;
@@ -208,6 +225,60 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry) {
     asm volatile("fldcw %0" :: "m"(default_fcw) : "memory");
     asm volatile("ldmxcsr %0" :: "m"(default_mxcsr) : "memory");
     this_cpu()->fpu_save(thread->fpu_context);
+
+    thread->fs_base = 0;
+    thread->gs_base = 0;
+
+    if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL) {
+        void* stack_top = (void*) (user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
+        uintptr_t* stack = stack_top;
+
+        int envp_len;
+        for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
+            size_t length = strlen(envp[envp_len]);
+            stack = (void*) ((uintptr_t) stack - length - 1);
+            memcpy(stack, envp[envp_len], length);
+            *((char*) stack + length) = '\0';
+        }
+
+        int argv_len;
+        for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
+            size_t length = strlen(argv[argv_len]);
+            stack = (void*) ((uintptr_t) stack - length - 1);
+            memcpy(stack, argv[argv_len], length);
+            *((char*) stack + length) = '\0';
+        }
+
+        stack = (uintptr_t*) ALIGN_DOWN((uintptr_t) stack, 16);
+        if (((argv_len + envp_len + 1) & 1) != 0) {
+            stack--;
+        }
+
+        uintptr_t old_rsp = thread->registers.rsp;
+
+        *(--stack) = 0;
+        stack -= envp_len;
+        int i;
+        for (i = 0; i < envp_len; i++) {
+            old_rsp -= strlen(envp[i]) + 1;
+            stack[i] = old_rsp;
+        }
+
+        thread->registers.rdx = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // envp
+
+        *(--stack) = 0;
+        stack -= argv_len;
+        for (i = 0; i < argv_len; i++) {
+            old_rsp -= strlen(argv[i]) + 1;
+            stack[i] = old_rsp;
+        }
+
+        thread->registers.rsi = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // argv
+        thread->registers.rdi = argv_len;  // argc
+
+        thread->registers.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
+        thread->user_stack = thread->registers.rsp;
+    }
 
     thread->tid = vector_size(process->threads);
     vector_push(process->threads, &thread);
