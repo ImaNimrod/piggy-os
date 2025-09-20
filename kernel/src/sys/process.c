@@ -5,6 +5,7 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
+#include <utils/cmdline.h>
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -76,13 +77,14 @@ end:
 }
 
 void process_create_init(void) {
-    const char* init_path = "/bin/init";
-    const char* argv[] = { init_path, NULL };
-    const char* envp[] = { NULL };
+    const char* init_path = cmdline_get("init");
+    if (!init_path) {
+        init_path = "/bin/init";
+    }
 
     struct vfs_node* init_node;
     if (vfs_lookup(vfs_root, init_path, false, NULL, &init_node) < 0) {
-        kpanic(NULL, false, "failed to find /bin/init");
+        kpanic(NULL, false, "failed to find %s", init_path);
     }
 
     struct pagemap* init_pagemap = pagemap_create();
@@ -94,6 +96,9 @@ void process_create_init(void) {
     if (unlikely(init_process == NULL)) {
         kpanic(NULL, false, "failed to create init process");
     }
+
+    const char* argv[] = { init_path, NULL };
+    const char* envp[] = { NULL };
 
     uintptr_t entry;
 

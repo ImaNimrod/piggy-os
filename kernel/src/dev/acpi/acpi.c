@@ -86,7 +86,7 @@ void acpi_init(void) {
     }
 
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (fadt != NULL && fadt->length >= 116) {
+    if (unlikely(fadt != NULL && fadt->length >= 116)) {
         uint32_t fadt_flags = *((uint32_t*) fadt + 28);
 
         if (fadt_flags & (1 << 20)) {

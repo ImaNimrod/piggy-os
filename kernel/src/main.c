@@ -5,6 +5,7 @@
 #include <dev/hpet.h>
 #include <dev/lapic.h>
 #include <dev/pci.h>
+#include <dev/ps2.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
 #include <fs/initrd.h>
@@ -76,6 +77,7 @@ NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
 
+    ps2_init();
     streams_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
