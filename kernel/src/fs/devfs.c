@@ -7,7 +7,7 @@
 #include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/string.h>
-#include <utils/log.h>
+#include <utils/usercopy.h>
 
 struct devfs_node {
     struct vfs_node;
@@ -134,7 +134,7 @@ static int devfs_truncate(struct vfs_node* node, off_t length) {
 }
 
 static int devfs_getstat(struct vfs_node* node, struct stat* stat) {
-    memcpy64((void*) stat, (const void*) &((struct devfs_node*) node)->stat, sizeof(struct stat) >> 3);
+    user_memcpy_to_user((void*) stat, (const void*) &((struct devfs_node*) node)->stat, sizeof(struct stat));
     return 0;
 }
 

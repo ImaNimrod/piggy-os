@@ -40,6 +40,7 @@
 #define E1000_REG_IMC           0x00d8
 #define E1000_REG_RCTL          0x0100
 #define E1000_REG_TCTL          0x0400
+#define E1000_REG_TIPG          0x0410
 #define E1000_REG_RXDESCLO      0x2800
 #define E1000_REG_RXDESCHI      0x2804
 #define E1000_REG_RXDESCLEN     0x2808
@@ -84,8 +85,11 @@
 #define RCTL_BAM    (1 << 15)
 #define RCTL_SECRC  (1 << 26)
 
-#define TCTL_EN     (1 << 1)
-#define TCTL_PSP    (1 << 3)
+#define TCTL_EN         (1 << 1)
+#define TCTL_PSP        (1 << 3)
+#define TCTL_RTLC       (1 << 24)
+#define TCTL_CT_SHIFT   4
+#define TCTL_COLD_SHIFT 12
 
 struct rx_descriptor {
     uint64_t address;
@@ -211,10 +215,8 @@ static void init_tx(struct e1000_device* device) {
         desc->cmd = (1 << 0);
     }
 
-    e1000_write(device, E1000_REG_TCTL, TCTL_EN | TCTL_PSP);
-
-    e1000_write(device, E1000_REG_TIDV, 0);
-    e1000_write(device, E1000_REG_TADV, 0);
+    e1000_write(device, E1000_REG_TCTL, TCTL_EN | TCTL_PSP | (15 << TCTL_CT_SHIFT) | (64 << TCTL_COLD_SHIFT) | TCTL_RTLC);
+    e1000_write(device, E1000_REG_TIPG, 0x0060200a);
 
     e1000_flush(device);
 }

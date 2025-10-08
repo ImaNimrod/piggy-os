@@ -5,14 +5,20 @@
 #include <fs/vfs.h>
 #include <sys/process.h>
 #include <types.h>
+#include <utils/usercopy.h>
 
 void sys_read(struct registers* r) {
     int fd = r->rdi;
-    void* buf = (void*) r->rsi; // TODO: make safe with usercopy
+    void* buf = (void*) r->rsi;
     size_t count = r->rdx;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
+
+    if (!IS_USER_ADDRESS(buf)) {
+        r->rax = -EFAULT;
+        return;
+    }
 
     struct file* file = file_get(current_process, fd);
     if (file == NULL) {
@@ -35,7 +41,7 @@ void sys_read(struct registers* r) {
     struct vfs_node* node = file->node;
 
     node->ops->lock(node);
-    ret = node->ops->read(node, buf, file->offset, count, file->flags);
+    ret = node->ops->read(node, buf, count, file->offset, file->flags);
     node->ops->unlock(node);
 
     if (ret > 0) {

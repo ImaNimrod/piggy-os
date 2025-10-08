@@ -42,6 +42,8 @@ struct thread {
     uint64_t fs_base;
     uint64_t gs_base;
 
+    struct registers* usercopy_registers;
+
     spinlock_t run_lock;
     spinlock_t yield_lock;
 

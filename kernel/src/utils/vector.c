@@ -130,7 +130,7 @@ bool vector_pop(vector_t* v, void* out) {
 
     v->size--;
 
-    if (out != NULL) {
+    if (likely(out != NULL)) {
         uintptr_t src = (uintptr_t) v->data + (v->size * v->item_size);
         memcpy(out, (const void*) src, v->item_size);
     }

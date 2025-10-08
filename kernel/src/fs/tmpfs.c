@@ -11,12 +11,14 @@
 #include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
+#include <utils/usercopy.h>
 
 struct tmpfs_filesystem {
     struct vfs_filesystem;
     ino_t inode_counter;
 };
 
+// TODO: make tmpfs_node data be list of pages rather than one contiguous page that gets realloced when full
 struct tmpfs_node {
     struct vfs_node;
     struct stat stat;
@@ -250,7 +252,10 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
         actual_count = count - ((offset + count) - tnode->stat.st_size);
     }
 
-    memcpy(buf, (void*) ((uintptr_t) tnode->data + offset), actual_count);
+    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) ((uintptr_t) tnode->data + offset), count);
+    if (ret < 0) {
+        return ret;
+    }
 
     tnode->stat.st_atim = time_realtime;
     return actual_count;
@@ -271,14 +276,19 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
             new_capacity *= 2;
         }
 
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
         void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
+        memcpy64(new_data, tnode->data, (tnode->capacity / PAGE_SIZE_4KB) >> 3);
+
+        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
 
         tnode->data = new_data;
         tnode->capacity = new_capacity;
     }
 
-    memcpy((void*) ((uintptr_t) tnode->data + offset), buf, count);
+    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER((void*) ((uintptr_t) tnode->data + offset), buf, count);
+    if (ret < 0) {
+        return ret;
+    }
 
     if ((off_t) (offset + count) >= tnode->stat.st_size) {
         tnode->stat.st_size = (off_t) (offset + count);
@@ -293,7 +303,7 @@ static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp) {
     (void) node;
     (void) request;
     (void) argp;
-    return -ENODEV;
+    return -ENOTTY;
 }
 
 static int tmpfs_truncate(struct vfs_node* node, off_t length) {
@@ -305,8 +315,10 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
             new_capacity *= 2;
         }
 
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
         void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
+        memcpy64(new_data, tnode->data, (tnode->capacity / PAGE_SIZE_4KB) >> 3);
+
+        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
 
         tnode->capacity = new_capacity;
         tnode->data = new_data;
@@ -320,7 +332,7 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
 }
 
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat) {
-    memcpy64((void*) stat, (const void*) &((struct tmpfs_node*) node)->stat, sizeof(struct stat) >> 3);
+    user_memcpy_to_user((void*) stat, (const void*) &((struct tmpfs_node*) node)->stat, sizeof(struct stat));
     return 0;
 }
 

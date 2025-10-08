@@ -97,6 +97,28 @@ void process_create_init(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
+    struct vfs_node* tty_node;
+    if (vfs_lookup(vfs_root, "/dev/tty", false, NULL, &tty_node) < 0) {
+        kpanic(NULL, false, "failed to find tty device");
+    }
+    tty_node->ops->unlock(tty_node);
+
+    struct file* stdin_file = file_create(tty_node, O_RDONLY);
+    if (unlikely(stdin_file == NULL)) {
+        kpanic(NULL, false, "failed to create stdin file descriptor for init process");
+    }
+    init_process->fds[0] = stdin_file;
+    struct file* stdout_file = file_create(tty_node, O_WRONLY);
+    if (unlikely(stdout_file == NULL)) {
+        kpanic(NULL, false, "failed to create stdout file descriptor for init process");
+    }
+    init_process->fds[1] = stdout_file;
+    struct file* stderr_file = file_create(tty_node, O_WRONLY);
+    if (unlikely(stderr_file == NULL)) {
+        kpanic(NULL, false, "failed to create stderr file descriptor for init process");
+    }
+    init_process->fds[2] = stderr_file;
+
     const char* argv[] = { init_path, NULL };
     const char* envp[] = { NULL };
 

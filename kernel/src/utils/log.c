@@ -1,4 +1,4 @@
-#include <dev/fbdev.h>
+#include <dev/char/fb.h>
 #include <dev/serial.h>
 #include <stdarg.h>
 #include <utils/log.h>

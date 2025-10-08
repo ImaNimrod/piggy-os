@@ -1,6 +1,4 @@
-#include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <cpu/smp.h>
 #include <errno.h>
 #include <sys/syscall.h>
 #include <utils/macros.h>
@@ -55,14 +53,5 @@ void syscall_handler(struct registers* r) {
         return;
     }
 
-    // TODO: actually utilize SMAP correctly and make safe to/from user copy functions
-    if (this_cpu()->has_smap) {
-        stac();
-    }
-
     syscall_table[r->rax](r);
-
-    if (this_cpu()->has_smap) {
-        clac();
-    }
 }

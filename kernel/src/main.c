@@ -1,7 +1,9 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <dev/acpi.h>
-#include <dev/fbdev.h>
+#include <dev/char/fb.h>
+#include <dev/char/pseudo.h>
+#include <dev/char/tty.h>
 #include <dev/hpet.h>
 #include <dev/lapic.h>
 #include <dev/pci.h>
@@ -9,7 +11,6 @@
 #include <dev/serial.h>
 #include <fs/devfs.h>
 #include <fs/initrd.h>
-#include <fs/streams.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <limine.h>
@@ -77,8 +78,11 @@ NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
 
+    pseudo_dev_init();
+    fb_dev_init();
+
     ps2_init();
-    streams_init();
+    tty_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
 
@@ -133,7 +137,7 @@ NORETURN void kernel_entry(void) {
 
     cmdline_parse();
 
-    fbdev_init();
+    fb_dev_early_init();
 
     paging_init();
 

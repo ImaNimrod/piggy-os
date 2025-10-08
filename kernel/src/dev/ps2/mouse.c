@@ -8,8 +8,7 @@
 static void ps2_mouse_irq_handler(struct registers* r, void* arg) {
     (void) r;
     (void) arg;
-
-    klog("PS/2 mouse interrupt: 0x%02x\n", read_data());
+    flush();
 }
 
 void mouse_init(bool second_port) {

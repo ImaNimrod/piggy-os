@@ -2,7 +2,6 @@
 #define _KERNEL_FS_DEVFS_H 1
 
 #include <fs/vfs.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <types.h>
 

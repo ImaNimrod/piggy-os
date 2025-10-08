@@ -28,6 +28,8 @@
 #define PS2_DEVICE_COMMAND_DISABLE_SCANNING 0xf5
 #define PS2_DEVICE_COMMAND_RESET            0xff
 
+#define PS2_KEYBOARD_COMMAND_SET_LEDS       0xed
+
 static inline void flush(void) {
     while (inb(PS2_STATUS_PORT) & (1 << 0)) {
         inb(PS2_DATA_PORT);
@@ -61,5 +63,6 @@ static inline void send_data(uint8_t data) {
 void keyboard_init(bool second_port);
 void mouse_init(bool second_port);
 uint8_t send_device_command(uint8_t command, bool second_port);
+uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second_port);
 
 #endif /* _PS2_DEFINITIONS_H */

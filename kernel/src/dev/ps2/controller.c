@@ -55,6 +55,31 @@ uint8_t send_device_command(uint8_t command, bool second_port) {
     return res;
 }
 
+uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second_port) {
+    uint8_t res;
+
+    for (int i = 0; i < 3; i++) {
+        if (second_port) {
+            send_command(PS2_COMMAND_SEND_TO_SECOND_PORT);
+        }
+
+        send_data(command);
+
+        if (second_port) {
+            send_command(PS2_COMMAND_SEND_TO_SECOND_PORT);
+        }
+
+        send_data(data);
+
+        res = read_data();
+        if (res != 0xfe) {
+            return res;
+        }
+    }
+
+    return res;
+}
+
 void ps2_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (unlikely(fadt != NULL)) {
