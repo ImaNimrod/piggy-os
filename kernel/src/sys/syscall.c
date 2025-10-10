@@ -22,6 +22,12 @@ extern void sys_seek(struct registers* r);
 extern void sys_truncate(struct registers* r);
 extern void sys_stat(struct registers* r);
 extern void sys_chdir(struct registers* r);
+extern void sys_sbrk(struct registers* r);
+extern void sys_sleep(struct registers* r);
+extern void sys_gettime(struct registers* r);
+extern void sys_settime(struct registers* r);
+extern void sys_uname(struct registers* r);
+extern void sys_archctl(struct registers* r);
 
 typedef void (*syscall_handler_t)(struct registers*);
 
@@ -45,6 +51,12 @@ static syscall_handler_t syscall_table[] = {
     [SYS_TRUNCATE]  = sys_truncate,
     [SYS_STAT]      = sys_stat,
     [SYS_CHDIR]     = sys_chdir,
+    [SYS_SBRK]      = sys_sbrk,
+    [SYS_SLEEP]     = sys_sleep,
+    [SYS_GETTIME]   = sys_gettime,
+    [SYS_SETTIME]   = sys_settime,
+    [SYS_UNAME]     = sys_uname,
+    [SYS_ARCHCTL]   = sys_archctl,
 };
 
 void syscall_handler(struct registers* r) {

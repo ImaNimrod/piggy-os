@@ -10,8 +10,9 @@
 #include <utils/usercopy.h>
 
 void sys_open(struct registers* r) {
-    const char* path = (const char*) r->rdi;
-    int flags = r->rsi;
+    int dirfd = r->rdi;
+    const char* path = (const char*) r->rsi;
+    int flags = r->rdx;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
@@ -30,19 +31,27 @@ void sys_open(struct registers* r) {
         return;
     }
 
-    user_memcpy_from_user(kpath, path, path_len);
+    if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
+        kfree(kpath);
+        r->rax = ret;
+        return;
+    }
 
     struct vfs_node* node = NULL;
     struct file* file = NULL;
 
-    VFS_NODE_REF(current_process->cwd);
+    struct file* dirfile;
+    struct vfs_node* dirnode;
+    if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
+        goto end;
+    }
 
-    ret = vfs_lookup(current_process->cwd, kpath, false, NULL, &node);
+    ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
     if (ret == 0 && (flags & O_CREAT) && (flags & O_EXCL)) {
         ret = -EEXIST;
         goto end;
     } else if (ret == -ENOENT && (flags & O_CREAT)) {
-        ret = vfs_create(current_process->cwd, kpath, VFS_TYPE_REGULAR, &node);
+        ret = vfs_create(dirnode, kpath, VFS_TYPE_REGULAR, &node);
     }
 
     if (ret < 0) {
@@ -84,6 +93,8 @@ void sys_open(struct registers* r) {
     ret = fd;
 
 end:
+    r->rax = ret;
+
     if (file != NULL && ret < 0) {
         file_release(file);
     }
@@ -95,9 +106,12 @@ end:
         }
     }
 
-    VFS_NODE_UNREF(current_process->cwd);
+    if (dirnode != NULL) {
+        VFS_NODE_UNREF(dirnode);
+    }
+    if (dirfile != NULL) {
+        file_release(dirfile);
+    }
 
     kfree(kpath);
-
-    r->rax = ret;
 }

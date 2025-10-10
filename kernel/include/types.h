@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#define AT_FDCWD -23
+
 #define makedev(maj, min) (dev_t) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
 #define major(dev) (uint8_t) (((dev) & 0xff00u) >> 8)
 #define minor(dev) (uint8_t) ((dev) & 0x00ffu)
@@ -26,6 +28,11 @@ struct timespec {
     time_t tv_sec;
     time_t tv_nsec;
 };
+
+#define CLOCK_REALTIME  0
+#define CLOCK_MONOTONIC 1
+
+typedef int32_t clockid_t;
 
 #define O_PATH      010000000
 #define O_SEARCH    O_PATH
@@ -172,6 +179,19 @@ struct winsize {
     uint16_t ws_xpixel;
     uint16_t ws_ypixel;
 };
+
+struct utsname {
+    char sysname[64];
+    char nodename[64];
+    char release[64];
+    char version[64];
+    char machine[64];
+};
+
+#define ARCHCTL_GET_FS_BASE 0
+#define ARCHCTL_GET_GS_BASE 1
+#define ARCHCTL_SET_FS_BASE 2
+#define ARCHCTL_SET_GS_BASE 3
 
 typedef uint8_t mac_address_t[6];
 typedef uint32_t ipv4_address_t;

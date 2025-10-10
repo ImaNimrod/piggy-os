@@ -52,9 +52,13 @@ static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset,
     (void) flags;
 
     const char* cbuf = buf;
+    int ret;
 
     for (size_t i = 0; i < count; i++) {
-        char c = cbuf[i];
+        char c;
+        if ((ret = user_memcpy_from_user(&c, &cbuf[i], sizeof(char))) < 0) {
+            return ret;
+        }
 
         if (c == '\n' && (termios.c_oflag & ONLCR)) {
             char cr = '\r';

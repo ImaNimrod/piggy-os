@@ -20,8 +20,9 @@
 #define ENOSYS          17
 #define ENOTDIR         18
 #define ENOTEMPTY       19
-#define ENOTTY          20
-#define EOVERFLOW       21
-#define ESPIPE          22
+#define ENOTSUP         20
+#define ENOTTY          21
+#define EOVERFLOW       22
+#define ESPIPE          23
 
 #endif /* _KERNEL_TYPES_H */

@@ -47,6 +47,8 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
             goto error;
         }
         new_process->thread_stack_top = parent->thread_stack_top;
+        new_process->brk = parent->brk;
+        new_process->brk_next_unallocated_page_begin = parent->brk_next_unallocated_page_begin;
 
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
@@ -56,6 +58,7 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
 
         new_process->pagemap = pagemap;
         new_process->thread_stack_top = PROCESS_STACK_TOP;
+        new_process->brk = new_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
     }
 
     new_process->pid = __atomic_load_n(&next_pid, __ATOMIC_SEQ_CST);
@@ -186,6 +189,44 @@ void process_exit(struct process* process, int status) {
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         scheduler_dequeue((struct thread*) *vector_get(process->threads, i));
     }
+}
+
+void* process_sbrk(struct process* process, intptr_t size) {
+    uintptr_t old_brk = process->brk;
+
+    if (size > 0) {
+        size_t remaining = process->brk_next_unallocated_page_begin - process->brk;
+
+        if ((unsigned) size > remaining) {
+            size_t bytes_needed = size - remaining;
+            size_t page_count = ((bytes_needed - 1) / PAGE_SIZE_4KB) + 1;
+
+            uintptr_t paddr = pmm_alloc(page_count);
+
+            for (size_t i = 0; i < page_count; i++) {
+                pagemap_map(process->pagemap, process->brk_next_unallocated_page_begin + (i * PAGE_SIZE_4KB),
+                        paddr + (i * PAGE_SIZE_4KB), PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX, PAGE_SIZE_4KB);
+            }
+
+            process->brk_next_unallocated_page_begin += page_count * PAGE_SIZE_4KB;
+        }
+    } else if (size < 0) {
+        uintptr_t current_page_start = process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB;
+        size_t remaining = process->brk - current_page_start;
+
+        if ((unsigned) -size > remaining) {
+            size_t page_count = (((-size - remaining) - 1) / PAGE_SIZE_4KB) + 1;
+            for (size_t i = 0; i < page_count; i++) {
+                if (process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB >= PROCESS_BRK_BASE) {
+                    process->brk_next_unallocated_page_begin -= PAGE_SIZE_4KB;
+                    pagemap_unmap(process->pagemap, process->brk_next_unallocated_page_begin);
+                }
+            }
+        }
+    }
+
+    process->brk += size;
+    return (void*) old_brk;
 }
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {

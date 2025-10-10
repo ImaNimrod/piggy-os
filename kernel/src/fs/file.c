@@ -1,4 +1,5 @@
 #include <cpu/smp.h>
+#include <errno.h>
 #include <fs/file.h>
 #include <mem/slab.h> 
 #include <utils/panic.h>
@@ -80,4 +81,27 @@ void file_release(struct file* file) {
         VFS_NODE_UNREF(file->node);
         slab_cache_free(file_cache, file);
     }
+}
+
+int file_resolve_dirfd(struct process* process, int dirfd, const char* path, struct file** dirfile, struct vfs_node** dirnode) {
+    if (path[0] == '/') {
+        VFS_NODE_REF(vfs_root);
+        *dirnode = vfs_root;
+    } else if (dirfd == AT_FDCWD) {
+        VFS_NODE_REF(process->cwd);
+        *dirnode = process->cwd;
+    } else {
+        *dirfile = file_get(process, dirfd);
+        if (*dirfile == NULL) {
+            return -EBADF;
+        }
+
+        *dirnode = (*dirfile)->node;
+        if ((*dirnode)->type != VFS_TYPE_DIRECTORY) {
+            file_release(*dirfile);
+            return -ENOTDIR;
+        }
+    }
+
+    return 0;
 }
