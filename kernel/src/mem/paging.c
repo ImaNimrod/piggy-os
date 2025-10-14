@@ -1,9 +1,11 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/smp.h>
+#include <errno.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <sys/process.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
@@ -24,6 +26,15 @@ struct pagemap* kernel_pagemap = NULL;
 static bool hugepages_supported = false;
 static bool pat_supported = false;
 static struct slab_cache* pagemap_cache = NULL;
+
+static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
+    uintptr_t vaddr = 0;
+    vaddr |= pml4_index << 39;
+    vaddr |= pml3_index << 30;
+    vaddr |= pml2_index << 21;
+    vaddr |= pml1_index << 12;
+    return vaddr;
+}
 
 static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, size_t depth) {
     if (depth == 1) {
@@ -50,18 +61,18 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
     pmm_free((uintptr_t) level - HIGH_VMA, 1);
 }
 
-static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
-    uintptr_t vaddr = 0;
-    vaddr |= pml4_index << 39;
-    vaddr |= pml3_index << 30;
-    vaddr |= pml2_index << 21;
-    vaddr |= pml1_index << 12;
-    return vaddr;
-}
-
 static void page_fault_handler(struct registers* r, void* arg) {
     (void) arg;
-    kpanic(r, false, "fatal pagefault");
+
+    struct thread* current_thread = this_cpu()->running_thread;
+
+    if (current_thread != NULL && current_thread->usercopy_registers != NULL) {
+        memcpy64((uint64_t*) r, (const uint64_t*) current_thread->usercopy_registers, sizeof(struct registers) >> 3);
+        current_thread->usercopy_registers = NULL;
+        r->rax = -EFAULT;
+    } else {
+        kpanic(r, false, "fatal pagefault");
+    }
 }
 
 struct pagemap* pagemap_create(void) {

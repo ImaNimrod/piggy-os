@@ -13,6 +13,8 @@
 #define SCHEDULER_IRQ_VECTOR 48 
 #define SCHEDULER_TIME_QUANTA 5000
 
+extern void context_switch(struct registers* r);
+
 static struct thread* thread_list = NULL;
 static spinlock_t thread_state_lock = {0};
 
@@ -101,27 +103,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
         swapgs();
     }
 
-    asm volatile(
-        "mov %0, %%rsp\n\t"
-        "pop %%r15\n\t"
-        "pop %%r14\n\t"
-        "pop %%r13\n\t"
-        "pop %%r12\n\t"
-        "pop %%r11\n\t"
-        "pop %%r10\n\t"
-        "pop %%r9\n\t"
-        "pop %%r8\n\t"
-        "pop %%rsi\n\t"
-        "pop %%rdi\n\t"
-        "pop %%rbp\n\t"
-        "pop %%rdx\n\t"
-        "pop %%rcx\n\t"
-        "pop %%rbx\n\t"
-        "pop %%rax\n\t"
-        "addq $16, %%rsp\n\t"
-        "iretq\n\t"
-        :: "r" (&next_thread->registers)
-    );
+    context_switch(&next_thread->registers);
     __builtin_unreachable();
 }
 

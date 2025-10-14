@@ -21,9 +21,9 @@ static inline int _memset_wrapper(void* restrict dest, int c, size_t n) {
 #define USER_MEMCPY_MAYBE_TO_USER(dest, src, n) IS_USER_ADDRESS((dest)) ? user_memcpy_to_user((dest), (src), (n)) : _memcpy_wrapper((dest), (src), (n))
 #define USER_MEMSET_MAYBE_USER(dest, c, n) IS_USER_ADDRESS((dest)) ? user_memset((dest), (c), (n)) : _memset_wrapper((dest), (c), (n))
 
-int user_memcpy_from_user(void* restrict dest, const void* restrict src, size_t n);
-int user_memcpy_to_user(void* restrict dest, const void* restrict src, size_t n);
-int user_memset(void* dest, int c, size_t n);
-int user_strlen(const char* str, size_t* ret);
+int user_memcpy_from_user(void* restrict dest, const void* restrict usrc, size_t n);
+int user_memcpy_to_user(void* restrict udest, const void* restrict src, size_t n);
+int user_memset(void* udest, int c, size_t n);
+int user_strlen(const char* ustr, size_t* ret);
 
 #endif /* _KERNEL_UTILS_USERCOPY_H */

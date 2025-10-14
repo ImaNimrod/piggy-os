@@ -81,14 +81,14 @@ void isr_handler(struct registers* r) {
     }
 
     uint8_t int_number = r->int_number & 0xff;
-    struct isr_table_entry* entry = &isrs[int_number];
-
     if (int_number == PANIC_IPI_VECTOR) {
         cli();
         for (;;) {
             hlt();
         }
     }
+
+    struct isr_table_entry* entry = &isrs[int_number];
 
     if (int_number < EXCEPTION_NUM - 1) {
         if (entry->handler == NULL) {

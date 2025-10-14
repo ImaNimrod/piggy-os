@@ -5,40 +5,60 @@
 #include <fs/file.h>
 #include <fs/vfs.h>
 #include <mem/paging.h>
+#include <mem/slab.h>
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <utils/macros.h>
+#include <utils/usercopy.h>
 
 void sys_exec(struct registers* r) {
-    const char* path = (const char*) r->rdi; // make this use safe usercopy functions
-    const char** argv = (const char**) r->rsi; // make this use safe usercopy functions
-    const char** envp = (const char**) r->rdx; // make this use safe usercopy functions
+    const char* path = (const char*) r->rdi;
+    const char** argv = (const char**) r->rsi; // TODO: make this use safe usercopy functions
+    const char** envp = (const char**) r->rdx; // TODO: make this use safe usercopy functions
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    int error = 0;
+    int ret;
+
+    size_t path_len;
+    if ((ret = user_strlen(path, &path_len)) < 0) {
+        r->rax = ret;
+        return;
+    }
+
+    char* kpath = kmalloc(path_len + 1);
+    if (unlikely(kpath == NULL)) {
+        r->rax = -ENOMEM;
+        return;
+    }
+
+    if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
+        kfree(kpath);
+        r->rax = ret;
+        return;
+    }
 
     struct pagemap* old_pagemap = current_process->pagemap;
     struct pagemap* new_pagemap = pagemap_create();
     if (unlikely(new_pagemap == NULL)) {
-        error = -ENOMEM;
+        ret = -ENOMEM;
         goto error;
     }
 
     struct vfs_node* node;
-    if ((error = vfs_lookup(vfs_root, path, false, NULL, &node)) < 0) {
+    if ((ret = vfs_lookup(vfs_root, kpath, false, NULL, &node)) < 0) {
         goto error;
     }
 
     if (node->type != VFS_TYPE_REGULAR) {
-        error = -ENOEXEC;
+        ret = -ENOEXEC;
         goto error;
     }
 
     uintptr_t entry;
-    if ((error = elf_load(new_pagemap, node, &entry)) < 0) {
+    if ((ret = elf_load(new_pagemap, node, &entry)) < 0) {
         goto error;
     }
 
@@ -68,13 +88,13 @@ void sys_exec(struct registers* r) {
 
     current_process->threads = vector_create(sizeof(struct thread*));
     if (unlikely(current_process->threads == NULL)) {
-        error = -ENOMEM;
+        ret = -ENOMEM;
         goto error;
     }
 
     struct thread* new_thread = thread_create_user(current_process, entry, argv, envp);
     if (unlikely(new_thread == NULL)) {
-        error = -ENOMEM;
+        ret = -ENOMEM;
         goto error;
     }
     scheduler_enqueue(new_thread);
@@ -99,5 +119,5 @@ error:
         process_exit(current_process, -1);
     }
 
-    r->rax = error;
+    r->rax = ret;
 }

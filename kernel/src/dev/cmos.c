@@ -8,8 +8,8 @@
 #include <utils/macros.h>
 #include <utils/panic.h>
 
-#define PORT_CMOS_ADDRESS   0x70
-#define PORT_CMOS_DATA      0x71
+#define CMOS_ADDRESS_PORT   0x70
+#define CMOS_DATA_PORT      0x71
 
 #define CMOS_REG_SECOND     0x00
 #define CMOS_REG_MINUTE     0x02
@@ -27,13 +27,13 @@ static inline int bcd_to_bin(uint8_t value) {
 }
 
 static inline uint8_t cmos_read(uint8_t reg) {
-    outb(PORT_CMOS_ADDRESS, reg);
-    return bcd_mode ? inb(PORT_CMOS_DATA) : bcd_to_bin(inb(PORT_CMOS_DATA));
+    outb(CMOS_ADDRESS_PORT, reg);
+    return bcd_mode ? inb(CMOS_DATA_PORT) : bcd_to_bin(inb(CMOS_DATA_PORT));
 }
 
 static inline bool is_cmos_updating(void) {
-    outb(PORT_CMOS_ADDRESS, 0x0a);
-    return (inb(PORT_CMOS_DATA) & 0x80);
+    outb(CMOS_ADDRESS_PORT, 0x0a);
+    return (inb(CMOS_DATA_PORT) & 0x80);
 }
 
 static inline bool is_leap_year(uint32_t year) {

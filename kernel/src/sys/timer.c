@@ -1,5 +1,6 @@
 #include <dev/cmos.h>
 #include <dev/hpet.h>
+#include <dev/pit.h>
 #include <mem/slab.h>
 #include <stdbool.h>
 #include <sys/timer.h>
@@ -84,7 +85,8 @@ void timer_update_timers(void) {
 }
 
 void timer_init(void) {
-    hpet_init(TIMER_FREQUENCY);
+    hpet_init();
+    pit_init(TIMER_FREQUENCY);
 
     cmos_init();
     cmos_get_rtc_time(&time_realtime);

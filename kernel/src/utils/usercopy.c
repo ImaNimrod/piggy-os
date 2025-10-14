@@ -3,88 +3,122 @@
 #include <errno.h>
 #include <utils/usercopy.h>
 
-// TODO: make these functions actually safe using context switching + GPF / PF detection
+extern int context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg);
 
-int user_memcpy_from_user(void* restrict dest, const void* restrict src, size_t n) {
-    if (!IS_USER_ADDRESS(src)) {
-        return -EFAULT;
-    }
+struct memcpy_args {
+    void* dest;
+    const void* src;
+    size_t n;
+};
+
+struct memset_args {
+    void* dest;
+    int c;
+    size_t n;
+};
+
+struct strlen_args {
+    const char* str;
+    size_t* ret;
+};
+
+static void memcpy_internal(struct registers* r, void* arg) {
+    struct memcpy_args* args = arg;
+
+    this_cpu()->running_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
     }
 
-    if (!(n & 0x7)) {
-        memcpy64(dest, src, n >> 3);
+    if (!(args->n & 0x7)) {
+        memcpy64(args->dest, args->src, args->n >> 3);
     } else {
-        memcpy8(dest, src, n);
+        memcpy8(args->dest, args->src, args->n);
     }
 
     if (this_cpu()->has_smap) {
         clac();
     }
 
-    return 0;
+    this_cpu()->running_thread->usercopy_registers = NULL;
+    r->rax = 0;
 }
 
-int user_memcpy_to_user(void* restrict dest, const void* restrict src, size_t n) {
-    if (!IS_USER_ADDRESS(dest)) {
-        return -EFAULT;
-    }
+static void memset_internal(struct registers* r, void* arg) {
+    struct memset_args* args = arg;
+
+    this_cpu()->running_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
     }
 
-    if (!(n & 0x7)) {
-        memcpy64(dest, src, n >> 3);
+    if (!(args->n & 0x7)) {
+        memset64(args->dest, args->c, args->n >> 3);
     } else {
-        memcpy8(dest, src, n);
+        memset8(args->dest, args->c, args->n);
     }
 
     if (this_cpu()->has_smap) {
         clac();
     }
 
-    return 0;
+    this_cpu()->running_thread->usercopy_registers = NULL;
+    r->rax = 0;
 }
 
-int user_memset(void* dest, int c, size_t n) {
-    if (!IS_USER_ADDRESS(dest)) {
-        return -EFAULT;
-    }
+static void strlen_internal(struct registers* r, void* arg) {
+    struct strlen_args* args = arg;
+
+    this_cpu()->running_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
     }
 
-    if (!(n & 0x7)) {
-        memset64(dest, c, n >> 3);
-    } else {
-        memset8(dest, c, n);
-    }
+    *args->ret = strlen(args->str);
 
     if (this_cpu()->has_smap) {
         clac();
     }
 
-    return 0;
+    this_cpu()->running_thread->usercopy_registers = NULL;
+    r->rax = 0;
 }
 
-int user_strlen(const char* str, size_t* ret) {
-    if (!IS_USER_ADDRESS(str)) {
+int user_memcpy_from_user(void* restrict dest, const void* restrict usrc, size_t n) {
+    if (!IS_USER_ADDRESS(usrc)) {
         return -EFAULT;
     }
 
-    if (this_cpu()->has_smap) {
-        stac();
+    struct memcpy_args args = { dest, usrc, n };
+    return context_call_and_switch(memcpy_internal, &args);
+}
+
+int user_memcpy_to_user(void* restrict udest, const void* restrict src, size_t n) {
+    if (!IS_USER_ADDRESS(udest)) {
+        return -EFAULT;
     }
 
-    *ret = strlen(str);
+    struct memcpy_args args = { udest, src, n };
+    return context_call_and_switch(memcpy_internal, &args);
+}
 
-    if (this_cpu()->has_smap) {
-        clac();
+int user_memset(void* udest, int c, size_t n) {
+    if (!IS_USER_ADDRESS(udest)) {
+        return -EFAULT;
     }
 
-    return 0;
+    struct memset_args args = { udest, c, n };
+    return context_call_and_switch(memset_internal, &args);
+}
+
+int user_strlen(const char* ustr, size_t* ret) {
+    if (!IS_USER_ADDRESS(ustr)) {
+        return -EFAULT;
+    }
+
+    struct strlen_args args = { ustr, ret };
+    return context_call_and_switch(strlen_internal, &args);
 }
