@@ -64,10 +64,6 @@ hashmap_t* hashmap_create(size_t capacity) {
 }
 
 void hashmap_destroy(hashmap_t* hm) {
-    if (unlikely(hm != NULL)) {
-        return;
-    }
-
     for (size_t i = 0; i < hm->capacity; i++) {
         struct hashmap_entry* entry = hm->entries[i];
         struct hashmap_entry* next_entry;
@@ -87,10 +83,6 @@ void hashmap_destroy(hashmap_t* hm) {
 }
 
 bool hashmap_get(hashmap_t* hm, const void* key, size_t key_size, void** value) {
-    if (unlikely(hm == NULL)) {
-        return false;
-    }
-
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
@@ -103,10 +95,6 @@ bool hashmap_get(hashmap_t* hm, const void* key, size_t key_size, void** value) 
 }
 
 bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
-    if (unlikely(hm == NULL)) {
-        return false;
-    }
-
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
@@ -143,10 +131,6 @@ bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
 }
 
 bool hashmap_remove(hashmap_t* hm, const void* key, size_t key_size) {
-    if (unlikely(hm == NULL)) {
-        return false;
-    }
-
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
@@ -172,8 +156,5 @@ bool hashmap_remove(hashmap_t* hm, const void* key, size_t key_size) {
 }
 
 size_t hashmap_size(hashmap_t* hm) {
-    if (likely(hm != NULL)) {
-        return hm->size;
-    }
-    return 0;
+    return hm->size;
 }

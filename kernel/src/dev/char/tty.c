@@ -3,15 +3,18 @@
 #include <errno.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
+#include <mem/slab.h>
+#include <sys/scheduler.h>
 #include <types.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/spinlock.h>
+#include <utils/string.h>
 #include <utils/usercopy.h> 
 
 #include "../../utils/flanterm/src/flanterm.h"
 
-#include <utils/log.h>
+#define INPUT_BUF_SIZE 2048
 
 static ssize_t tty_read(int minor, void* buf, size_t count, off_t offset, int flags);
 static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset, int flags);
@@ -28,8 +31,32 @@ static struct device_ops tty_ops = {
 static struct termios termios = {0};
 static struct winsize winsize = {0};
 
-// static spinlock_t read_lock = {0};
+static char* input_buf = NULL;
+static bool input_buf_flushed = false;
+static size_t input_buf_index = 0;
+
+static spinlock_t read_lock = {0};
 static spinlock_t write_lock = {0};
+
+static void internal_write(const char* buf, size_t count);
+
+static inline void do_backspace(void) {
+    if (input_buf_index == 0) {
+        return;
+    }
+
+    char last = input_buf[input_buf_index - 1];
+
+    if (last < 32 || last == 127) {
+        char caret_backspace[6] = { '\b', '\b', ' ', ' ', '\b', '\b' };
+        internal_write(caret_backspace, sizeof(caret_backspace));
+    } else {
+        char normal_backspace[3] = { '\b', ' ', '\b' };
+        internal_write(normal_backspace, sizeof(normal_backspace));
+    }
+
+    input_buf_index--;
+}
 
 static void internal_write(const char* buf, size_t count) {
     spinlock_acquire(&write_lock);
@@ -39,11 +66,40 @@ static void internal_write(const char* buf, size_t count) {
 
 static ssize_t tty_read(int minor, void* buf, size_t count, off_t offset, int flags) {
     (void) minor;
-    (void) buf;
-    (void) count;
     (void) offset;
     (void) flags;
-    return -ENODEV;
+
+    while (!input_buf_flushed) {
+        scheduler_yield(true);
+    }
+
+    if (input_buf_index == 0) {
+        input_buf_flushed = false;
+        return 0;
+    }
+
+    spinlock_acquire(&read_lock);
+
+    size_t max_to_copy = MIN(count, input_buf_index);
+    size_t to_copy = max_to_copy;
+    if (termios.c_lflag & ICANON) {
+        for (to_copy = 1; to_copy < max_to_copy; to_copy++) {
+            if (input_buf[to_copy - 1] == '\n') {
+                break;
+            }
+        }
+    }
+
+    USER_MEMCPY_MAYBE_TO_USER(buf, input_buf, to_copy);
+
+    memmove(input_buf, input_buf + to_copy, input_buf_index - to_copy);
+    input_buf_index -= to_copy;
+    if (input_buf_index == 0) {
+        input_buf_flushed = false;
+    }
+
+    spinlock_release(&read_lock);
+    return to_copy;
 }
 
 static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset, int flags) {
@@ -52,11 +108,11 @@ static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset,
     (void) flags;
 
     const char* cbuf = buf;
-    int ret;
+    ssize_t ret;
 
     for (size_t i = 0; i < count; i++) {
         char c;
-        if ((ret = user_memcpy_from_user(&c, &cbuf[i], sizeof(char))) < 0) {
+        if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&c, &cbuf[i], sizeof(char))) < 0) {
             return ret;
         }
 
@@ -98,9 +154,104 @@ static int tty_ioctl(int minor, int request, void* argp) {
     return ret;
 }
 
+void tty_add_char(char c) {
+    spinlock_acquire(&read_lock);
+
+    if (termios.c_iflag & ISTRIP) {
+        c &= 0x7f;
+    }
+
+    if ((termios.c_iflag & IGNCR) && c == '\r') {
+        goto end;
+    }
+
+    if ((termios.c_iflag & ICRNL) && c == '\r') {
+        c = '\n';
+    } else if ((termios.c_iflag & INLCR) && c == '\n') {
+        c = '\r';
+    }
+
+    bool force_echo = false;
+    bool should_append = true;
+    bool should_flush = false;
+
+    if (!(termios.c_lflag & ICANON)) {
+        should_flush = true;
+    } else {
+        if (c == termios.c_cc[VERASE] && (termios.c_lflag & ECHOE)) {
+            do_backspace();
+            goto end;
+        }
+
+        if (c == termios.c_cc[VKILL] && (termios.c_lflag & ECHOK)) {
+            while (input_buf_index > 0 && input_buf[input_buf_index - 1] != '\n') {
+                do_backspace();
+            }
+            goto end;
+        }
+
+        if (c == termios.c_cc[VEOF]) {
+            should_append = false;
+            should_flush = true;
+        }
+
+        if (c == '\n' || c == '\r' || c == termios.c_cc[VEOL]) {
+            should_flush = true;
+            force_echo = !!(termios.c_lflag & ECHONL);
+        }
+    }
+
+    if (should_append) {
+        if (input_buf_index >= INPUT_BUF_SIZE) {
+            goto end;
+        }
+
+        input_buf[input_buf_index++] = c;
+    }
+
+    if (should_append && (force_echo || (termios.c_lflag & ECHO))) {
+        if ((c <= 31 || c == 127) && c != '\n') {
+            char control_char[2];
+            control_char[0] = '^';
+
+            if (c <= 26 && c != 10) {
+                control_char[1] = 'A' + c - 1;
+            } else if (c == 27) {
+                control_char[1] = '[';
+            } else if (c == 28) {
+                control_char[1] = '\\';
+            } else if (c == 29) {
+                control_char[1] = ']';
+            } else if (c == 30) {
+                control_char[1] = '^';
+            } else if (c == 31) {
+                control_char[1] = '_';
+            } else if (c == 127) {
+                control_char[1] = '?';
+            }
+
+            internal_write(control_char, sizeof(control_char));
+        } else {
+            internal_write(&c, sizeof(c));
+        }
+
+        if (should_flush) {
+            input_buf_flushed = true;
+        }
+    }
+
+end:
+    spinlock_release(&read_lock);
+}
+
 void tty_init(void) {
     if (unlikely(devfs_register_device("tty", VFS_TYPE_CHARDEV, &tty_ops, makedev(TTY_DEV_MAJOR, TTY_DEV_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create tty device");
+    }
+
+    input_buf = kmalloc(INPUT_BUF_SIZE * sizeof(char));
+    if (unlikely(input_buf == NULL)) {
+        kpanic(NULL, false, "failed to create tty input buffer");
     }
 
     termios.c_iflag = ICRNL | IXON;

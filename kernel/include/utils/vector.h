@@ -8,7 +8,6 @@ typedef struct vector vector_t;
 
 vector_t* vector_create(size_t item_size);
 void vector_destroy(vector_t* v);
-
 void** vector_get(vector_t* v, size_t index);
 bool vector_set(vector_t* v, size_t index, const void* value);
 bool vector_remove(vector_t* v, size_t index);

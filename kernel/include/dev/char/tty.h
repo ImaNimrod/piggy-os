@@ -16,7 +16,7 @@
 
 extern bool tty_is_ready; 
 
-void tty_add_chars(const char* chars, size_t count);
+void tty_add_char(char c);
 void tty_init(void);
 
 #endif /* _KERNEL_DEV_TTY_H */

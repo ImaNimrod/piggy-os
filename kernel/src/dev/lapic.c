@@ -94,10 +94,10 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
     }
 }
 
-void lapic_timer_oneshot(uint8_t vector, uint64_t us) {
+void lapic_timer_oneshot(uint8_t vector, uint64_t ms) {
     lapic_timer_stop();
 
-    uint64_t ticks = us * (this_cpu()->lapic_frequency / 1000000);
+    uint64_t ticks = ms * (this_cpu()->lapic_frequency / 1000);
     lapic_write(LAPIC_REG_LVT_TIMER, vector);
     lapic_write(LAPIC_REG_TIMER_DIV, 0);
     lapic_write(LAPIC_REG_TIMER_INITCNT, ticks);

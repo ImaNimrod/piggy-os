@@ -35,16 +35,11 @@ vector_t* vector_create(size_t item_size) {
 }
 
 void vector_destroy(vector_t* v) {
-    if (likely(v != NULL)) {
-        kfree(v->data);
-        kfree(v);
-    }
+    kfree(v->data);
+    kfree(v);
 }
 
 void** vector_get(vector_t* v, size_t index) {
-    if (unlikely(v == NULL)) {
-        return NULL;
-    }
     if (index >= v->size) {
         return NULL;
     }
@@ -53,9 +48,6 @@ void** vector_get(vector_t* v, size_t index) {
 }
 
 bool vector_set(vector_t* v, size_t index, const void* value) {
-    if (unlikely(v == NULL)) {
-        return false;
-    }
     if (index >= v->size) {
         return false;
     }
@@ -66,9 +58,6 @@ bool vector_set(vector_t* v, size_t index, const void* value) {
 }
 
 bool vector_remove(vector_t* v, size_t index) {
-    if (unlikely(v == NULL)) {
-        return false;
-    }
     if (index >= v->size) {
         return false;
     }
@@ -87,10 +76,6 @@ bool vector_remove(vector_t* v, size_t index) {
 }
 
 bool vector_remove_by_value(vector_t* v, const void* value) {
-    if (unlikely(v == NULL)) {
-        return false;
-    }
-
     for (size_t i = 0; i < v->size; i++) {
         if (!memcmp((void*) ((uintptr_t) v->data + (i * v->item_size)), value, v->item_size)) {
             vector_remove(v, i);
@@ -102,10 +87,6 @@ bool vector_remove_by_value(vector_t* v, const void* value) {
 }
 
 bool vector_push(vector_t* v, const void* value) {
-    if (unlikely(v == NULL)) {
-        return false;
-    }
-
     if (v->size == v->capacity) {
         v->capacity *= VECTOR_GROWTH_FACTOR;
         v->data = krealloc(v->data, v->capacity * v->item_size);
@@ -121,9 +102,6 @@ bool vector_push(vector_t* v, const void* value) {
 }
 
 bool vector_pop(vector_t* v, void* out) {
-    if (unlikely(v == NULL)) {
-        return false;
-    }
     if (v->size == 0) {
         return false;
     }
@@ -139,8 +117,5 @@ bool vector_pop(vector_t* v, void* out) {
 }
 
 size_t vector_size(vector_t* v) {
-    if (likely(v != NULL)) {
-        return v->size;
-    }
-    return 0;
+    return v->size;
 }

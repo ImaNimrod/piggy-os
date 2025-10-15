@@ -11,7 +11,7 @@
 #include <utils/string.h>
 
 #define SCHEDULER_IRQ_VECTOR 48 
-#define SCHEDULER_TIME_QUANTA 5000
+#define SCHEDULER_TIME_QUANTA_MS 5
 
 extern void context_switch(struct registers* r);
 
@@ -87,7 +87,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     this_cpu()->kernel_stack = next_thread->kernel_stack;
 
     lapic_eoi();
-    lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA);
+    lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);
 
     if (next_thread->is_user) {
         this_cpu()->fpu_restore(next_thread->fpu_context);
@@ -109,7 +109,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
 
 NORETURN void scheduler_await(void) {
     cli();
-    lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA);
+    lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);
     sti();
     for (;;) {
         hlt();

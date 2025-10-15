@@ -124,8 +124,8 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
             led_state = new_led_state;
         }
 
-        if (c != '\0') {
-            klog("%c", c);
+        if (tty_is_ready && c != '\0') {
+            tty_add_char(c);
         }
     }
 }
