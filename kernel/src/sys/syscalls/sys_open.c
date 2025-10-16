@@ -37,14 +37,16 @@ void sys_open(struct registers* r) {
         return;
     }
 
+    struct file* dirfile = NULL;
+    struct vfs_node* dirnode = NULL;
+    if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
+        kfree(kpath);
+        r->rax = ret;
+        return;
+    }
+
     struct vfs_node* node = NULL;
     struct file* file = NULL;
-
-    struct file* dirfile;
-    struct vfs_node* dirnode;
-    if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
-        goto end;
-    }
 
     ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
     if (ret == 0 && (flags & O_CREAT) && (flags & O_EXCL)) {

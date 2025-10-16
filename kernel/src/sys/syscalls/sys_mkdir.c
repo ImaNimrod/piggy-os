@@ -35,16 +35,15 @@ void sys_mkdir(struct registers* r) {
         return;
     }
 
-    struct file* dirfile;
-    struct vfs_node* dirnode;
+    struct file* dirfile = NULL;
+    struct vfs_node* dirnode = NULL;
     if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
-        goto end;
+        kfree(kpath);
+        r->rax = ret;
+        return;
     }
 
-    ret = vfs_create(dirnode, kpath, VFS_TYPE_DIRECTORY, NULL);
-
-end:
-    r->rax = ret;
+    r->rax = vfs_create(dirnode, kpath, VFS_TYPE_DIRECTORY, NULL);
 
     if (dirnode != NULL) {
         VFS_NODE_UNREF(dirnode);

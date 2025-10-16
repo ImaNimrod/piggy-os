@@ -35,16 +35,15 @@ void sys_unlink(struct registers* r) {
         return;
     }
 
-    struct file* dirfile;
-    struct vfs_node* dirnode;
+    struct file* dirfile = NULL;
+    struct vfs_node* dirnode = NULL;
     if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
-        goto end;
+        kfree(kpath);
+        r->rax = ret;
+        return;
     }
 
-    ret = vfs_unlink(dirnode, kpath);
-
-end:
-    r->rax = ret;
+    r->rax = vfs_unlink(dirnode, kpath);
 
     if (dirnode != NULL) {
         VFS_NODE_UNREF(dirnode);
