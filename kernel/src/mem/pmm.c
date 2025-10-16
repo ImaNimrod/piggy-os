@@ -10,12 +10,12 @@
 
 extern struct limine_memmap_request memmap_request;
 
-static uint8_t* pmm_bitmap = NULL;
-static spinlock_t pmm_lock = {0};
-static size_t reserved_pages = 0;
-static size_t usable_pages = 0;
-static size_t highest_page_index = 0;
-static size_t last_used_index = 0;
+static uint8_t* pmm_bitmap;
+static spinlock_t pmm_lock;
+static size_t reserved_pages;
+static size_t usable_pages;
+static size_t highest_page_index;
+static size_t last_used_index;
 
 static inline const char* memmap_type_str(uint64_t memmap_type) {
     switch (memmap_type) {

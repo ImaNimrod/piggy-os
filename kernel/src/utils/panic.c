@@ -8,7 +8,7 @@
 
 #include "../../src/utils/printf/printf.h"
 
-static spinlock_t panic_lock = {0};
+static spinlock_t panic_lock;
 
 static void print_stack_trace(uintptr_t* rbp) {
     if (rbp == NULL || ((uintptr_t) rbp) < HIGH_VMA) {

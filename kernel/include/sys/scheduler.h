@@ -1,9 +1,9 @@
 #ifndef _KERNEL_SYS_SCHEDULER_H
-#define _KERNEL_SYS_SCHEDULER_H 1
+#define _KERNEL_SYS_SCHEDULER_H
 
 #include <stdbool.h>
 #include <sys/process.h>
-#include <types.h>
+#include <sys/timer.h>
 #include <utils/macros.h>
 
 NORETURN void scheduler_await(void);

@@ -37,8 +37,8 @@ struct arp_cache_entry {
     mac_address_t mac;
 };
 
-static hashmap_t* arp_cache = NULL;
-static spinlock_t arp_cache_lock = {0};
+static hashmap_t* arp_cache;
+static spinlock_t arp_cache_lock;
 
 static void arp_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t dip) {
     struct packet* packet = packet_alloc(netif, sizeof(struct eth_header) + sizeof(struct arp_header) + sizeof(struct arp_data_ipv4));

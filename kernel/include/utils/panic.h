@@ -1,5 +1,5 @@
 #ifndef _KERNEL_UTILS_PANIC_H
-#define _KERNEL_UTILS_PANIC_H 1
+#define _KERNEL_UTILS_PANIC_H
 
 #include <cpu/isr.h>
 #include <stdbool.h>

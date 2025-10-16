@@ -21,11 +21,11 @@ extern size_t text_start_addr[], text_end_addr[];
 extern size_t rodata_start_addr[], rodata_end_addr[];
 extern size_t data_start_addr[], data_end_addr[];
 
-struct pagemap* kernel_pagemap = NULL;
+struct pagemap* kernel_pagemap;
 
-static bool hugepages_supported = false;
-static bool pat_supported = false;
-static struct slab_cache* pagemap_cache = NULL;
+static bool hugepages_supported;
+static bool pat_supported;
+static struct slab_cache* pagemap_cache;
 
 static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
     uintptr_t vaddr = 0;

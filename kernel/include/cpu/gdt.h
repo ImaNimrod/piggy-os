@@ -1,5 +1,5 @@
 #ifndef _KERNEL_CPU_GDT_H
-#define _KERNEL_CPU_GDT_H 1
+#define _KERNEL_CPU_GDT_H
 
 #include <stdint.h>
 

@@ -130,7 +130,7 @@ NORETURN void kernel_entry(void) {
         }
     }
 
-    serial_init(PORT_COM1);
+    serial_init(COM1_PORT);
 
     pmm_init();
     slab_init();

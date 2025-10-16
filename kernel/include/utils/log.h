@@ -1,5 +1,5 @@
 #ifndef _KERNEL_UTILS_LOG_H
-#define _KERNEL_UTILS_LOG_H 1
+#define _KERNEL_UTILS_LOG_H
 
 void klog(const char* fmt, ...);
 

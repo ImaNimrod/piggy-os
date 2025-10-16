@@ -12,7 +12,7 @@
 
 extern struct limine_executable_cmdline_request executable_cmdline_request;
 
-static hashmap_t* cmdline_hashmap = NULL;
+static hashmap_t* cmdline_hashmap;
 
 char* cmdline_get(const char* key) {
     char* value = NULL;

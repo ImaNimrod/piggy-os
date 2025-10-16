@@ -34,12 +34,12 @@ static const char keymap_shift_capslock[] = {
     'b', 'n', 'm', '<', '>', '?', '\0', '\0', '\0', ' ',
 };
 
-static bool is_second_port = false;
+static bool is_second_port;
 
 static bool shift_active;
 static bool capslock_active;
 static bool ctrl_active;
-static uint8_t led_state = 0;
+static uint8_t led_state;
 
 static char translate_scancode(uint8_t scancode) {
     bool release = scancode & (1 << 7);

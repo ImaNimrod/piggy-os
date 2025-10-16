@@ -1,7 +1,10 @@
 #ifndef _KERNEL_NET_PACKET_H
-#define _KERNEL_NET_PACKET_H 1
+#define _KERNEL_NET_PACKET_H
 
 #include <stdint.h>
+
+typedef uint8_t mac_address_t[6];
+typedef uint32_t ipv4_address_t;
 
 struct packet {
     struct netif* netif;

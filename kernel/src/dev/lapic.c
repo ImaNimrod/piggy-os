@@ -25,10 +25,10 @@
 
 #define LAPIC_LVT_MASK (1 << 16)
 
-#define PORT_PIC1_COMMAND   0x20
-#define PORT_PIC1_DATA      0x21
-#define PORT_PIC2_COMMAND   0xa0
-#define PORT_PIC2_DATA      0xa1
+#define PIC1_COMMAND_PORT   0x20
+#define PIC1_DATA_PORT      0x21
+#define PIC2_COMMAND_PORT   0xa0
+#define PIC2_DATA_PORT      0xa1
 
 static inline uint32_t lapic_read(uint32_t reg) {
     if (use_x2apic) {
@@ -130,15 +130,16 @@ void lapic_init(void) {
 
 void legacy_pic_disable(void) {
     /* mask all PIC interrupts */
-    outb(PORT_PIC1_DATA, 0xff);
-    outb(PORT_PIC2_DATA, 0xff);
+    outb(PIC1_DATA_PORT, 0xff);
+    outb(PIC2_DATA_PORT, 0xff);
+
     /* then remap PIC interrupts to 0x20 - 0x30 to avoid conflicts with builtin CPU exceptions */
-    outb(PORT_PIC1_COMMAND, 0x11);
-    outb(PORT_PIC2_COMMAND, 0x11);
-    outb(PORT_PIC1_DATA, 0x20);
-    outb(PORT_PIC2_DATA, 0x28);
-    outb(PORT_PIC1_DATA, 0x04);
-    outb(PORT_PIC2_DATA, 0x02);
-    outb(PORT_PIC1_DATA, 0x01);
-    outb(PORT_PIC2_DATA, 0x01);
+    outb(PIC1_COMMAND_PORT, 0x11);
+    outb(PIC2_COMMAND_PORT, 0x11);
+    outb(PIC1_DATA_PORT, 0x20);
+    outb(PIC2_DATA_PORT, 0x28);
+    outb(PIC1_DATA_PORT, 0x04);
+    outb(PIC2_DATA_PORT, 0x02);
+    outb(PIC1_DATA_PORT, 0x01);
+    outb(PIC2_DATA_PORT, 0x01);
 }

@@ -1,12 +1,12 @@
 #ifndef _KERNEL_DEV_SERIAL_H
-#define _KERNEL_DEV_SERIAL_H 1
+#define _KERNEL_DEV_SERIAL_H
 
 #include <stdint.h>
 
-#define PORT_COM1 0x03f8
-#define PORT_COM2 0x02f8
-#define PORT_COM3 0x03e8
-#define PORT_COM4 0x02e8
+#define COM1_PORT 0x03f8
+#define COM2_PORT 0x02f8
+#define COM3_PORT 0x03e8
+#define COM4_PORT 0x02e8
 
 char serial_getc(uint16_t port);
 void serial_putc(uint16_t port, char c);

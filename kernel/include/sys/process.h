@@ -1,9 +1,8 @@
 #ifndef _KERNEL_SYS_PROCESS_H
-#define _KERNEL_SYS_PROCESS_H 1
+#define _KERNEL_SYS_PROCESS_H
 
 #include <cpu/isr.h>
 #include <fs/file.h>
-#include <fs/vfs.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <types.h>
@@ -49,6 +48,8 @@ struct thread {
 
     struct thread* next;
 };
+
+struct vfs_node;
 
 struct process {
     pid_t pid;

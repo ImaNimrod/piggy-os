@@ -1,5 +1,5 @@
 #ifndef _KERNEL_FS_INITRD_H
-#define _KERNEL_FS_INITRD_H 1
+#define _KERNEL_FS_INITRD_H
 
 #include <limine.h>
 

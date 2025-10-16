@@ -1,9 +1,8 @@
 #ifndef _KERNEL_NET_ETH_H
-#define _KERNEL_NET_ETH_H 1
+#define _KERNEL_NET_ETH_H
 
 #include <net/packet.h>
 #include <stdint.h>
-#include <types.h>
 
 #define ETHERTYPE_ARP   0x0806
 #define ETHERTYPE_IPV4  0x0800

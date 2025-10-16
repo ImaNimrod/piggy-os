@@ -272,7 +272,7 @@ struct idt_ptr {
     uint64_t base;
 } __attribute__((packed));
 
-static struct idt_entry idt[256] __attribute__((aligned(16))) = {0};
+static struct idt_entry idt[256] __attribute__((aligned(16)));
 
 static void idt_set_gate(uint8_t vector, uintptr_t handler, uint8_t ist) {
     idt[vector].offset_low16 = (uint16_t) handler;

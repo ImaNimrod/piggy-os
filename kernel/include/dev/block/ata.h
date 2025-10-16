@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_BLOCK_ATA_H
-#define _KERNEL_DEV_BLOCK_ATA_H 1
+#define _KERNEL_DEV_BLOCK_ATA_H
 
 #include <dev/pci.h>
 #include <stddef.h>

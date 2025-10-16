@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_PS2_H
-#define _KERNEL_DEV_PS2_H 1
+#define _KERNEL_DEV_PS2_H
 
 void ps2_init(void);
 

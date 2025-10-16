@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_PCI_H
-#define _KERNEL_DEV_PCI_H 1
+#define _KERNEL_DEV_PCI_H
 
 #include <stdbool.h>
 #include <stddef.h>

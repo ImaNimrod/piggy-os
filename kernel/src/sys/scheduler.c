@@ -15,8 +15,8 @@
 
 extern void context_switch(struct registers* r);
 
-static struct thread* thread_list = NULL;
-static spinlock_t thread_state_lock = {0};
+static struct thread* thread_list;
+static spinlock_t thread_state_lock;
 
 static struct thread* get_next_runnable_thread(struct thread* current_thread) {
     spinlock_acquire(&thread_state_lock);

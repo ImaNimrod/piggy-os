@@ -7,10 +7,11 @@
 #include "flanterm/src/flanterm.h"
 #include "printf/printf.h"
 
-static spinlock_t print_lock = {0};
+static spinlock_t print_lock;
 
 void _putchar(char c) {
-    serial_putc(PORT_COM1, c);
+    serial_putc(COM1_PORT, c);
+
     if (fb_context != NULL) {
         flanterm_write(fb_context, &c, sizeof(char));
     }

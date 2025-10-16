@@ -1,9 +1,8 @@
 #ifndef _KERNEL_FS_DEVFS_H
-#define _KERNEL_FS_DEVFS_H 1
+#define _KERNEL_FS_DEVFS_H
 
 #include <fs/vfs.h>
 #include <stddef.h>
-#include <types.h>
 
 struct device_ops {
     ssize_t (*read)(int, void*, size_t, off_t, int);

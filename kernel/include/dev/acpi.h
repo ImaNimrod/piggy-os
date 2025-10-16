@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_ACPI_H
-#define _KERNEL_DEV_ACPI_H 1
+#define _KERNEL_DEV_ACPI_H
 
 #include <stdint.h>
 

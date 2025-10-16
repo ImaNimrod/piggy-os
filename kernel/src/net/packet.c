@@ -4,7 +4,7 @@
 #include <utils/macros.h>
 #include <utils/panic.h>
 
-static struct slab_cache* packet_cache = NULL;
+static struct slab_cache* packet_cache;
 
 struct packet* packet_alloc(struct netif* netif, uint16_t length) {
     struct packet* packet = slab_cache_alloc(packet_cache);

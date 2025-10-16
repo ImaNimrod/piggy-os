@@ -1,7 +1,6 @@
 #include <cpu/isr.h>
 #include <errno.h> 
 #include <sys/timer.h> 
-#include <types.h>
 #include <utils/usercopy.h>
 
 void sys_gettime(struct registers* r) {

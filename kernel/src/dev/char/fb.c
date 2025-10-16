@@ -5,7 +5,6 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <types.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
@@ -77,13 +76,13 @@ struct framebuffer_info {
     struct fb_var_screeninfo var_info;
 };
 
+extern struct limine_framebuffer_request framebuffer_request;
+
+struct flanterm_context* fb_context;
+
 static ssize_t fb_read(int minor, void* buf, size_t count, off_t offset, int flags);
 static ssize_t fb_write(int minor, const void* buf, size_t count, off_t offset, int flags);
 static int fb_ioctl(int minor, int request, void* argp);
-
-extern struct limine_framebuffer_request framebuffer_request;
-
-struct flanterm_context* fb_context = NULL;
 
 static struct device_ops fb_ops = {
     .read = fb_read,
@@ -91,8 +90,8 @@ static struct device_ops fb_ops = {
     .ioctl = fb_ioctl,
 };
 
-static struct framebuffer_info* framebuffers = NULL;
-static size_t framebuffer_count = 0;
+static struct framebuffer_info* framebuffers;
+static size_t framebuffer_count;
 
 static void* flanterm_alloc(size_t size) {
     return (void*) (pmm_alloc(DIV_CEIL(size, PAGE_SIZE_4KB)) + HIGH_VMA);

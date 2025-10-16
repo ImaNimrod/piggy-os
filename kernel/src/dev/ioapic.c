@@ -46,8 +46,8 @@ struct isa_iso {
     int trigger_mode;
 };
 
-static struct ioapic* ioapic_list = NULL;
-static struct isa_iso* isa_isos[ISA_IRQ_NUM] = {0};
+static struct ioapic* ioapic_list;
+static struct isa_iso* isa_isos[ISA_IRQ_NUM];
 
 static inline uint32_t ioapic_read(uintptr_t base, uint32_t reg) {
     mmio_write32((void*) (base + IOREGSEL), reg);

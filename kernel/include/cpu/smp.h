@@ -1,5 +1,5 @@
 #ifndef _KERNEL_CPU_SMP_H
-#define _KERNEL_CPU_SMP_H 1
+#define _KERNEL_CPU_SMP_H
 
 #include <cpu/gdt.h>
 #include <stdbool.h>

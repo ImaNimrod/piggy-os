@@ -4,7 +4,6 @@
 #include <fs/file.h>
 #include <fs/vfs.h>
 #include <sys/process.h>
-#include <types.h>
 #include <utils/usercopy.h>
 
 void sys_read(struct registers* r) {

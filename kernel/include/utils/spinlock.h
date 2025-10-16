@@ -1,5 +1,5 @@
 #ifndef _KERNEL_UTILS_SPINLOCK_H
-#define _KERNEL_UTILS_SPINLOCK_H 1
+#define _KERNEL_UTILS_SPINLOCK_H
 
 #include <stdbool.h>
 #include <stdint.h>

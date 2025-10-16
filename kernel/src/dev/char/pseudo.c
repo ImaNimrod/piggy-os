@@ -1,7 +1,6 @@
 #include <dev/char/pseudo.h>
 #include <errno.h>
 #include <fs/devfs.h>
-#include <types.h>
 #include <utils/macros.h>
 #include <utils/panic.h>
 #include <utils/usercopy.h>

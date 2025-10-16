@@ -21,10 +21,10 @@ struct rsdp {
 
 extern struct limine_rsdp_request rsdp_request;
 
-static struct rsdp* rsdp = NULL;
-static struct acpi_sdt* rsdt = NULL;
-static size_t rsdt_entry_count = 0;
-static bool use_acpi_rev2 = false;
+static struct rsdp* rsdp;
+static struct acpi_sdt* rsdt;
+static size_t rsdt_entry_count;
+static bool use_acpi_rev2;
 
 static bool verify_checksum(struct acpi_sdt* sdt) {
     register uint8_t sum = 0;

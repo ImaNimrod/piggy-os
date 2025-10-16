@@ -1,5 +1,5 @@
 #ifndef _KERNEL_UTILS_STRING_H
-#define _KERNEL_UTILS_STRING_H 1
+#define _KERNEL_UTILS_STRING_H
 
 #include <stddef.h>
 #include <stdint.h>

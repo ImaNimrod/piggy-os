@@ -2,6 +2,7 @@
 #include <cpu/isr.h>
 #include <dev/ioapic.h> 
 #include <dev/pit.h>
+#include <stddef.h>
 #include <sys/timer.h>
 
 #define PIT_CHANNEL0_PORT   0x40

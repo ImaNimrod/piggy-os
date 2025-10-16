@@ -32,7 +32,7 @@ struct tmpfs_node {
     spinlock_t lock;
 };
 
-static struct slab_cache* tmpfs_node_cache = NULL;
+static struct slab_cache* tmpfs_node_cache;
 
 static int tmpfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result);
 static int tmpfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);

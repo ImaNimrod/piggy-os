@@ -15,10 +15,10 @@ struct devfs_node {
     struct device_ops* devops;
 };
 
-static struct slab_cache* devfs_node_cache = NULL;
-static struct devfs_node* devfs_root_node = NULL;
-static hashmap_t* devices = NULL;
-static ino_t inode_counter = 0;
+static struct slab_cache* devfs_node_cache;
+static struct devfs_node* devfs_root_node;
+static hashmap_t* devices;
+static ino_t inode_counter;
 
 static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result);
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);

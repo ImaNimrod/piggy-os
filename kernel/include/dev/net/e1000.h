@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_NET_E1000_H
-#define _KERNEL_DEV_NET_E1000_H 1
+#define _KERNEL_DEV_NET_E1000_H
 
 #include <dev/pci.h>
 

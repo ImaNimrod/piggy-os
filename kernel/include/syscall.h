@@ -1,5 +1,5 @@
-#ifndef _KERNEL_SYS_SYSCALL_H
-#define _KERNEL_SYS_SYSCALL_H 1
+#ifndef _KERNEL_SYSCALL_H
+#define _KERNEL_SYSCALL_H
 
 #define SYS_EXIT        0
 #define SYS_FORK        1
@@ -27,4 +27,4 @@
 #define SYS_UNAME       23
 #define SYS_ARCHCTL     24
 
-#endif /* _KERNEL_SYS_SYSCALL_H */
+#endif /* _KERNEL_SYSCALL_H */

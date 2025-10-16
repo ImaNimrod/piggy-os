@@ -1,11 +1,10 @@
 #ifndef _KERNEL_NET_NETIF_H
-#define _KERNEL_NET_NETIF_H 1
+#define _KERNEL_NET_NETIF_H
 
 #include <net/packet.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <types.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 

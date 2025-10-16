@@ -6,7 +6,7 @@
 #include <utils/macros.h>
 #include <utils/spinlock.h>
 
-static struct slab_cache* file_cache = NULL;
+static struct slab_cache* file_cache;
 
 struct file* file_create(struct vfs_node* node, int flags) {
     if (unlikely(file_cache == NULL)) {

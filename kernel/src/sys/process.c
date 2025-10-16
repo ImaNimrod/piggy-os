@@ -15,12 +15,12 @@
 #define KERNEL_STACK_SIZE   0x4000
 #define USER_STACK_SIZE     0x20000
 
-struct process* kernel_process = NULL;
-static struct process* init_process = NULL;
+struct process* kernel_process;
+static struct process* init_process;
 
-static struct slab_cache* process_cache = NULL;
-static struct slab_cache* thread_cache = NULL;
-static pid_t next_pid = 0;
+static struct slab_cache* process_cache;
+static struct slab_cache* thread_cache;
+static pid_t next_pid;
 
 static const uint16_t default_fcw = 0x33f;
 static const uint32_t default_mxcsr = 0x1f80;

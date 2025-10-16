@@ -18,9 +18,9 @@
 #define CMOS_REG_MONTH      0x08
 #define CMOS_REG_YEAR       0x09
 
-static uint8_t century_register = 0;
-static bool xxiv_hr_mode = false;
-static bool bcd_mode = false;
+static uint8_t century_register;
+static bool xxiv_hr_mode;
+static bool bcd_mode;
 
 static inline int bcd_to_bin(uint8_t value) {
     return (value & 0x0f) + ((value & 0xf0) >> 4) * 10;

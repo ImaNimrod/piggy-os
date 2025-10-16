@@ -5,7 +5,6 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <sys/process.h>
-#include <types.h>
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 

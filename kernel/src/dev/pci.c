@@ -13,31 +13,31 @@
 #include <utils/panic.h>
 #include <utils/vector.h>
 
-#define PORT_PCI_CONFIG_ADDRESS 0xcf8
-#define PORT_PCI_CONFIG_DATA    0xcfc
+#define PCI_CONFIG_ADDRESS_PORT 0xcf8
+#define PCI_CONFIG_DATA_PORT    0xcfc
 
 struct mcfg_entry {
     uint64_t ecm_base_address;
     uint16_t segment;
     uint8_t bus_start;
     uint8_t bus_end;
-uint32_t : 32;
+    uint32_t : 32;
 } __attribute__((packed));
 
 struct mcfg {
     struct acpi_sdt;
-uint64_t : 64;
-           struct mcfg_entry entries[];
+    uint64_t : 64;
+    struct mcfg_entry entries[];
 } __attribute__((packed));
 
 union msi_address {
     struct {
-uint32_t : 2;
-           uint32_t dest_mode : 1;
-           uint32_t redir_hint : 1;
-uint32_t : 8;
-           uint32_t dest_id : 8;
-           uint32_t base_address : 12;
+        uint32_t : 2;
+        uint32_t dest_mode : 1;
+        uint32_t redir_hint : 1;
+        uint32_t : 8;
+        uint32_t dest_id : 8;
+        uint32_t base_address : 12;
     };
     uint32_t raw;
 };
@@ -46,10 +46,10 @@ union msi_data {
     struct {
         uint32_t vector : 8;
         uint32_t delivery : 3;
-uint32_t : 3;
-           uint32_t level : 1;
-           uint32_t trigger_mode : 1;
-uint32_t : 16;
+        uint32_t : 3;
+        uint32_t level : 1;
+        uint32_t trigger_mode : 1;
+        uint32_t : 16;
     };
     uint32_t raw;
 };
@@ -130,15 +130,15 @@ static uint32_t legacy_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t
     (void) segment;
 
     uint32_t address =  ((bus << 16) | (slot << 11) | (function << 8) | (offset & 0xfffc) | (1u << 31));
-    outl(PORT_PCI_CONFIG_ADDRESS, address);
+    outl(PCI_CONFIG_ADDRESS_PORT, address);
 
     switch (access_size) {
         case 1:
-            return inb(PORT_PCI_CONFIG_DATA + (offset & 3));
+            return inb(PCI_CONFIG_DATA_PORT + (offset & 3));
         case 2:
-            return inw(PORT_PCI_CONFIG_DATA + (offset & 2));
+            return inw(PCI_CONFIG_DATA_PORT + (offset & 2));
         case 4:
-            return inl(PORT_PCI_CONFIG_DATA);
+            return inl(PCI_CONFIG_DATA_PORT);
     }
 
     kpanic(NULL, false, "invalid PCI access size");
@@ -148,17 +148,17 @@ static void legacy_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t fu
     (void) segment;
 
     uint32_t address =  ((bus << 16) | (slot << 11) | (function << 8) | (offset & 0xfffc) | (1u << 31));
-    outl(PORT_PCI_CONFIG_ADDRESS, address);
+    outl(PCI_CONFIG_ADDRESS_PORT, address);
 
     switch (access_size) {
         case 1:
-            outb(PORT_PCI_CONFIG_DATA + (offset & 3), value);
+            outb(PCI_CONFIG_DATA_PORT + (offset & 3), value);
             break;
         case 2:
-            outw(PORT_PCI_CONFIG_DATA + (offset & 2), value);
+            outw(PCI_CONFIG_DATA_PORT + (offset & 2), value);
             break;
         case 4:
-            outl(PORT_PCI_CONFIG_DATA, value);
+            outl(PCI_CONFIG_DATA_PORT, value);
             break;
     }
 

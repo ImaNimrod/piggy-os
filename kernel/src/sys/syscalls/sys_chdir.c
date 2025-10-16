@@ -4,7 +4,6 @@
 #include <fs/file.h>
 #include <fs/vfs.h>
 #include <sys/process.h>
-#include <types.h>
 
 void sys_chdir(struct registers* r) {
     int fd = r->rdi;

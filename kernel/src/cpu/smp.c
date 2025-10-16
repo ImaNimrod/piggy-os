@@ -11,13 +11,13 @@
 
 extern struct limine_mp_request mp_request;
 
-uintptr_t bsp_lapic_addr = 0;
+uintptr_t bsp_lapic_addr;
 size_t cpu_count = 1;
-bool use_x2apic = false;
+bool use_x2apic;
 
-static uint32_t bsp_lapic_id = 0;
-static size_t initialized_cpus = 0;
-static struct cpu_local* cpu_local_data = NULL;
+static uint32_t bsp_lapic_id;
+static size_t initialized_cpus;
+static struct cpu_local* cpu_local_data;
 
 extern void syscall_entry(void);
 

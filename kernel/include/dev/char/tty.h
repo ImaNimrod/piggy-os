@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_TTY_H
-#define _KERNEL_DEV_TTY_H 1
+#define _KERNEL_DEV_TTY_H
 
 #include <stdbool.h>
 #include <stddef.h>

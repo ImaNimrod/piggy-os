@@ -1,5 +1,5 @@
 #ifndef _KERNEL_SYS_ELF_H
-#define _KERNEL_SYS_ELF_H 1
+#define _KERNEL_SYS_ELF_H
 
 #include <fs/vfs.h>
 #include <mem/paging.h>

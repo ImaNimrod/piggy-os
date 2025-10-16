@@ -1,5 +1,5 @@
 #ifndef _KERNEL_UTILS_MACROS_H
-#define _KERNEL_UTILS_MACROS_H 1
+#define _KERNEL_UTILS_MACROS_H
 
 #define likely(x) __builtin_expect(!!(x), 1) 
 #define unlikely(x) __builtin_expect(!!(x), 0)
@@ -8,6 +8,10 @@
 #define htonl(x) __builtin_bswap32((x))
 #define ntohs(x) __builtin_bswap16((x))
 #define ntohl(x) __builtin_bswap32((x))
+
+#define makedev(maj, min) ((((maj) << 8) & 0xff00u) | ((min) & 0x00ffu))
+#define major(dev) (((dev) & 0xff00u) >> 8)
+#define minor(dev) ((dev) & 0x00ffu)
 
 #define DIV_CEIL(x, div) (((x) + ((div) - 1)) / (div))
 

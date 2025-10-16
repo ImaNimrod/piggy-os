@@ -1,9 +1,25 @@
 #ifndef _KERNEL_FS_FILE_H
-#define _KERNEL_FS_FILE_H 1
+#define _KERNEL_FS_FILE_H
 
 #include <fs/vfs.h>
-#include <sys/process.h>
-#include <types.h>
+#include <stddef.h>
+
+#define AT_FDCWD -100
+
+#define O_PATH      01000
+
+#define O_RDONLY    00000
+#define O_WRONLY    00001
+#define O_RDWR      00002
+#define O_ACCMODE   (00003 | O_PATH)
+
+#define O_CREAT     00004
+#define O_DIRECTORY 00010
+#define O_TRUNC     00020
+#define O_APPEND    00040
+#define O_EXCL      00100
+#define O_NONBLOCK  00200
+#define O_CLOEXEC   00400
 
 struct process;
 

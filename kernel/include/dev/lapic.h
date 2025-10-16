@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_LAPIC_H
-#define _KERNEL_DEV_LAPIC_H 1
+#define _KERNEL_DEV_LAPIC_H
 
 #include <stdint.h>
 

@@ -34,8 +34,8 @@ struct slab_cache {
     spinlock_t lock;
 };
 
-static struct slab_cache cache_cache = {0};
-static struct slab_cache* kmalloc_caches[12] = {0};
+static struct slab_cache cache_cache;
+static struct slab_cache* kmalloc_caches[12];
 
 static struct slab* alloc_slab(struct slab_cache* cache) {
     struct slab* new_slab = (struct slab*) (pmm_alloc_zero(cache->pages_per_slab) + HIGH_VMA);

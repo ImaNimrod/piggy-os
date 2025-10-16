@@ -1,9 +1,8 @@
 #ifndef _KERNEL_NET_IPV4_H
-#define _KERNEL_NET_IPV4_H 1
+#define _KERNEL_NET_IPV4_H
 
 #include <net/packet.h>
 #include <stdint.h>
-#include <types.h>
 
 #define IPV4_PROTOCOL_ICMP  1
 #define IPV4_PROTOCOL_TCP   6

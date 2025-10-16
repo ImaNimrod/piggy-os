@@ -4,6 +4,11 @@
 #include <errno.h>
 #include <utils/usercopy.h>
 
+#define ARCHCTL_GET_FS_BASE 0
+#define ARCHCTL_GET_GS_BASE 1
+#define ARCHCTL_SET_FS_BASE 2
+#define ARCHCTL_SET_GS_BASE 3
+
 void sys_archctl(struct registers* r) {
     int op = r->rdi;
     void* arg = (void*) r->rsi;

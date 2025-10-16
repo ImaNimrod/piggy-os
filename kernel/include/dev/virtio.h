@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_VIRTIO_H
-#define _KERNEL_DEV_VIRTIO_H 1
+#define _KERNEL_DEV_VIRTIO_H
 
 #include <dev/pci.h>
 #include <stdbool.h>

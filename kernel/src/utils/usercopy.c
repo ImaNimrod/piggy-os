@@ -1,4 +1,5 @@
 #include <cpu/asm.h>
+#include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <errno.h>
 #include <utils/usercopy.h>

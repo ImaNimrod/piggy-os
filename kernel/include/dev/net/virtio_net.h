@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_NET_VIRTIO_NET_H
-#define _KERNEL_DEV_NET_VIRTIO_NET_H 1
+#define _KERNEL_DEV_NET_VIRTIO_NET_H
 
 #include <dev/virtio.h>
 

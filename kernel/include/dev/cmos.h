@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_CMOS_H
-#define _KERNEL_DEV_CMOS_H 1
+#define _KERNEL_DEV_CMOS_H
 
 #include <types.h>
 

@@ -1,5 +1,5 @@
 #ifndef _KERNEL_CPU_ASM_H
-#define _KERNEL_CPU_ASM_H 1
+#define _KERNEL_CPU_ASM_H
 
 #include <stdbool.h>
 #include <stdint.h>

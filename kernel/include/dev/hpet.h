@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_HPET_H
-#define _KERNEL_DEV_HPET_H 1
+#define _KERNEL_DEV_HPET_H
 
 #include <stdbool.h>
 #include <stdint.h>

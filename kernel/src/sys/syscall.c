@@ -1,6 +1,6 @@
 #include <cpu/isr.h>
 #include <errno.h>
-#include <sys/syscall.h>
+#include <syscall.h>
 #include <utils/macros.h>
 
 extern void sys_exit(struct registers* r);

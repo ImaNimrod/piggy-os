@@ -1,5 +1,5 @@
 #ifndef _KERNEL_MEM_PAGING_H
-#define _KERNEL_MEM_PAGING_H 1
+#define _KERNEL_MEM_PAGING_H
 
 #include <limine.h>
 #include <stdbool.h>

@@ -2,7 +2,6 @@
 #include <cpu/smp.h>
 #include <errno.h>
 #include <sys/scheduler.h>
-#include <types.h>
 #include <utils/usercopy.h>
 
 void sys_sleep(struct registers* r) {

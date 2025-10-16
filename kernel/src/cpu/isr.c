@@ -47,7 +47,7 @@ static const char* exception_messages[EXCEPTION_NUM] = {
     "Reserved",
 };
 
-static struct isr_table_entry isrs[ISR_NUM] = {0};
+static struct isr_table_entry isrs[ISR_NUM];
 static uint8_t isr_counter = 240;
 
 bool isr_allocate_vector(uint8_t* vector) {

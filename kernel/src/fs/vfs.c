@@ -8,12 +8,12 @@
 #include <utils/panic.h>
 #include <utils/string.h>
 
-struct vfs_node* vfs_root = NULL;
+struct vfs_node* vfs_root;
 
-static struct vfs_filesystem* filesystem_list = NULL;
-static spinlock_t filesystem_lock = {0};
+static struct vfs_filesystem* filesystem_list;
+static spinlock_t filesystem_lock;
 
-static hashmap_t* vfs_filesystems = NULL; 
+static hashmap_t* vfs_filesystems;
 
 static int nop(struct vfs_node* node);
 

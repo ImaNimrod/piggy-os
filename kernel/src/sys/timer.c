@@ -3,6 +3,7 @@
 #include <dev/pit.h>
 #include <mem/slab.h>
 #include <stdbool.h>
+#include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/list.h>
 #include <utils/log.h>
@@ -18,11 +19,11 @@ struct sleep_event {
     struct sleep_event* next;
 };
 
-struct timespec time_monotonic = {0};
-struct timespec time_realtime = {0};
+struct timespec time_monotonic;
+struct timespec time_realtime;
 
-static struct sleep_event* sleep_event_list = NULL;
-static spinlock_t sleep_event_list_lock = {0};
+static struct sleep_event* sleep_event_list;
+static spinlock_t sleep_event_list_lock;
 
 static inline void timespec_add(struct timespec* a, const struct timespec* b) {
     if (a->tv_nsec + b->tv_nsec > 999999999) {

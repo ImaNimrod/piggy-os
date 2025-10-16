@@ -8,7 +8,6 @@
 #include <net/packet.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <types.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/panic.h>

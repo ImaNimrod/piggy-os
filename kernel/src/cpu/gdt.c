@@ -54,7 +54,7 @@ static struct gdt gdt = {
     .tss = {0},
 };
 
-static spinlock_t gdt_lock = {0};
+static spinlock_t gdt_lock;
 
 void gdt_reload(void) {
     struct gdt_ptr gdtr = {

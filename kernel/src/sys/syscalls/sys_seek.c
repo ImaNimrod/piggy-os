@@ -4,7 +4,10 @@
 #include <fs/file.h>
 #include <fs/vfs.h>
 #include <sys/process.h>
-#include <types.h>
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 void sys_seek(struct registers* r) {
     int fd = r->rdi;

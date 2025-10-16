@@ -1,5 +1,5 @@
 #ifndef _KERNEL_CPU_ISR_H
-#define _KERNEL_CPU_ISR_H 1
+#define _KERNEL_CPU_ISR_H
 
 #include <stdbool.h>
 #include <stdint.h>

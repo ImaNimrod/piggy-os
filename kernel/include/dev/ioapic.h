@@ -1,5 +1,5 @@
 #ifndef _KERNEL_DEV_IOAPIC_H
-#define _KERNEL_DEV_IOAPIC_H 1
+#define _KERNEL_DEV_IOAPIC_H
 
 #include <stdbool.h>
 #include <stdint.h>
