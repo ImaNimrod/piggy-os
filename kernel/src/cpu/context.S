@@ -3,6 +3,7 @@
 .global context_switch
 .type context_switch, @function
 context_switch:
+    cli
     mov %rdi, %rsp
     pop %r15
     pop %r14
@@ -35,6 +36,7 @@ context_call_and_switch:
     pushf
     pushq $0x08
     push %r11
+
     subq $16, %rsp
 
     push %rax

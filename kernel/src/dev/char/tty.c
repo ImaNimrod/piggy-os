@@ -142,7 +142,7 @@ static int tty_ioctl(int minor, int request, void* argp) {
             ret = user_memcpy_from_user((void*) &termios, argp, sizeof(struct termios));
             break;
         case TIOCGWINSZ:
-            ret = user_memcpy_to_user(argp, (const void*) &winsize, sizeof(struct termios));
+            ret = user_memcpy_to_user(argp, (const void*) &winsize, sizeof(struct winsize));
             break;
         case TIOCSWINSZ:
             break;

@@ -6,11 +6,15 @@
 .type syscall_entry, @function
 syscall_entry:
     swapgs
-    movq %rsp, %gs:24
-    movq %gs:16, %rsp
+
+    // there aren't any syscalls (FOR NOW) that use all six arguments
+    // we use r9 to switch stacks because SYSV ABI says it is safe to clobber and in the meantime,
+    movq %gs:8, %r9
+    movq 0(%r9), %r9
+    xchg %r9, %rsp
 
     push $0x1b
-    push %gs:24
+    push %r9
     push %r11
     push $0x23
     push %rcx
@@ -35,8 +39,8 @@ syscall_entry:
 
     sti
 
-    mov %rsp, %rdi
     xor %rbp, %rbp
+    mov %rsp, %rdi
     call syscall_handler
 
     cli
@@ -57,9 +61,11 @@ syscall_entry:
     pop %rbx
     pop %rax
 
-    addq $16, %rsp
+    // this skips the error code and IRQ number, as well as RIP, CS, and RFLAGS,
+    // which means the next qword on the stack is the usermode stack pointer
+    addq $40, %rsp
 
-    movq %gs:24, %rsp
+    pop %rsp
     swapgs
     sysretq
 .size syscall_entry, . - syscall_entry

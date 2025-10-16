@@ -4,8 +4,6 @@
 #include <errno.h>
 #include <utils/usercopy.h>
 
-#include <utils/log.h>
-
 void sys_archctl(struct registers* r) {
     int op = r->rdi;
     void* arg = (void*) r->rsi;
@@ -29,7 +27,6 @@ void sys_archctl(struct registers* r) {
             break;
         }
         case ARCHCTL_SET_FS_BASE:
-            klog("new fs base: %p\n", arg);
             this_cpu()->write_fs_base((uint64_t) arg);
             break;
         case ARCHCTL_SET_GS_BASE:

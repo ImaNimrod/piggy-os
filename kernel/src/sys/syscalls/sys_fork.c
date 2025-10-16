@@ -9,7 +9,6 @@ void sys_fork(struct registers* r) {
     struct process* current_process = current_thread->process;
 
     this_cpu()->running_thread->registers = *r;
-    this_cpu()->running_thread->user_stack = this_cpu()->user_stack;
     this_cpu()->fpu_save(this_cpu()->running_thread->fpu_context);
 
     struct process* new_process = process_create(current_process, NULL);

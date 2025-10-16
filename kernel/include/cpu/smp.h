@@ -10,13 +10,9 @@
 
 struct cpu_local {
     struct cpu_local* self;
-    size_t cpu_number;
 
-    uintptr_t kernel_stack;
-    uintptr_t user_stack;
-
-    struct thread* idle_thread;
     struct thread* running_thread;
+    struct thread* idle_thread;
 
     struct tss tss;
 
@@ -31,6 +27,7 @@ struct cpu_local {
 
     bool has_smap;
 
+    size_t cpu_number;
     uint32_t lapic_id;
     uint32_t lapic_frequency;
 };
@@ -43,7 +40,7 @@ void smp_init(void);
 
 static ALWAYS_INLINE struct cpu_local* this_cpu(void) {
     struct cpu_local* this;
-    asm volatile ("mov %%gs:0x0, %0" : "=r" (this));
+    asm volatile("mov %%gs:0, %0" : "=r" (this));
     return this;
 }
 

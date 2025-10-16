@@ -332,8 +332,6 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, cons
             stack[i] = old_rsp;
         }
 
-        thread->registers.rdx = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // envp
-
         *(--stack) = 0;
         stack -= argv_len;
         for (i = 0; i < argv_len; i++) {
@@ -341,11 +339,9 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, cons
             stack[i] = old_rsp;
         }
 
-        thread->registers.rsi = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack); // argv
-        thread->registers.rdi = argv_len;  // argc
+        *(--stack) = argv_len;
 
         thread->registers.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
-        thread->user_stack = thread->registers.rsp;
     }
 
     thread->tid = vector_size(process->threads);
@@ -386,7 +382,6 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread) {
     new_thread->process = process;
 
     new_thread->kernel_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA + KERNEL_STACK_SIZE;
-    new_thread->user_stack = old_thread->user_stack;
 
     memcpy64((void*) &new_thread->registers, (const void*) &old_thread->registers, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;

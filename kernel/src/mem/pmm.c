@@ -121,14 +121,15 @@ void pmm_init(void) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
 
         klog("- memory map entry #%02u: base=0x%016x, length=0x%016x, type: %s\n",
-             i, entry->base, entry->length, memmap_type_str(entry->type));
+                i, entry->base, entry->length, memmap_type_str(entry->type));
 
         if (entry->type == LIMINE_MEMMAP_USABLE) {
             usable_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
-            highest_paddr = MAX(highest_paddr, entry->base + entry->length);
         } else {
             reserved_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
         }
+
+        highest_paddr = MAX(highest_paddr, entry->base + entry->length);
     }
 
     highest_page_index = highest_paddr / PAGE_SIZE_4KB;

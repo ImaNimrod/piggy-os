@@ -84,7 +84,6 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     next_thread->state = THREAD_RUNNING;
 
     this_cpu()->tss.rsp0 = next_thread->kernel_stack;
-    this_cpu()->kernel_stack = next_thread->kernel_stack;
 
     lapic_eoi();
     lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);

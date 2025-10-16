@@ -26,22 +26,21 @@ typedef enum {
 } thread_state_t;
 
 struct thread {
-    tid_t tid;
-    thread_state_t state;
-    bool is_user;
-
-    struct process* process;
-
-    uintptr_t kernel_stack_paddr;
     uintptr_t kernel_stack;
 
+    uintptr_t kernel_stack_paddr;
     uintptr_t user_stack_paddr;
-    uintptr_t user_stack;
 
     struct registers registers;
     void* fpu_context;
     uint64_t fs_base;
     uint64_t gs_base;
+
+    tid_t tid;
+    thread_state_t state;
+    bool is_user;
+
+    struct process* process;
 
     struct registers* usercopy_registers;
 
