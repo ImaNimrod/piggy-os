@@ -7,12 +7,10 @@
 
 static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int flags);
 static ssize_t pseudo_write(int minor, const void* buf, size_t count, off_t offset, int flags);
-static int pseudo_ioctl(int minor, int request, void* argp);
 
 static struct device_ops pseudo_ops = {
     .read = pseudo_read,
     .write = pseudo_write,
-    .ioctl = pseudo_ioctl,
 };
 
 static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int flags) {
@@ -59,13 +57,6 @@ static ssize_t pseudo_write(int minor, const void* buf, size_t count, off_t offs
     }
 
     return ret;
-}
-
-static int pseudo_ioctl(int minor, int request, void* argp) {
-    (void) minor;
-    (void) request;
-    (void) argp;
-    return -ENODEV;
 }
 
 void pseudo_dev_init(void) {

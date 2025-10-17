@@ -47,8 +47,8 @@ static inline uint64_t oct2int(const char* str, size_t len) {
 }
 
 void initrd_unpack(struct limine_file* initrd_module) {
-    klog("[initrd] unpacking initial ramdisk at 0x%lx (size: %zuKiB)\n",
-            (uintptr_t) initrd_module->address, initrd_module->size >> 10);
+    klog("[initrd] unpacking initial ramdisk at 0x%lx (size: %zuMiB)\n",
+            (uintptr_t) initrd_module->address, initrd_module->size >> 20);
 
     struct tar_header* current_file = (struct tar_header*) initrd_module->address;
     size_t file_count = 0;

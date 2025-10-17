@@ -165,14 +165,15 @@ static int fb_ioctl(int minor, int request, void* argp) {
     int ret = 0;
 
     switch (request) {
-        case FBIOBLANK:
+        case FBIOGET_VSCREENINFO:
+            ret = user_memcpy_to_user(argp, &framebuffer->var_info, sizeof(struct fb_var_screeninfo));
+            break;
         case FBIOPUT_VSCREENINFO:
             break;
         case FBIOGET_FSCREENINFO:
             ret = user_memcpy_to_user(argp, &framebuffer->fix_info, sizeof(struct fb_fix_screeninfo));
             break;
-        case FBIOGET_VSCREENINFO:
-            ret = user_memcpy_to_user(argp, &framebuffer->var_info, sizeof(struct fb_var_screeninfo));
+        case FBIOBLANK:
             break;
         default:
             ret = -ENOTTY;

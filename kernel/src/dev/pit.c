@@ -4,6 +4,7 @@
 #include <dev/pit.h>
 #include <stddef.h>
 #include <sys/timer.h>
+#include <utils/log.h>
 
 #define PIT_CHANNEL0_PORT   0x40
 #define PIT_CHANNEL1_PORT   0x41
@@ -29,4 +30,6 @@ void pit_init(uint16_t hz) {
     isr_register_handler(PIT_ISA_IRQ + ISA_IRQ_BASE, pit_irq_handler, NULL);
     ioapic_redirect_irq(PIT_ISA_IRQ, PIT_ISA_IRQ + ISA_IRQ_BASE);
     ioapic_set_irq_mask(PIT_ISA_IRQ, false);
+
+    klog("[pit] initialized legacy PIT");
 }

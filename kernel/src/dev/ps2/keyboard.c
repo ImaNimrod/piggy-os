@@ -1,10 +1,20 @@
 #include <cpu/isr.h>
 #include <dev/char/tty.h>
 #include <dev/ioapic.h>
-#include <stddef.h>
+#include <fs/devfs.h>
+#include <mem/slab.h>
+#include <sys/scheduler.h>
 #include <utils/log.h>
+#include <utils/macros.h>
+#include <utils/panic.h>
+#include <utils/string.h>
+#include <utils/usercopy.h>
 
 #include "definitions.h"
+
+#define KEYBOARD_DEV_MAJOR 6
+
+#define SCANCODE_BUF_SIZE 128
 
 static const char keymap_normal[] = {
     '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', '\t',
@@ -40,6 +50,16 @@ static bool shift_active;
 static bool capslock_active;
 static bool ctrl_active;
 static uint8_t led_state;
+
+static uint8_t* scancode_buf;
+static size_t scancode_buf_index;
+static spinlock_t scancode_buf_lock;
+
+static ssize_t keyboard_read(int minor, void* buf, size_t count, off_t offset, int flags);
+
+static struct device_ops keyboard_ops = {
+    .read = keyboard_read,
+};
 
 static char translate_scancode(uint8_t scancode) {
     bool release = scancode & (1 << 7);
@@ -84,14 +104,45 @@ static char translate_scancode(uint8_t scancode) {
     return c;
 }
 
+static ssize_t keyboard_read(int minor, void* buf, size_t count, off_t offset, int flags) {
+    (void) minor;
+    (void) offset;
+
+    if (count == 0) {
+        return 0;
+    }
+
+    ssize_t to_copy;
+    if (flags & O_NONBLOCK) {
+        to_copy = MIN(count, scancode_buf_index);
+        if (to_copy == 0) {
+            return 0;
+        }
+    } else {
+        to_copy = count;
+        while ((ssize_t) scancode_buf_index != to_copy) {
+            scheduler_yield(true);
+        }
+    }
+
+    spinlock_acquire(&scancode_buf_lock);
+
+    ssize_t ret;
+    if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, scancode_buf, to_copy)) < 0) {
+        spinlock_release(&scancode_buf_lock);
+        return ret;
+    }
+
+    memmove(scancode_buf, scancode_buf + to_copy, scancode_buf_index - to_copy);
+    scancode_buf_index -= to_copy;
+
+    spinlock_release(&scancode_buf_lock);
+    return to_copy;
+}
+
 static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
     (void) r;
     (void) arg;
-
-    if (unlikely(!tty_is_ready)) {
-        flush();
-        return;
-    }
 
     for (;;) {
         uint8_t status = inb(PS2_STATUS_PORT);
@@ -103,6 +154,10 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
         }
 
         uint8_t scancode = inb(PS2_DATA_PORT);
+
+        spinlock_acquire(&scancode_buf_lock);
+        scancode_buf[scancode_buf_index++] = scancode;
+        spinlock_release(&scancode_buf_lock);
 
         char c = translate_scancode(scancode);
 
@@ -133,11 +188,20 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
 void keyboard_init(bool second_port) {
     is_second_port = second_port;
 
+    scancode_buf = kmalloc(SCANCODE_BUF_SIZE * sizeof(uint8_t));
+    if (unlikely(scancode_buf == NULL)) {
+        kpanic(NULL, false, "failed to create keyboard device scancode buffer");
+    }
+
     isr_register_handler(PS2_KEYBOARD_ISA_IRQ + ISA_IRQ_BASE, ps2_keyboard_irq_handler, NULL);
     ioapic_redirect_irq(PS2_KEYBOARD_ISA_IRQ, PS2_KEYBOARD_ISA_IRQ + ISA_IRQ_BASE);
     ioapic_set_irq_mask(PS2_KEYBOARD_ISA_IRQ, false);
 
     send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, second_port);
+
+    if (unlikely(devfs_register_device("kbd", VFS_TYPE_CHARDEV, &keyboard_ops, makedev(KEYBOARD_DEV_MAJOR, 0)) < 0)) {
+        kpanic(NULL, false, "failed to create keyboard device");
+    }
 
     klog("[ps2] PS/2 keyboard initialized\n");
 }

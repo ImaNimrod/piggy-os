@@ -1,6 +1,5 @@
 #include <dev/cmos.h>
 #include <dev/hpet.h>
-#include <dev/pit.h>
 #include <mem/slab.h>
 #include <stdbool.h>
 #include <sys/scheduler.h>
@@ -11,7 +10,7 @@
 #include <utils/panic.h>
 #include <utils/spinlock.h>
 
-#define TIMER_FREQUENCY 250
+#define TIMER_FREQUENCY 1000
 
 struct sleep_event {
     struct thread* thread;
@@ -86,11 +85,10 @@ void timer_update_timers(void) {
 }
 
 void timer_init(void) {
-    hpet_init();
-    pit_init(TIMER_FREQUENCY);
+    hpet_init(TIMER_FREQUENCY);
 
     cmos_init();
     cmos_get_rtc_time(&time_realtime);
 
-    klog("[timer] initialized timing subsystem\n");
+    klog("[timer] initialized timer subsystem at %uHz\n", TIMER_FREQUENCY);
 }

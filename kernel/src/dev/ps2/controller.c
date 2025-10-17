@@ -19,6 +19,7 @@ static void port_enum_and_init_device(bool second_port) {
     if (send_device_command(PS2_DEVICE_COMMAND_DISABLE_SCANNING, second_port) != 0xfa) {
         return;
     }
+
     if (send_device_command(PS2_DEVICE_COMMAND_IDENTIFY, second_port) != 0xfa) {
         return;
     }
@@ -101,12 +102,17 @@ void ps2_init(void) {
     send_command(PS2_COMMAND_WRITE_CONFIG);
     send_data(config);
 
+    flush();
+
     send_command(PS2_COMMAND_SELF_TEST);
     uint8_t result = read_data();
     if (result != 0x55) {
         klog("[ps2] PS/2 controller self test failed\n");
         return;
     }
+
+    send_command(PS2_COMMAND_WRITE_CONFIG);
+    send_data(config);
 
     bool dual_port = false;
 

@@ -50,7 +50,6 @@ void sys_open(struct registers* r) {
     ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
     if (ret == 0 && (flags & O_CREAT) && (flags & O_EXCL)) {
         ret = -EEXIST;
-        goto end;
     } else if (ret == -ENOENT && (flags & O_CREAT)) {
         ret = vfs_create(dirnode, kpath, VFS_TYPE_REGULAR, &node);
     }
