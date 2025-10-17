@@ -67,9 +67,9 @@ void sys_exec(struct registers* r) {
     cli(); // no going back after this point
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
-        struct file* file = current_process->fds[i];
-        if (file != NULL && file->flags & O_CLOEXEC) {
-            file_release(file);
+        struct file_descriptor* descriptor = &current_process->fds[i];
+        if (descriptor->file != NULL && descriptor->cloexec) {
+            file_release(descriptor->file);
         }
     }
 

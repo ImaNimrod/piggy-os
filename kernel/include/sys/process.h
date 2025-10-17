@@ -57,7 +57,7 @@ struct process {
     int exit_status;
     struct vfs_node* cwd;
 
-    struct file* fds[PROCESS_FD_COUNT];
+    struct file_descriptor fds[PROCESS_FD_COUNT];
     spinlock_t fd_lock;
 
     struct pagemap* pagemap;

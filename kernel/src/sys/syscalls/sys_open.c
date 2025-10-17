@@ -70,13 +70,13 @@ void sys_open(struct registers* r) {
         }
     }
 
-    file = file_create(node, flags);
+    file = file_create(node, flags & ~O_CLOEXEC);
     if (file == NULL) {
         ret = -ENOMEM;
         goto end;
     }
 
-    int fd = file_insert(current_process, file);
+    int fd = file_insert(current_process, file, flags & O_CLOEXEC);
     if (fd < 0) {
         ret = -EMFILE;
         goto end;

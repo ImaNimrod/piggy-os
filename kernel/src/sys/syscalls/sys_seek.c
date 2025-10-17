@@ -25,6 +25,12 @@ void sys_seek(struct registers* r) {
 
     off_t ret;
 
+    int acc_mode = file->flags & O_ACCMODE;
+    if (acc_mode & O_PATH) {
+        ret = -EBADF;
+        goto end;
+    }
+
     struct vfs_node* node = file->node;
     if (node->type == VFS_TYPE_DIRECTORY) {
         ret = -EISDIR;

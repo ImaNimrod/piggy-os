@@ -2,6 +2,7 @@
 #define _KERNEL_FS_FILE_H
 
 #include <fs/vfs.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #define AT_FDCWD -100
@@ -30,10 +31,16 @@ struct file {
     size_t refcount;
 }; 
 
+struct file_descriptor {
+    struct file* file;
+    bool cloexec;
+};
+
 struct file* file_create(struct vfs_node* node, int flags);
+int file_dup(struct process* process, int old_fd, int new_fd, bool cloexec);
 void file_fork(struct process* old_process, struct process* new_process);
 struct file* file_get(struct process* process, int fd);
-int file_insert(struct process* process, struct file* file);
+int file_insert(struct process* process, struct file* file, bool cloexec);
 void file_release(struct file* file);
 int file_resolve_dirfd(struct process* process, int dirfd, const char* path, struct file** dirfile, struct vfs_node** dirnode);
 
