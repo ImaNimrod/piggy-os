@@ -23,13 +23,15 @@ pushd ${DIR}/build
         "$DIR"/tarballs/"$BINUTILS_NAME"/configure \
             --prefix="$PREFIX" \
             --target="$TARGET" \
+            --disable-multilib \
             --disable-nls \
             --disable-shared \
             --disable-werror \
             --enable-lto \
             --enable-static \
             --with-system-zlib \
-            --with-sysroot="$SYSROOT" || exit 1
+            --with-sysroot="$SYSROOT" \
+            --without-docdir || exit 1 
 
         echo "building ${BINUTILS_NAME}..."
 
@@ -51,10 +53,11 @@ pushd ${DIR}/build
         "$DIR"/tarballs/"$GCC_NAME"/configure \
             --prefix="$PREFIX" \
             --target="$TARGET" \
+            --disable-multilib \
             --disable-nls \
             --disable-shared \
             --disable-werror \
-            --enable-languages=c \
+            --enable-languages=c,c++ \
             --enable-lto \
             --enable-static \
             --with-sysroot="$SYSROOT" \
