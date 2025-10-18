@@ -8,6 +8,8 @@ EMUOPTS := -machine q35 \
 		   -serial stdio \
 		   -bios /usr/share/edk2/x64/OVMF.4m.fd
 
+export PATH := $(PATH):$(TOOLCHAIN_DIR)/build/bin
+
 .PHONY: all
 all: $(IMAGE_NAME).iso
 
@@ -36,8 +38,13 @@ run-virtio:
 		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso
 
+.PHONY: libc-headers
+libc-headers:
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=true build
+	cd libc/build; ninja install
+
 .PHONY: toolchain
-toolchain:
+toolchain: libc-headers
 	./toolchain/build_gcc.sh
 	./toolchain/build_qemu.sh
 
@@ -47,11 +54,16 @@ todolist:
 	-@grep -FHr -e TODO -e FIXME kernel
 
 limine/limine:
-	$(MAKE) -C limine CC="cc" CFLAGS="-g -O2 -pipe"
+	$(MAKE) -C limine CC="cc" CFLAGS="-O2 -pipe"
 
 .PHONY: kernel
 kernel:
 	$(MAKE) -C kernel
+
+.PHONY: libc
+libc:
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dno_headers=true -Ddefault_library=static build
+	cd libc/build; ninja install
 
 .PHONY: userspace
 userspace:
@@ -62,7 +74,7 @@ initrd:
 	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_FILE) *
 
 .NOTPARALLEL:
-$(IMAGE_NAME).iso: limine/limine kernel userspace initrd
+$(IMAGE_NAME).iso: limine/limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel/$(KERNEL_FILE) $(INITRD_FILE) iso_root/boot/
@@ -82,7 +94,7 @@ $(IMAGE_NAME).iso: limine/limine kernel userspace initrd
 
 .PHONY: clean
 clean:
-	$(RM) -r iso_root $(IMAGE_NAME).iso $(INITRD_FILE)
+	$(RM) -r iso_root libc/build $(IMAGE_NAME).iso $(INITRD_FILE)
 	$(MAKE) -C userspace clean
 	$(MAKE) -C kernel clean
 

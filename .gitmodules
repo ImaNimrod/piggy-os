@@ -11,3 +11,7 @@
     path = kernel/src/utils/flanterm
     url = https://codeberg.org/mintsuki/flanterm.git
     update = merge
+[submodule "libc"]
+    path = libc
+    url = https://github.com/ImaNimrod/mlibc.git
+    update = merge

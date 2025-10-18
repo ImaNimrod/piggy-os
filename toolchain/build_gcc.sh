@@ -12,8 +12,8 @@ pushd "$DIR/tarballs"
     download_and_extract GCC
 popd
 
-mkdir -p ${DIR}/build
-pushd ${DIR}/build
+mkdir -p "$DIR/build"
+pushd "$DIR/build"
     rm -rf build_*
 
     mkdir -p build_binutils
