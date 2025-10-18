@@ -1,10 +1,11 @@
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <unistd.h>
 
-static const char* message = "hello, world!";
+int main() {
+    while (1) {
+        printf("hello, world!\n");
+        usleep(500000);
+    }
 
-int main(void) {
-    write(STDOUT_FILENO, message, strlen(message));
-    return EXIT_SUCCESS;
+    return 0;
 }
