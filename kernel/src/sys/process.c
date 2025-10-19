@@ -89,6 +89,7 @@ void process_create_init(void) {
     if (vfs_lookup(vfs_root, init_path, false, NULL, &init_node) < 0) {
         kpanic(NULL, false, "failed to find %s", init_path);
     }
+    init_node->ops->unlock(init_node);
 
     struct pagemap* init_pagemap = pagemap_create();
     if (unlikely(init_pagemap == NULL)) {
@@ -122,8 +123,8 @@ void process_create_init(void) {
     }
     init_process->fds[2].file = stderr_file;
 
-    const char* argv[] = { init_path, NULL };
-    const char* envp[] = { NULL };
+    char* argv[] = { init_path, NULL };
+    char* envp[] = { NULL };
 
     uintptr_t entry;
 
@@ -131,7 +132,6 @@ void process_create_init(void) {
         kpanic(NULL, false, "failed to load ELF for init process");
     }
 
-    init_node->ops->unlock(init_node);
     VFS_NODE_UNREF(init_node);
 
     struct thread* init_thread = thread_create_user(init_process, entry, argv, envp);
@@ -258,7 +258,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     return thread;
 }
 
-struct thread* thread_create_user(struct process* process, uintptr_t entry, const char* argv[], const char* envp[]) {
+struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp) {
     struct thread* thread = slab_cache_alloc(thread_cache);
     if (unlikely(thread == NULL)) {
         return NULL;

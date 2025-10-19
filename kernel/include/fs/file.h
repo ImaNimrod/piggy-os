@@ -37,7 +37,7 @@ struct file_descriptor {
 };
 
 struct file* file_create(struct vfs_node* node, int flags);
-int file_dup(struct process* process, int old_fd, int new_fd, bool cloexec);
+int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool cloexec);
 void file_fork(struct process* old_process, struct process* new_process);
 struct file* file_get(struct process* process, int fd);
 int file_insert(struct process* process, struct file* file, bool cloexec);

@@ -41,7 +41,7 @@ struct file* file_create(struct vfs_node* node, int flags) {
     return file;
 }
 
-int file_dup(struct process* process, int old_fd, int new_fd, bool cloexec) {
+int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool cloexec) {
     if (old_fd < 0 || old_fd >= PROCESS_FD_COUNT) {
         return -EBADF;
     }
@@ -57,14 +57,30 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool cloexec) {
         return -EBADF;
     }
 
-    int fd = get_free_fd(process, new_fd);
-    if (fd >= 0) {
-        process->fds[fd] = (struct file_descriptor) { file, cloexec };
-        __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+    int ret;
+
+    if (exact) {
+        struct file_descriptor* descriptor = &process->fds[new_fd];
+        if (descriptor->file != NULL) {
+            file_release(descriptor->file);
+        }
+
+        descriptor->file = file;
+        descriptor->cloexec = cloexec;
+
+        ret = new_fd;
+    } else {
+        int fd = get_free_fd(process, new_fd);
+        if (fd >= 0) {
+            process->fds[fd] = (struct file_descriptor) { file, cloexec };
+            __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+        }
+
+        ret = fd;
     }
 
     spinlock_release(&process->fd_lock);
-    return fd;
+    return ret;
 }
 
 void file_fork(struct process* old_process, struct process* new_process) {

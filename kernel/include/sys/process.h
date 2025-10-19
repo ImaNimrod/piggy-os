@@ -86,7 +86,7 @@ void process_exit(struct process* process, int status);
 void* process_sbrk(struct process* process, intptr_t size);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
-struct thread* thread_create_user(struct process* process, uintptr_t entry, const char* argv[], const char* envp[]);
+struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp);
 void thread_destroy(struct thread* thread);
 struct thread* thread_fork(struct process* process, struct thread* old_thread);
 

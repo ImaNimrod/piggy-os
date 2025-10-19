@@ -12,15 +12,28 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
+static void free_string_array(char** xs) {
+    char** iter = xs;
+    while (*iter != NULL) {
+        kfree(*iter++);
+    }
+    kfree(xs);
+}
+
 void sys_exec(struct registers* r) {
     const char* path = (const char*) r->rdi;
-    const char** argv = (const char**) r->rsi; // TODO: make this use safe usercopy functions
-    const char** envp = (const char**) r->rdx; // TODO: make this use safe usercopy functions
+    const char** argv = (const char**) r->rsi;
+    const char** envp = (const char**) r->rdx;
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    int ret;
+    if (!IS_USER_ADDRESS(path) || !IS_USER_ADDRESS(argv) || !IS_USER_ADDRESS(envp)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
+    int ret = 0;
 
     size_t path_len;
     if ((ret = user_strlen(path, &path_len)) < 0) {
@@ -40,29 +53,110 @@ void sys_exec(struct registers* r) {
         return;
     }
 
+    int argc = 0;
+    int envc = 0;
+    char** kargv = NULL;
+    char** kenvp = NULL;
     struct pagemap* old_pagemap = current_process->pagemap;
-    struct pagemap* new_pagemap = pagemap_create();
+    struct pagemap* new_pagemap = NULL;
+    struct vfs_node* node = NULL;
+    struct vfs_node* reference = NULL;
+
+    for (;;) {
+        char* arg;
+        ret = user_memcpy_from_user(&arg, &argv[argc], sizeof(char*));
+        argc++;
+
+        if (ret < 0) {
+            goto end;
+        }
+        if (arg == NULL) {
+            break;
+        }
+    }
+
+    for (;;) {
+        char* env;
+        ret = user_memcpy_from_user(&env, &envp[envc], sizeof(char*));
+        envc++;
+
+        if (ret < 0) {
+            goto end;
+        }
+        if (env == NULL) {
+            break;
+        }
+    }
+
+    kargv = kmalloc((argc + 1) * sizeof(char*));
+    kenvp = kmalloc((envc + 1) * sizeof(char*));
+    if (unlikely(kargv == NULL || kenvp == NULL)) {
+        ret = -ENOMEM;
+        goto end;
+    }
+
+    for (int i = 0; i < argc - 1; i++) {
+        char* arg;
+        if ((ret = user_memcpy_from_user(&arg, &argv[i], sizeof(char*))) < 0) {
+            goto end;
+        }
+
+        size_t len;
+        if ((ret = user_strlen(arg, &len)) < 0) {
+            goto end;
+        }
+
+        kargv[i] = kmalloc(len + 1);
+        if (kargv[i] == NULL) {
+            ret = -ENOMEM;
+            goto end;
+        }
+
+        if ((ret = user_memcpy_from_user(kargv[i], arg, len)) < 0) {
+            goto end;
+        }
+    }
+
+    for (int i = 0; i < envc - 1; i++) {
+        char* env;
+        if ((ret = user_memcpy_from_user(&env, &envp[i], sizeof(char*))) < 0) {
+            goto end;
+        }
+
+        size_t len;
+        if ((ret = user_strlen(env, &len)) < 0) {
+            goto end;
+        }
+
+        kenvp[i] = kmalloc(len + 1);
+        if (kenvp[i] == NULL) {
+            ret = -ENOMEM;
+            goto end;
+        }
+
+        if ((ret = user_memcpy_from_user(kenvp[i], env, len)) < 0) {
+            goto end;
+        }
+    }
+
+    new_pagemap = pagemap_create();
     if (unlikely(new_pagemap == NULL)) {
         ret = -ENOMEM;
-        goto error;
+        goto end;
     }
 
-    struct vfs_node* node;
-    if ((ret = vfs_lookup(vfs_root, kpath, false, NULL, &node)) < 0) {
-        goto error;
-    }
+    reference = kpath[0] == '/' ? vfs_root : current_process->cwd;
+    VFS_NODE_REF(reference);
 
-    if (node->type != VFS_TYPE_REGULAR) {
-        ret = -ENOEXEC;
-        goto error;
+    if ((ret = vfs_lookup(reference, kpath, false, NULL, &node)) < 0) {
+        goto end;
     }
+    node->ops->unlock(node);
 
     uintptr_t entry;
     if ((ret = elf_load(new_pagemap, node, &entry)) < 0) {
-        goto error;
+        goto end;
     }
-
-    node->ops->unlock(node);
 
     cli(); // no going back after this point
 
@@ -89,21 +183,38 @@ void sys_exec(struct registers* r) {
     current_process->threads = vector_create(sizeof(struct thread*));
     if (unlikely(current_process->threads == NULL)) {
         ret = -ENOMEM;
-        goto error;
+        goto end;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, entry, argv, envp);
+    struct thread* new_thread = thread_create_user(current_process, entry, kargv, kenvp);
     if (unlikely(new_thread == NULL)) {
         ret = -ENOMEM;
-        goto error;
+        goto end;
     }
     scheduler_enqueue(new_thread);
 
+end:
+    kfree(kpath);
+    if (kargv != NULL) {
+        free_string_array(kargv);
+    }
+    if (kenvp != NULL) {
+        free_string_array(kenvp);
+    }
+
+    if (reference != NULL) {
+        VFS_NODE_UNREF(reference);
+    }
+    if (node != NULL) {
+        VFS_NODE_UNREF(node);
+    }
+
+    if (ret < 0) {
+        goto error;
+    }
+
     pagemap_load(kernel_pagemap);
     pagemap_destroy(old_pagemap);
-
-    r->rax = 0;
-
     scheduler_dequeue(this_cpu()->running_thread);
     thread_destroy(this_cpu()->running_thread);
     this_cpu()->running_thread = NULL;

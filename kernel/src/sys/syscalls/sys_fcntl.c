@@ -32,7 +32,7 @@ void sys_fcntl(struct registers* r) {
     switch (op) {
         case F_DUPFD:
         case F_DUPFD_CLOEXEC:
-            ret = file_dup(current_process, fd, arg, op == F_DUPFD_CLOEXEC ? true : false);
+            ret = file_dup(current_process, fd, arg, false, op & F_DUPFD_CLOEXEC);
             break;
         case F_GETFD:
             ret = current_process->fds[fd].cloexec ? FD_CLOEXEC : 0;
