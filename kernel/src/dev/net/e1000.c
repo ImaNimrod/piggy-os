@@ -13,7 +13,6 @@
 #include <stdint.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 #define NUM_RX_DESCRIPTORS 128

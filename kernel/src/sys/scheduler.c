@@ -11,7 +11,7 @@
 #include <utils/string.h>
 
 #define SCHEDULER_IRQ_VECTOR 48 
-#define SCHEDULER_TIME_QUANTA_MS 5
+#define SCHEDULER_TIME_QUANTA_MS 10
 
 extern void context_switch(struct registers* r);
 

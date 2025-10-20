@@ -1,5 +1,9 @@
+#include <cpu/asm.h>
+#include <cpu/smp.h>
 #include <dev/char/fb.h>
+#include <dev/lapic.h>
 #include <dev/serial.h>
+#include <mem/paging.h>
 #include <stdarg.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
@@ -8,6 +12,27 @@
 #include "printf/printf.h"
 
 static spinlock_t print_lock;
+
+static void print_stack_trace(uintptr_t* rbp) {
+    if (rbp == NULL || ((uintptr_t) rbp) < HIGH_VMA) {
+        return;
+    }
+
+    printf("stack trace:");
+
+    for (;;) {
+        uintptr_t* old_rbp = (uintptr_t*)rbp[0];
+        uintptr_t* rip = (uintptr_t*) rbp[1];
+
+        if (rip == NULL || old_rbp == NULL || ((uintptr_t) rip) < HIGH_VMA) {
+            break;
+        }
+
+        printf("\n    - 0x%016lx", rip);
+
+        rbp = old_rbp;
+    }
+}
 
 void _putchar(char c) {
     serial_putc(COM1_PORT, c);
@@ -26,4 +51,50 @@ void klog(const char* fmt, ...) {
     va_end(args);
 
     spinlock_release(&print_lock);
+}
+
+NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...) {
+    cli();
+    spinlock_release(&print_lock);
+    spinlock_acquire(&print_lock);
+
+    if (cpu_count > 1) {
+        lapic_send_ipi(LAPIC_IPI_ALL_OTHER_CPUS, PANIC_IPI_VECTOR);
+    }
+
+    printf("\n\n==================================| KERNEL PANIC |=============================================\nCPU #%zu panicked due to reason: ", (cpu_count > 1 ? this_cpu()->cpu_number : 0));
+
+    va_list args;
+    va_start(args, fmt);
+    vprintf(fmt, args);
+    va_end(args);
+
+    if (r != NULL) {
+        printf("\n===============================================================================================\n");
+        printf("RAX: 0x%016lx RBX: 0x%016lx RCX: 0x%016lx RDX: 0x%016lx\n", r->rax, r->rbx, r->rcx, r->rdx);
+        printf("RSI: 0x%016lx RDI: 0x%016lx RSP: 0x%016lx RBP: 0x%016lx\n", r->rsi, r->rdi, r->rsp, r->rbp);
+        printf("R8:  0x%016lx R9:  0x%016lx R10: 0x%016lx R11: 0x%016lx\n", r->r8, r->r9, r->r10, r->r11);
+        printf("R12: 0x%016lx R13: 0x%016lx R14: 0x%016lx R15: 0x%016lx\n", r->r12, r->r13, r->r14, r->r15);
+        printf("CR0: 0x%016lx CR2: 0x%016lx CR3: 0x%016lx CR4: 0x%016lx\n", read_cr0(), read_cr2(), read_cr3(), read_cr4());
+        printf("RIP: 0x%016lx RFLAGS: 0x%016lx CS: 0x%04x SS: 0x%04x ERROR CODE: 0x%08x", r->rip, r->rflags, r->cs, r->ss, r->error_code);
+    }
+
+    if (stack_trace) {
+        uintptr_t* rbp;
+        if (r != NULL) {
+            rbp = (uintptr_t*) r->rbp;
+        } else {
+            asm volatile("mov %%rbp, %0" : "=g" (rbp) :: "memory");
+        }
+
+        printf("\n===============================================================================================\n");
+        print_stack_trace(rbp);
+    }
+
+    printf("\n===============================================================================================\n");
+
+    for (;;) {
+        hlt();
+    }
+    __builtin_unreachable();
 }

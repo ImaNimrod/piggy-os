@@ -7,7 +7,6 @@
 #include <mem/slab.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 #define VIRTIO_PCI_CAP_COMMON_CFG 1
 #define VIRTIO_PCI_CAP_NOTIFY_CFG 2

@@ -6,10 +6,9 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
-#define IOREGSEL    0x00
-#define IOREGWIN    0x10
+#define IOREGSEL 0x00
+#define IOREGWIN 0x10
 
 #define IOAPIC_REG_ID           0x00
 #define IOAPIC_REG_VERSION      0x01
@@ -41,13 +40,14 @@ union ioapic_rentry {
 } __attribute__((packed));
 
 struct isa_iso {
+    bool init;
     uint32_t gsi;
     int polarity;
     int trigger_mode;
 };
 
 static struct ioapic* ioapic_list;
-static struct isa_iso* isa_isos[ISA_IRQ_NUM];
+static struct isa_iso isa_isos[ISA_IRQ_NUM];
 
 static inline uint32_t ioapic_read(uintptr_t base, uint32_t reg) {
     mmio_write32((void*) (base + IOREGSEL), reg);
@@ -89,10 +89,10 @@ bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     int polarity = IOAPIC_POLARITY_ACTIVE_LOW;
     int trigger_mode = IOAPIC_TRIGGER_EDGE;
 
-    if (irq < ISA_IRQ_NUM && isa_isos[irq] != NULL) {
-        gsi = isa_isos[irq]->gsi;
-        polarity = isa_isos[irq]->polarity;
-        trigger_mode = isa_isos[irq]->trigger_mode;
+    if (irq < ISA_IRQ_NUM && isa_isos[irq].init) {
+        gsi = isa_isos[irq].gsi;
+        polarity = isa_isos[irq].polarity;
+        trigger_mode = isa_isos[irq].trigger_mode;
     }
 
     struct ioapic* ioapic = get_ioapic_for_irq(gsi);
@@ -111,8 +111,8 @@ bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
 
 bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     uint32_t gsi = irq; 
-    if (irq < ISA_IRQ_NUM && isa_isos[irq] != NULL) {
-        gsi = isa_isos[irq]->gsi;
+    if (irq < ISA_IRQ_NUM && isa_isos[irq].init) {
+        gsi = isa_isos[irq].gsi;
     }
 
     struct ioapic* ioapic = get_ioapic_for_irq(gsi);
@@ -131,17 +131,7 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, int polarity, int trigger_mod
     if (irq >= ISA_IRQ_NUM || gsi >= ISA_IRQ_NUM) {
         return;
     }
-
-    struct isa_iso* isa_iso = kmalloc(sizeof(struct isa_iso));
-    if (unlikely(isa_iso == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for ISA interrupt source override");
-    }
-
-    isa_iso->gsi = gsi;
-    isa_iso->polarity = polarity;
-    isa_iso->trigger_mode = trigger_mode;
-
-    isa_isos[irq] = isa_iso;
+    isa_isos[irq] = (struct isa_iso) { true, gsi, polarity, trigger_mode };
 }
 
 void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {

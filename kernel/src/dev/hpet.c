@@ -9,7 +9,6 @@
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 #define HPET_REG_ID     0x000
 #define HPET_REG_CONFIG 0x010

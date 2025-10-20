@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <fs/file.h>
 #include <mem/slab.h> 
-#include <utils/panic.h>
+#include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/spinlock.h>
 

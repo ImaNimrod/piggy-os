@@ -30,6 +30,4 @@ struct acpi_gas {
 struct acpi_sdt* acpi_find_sdt(const char signature[static 4]);
 void acpi_init(void);
 
-void madt_parse(void);
-
 #endif /* _KERNEL_DEV_ACPI_H */

@@ -7,7 +7,6 @@
 #include <mem/slab.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 #include "definitions.h"
 

@@ -7,7 +7,6 @@
 #include <sys/scheduler.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 static void netif_packet_handler(struct netif* netif) {

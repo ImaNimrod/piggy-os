@@ -29,7 +29,7 @@ struct cpu_local {
 
     size_t cpu_number;
     uint32_t lapic_id;
-    uint32_t lapic_frequency;
+    uint32_t lapic_ticks_per_ms;
 };
 
 extern uintptr_t bsp_lapic_addr;

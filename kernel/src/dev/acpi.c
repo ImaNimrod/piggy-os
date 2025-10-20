@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 struct rsdp {

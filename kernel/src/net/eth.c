@@ -2,7 +2,6 @@
 #include <net/eth.h>
 #include <net/ipv4.h>
 #include <net/netif.h>
-#include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
 

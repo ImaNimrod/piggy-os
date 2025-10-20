@@ -3,7 +3,6 @@
 #include <mem/slab.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 

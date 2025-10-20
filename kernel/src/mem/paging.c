@@ -8,7 +8,6 @@
 #include <sys/process.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)

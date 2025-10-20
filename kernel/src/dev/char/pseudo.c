@@ -1,8 +1,8 @@
 #include <dev/char/pseudo.h>
 #include <errno.h>
 #include <fs/devfs.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/usercopy.h>
 
 static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int flags);

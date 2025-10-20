@@ -2,8 +2,8 @@
 #include <cpu/isr.h>
 #include <dev/lapic.h>
 #include <stddef.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 #define EXCEPTION_NUM 32
 

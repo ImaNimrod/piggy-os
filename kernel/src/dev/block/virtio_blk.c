@@ -11,7 +11,6 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/spinlock.h>
 
 #define VIRTIO_BLK_F_RO     (1 << 5)

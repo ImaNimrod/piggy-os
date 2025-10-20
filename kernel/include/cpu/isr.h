@@ -8,6 +8,8 @@
 #define ISA_IRQ_NUM     16
 #define ISR_NUM         256
 
+#define PANIC_IPI_VECTOR 253
+
 struct registers {
     uint64_t r15;
     uint64_t r14;

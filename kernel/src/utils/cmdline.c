@@ -4,8 +4,8 @@
 #include <stddef.h>
 #include <utils/cmdline.h>
 #include <utils/hashmap.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 #define CMDLINE_MAX_LEN 1024 

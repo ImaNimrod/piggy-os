@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 #define CMOS_ADDRESS_PORT   0x70
 #define CMOS_DATA_PORT      0x71

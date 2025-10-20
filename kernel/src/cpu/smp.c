@@ -158,7 +158,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
         wrmsr(IA32_APIC_BASE_MSR, bsp_lapic_addr | (rdmsr(IA32_APIC_BASE_MSR) & 0xfff));
     }
 
-    lapic_init();
+    lapic_percpu_init();
 
     klog("[smp] processor #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);

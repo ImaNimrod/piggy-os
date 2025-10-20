@@ -4,8 +4,8 @@
 #include <mem/slab.h>
 #include <sys/timer.h>
 #include <utils/hashmap.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
 

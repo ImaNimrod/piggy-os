@@ -5,7 +5,6 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 struct vfs_node* vfs_root;

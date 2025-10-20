@@ -1,8 +1,8 @@
 #include <mem/slab.h>
 #include <net/eth.h>
 #include <net/packet.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 
 static struct slab_cache* packet_cache;
 

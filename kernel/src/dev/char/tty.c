@@ -6,8 +6,8 @@
 #include <mem/slab.h>
 #include <sys/scheduler.h>
 #include <types.h>
+#include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 

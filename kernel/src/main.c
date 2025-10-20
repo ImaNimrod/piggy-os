@@ -24,7 +24,6 @@
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
@@ -142,7 +141,7 @@ NORETURN void kernel_entry(void) {
     paging_init();
 
     acpi_init();
-    madt_parse();
+    lapic_madt_parse();
 
     vfs_init();
 

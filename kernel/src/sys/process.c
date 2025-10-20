@@ -9,7 +9,6 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/panic.h>
 #include <utils/string.h>
 
 #define KERNEL_STACK_SIZE   0x4000
