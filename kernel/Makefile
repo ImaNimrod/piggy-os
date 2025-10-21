@@ -40,6 +40,7 @@ LDFLAGS := \
 
 CPPFLAGS := \
 			-I include \
+			-DGIT_COMMIT=\"$(shell git describe --always --tags)\" \
 			-DLIMINE_API_REVISION=3 \
 			-DPRINTF_DISABLE_SUPPORT_EXPONENTIAL \
 			-DPRINTF_DISABLE_SUPPORT_FLOAT \

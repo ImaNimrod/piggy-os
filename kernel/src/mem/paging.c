@@ -22,7 +22,6 @@ extern size_t data_start_addr[], data_end_addr[];
 
 struct pagemap* kernel_pagemap;
 
-static bool hugepages_supported;
 static bool pat_supported;
 static struct slab_cache* pagemap_cache;
 
@@ -47,9 +46,7 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
         }
 
         if (level[i] & PTE_SIZE) {
-            if (depth == 3) {
-                pmm_free((uintptr_t) level - HIGH_VMA, PAGE_SIZE_1GB / PAGE_SIZE_4KB);
-            } else if (depth == 2) {
+            if (depth == 2) {
                 pmm_free((uintptr_t) level - HIGH_VMA, PAGE_SIZE_2MB / PAGE_SIZE_4KB);
             }
         }
@@ -150,21 +147,6 @@ void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
-
-    if (size == PAGE_SIZE_1GB) {
-        spinlock_release(&pagemap->lock);
-
-        if (hugepages_supported) {
-            pml3[pml3_index] = paddr | flags | PTE_SIZE;
-        } else {
-            for (uint64_t i = 0; i < PAGE_SIZE_1GB; i += PAGE_SIZE_2MB) {
-                pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_2MB);
-            }
-        }
-
-        return;
-    }
-
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         pml3[pml3_index] = pmm_alloc_zero(1) | PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
@@ -244,9 +226,6 @@ end:
 
 void paging_init(void) {
     uint32_t edx, unused;
-    if (cpuid(0x80000001, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 26))) {
-        hugepages_supported = true;
-    }
     if (cpuid(1, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 16))) {
         pat_supported = true;
     }

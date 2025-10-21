@@ -24,7 +24,6 @@ extern volatile struct limine_hhdm_request hhdm_request;
 typedef enum {
     PAGE_SIZE_4KB = 0x1000,
     PAGE_SIZE_2MB = 0x200000,
-    PAGE_SIZE_1GB = 0x40000000,
 } page_size_t;
 
 struct pagemap {

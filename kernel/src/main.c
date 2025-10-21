@@ -136,9 +136,8 @@ NORETURN void kernel_entry(void) {
 
     cmdline_parse();
 
-    fb_dev_early_init();
-
     paging_init();
+    fb_dev_early_init();
 
     acpi_init();
     lapic_madt_parse();

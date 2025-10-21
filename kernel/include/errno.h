@@ -25,4 +25,4 @@
 #define EOVERFLOW       75
 #define ESPIPE          29
 
-#endif /* _KERNEL_TYPES_H */
+#endif /* _KERNEL_ERRNO_H */

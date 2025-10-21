@@ -1,3 +1,4 @@
+#include <config.h>
 #include <cpu/isr.h>
 #include <types.h>
 #include <utils/usercopy.h>
@@ -6,8 +7,8 @@
 static struct utsname kernel_utsname = {
     .sysname = "Piggy",
     .nodename = "piggy",
-    .release = "",
-    .version = "",
+    .release = RELEASE,
+    .version = VERSION,
     .machine = "x86_64",
 };
 

@@ -45,14 +45,14 @@ void cmdline_parse(void) {
     char* cmdline_ptr = cmdline;
     char* buf_ptr = buffer;
 
-    bool doconvert = true;
+    bool do_convert = true;
 
     while (*cmdline_ptr != '\0') {
         char c = *cmdline_ptr++;
-        if (c == ' ' && doconvert) {
+        if (c == ' ' && do_convert) {
             *buf_ptr++ = '\0';
         } else if (c == '"') { 
-            doconvert = !doconvert;
+            do_convert = !do_convert;
             buffer_len--;
         } else {
             *buf_ptr++ = c;
