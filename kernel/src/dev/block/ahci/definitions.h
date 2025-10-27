@@ -1,5 +1,5 @@
 #ifndef _AHCI_DEFINITIONS_H
-#define _AHCI_DEFINITIONS_H 1
+#define _AHCI_DEFINITIONS_H
 
 #include <dev/block/ata.h>
 #include <stddef.h>

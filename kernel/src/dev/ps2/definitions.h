@@ -1,5 +1,5 @@
 #ifndef _PS2_DEFINITIONS_H
-#define _PS2_DEFINITIONS_H 1
+#define _PS2_DEFINITIONS_H
 
 #include <cpu/asm.h>
 #include <stdbool.h>

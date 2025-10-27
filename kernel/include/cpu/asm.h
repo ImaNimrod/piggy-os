@@ -44,7 +44,7 @@ static ALWAYS_INLINE void swapgs(void) {
 }
 
 static ALWAYS_INLINE bool cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) {
-    uint32_t cpuid_max;
+    static uint32_t cpuid_max;
     asm volatile("cpuid" : "=a"(cpuid_max) : "a"(leaf & 0x80000000) : "rbx", "rcx", "rdx");
 
     if (leaf > cpuid_max) {
@@ -182,6 +182,30 @@ static ALWAYS_INLINE uint64_t wrmsr(uint32_t msr, uint64_t val) {
     uint32_t edx = (uint32_t) (val >> 32);
     asm volatile("wrmsr" :: "a"(eax), "d"(edx), "c"(msr) : "memory");
     return ((uint64_t) edx << 32) | eax;
+}
+
+static ALWAYS_INLINE bool rdrand(uint64_t* val) {
+    unsigned char success;
+    for (int i = 0; i < 10; i++) {
+        asm volatile("rdrand %0; setc %1" : "=r"(*val), "=qm"(success) ::);
+        if (success) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static ALWAYS_INLINE bool rdseed(uint64_t* val) {
+    unsigned char success;
+    for (int i = 0; i < 10; i++) {
+        asm volatile("rdseed %0; setc %1" : "=r"(*val), "=qm"(success) ::);
+        if (success) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static USED void fxsave(void* ctx) {

@@ -24,6 +24,7 @@
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/random.h>
 #include <utils/string.h>
 
 __attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
@@ -72,6 +73,12 @@ LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
 };
 
 __attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER
+
+uintptr_t __stack_chk_guard;
+
+NORETURN void __stack_chk_fail(void) {
+    kpanic(NULL, true, "stack smashing detected");
+}
 
 NORETURN static void kernel_main(void) {
     devfs_init();
@@ -147,6 +154,9 @@ NORETURN void kernel_entry(void) {
     process_init();
     scheduler_init();
     timer_init();
+
+    random_init();
+    __stack_chk_guard = rand64();
 
     smp_init();
 

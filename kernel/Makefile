@@ -6,7 +6,7 @@ CFLAGS := \
 		  -O2 \
 		  -fms-extensions \
 		  -ffreestanding \
-		  -fno-stack-protector \
+		  -fstack-protector-strong \
 		  -fno-stack-check \
 		  -fno-omit-frame-pointer \
 		  -fno-PIC \

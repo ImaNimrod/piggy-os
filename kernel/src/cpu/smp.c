@@ -176,7 +176,7 @@ void smp_init(void) {
 
     bool nosmp = cmdline_get("nosmp") != NULL;
     if (nosmp) {
-        klog("[smp] 'nosmp' argument detected, only initializing BSP\n");
+        klog("[smp] 'nosmp' argument found, only initializing BSP\n");
     }
 
     void (*cpu_goto_fn)(struct limine_mp_info*) = nosmp ? hang : single_cpu_init;
