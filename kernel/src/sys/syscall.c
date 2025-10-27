@@ -6,6 +6,7 @@
 extern void sys_exit(struct registers* r);
 extern void sys_fork(struct registers* r);
 extern void sys_exec(struct registers* r);
+extern void sys_wait(struct registers* r);
 extern void sys_getpid(struct registers* r);
 extern void sys_getppid(struct registers* r);
 extern void sys_gettid(struct registers* r);
@@ -37,6 +38,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_EXIT]      = sys_exit,
     [SYS_FORK]      = sys_fork,
     [SYS_EXEC]      = sys_exec,
+    [SYS_WAIT]      = sys_wait,
     [SYS_GETPID]    = sys_getpid,
     [SYS_GETPPID]   = sys_getppid,
     [SYS_GETTID]    = sys_gettid,
