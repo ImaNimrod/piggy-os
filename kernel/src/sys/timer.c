@@ -23,27 +23,6 @@ struct timespec time_realtime;
 static struct sleep_event* sleep_event_list;
 static spinlock_t sleep_event_list_lock;
 
-static inline void timespec_add(struct timespec* a, const struct timespec* b) {
-    if (a->tv_nsec + b->tv_nsec > 999999999) {
-        a->tv_nsec = (a->tv_nsec + b->tv_nsec) - 1000000000;
-        a->tv_sec++;
-    } else {
-        a->tv_nsec += b->tv_nsec;
-    }
-
-    a->tv_sec += b->tv_sec;
-}
-
-static inline bool timespec_greater(const struct timespec* a, const struct timespec* b) {
-    if (a->tv_sec > b->tv_sec) {
-        return true;
-    } else if (a->tv_sec == b->tv_sec && a->tv_nsec > b->tv_nsec) {
-        return true;
-    }
-
-    return false;
-}
-
 void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
     struct sleep_event* event = kmalloc(sizeof(struct sleep_event));
     if (unlikely(event == NULL)) {

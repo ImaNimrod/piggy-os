@@ -79,7 +79,7 @@ end:
 }
 
 void process_create_init(void) {
-    const char* init_path = cmdline_get("init");
+    char* init_path = cmdline_get("init");
     if (!init_path) {
         init_path = "/bin/init";
     }

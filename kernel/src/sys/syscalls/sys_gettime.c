@@ -1,11 +1,16 @@
 #include <cpu/isr.h>
+#include <cpu/smp.h>
 #include <errno.h> 
+#include <sys/process.h>
 #include <sys/timer.h> 
 #include <utils/usercopy.h>
 
 void sys_gettime(struct registers* r) {
     clockid_t clockid = r->rdi;
     struct timespec* tp = (struct timespec*) r->rsi;
+
+    struct thread* current_thread = this_cpu()->running_thread;
+    struct process* current_process = current_thread->process;
 
     struct timespec* source;
 
@@ -15,6 +20,12 @@ void sys_gettime(struct registers* r) {
             break;
         case CLOCK_MONOTONIC:
             source = &time_monotonic;
+            break;
+        case CLOCK_PROCESS_CPUTIME_ID:
+            source = &current_process->time_used;
+            break;
+        case CLOCK_THREAD_CPUTIME_ID:
+            source = &current_thread->time_used;
             break;
         default:
             r->rax = -EINVAL;

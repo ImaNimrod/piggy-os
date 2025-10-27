@@ -14,8 +14,8 @@ void sys_settime(struct registers* r) {
             ret = user_memcpy_from_user(&time_realtime, tp, sizeof(struct timespec));
             break;
         case CLOCK_MONOTONIC:
-            ret = -ENOTSUP;
-            break;
+        case CLOCK_PROCESS_CPUTIME_ID:
+        case CLOCK_THREAD_CPUTIME_ID:
         default:
             ret = -EINVAL;
             break;

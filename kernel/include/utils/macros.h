@@ -27,6 +27,9 @@
 
 #define SIZEOF_ARRAY(array) (sizeof((array)) / sizeof((array)[0]))
 
+#define MS_TO_NS(ms) ((ms) * 1000000)
+#define US_TO_NS(us) ((us) * 1000)
+
 #define ALWAYS_INLINE __attribute__((always_inline)) inline
 #define LIMINE_REQUEST __attribute__((used, section(".limine_requests")))
 #define NORETURN __attribute__((noreturn))

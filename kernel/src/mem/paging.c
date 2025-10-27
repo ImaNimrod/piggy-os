@@ -22,7 +22,6 @@ extern size_t data_start_addr[], data_end_addr[];
 
 struct pagemap* kernel_pagemap;
 
-static bool pat_supported;
 static struct slab_cache* pagemap_cache;
 
 static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
@@ -225,11 +224,6 @@ end:
 }
 
 void paging_init(void) {
-    uint32_t edx, unused;
-    if (cpuid(1, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 16))) {
-        pat_supported = true;
-    }
-
     pagemap_cache = slab_cache_create("struct pagemap cache", sizeof(struct pagemap));
     if (unlikely(pagemap_cache == NULL)) {
         kpanic(NULL, false, "failed to create object cache for pagemap structs");
@@ -268,10 +262,7 @@ void paging_init(void) {
                 flags |= PTE_CACHE_DISABLE;
                 break;
             case LIMINE_MEMMAP_FRAMEBUFFER:
-                flags |= PTE_WRITABLE;
-                if (pat_supported) {
-                    flags |= PTE_WRITE_COMBINE;
-                }
+                flags |= PTE_WRITABLE | PTE_WRITE_COMBINE;
                 break;
         }
 

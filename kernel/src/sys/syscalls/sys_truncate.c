@@ -4,6 +4,7 @@
 #include <fs/file.h>
 #include <fs/vfs.h>
 #include <sys/process.h>
+#include <utils/macros.h>
 
 void sys_truncate(struct registers* r) {
     int fd = r->rdi;
@@ -42,7 +43,12 @@ void sys_truncate(struct registers* r) {
     }
 
     node->ops->lock(node);
+
     ret = node->ops->truncate(node, length);
+    if (ret > 0) {
+        file->offset = MIN(ret, file->offset);
+    }
+
     node->ops->unlock(node);
 
 end:

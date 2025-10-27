@@ -7,6 +7,7 @@
 #include <sys/timer.h>
 #include <utils/list.h>
 #include <utils/log.h>
+#include <utils/macros.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
@@ -70,6 +71,10 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
         if (current_thread->state == THREAD_RUNNING) {
             current_thread->state = THREAD_READY;
         }
+
+        struct timespec ts = { 0, MS_TO_NS(SCHEDULER_TIME_QUANTA_MS) };
+        timespec_add(&current_thread->time_used, &ts);
+        timespec_add(&current_thread->process->time_used, &ts);
 
         spinlock_release(&current_thread->run_lock);
     }

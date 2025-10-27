@@ -28,21 +28,20 @@ void sys_seek(struct registers* r) {
     int acc_mode = file->flags & O_ACCMODE;
     if (acc_mode & O_PATH) {
         ret = -EBADF;
-        goto end;
+        goto end2;
     }
 
     struct vfs_node* node = file->node;
     if (node->type == VFS_TYPE_DIRECTORY) {
         ret = -EISDIR;
-        goto end;
+        goto end2;
     }
 
     struct stat stat;
 
     node->ops->lock(node);
-    ret = node->ops->getstat(node, &stat);
-    node->ops->unlock(node);
 
+    ret = node->ops->getstat(node, &stat);
     if (ret < 0) {
         goto end;
     }
@@ -82,6 +81,8 @@ void sys_seek(struct registers* r) {
     ret = new_offset;
 
 end:
+    node->ops->unlock(node);
+end2:
     file_release(file);
     r->rax = ret;
 }

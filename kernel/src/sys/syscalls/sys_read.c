@@ -40,12 +40,13 @@ void sys_read(struct registers* r) {
     struct vfs_node* node = file->node;
 
     node->ops->lock(node);
-    ret = node->ops->read(node, buf, count, file->offset, file->flags);
-    node->ops->unlock(node);
 
+    ret = node->ops->read(node, buf, count, file->offset, file->flags);
     if (ret > 0) {
         file->offset += ret;
     }
+
+    node->ops->unlock(node);
 
 end:
     file_release(file);

@@ -38,6 +38,7 @@ struct thread {
     tid_t tid;
     thread_state_t state;
     bool is_user;
+    struct timespec time_used;
 
     struct process* process;
 
@@ -56,6 +57,7 @@ struct process {
     process_state_t state;
     int exit_status;
     struct vfs_node* cwd;
+    struct timespec time_used;
 
     struct file_descriptor fds[PROCESS_FD_COUNT];
     spinlock_t fd_lock;

@@ -3,13 +3,36 @@
 
 #include <types.h>
 
-#define CLOCK_REALTIME  0
-#define CLOCK_MONOTONIC 1
+#define CLOCK_REALTIME              0
+#define CLOCK_MONOTONIC             1
+#define CLOCK_PROCESS_CPUTIME_ID    2
+#define CLOCK_THREAD_CPUTIME_ID     3
 
 extern struct timespec time_monotonic;
 extern struct timespec time_realtime;
 
 struct thread;
+
+static inline void timespec_add(struct timespec* a, const struct timespec* b) {
+    if (a->tv_nsec + b->tv_nsec > 999999999) {
+        a->tv_nsec = (a->tv_nsec + b->tv_nsec) - 1000000000;
+        a->tv_sec++;
+    } else {
+        a->tv_nsec += b->tv_nsec;
+    }
+
+    a->tv_sec += b->tv_sec;
+}
+
+static inline bool timespec_greater(const struct timespec* a, const struct timespec* b) {
+    if (a->tv_sec > b->tv_sec) {
+        return true;
+    } else if (a->tv_sec == b->tv_sec && a->tv_nsec > b->tv_nsec) {
+        return true;
+    }
+
+    return false;
+}
 
 void timer_sleep_thread(struct thread* thread, const struct timespec* tp);
 void timer_update_timers(void);
