@@ -1,6 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <dev/acpi.h>
+#include <dev/block/block.h>
 #include <dev/char/fb.h>
 #include <dev/char/pseudo.h>
 #include <dev/char/tty.h>
@@ -84,6 +85,8 @@ NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
 
+    block_init();
+
     pseudo_dev_init();
     fb_dev_init();
 
@@ -115,7 +118,6 @@ NORETURN static void kernel_main(void) {
     initrd_unpack(initrd_module);
 
     net_init();
-
     pci_init();
 
     klog("\nhey pig...\n");

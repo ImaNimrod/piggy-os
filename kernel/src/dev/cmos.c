@@ -16,10 +16,11 @@
 #define CMOS_REG_DAY        0x07
 #define CMOS_REG_MONTH      0x08
 #define CMOS_REG_YEAR       0x09
+#define CMOS_REG_STATUS_A   0x0a
 
 static uint8_t century_register;
-static bool xxiv_hr_mode;
 static bool bcd_mode;
+static bool xxiv_hr_mode;
 
 static inline int bcd_to_bin(uint8_t value) {
     return (value & 0x0f) + ((value & 0xf0) >> 4) * 10;
@@ -31,7 +32,7 @@ static inline uint8_t cmos_read(uint8_t reg) {
 }
 
 static inline bool is_cmos_updating(void) {
-    outb(CMOS_ADDRESS_PORT, 0x0a);
+    outb(CMOS_ADDRESS_PORT, CMOS_REG_STATUS_A);
     return (inb(CMOS_DATA_PORT) & 0x80);
 }
 

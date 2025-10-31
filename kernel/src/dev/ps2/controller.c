@@ -35,6 +35,8 @@ static void port_enum_and_init_device(bool second_port) {
         klog("[ps2] PS/2 mouse detected\n");
         mouse_init(second_port);
     }
+
+    send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, second_port);
 }
 
 uint8_t send_device_command(uint8_t command, bool second_port) {
@@ -101,8 +103,6 @@ void ps2_init(void) {
     config &= ~((1 << 0) | (1 << 4) | (1 << 6));
     send_command(PS2_COMMAND_WRITE_CONFIG);
     send_data(config);
-
-    flush();
 
     send_command(PS2_COMMAND_SELF_TEST);
     uint8_t result = read_data();

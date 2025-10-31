@@ -31,5 +31,5 @@ void pit_init(uint16_t hz) {
     ioapic_redirect_irq(PIT_ISA_IRQ, PIT_ISA_IRQ + ISA_IRQ_BASE);
     ioapic_set_irq_mask(PIT_ISA_IRQ, false);
 
-    klog("[pit] initialized legacy PIT");
+    klog("[pit] initialized legacy PIT\n");
 }

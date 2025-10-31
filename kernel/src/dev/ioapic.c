@@ -15,6 +15,12 @@
 #define IOAPIC_REG_ARB_ID       0x02
 #define IOAPIC_REG_RENTRY_BASE  0x10
 
+#define IOAPIC_POLARITY_ACTIVE_HIGH 0
+#define IOAPIC_POLARITY_ACTIVE_LOW  1
+
+#define IOAPIC_TRIGGER_MODE_EDGE    0
+#define IOAPIC_TRIGGER_MODE_LEVEL   1
+
 struct ioapic {
     uint8_t id;
     uintptr_t base;
@@ -86,8 +92,8 @@ static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
 
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     uint32_t gsi = irq; 
-    int polarity = IOAPIC_POLARITY_ACTIVE_LOW;
-    int trigger_mode = IOAPIC_TRIGGER_EDGE;
+    int polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
+    int trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
 
     if (irq < ISA_IRQ_NUM && isa_isos[irq].init) {
         gsi = isa_isos[irq].gsi;
@@ -102,6 +108,8 @@ bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
 
     union ioapic_rentry rentry = { .raw = ioapic_read64(ioapic->base, IOAPIC_REG_RENTRY_BASE + (gsi * 2)) };
     rentry.vector = vector;
+    rentry.delivery_mode = 0;
+    rentry.destination_mode = 0;
     rentry.polarity = polarity;
     rentry.trigger_mode = trigger_mode;
 
@@ -127,10 +135,32 @@ bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     return true;
 }
 
-void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, int polarity, int trigger_mode) {
+void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags) {
     if (irq >= ISA_IRQ_NUM || gsi >= ISA_IRQ_NUM) {
         return;
     }
+
+    int polarity;
+    int trigger_mode;
+
+    uint8_t polarity_flags = flags & 0x03;
+    if (polarity_flags == 0x00 || polarity_flags == 0x03) {
+        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
+    } else if (polarity_flags == 0x01) {
+        polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
+    } else {
+        kpanic(NULL, false, "invalid polarity flags in interrupt source override");
+    }
+
+    uint8_t trigger_mode_flags = (flags >> 2) & 0x03;
+    if (trigger_mode_flags == 0x00 || trigger_mode_flags == 0x01) {
+        trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
+    } else if (trigger_mode_flags == 0x03) {
+        trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
+    } else {
+        kpanic(NULL, false, "invalid trigger mode flags in interrupt source override");
+    }
+
     isa_isos[irq] = (struct isa_iso) { true, gsi, polarity, trigger_mode };
 }
 

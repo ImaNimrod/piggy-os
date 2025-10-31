@@ -13,11 +13,11 @@
 static inline const char* interface_speed_str(uint8_t iss) {
     switch (iss) {
         case 1:
-            return "generation 1 (1.5 Gbps)";	
+            return "gen. 1 (1.5 Gbps)";	
         case 2: 
-            return "generation 2 (3 Gbps)";
+            return "gen. 2 (3 Gbps)";
         case 3:
-            return "generation 3 (6 Gbps)";
+            return "gen. 3 (6 Gbps)";
         default:
             return "unkown generation";
     }

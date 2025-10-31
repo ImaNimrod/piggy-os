@@ -1,7 +1,6 @@
 #include <cpu/asm.h>
 #include <dev/acpi.h>
 #include <dev/block/ahci.h>
-#include <dev/block/ata.h>
 #include <dev/net/e1000.h>
 #include <dev/pci.h>
 #include <dev/virtio.h>
@@ -60,7 +59,6 @@ static struct slab_cache* pci_device_cache = NULL;
 static vector_t* pci_devices = NULL;
 static struct pci_driver* pci_drivers[] = {
     &ahci_driver,
-    &ata_driver,
     &e1000_driver,
     &virtio_driver,
 };

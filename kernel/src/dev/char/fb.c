@@ -79,9 +79,9 @@ extern struct limine_framebuffer_request framebuffer_request;
 
 struct flanterm_context* fb_context;
 
-static ssize_t fb_read(int minor, void* buf, size_t count, off_t offset, int flags);
-static ssize_t fb_write(int minor, const void* buf, size_t count, off_t offset, int flags);
-static int fb_ioctl(int minor, int request, void* argp);
+static ssize_t fb_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
+static ssize_t fb_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
+static int fb_ioctl(dev_t dev, int request, void* argp);
 
 static struct device_ops fb_ops = {
     .read = fb_read,
@@ -100,9 +100,10 @@ static void flanterm_free(void* ptr, size_t size) {
     pmm_free((uintptr_t) ptr - HIGH_VMA, DIV_CEIL(size, PAGE_SIZE_4KB));
 }
 
-static ssize_t fb_read(int minor, void* buf, size_t count, off_t offset, int flags) {
+static ssize_t fb_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
     (void) flags;
 
+    dev_t minor = minor(dev);
     if ((unsigned) minor >= framebuffer_count) {
         return -ENODEV;
     }
@@ -127,9 +128,10 @@ static ssize_t fb_read(int minor, void* buf, size_t count, off_t offset, int fla
     return actual_count;
 }
 
-static ssize_t fb_write(int minor, const void* buf, size_t count, off_t offset, int flags) {
+static ssize_t fb_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
     (void) flags;
 
+    dev_t minor = minor(dev);
     if ((unsigned) minor >= framebuffer_count) {
         return -ENODEV;
     }
@@ -154,8 +156,9 @@ static ssize_t fb_write(int minor, const void* buf, size_t count, off_t offset, 
     return actual_count;
 }
 
-static int fb_ioctl(int minor, int request, void* argp) {
-    if ((unsigned) minor >= framebuffer_count) {
+static int fb_ioctl(dev_t dev, int request, void* argp) {
+    dev_t minor = minor(dev);
+    if (minor >= framebuffer_count) {
         return -ENODEV;
     }
 
@@ -234,7 +237,7 @@ void fb_dev_init(void) {
         char name[8];
         snprintf(name, sizeof(name) - 1, "fb%zu", i);
 
-        if (unlikely(devfs_register_device(name, VFS_TYPE_CHARDEV, &fb_ops, makedev(FB_DEV_MAJOR, i)) < 0)) {
+        if (unlikely(devfs_register(name, VFS_TYPE_CHARDEV, &fb_ops, makedev(FB_DEV_MAJOR, i)) < 0)) {
             kpanic(NULL, false, "failed to create framebuffer device %s", name);
         }
     }

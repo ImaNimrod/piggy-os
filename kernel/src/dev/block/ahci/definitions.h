@@ -1,11 +1,20 @@
 #ifndef _AHCI_DEFINITIONS_H
 #define _AHCI_DEFINITIONS_H
 
-#include <dev/block/ata.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
+
+#define ATA_COMMAND_READ_DMA_EXT    0x25
+#define ATA_COMMAND_WRITE_DMA_EXT   0x35
+#define ATA_COMMAND_FLUSH_CACHE     0xe7
+#define ATA_COMMAND_FLUSH_CACHE_EXT 0xea
+#define ATA_COMMAND_IDENTIFY_DEVICE 0xec
+
+#define ATA_IDENTIFY_SERIAL_SIZE     20
+#define ATA_IDENTIFY_FIRMWARE_SIZE   8
+#define ATA_IDENTIFY_MODEL_SIZE      40
 
 #define BOHC_BOS    (1 << 0)
 #define BOHC_OOS    (1 << 1)
@@ -136,6 +145,14 @@ struct hba_fis_h2d {
     uint32_t : 32;
 } __attribute__((packed));
 
+typedef enum {
+    ATA_DEVICE_TYPE_PATA,
+    ATA_DEVICE_TYPE_PATAPI,
+    ATA_DEVICE_TYPE_SATA,
+    ATA_DEVICE_TYPE_SATAPI,
+    ATA_DEVICE_TYPE_UNKNOWN,
+} ata_device_type_t;
+
 struct ahci_controller {
     struct hba_registers* hba_registers;
     uint8_t port_count;
@@ -155,8 +172,6 @@ struct ahci_device {
     char serial_number[ATA_IDENTIFY_SERIAL_SIZE + 1];
     char firmware_revision[ATA_IDENTIFY_FIRMWARE_SIZE + 1];
     char model_number[ATA_IDENTIFY_MODEL_SIZE + 1];
-    size_t sector_count;
-    size_t sector_size;
 
     spinlock_t lock;
 };

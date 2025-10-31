@@ -213,28 +213,7 @@ void lapic_madt_parse(void) {
                     break;
                 }
 
-                int polarity;
-                int trigger_mode;
-
-                uint8_t polarity_flags = iso->flags & 0x03;
-                if (polarity_flags == 0x00 || polarity_flags == 0x03) {
-                    polarity = IOAPIC_POLARITY_ACTIVE_LOW;
-                } else if (polarity_flags == 0x01) {
-                    polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
-                } else {
-                    kpanic(NULL, false, "invalid IRQ polarity flags on APCI interrupt source override");
-                }
-
-                uint8_t trigger_flags = (iso->flags >> 2) & 0x03;
-                if (trigger_flags == 0x00 || trigger_flags == 0x01) {
-                    trigger_mode = IOAPIC_TRIGGER_EDGE;
-                } else if (trigger_flags == 0x03) {
-                    trigger_mode = IOAPIC_TRIGGER_LEVEL;
-                } else {
-                    kpanic(NULL, false, "invalid IRQ trigger flags on APCI interrupt source override");
-                }
-
-                ioapic_set_isa_iso(iso->irq_source, iso->gsi, polarity, trigger_mode);
+                ioapic_set_isa_iso(iso->irq_source, iso->gsi, iso->flags);
                 break;
         }
     }

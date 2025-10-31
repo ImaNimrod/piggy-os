@@ -1,7 +1,9 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/smp.h>
+#include <dev/block/block.h>
 #include <dev/block/virtio_blk.h>
+#include <errno.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
@@ -12,6 +14,8 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/spinlock.h>
+
+#include "../../utils/printf/printf.h"
 
 #define VIRTIO_BLK_F_RO     (1 << 5)
 #define VIRTIO_BLK_F_FLUSH  (1 << 9)
@@ -44,11 +48,12 @@ struct virtio_blk_io_waiter {
 struct virtio_blk_device {
     struct virtio_device* dev;
     uint64_t features;
-    size_t sector_count;
-    size_t sector_size;
     struct virtio_blk_io_waiter* io_waiter_list;
 };
 
+static dev_t virtio_blk_device_minor;
+
+/*
 static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint64_t lba, uintptr_t paddr, size_t block_count) {
     if (type == VIRTIO_BLK_T_OUT && blk_dev->features & VIRTIO_BLK_F_RO) {
         return false;
@@ -111,6 +116,17 @@ static bool send_command(struct virtio_blk_device* blk_dev, uint32_t type, uint6
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + 16);
     return status == VIRTIO_BLK_S_OK ? true : false;
 }
+*/
+
+static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t count, uintptr_t paddr) {
+    struct virtio_blk_device* device = block_device->private;
+
+    if (cmd == CMD_WRITE && device->features & VIRTIO_BLK_F_RO) {
+        return -EIO;
+    }
+
+    return -EIO;
+}
 
 static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
     (void) r;
@@ -165,19 +181,34 @@ void virtio_blk_init(struct virtio_device* dev) {
         return;
     }
 
+    size_t sector_count = mmio_read64(&(((struct virtio_blk_config*) dev->device_config)->capacity));
+    size_t sector_size = 512;
+
+    size_t total_size;
+    if (__builtin_mul_overflow(sector_count, sector_size, &total_size)) {
+        return;
+    }
+
     struct virtio_blk_device* blk_dev = kmalloc(sizeof(struct virtio_blk_device));
     if (unlikely(blk_dev == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO block device\n");
     }
     blk_dev->dev = dev;
     blk_dev->features = features;
-    blk_dev->sector_count = ((struct virtio_blk_config*) dev->device_config)->capacity;
-    blk_dev->sector_size = 512;
+
+    char name[10];
+    snprintf(name, sizeof(name) - 1, "vioblk%zu", virtio_blk_device_minor);
+
+    int ret = block_register(name, makedev(VIOBLK_DEV_MAJOR, virtio_blk_device_minor), virtio_blk_cmd_handler, blk_dev, sector_count, sector_size);
+    if (ret < 0) {
+        kfree(blk_dev);
+        return;
+    }
+
+    virtio_blk_device_minor++;
+
+    klog("[virtio_blk] initialized VirtIO block device (size: %zuGB, block size: %zuB)\n", total_size / 1000000000, sector_size);
 
     isr_register_handler(vector, virtio_blk_irq_handler, blk_dev);
-
-    klog("[virtio_blk] initialized VirtIO block device (size: %zuGB, block size: %zuB)\n",
-         (blk_dev->sector_count * blk_dev->sector_size) / 1000000000, blk_dev->sector_size);
-
     mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 }

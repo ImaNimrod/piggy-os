@@ -6,8 +6,8 @@
 #include <utils/random.h>
 #include <utils/usercopy.h>
 
-static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int flags);
-static ssize_t pseudo_write(int minor, const void* buf, size_t count, off_t offset, int flags);
+static ssize_t pseudo_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
+static ssize_t pseudo_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 
 static struct device_ops pseudo_ops = {
     .read = pseudo_read,
@@ -39,13 +39,13 @@ static ssize_t fill_random(uint8_t* buf, size_t count) {
     return offset;
 }
 
-static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int flags) {
+static ssize_t pseudo_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
     (void) offset;
     (void) flags;
 
     ssize_t ret;
 
-    switch (minor) {
+    switch (minor(dev)) {
         case PSEUDO_DEV_NULL_MINOR:
             ret = 0;
             break;
@@ -67,14 +67,14 @@ static ssize_t pseudo_read(int minor, void* buf, size_t count, off_t offset, int
     return ret;
 }
 
-static ssize_t pseudo_write(int minor, const void* buf, size_t count, off_t offset, int flags) {
+static ssize_t pseudo_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
     (void) buf;
     (void) offset;
     (void) flags;
 
     ssize_t ret;
 
-    switch (minor) {
+    switch (minor(dev)) {
         case PSEUDO_DEV_NULL_MINOR:
         case PSEUDO_DEV_ZERO_MINOR:
             ret = count;
@@ -94,16 +94,16 @@ static ssize_t pseudo_write(int minor, const void* buf, size_t count, off_t offs
 }
 
 void pseudo_dev_init(void) {
-    if (unlikely(devfs_register_device("null", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_NULL_MINOR)) < 0)) {
+    if (unlikely(devfs_register("null", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_NULL_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create null device");
     }
-    if (unlikely(devfs_register_device("zero", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_ZERO_MINOR)) < 0)) {
+    if (unlikely(devfs_register("zero", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_ZERO_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create zero device");
     }
-    if (unlikely(devfs_register_device("full", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_FULL_MINOR)) < 0)) {
+    if (unlikely(devfs_register("full", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_FULL_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create full device");
     }
-    if (unlikely(devfs_register_device("random", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_RANDOM_MINOR)) < 0)) {
+    if (unlikely(devfs_register("random", VFS_TYPE_CHARDEV, &pseudo_ops, makedev(PSEUDO_DEV_MAJOR, PSEUDO_DEV_RANDOM_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create random device");
     }
 }

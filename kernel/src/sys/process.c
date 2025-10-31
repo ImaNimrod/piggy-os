@@ -178,7 +178,7 @@ void process_destroy(struct process* process) {
 }
 
 void process_exit(struct process* process, int status) {
-    if (unlikely(process->pid < 2)) {
+    if (unlikely(process->pid == 1)) {
         kpanic(NULL, false, "attempted to exit init process");
     }
 
@@ -380,7 +380,8 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread) {
     new_thread->is_user = true;
     new_thread->process = process;
 
-    new_thread->kernel_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA + KERNEL_STACK_SIZE;
+    new_thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
+    new_thread->kernel_stack = new_thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
     memcpy64((void*) &new_thread->registers, (const void*) &old_thread->registers, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;

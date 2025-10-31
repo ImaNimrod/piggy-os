@@ -104,7 +104,7 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
         return -ENODEV;
     }
 
-    return dnode->devops->read(minor(dnode->stat.st_rdev), buf, count, offset, flags);
+    return dnode->devops->read(dnode->stat.st_rdev, buf, count, offset, flags);
 }
 
 static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
@@ -114,7 +114,7 @@ static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count,
         return -ENODEV;
     }
 
-    return dnode->devops->write(minor(dnode->stat.st_rdev), buf, count, offset, flags);
+    return dnode->devops->write(dnode->stat.st_rdev, buf, count, offset, flags);
 }
 
 static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
@@ -124,7 +124,7 @@ static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
         return -ENOTTY;
     }
 
-    return dnode->devops->ioctl(minor(dnode->stat.st_rdev), request, argp);
+    return dnode->devops->ioctl(dnode->stat.st_rdev, request, argp);
 }
 
 static int devfs_truncate(struct vfs_node* node, off_t length) {
@@ -168,7 +168,7 @@ static void devfs_inactive(struct vfs_node* node) {
     slab_cache_free(devfs_node_cache, node);
 }
 
-int devfs_register_device(const char* name, vfs_type_t type, struct device_ops* ops, dev_t dev) {
+int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, dev_t dev) {
     if (type != VFS_TYPE_BLOCKDEV && type != VFS_TYPE_CHARDEV) {
         return -EINVAL;
     }
@@ -217,7 +217,7 @@ void devfs_init(void) {
         kpanic(NULL, false, "failed to create devfs root node");
     }
 
-    devices = hashmap_create(10);
+    devices = hashmap_create(20);
     if (unlikely(devices == NULL)) {
         kpanic(NULL, false, "failed to create devfs device map");
     }

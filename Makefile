@@ -5,6 +5,7 @@ EMUOPTS := -machine q35 \
 		   -cpu host \
 		   -enable-kvm \
 		   -smp 2 \
+		   -no-reboot \
 		   -serial stdio \
 		   -bios /usr/share/edk2/x64/OVMF.4m.fd
 
@@ -24,8 +25,9 @@ run-minimal:
 .PHONY: run-realhw
 run-realhw:
 	$(EMU) $(EMUOPTS) \
-		-drive file=disk.img,if=none,id=D22 \
-		-device nvme,drive=D22,serial=1234 \
+		-drive id=disk,file=disk.img,if=none \
+		-device ahci,id=ahci \
+		-device ide-hd,drive=disk,bus=ahci.0 \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso

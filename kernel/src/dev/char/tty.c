@@ -88,9 +88,9 @@
 
 bool tty_is_ready;
 
-static ssize_t tty_read(int minor, void* buf, size_t count, off_t offset, int flags);
-static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset, int flags);
-static int tty_ioctl(int minor, int request, void* argp);
+static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
+static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
+static int tty_ioctl(dev_t dev, int request, void* argp);
 
 static struct device_ops tty_ops = {
     .read = tty_read,
@@ -134,8 +134,8 @@ static void internal_write(const char* buf, size_t count) {
     spinlock_release(&write_lock);
 }
 
-static ssize_t tty_read(int minor, void* buf, size_t count, off_t offset, int flags) {
-    (void) minor;
+static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
+    (void) dev;
     (void) offset;
     (void) flags;
 
@@ -176,8 +176,8 @@ static ssize_t tty_read(int minor, void* buf, size_t count, off_t offset, int fl
     return to_copy;
 }
 
-static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset, int flags) {
-    (void) minor;
+static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
+    (void) dev;
     (void) offset;
     (void) flags;
 
@@ -201,8 +201,8 @@ static ssize_t tty_write(int minor, const void* buf, size_t count, off_t offset,
     return count;
 }
 
-static int tty_ioctl(int minor, int request, void* argp) {
-    (void) minor;
+static int tty_ioctl(dev_t dev, int request, void* argp) {
+    (void) dev;
 
     int ret = 0;
 
@@ -319,7 +319,7 @@ end:
 }
 
 void tty_init(void) {
-    if (unlikely(devfs_register_device("tty", VFS_TYPE_CHARDEV, &tty_ops, makedev(TTY_DEV_MAJOR, TTY_DEV_MINOR)) < 0)) {
+    if (unlikely(devfs_register("tty", VFS_TYPE_CHARDEV, &tty_ops, makedev(TTY_DEV_MAJOR, TTY_DEV_MINOR)) < 0)) {
         kpanic(NULL, false, "failed to create tty device");
     }
 

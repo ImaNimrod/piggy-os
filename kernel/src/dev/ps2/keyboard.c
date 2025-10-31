@@ -54,7 +54,7 @@ static uint8_t* scancode_buf;
 static size_t scancode_buf_index;
 static spinlock_t scancode_buf_lock;
 
-static ssize_t keyboard_read(int minor, void* buf, size_t count, off_t offset, int flags);
+static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
 
 static struct device_ops keyboard_ops = {
     .read = keyboard_read,
@@ -103,8 +103,8 @@ static char translate_scancode(uint8_t scancode) {
     return c;
 }
 
-static ssize_t keyboard_read(int minor, void* buf, size_t count, off_t offset, int flags) {
-    (void) minor;
+static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
+    (void) dev;
     (void) offset;
 
     if (count == 0) {
@@ -196,9 +196,7 @@ void keyboard_init(bool second_port) {
     ioapic_redirect_irq(PS2_KEYBOARD_ISA_IRQ, PS2_KEYBOARD_ISA_IRQ + ISA_IRQ_BASE);
     ioapic_set_irq_mask(PS2_KEYBOARD_ISA_IRQ, false);
 
-    send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, second_port);
-
-    if (unlikely(devfs_register_device("kbd", VFS_TYPE_CHARDEV, &keyboard_ops, makedev(KEYBOARD_DEV_MAJOR, 0)) < 0)) {
+    if (unlikely(devfs_register("kbd", VFS_TYPE_CHARDEV, &keyboard_ops, makedev(KEYBOARD_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create keyboard device");
     }
 
