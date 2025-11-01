@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/process.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 

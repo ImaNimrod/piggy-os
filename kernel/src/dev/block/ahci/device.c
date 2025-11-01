@@ -247,6 +247,33 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
     return count;
 }
 
+void ahci_device_irq_handler(struct ahci_device* device) {
+    struct hba_port* hba_port = device->hba_port;
+
+    uint32_t is = mmio_read32(&hba_port->is);
+    if (is & HBA_PxIE_ERROR_MASK) {
+        klog("AHCI device error!");
+    }
+
+    uint32_t ci = mmio_read32(&hba_port->ci);
+
+    uint32_t completed_slots = device->old_ci & ~ci;
+    if (completed_slots != 0) {
+        for (uint8_t i = 0; i < device->controller->slot_count; i++) {
+            if (completed_slots & (1 << i)) {
+                scheduler_unblock(device->blocked_threads[i]);
+                device->blocked_threads[i] = NULL;
+            }
+        }
+
+        spinlock_acquire(&device->lock);
+        device->old_ci &= ~completed_slots;
+        spinlock_release(&device->lock);
+    }
+
+    mmio_write32(&device->hba_port->is, is);
+}
+
 void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_number, struct hba_port* hba_port) {
     uintptr_t clb_and_fis_paddr = pmm_alloc_zero(1);
 
@@ -368,7 +395,7 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
 
     size_t total_size;
     if (__builtin_mul_overflow(sector_count, sector_size, &total_size)) {
-        goto error;
+        kpanic(NULL, false, "AHCI device disk size overflow");
     }
 
     char name[10];
@@ -403,31 +430,4 @@ error:
     pmm_free(device->clb_and_fis_paddr, 1);
 
     kfree(device);
-}
-
-void ahci_device_irq_handler(struct ahci_device* device) {
-    struct hba_port* hba_port = device->hba_port;
-
-    uint32_t is = mmio_read32(&hba_port->is);
-    if (is & HBA_PxIE_ERROR_MASK) {
-        klog("AHCI device error!");
-    }
-
-    uint32_t ci = mmio_read32(&hba_port->ci);
-
-    uint32_t completed_slots = device->old_ci & ~ci;
-    if (completed_slots != 0) {
-        for (uint8_t i = 0; i < device->controller->slot_count; i++) {
-            if (completed_slots & (1 << i)) {
-                scheduler_unblock(device->blocked_threads[i]);
-                device->blocked_threads[i] = NULL;
-            }
-        }
-
-        spinlock_acquire(&device->lock);
-        device->old_ci &= ~completed_slots;
-        spinlock_release(&device->lock);
-    }
-
-    mmio_write32(&device->hba_port->is, is);
 }

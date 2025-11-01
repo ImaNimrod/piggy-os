@@ -97,9 +97,9 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
     return true;
 }
 
-void virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor) {
+uint16_t virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor) {
     queue->available->ring[queue->available->index % queue->size] = descriptor;
-    queue->available->index++;
+    return queue->available->index++;
 }
 
 void virtio_queue_notify(struct virtio_queue* queue) {
@@ -169,7 +169,7 @@ static void virtio_init(struct pci_device* pci_dev) {
         return;
     }
 
-    struct virtio_queue* queues = kmalloc(sizeof(struct virtio_queue) * dev->common_config->queue_count);
+    struct virtio_queue* queues = kmalloc(sizeof(struct virtio_queue) * mmio_read16(&dev->common_config->queue_count));
     if (unlikely(queues == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO device queues");
     }

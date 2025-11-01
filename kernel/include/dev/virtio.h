@@ -92,7 +92,7 @@ uint64_t virtio_negotiate_features(struct virtio_device* dev, uint64_t features)
 uint16_t virtio_queue_alloc_descriptor(struct virtio_queue* queue);
 void virtio_queue_free_descriptor(struct virtio_queue* queue, uint16_t descriptor);
 bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t irq_vector);
-void virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor);
+uint16_t virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor);
 void virtio_queue_notify(struct virtio_queue* queue);
 
 extern struct pci_driver virtio_driver;
