@@ -1,12 +1,15 @@
 #ifndef _AHCI_DEFINITIONS_H
 #define _AHCI_DEFINITIONS_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
+#define ATA_COMMAND_READ_DMA        0xc8
 #define ATA_COMMAND_READ_DMA_EXT    0x25
+#define ATA_COMMAND_WRITE_DMA       0xca
 #define ATA_COMMAND_WRITE_DMA_EXT   0x35
 #define ATA_COMMAND_FLUSH_CACHE     0xe7
 #define ATA_COMMAND_FLUSH_CACHE_EXT 0xea
@@ -47,6 +50,9 @@
 
 #define HBA_PxTFD_DRQ       (1 << 3)
 #define HBA_PxTFD_BSY       (1 << 7)
+
+#define PRDT_PER_COMMAND 8
+#define SECTORS_PER_PRDT 16
 
 struct hba_port {
     uint32_t clb;
@@ -139,7 +145,8 @@ struct hba_fis_h2d {
     uint8_t lba4;
     uint8_t lba5;
     uint8_t featureh;
-    uint16_t count;
+    uint8_t countl;
+    uint8_t counth;
     uint8_t icc;
     uint8_t control;
     uint32_t : 32;
@@ -168,10 +175,15 @@ struct ahci_device {
     uintptr_t clb_and_fis_paddr;
     uintptr_t command_table_paddr;
 
+    bool is_lba48;
+
     ata_device_type_t type;
     char serial_number[ATA_IDENTIFY_SERIAL_SIZE + 1];
     char firmware_revision[ATA_IDENTIFY_FIRMWARE_SIZE + 1];
     char model_number[ATA_IDENTIFY_MODEL_SIZE + 1];
+
+    struct thread** blocked_threads;
+    uint32_t old_ci;
 
     spinlock_t lock;
 };
