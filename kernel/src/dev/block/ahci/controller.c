@@ -147,14 +147,15 @@ static void ahci_init(struct pci_device* pci_dev) {
             (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
             interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
+    /* renable interrupts for the controller */
+    pci_set_msi_mask(pci_dev, false);
+    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_IE);
+
     enumerate_ports(controller);
     if (vector_size(controller->devices) == 0) {
         goto error;
     }
 
-    /* renable interrupts for the controller */
-    pci_set_msi_mask(pci_dev, false);
-    mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_IE);
     return;
 
 error:

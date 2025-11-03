@@ -168,19 +168,27 @@ void virtio_blk_init(struct virtio_device* vio_dev) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO block device blocked threads");
     }
 
+    isr_register_handler(vector, virtio_blk_irq_handler, device);
+    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
+
+    klog("[virtio_blk] initialized VirtIO block device (size: %zuGB, block size: %zuB)\n", total_size / 1000000000, sector_size);
+
     char name[10];
     snprintf(name, sizeof(name) - 1, "vioblk%zu", virtio_blk_device_minor);
 
-    int ret = block_register(name, makedev(VIOBLK_DEV_MAJOR, virtio_blk_device_minor), virtio_blk_cmd_handler, device, sector_count, sector_size);
+    struct block_device block_device = {
+        .cmd_handler = virtio_blk_cmd_handler,
+        .private = device,
+        .block_count = sector_count,
+        .block_size = sector_size,
+        .lba_offset = 0,
+    };
+
+    int ret = block_register(name, makedev(VIOBLK_DEV_MAJOR, virtio_blk_device_minor), &block_device, true);
     if (ret < 0) {
         kfree(device);
         return;
     }
 
     virtio_blk_device_minor++;
-
-    klog("[virtio_blk] initialized VirtIO block device (size: %zuGB, block size: %zuB)\n", total_size / 1000000000, sector_size);
-
-    isr_register_handler(vector, virtio_blk_irq_handler, device);
-    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 }

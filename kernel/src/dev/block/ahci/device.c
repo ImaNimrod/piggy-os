@@ -304,7 +304,7 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
         goto early_error;
     }
 
-    mmio_write32(&hba_port->serr, 0xffffffff);
+    mmio_write32(&hba_port->serr, mmio_read32(&hba_port->serr));
 
     int timeout = 100;
     while (timeout != 0) {
@@ -398,23 +398,32 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
         kpanic(NULL, false, "AHCI device disk size overflow");
     }
 
+    /* renable interrupts for the port */
+    mmio_write32(&hba_port->is, mmio_read32(&hba_port->is));
+    mmio_write32(&hba_port->ie, HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK);
+
+    vector_push(controller->devices, &device);
+
+    klog("[ahci] found %s device on port #%u (size: %zuGB, block size: %zuB)\n",
+            ata_device_type_str(type), port_number, total_size / 1000000000, sector_size);
+
     char name[10];
     snprintf(name, sizeof(name) - 1, "ahci%zu", ahci_device_minor);
 
-    int ret = block_register(name, makedev(AHCI_DEV_MAJOR, ahci_device_minor), ahci_device_cmd_handler, device, sector_count, sector_size);
+    struct block_device block_device = {
+        .cmd_handler = ahci_device_cmd_handler,
+        .private = device,
+        .block_count = sector_count,
+        .block_size = sector_size,
+        .lba_offset = 0,
+    };
+
+    int ret = block_register(name, makedev(AHCI_DEV_MAJOR, ahci_device_minor), &block_device, true);
     if (ret < 0) {
         goto error;
     }
 
     ahci_device_minor++;
-
-    klog("[ahci] found %s device on port #%u (size: %zuGB, block size: %zuB)\n",
-            ata_device_type_str(type), port_number, total_size / 1000000000, sector_size);
-
-    /* renable interrupts for the port */
-    mmio_write32(&hba_port->ie, HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK);
-
-    vector_push(controller->devices, &device);
     return;
 
 early_error:

@@ -25,9 +25,7 @@ run-minimal:
 .PHONY: run-realhw
 run-realhw:
 	$(EMU) $(EMUOPTS) \
-		-drive id=disk,file=disk.img,if=none \
-		-device ahci,id=ahci \
-		-device ide-hd,drive=disk,bus=ahci.0 \
+		-drive file=disk.img,format=raw,if=ide,index=0 \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso
