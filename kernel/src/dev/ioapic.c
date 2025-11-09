@@ -93,7 +93,7 @@ static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     uint32_t gsi = irq; 
     int polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
-    int trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
+    int trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
 
     if (irq < ISA_IRQ_NUM && isa_isos[irq].init) {
         gsi = isa_isos[irq].gsi;

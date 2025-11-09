@@ -21,7 +21,7 @@ static void print_stack_trace(uintptr_t* rbp) {
     printf("stack trace:");
 
     for (;;) {
-        uintptr_t* old_rbp = (uintptr_t*)rbp[0];
+        uintptr_t* old_rbp = (uintptr_t*) rbp[0];
         uintptr_t* rip = (uintptr_t*) rbp[1];
 
         if (rip == NULL || old_rbp == NULL || ((uintptr_t) rip) < HIGH_VMA) {

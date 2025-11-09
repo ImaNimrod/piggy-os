@@ -193,13 +193,6 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
         goto end;
     }
 
-    if (pml3[pml3_index] & PTE_SIZE) {
-        pml3[pml3_index] = 0;
-        invlpg(vaddr);
-        ret = true;
-        goto end;
-    }
-
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     if (!(pml2[pml2_index] & PTE_PRESENT)) {
         goto end;
@@ -247,23 +240,18 @@ void paging_init(void) {
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* memmap_entry = memmap_response->entries[i];
-        if (memmap_entry->type == LIMINE_MEMMAP_RESERVED || memmap_entry->type == LIMINE_MEMMAP_BAD_MEMORY) {
+        if (memmap_entry->type == LIMINE_MEMMAP_RESERVED && memmap_entry->base > 0xffffffff) {
+            continue;
+        }
+        if (memmap_entry->type == LIMINE_MEMMAP_BAD_MEMORY) {
             continue;
         }
 
         uint64_t flags = PTE_PRESENT | PTE_NX;
-        switch (memmap_entry->type) {
-            case LIMINE_MEMMAP_USABLE:
-            case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-                flags |= PTE_WRITABLE;
-                break;
-            case LIMINE_MEMMAP_ACPI_RECLAIMABLE:
-            case LIMINE_MEMMAP_ACPI_NVS:
-                flags |= PTE_CACHE_DISABLE;
-                break;
-            case LIMINE_MEMMAP_FRAMEBUFFER:
-                flags |= PTE_WRITABLE | PTE_WRITE_COMBINE;
-                break;
+        if (memmap_entry->type == LIMINE_MEMMAP_USABLE || memmap_entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
+            flags |= PTE_WRITABLE;
+        } else if (memmap_entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
+            flags |= PTE_WRITABLE | PTE_WRITE_COMBINE;
         }
 
         paddr = ALIGN_DOWN(memmap_entry->base, PAGE_SIZE_4KB);

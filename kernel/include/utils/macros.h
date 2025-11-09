@@ -22,6 +22,8 @@
 #define BITMAP_CLEAR(bitmap, i) ((bitmap)[(i) / 8] &= ~(1 << ((i) % 8)))
 #define BITMAP_TEST(bitmap, i) ((bitmap)[(i) / 8] & (1 << ((i) % 8)))
 
+#define LOG2(x) (8 * 8 - __builtin_clzll((x)) - 1)
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 

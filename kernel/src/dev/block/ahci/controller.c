@@ -143,8 +143,10 @@ static void ahci_init(struct pci_device* pci_dev) {
         goto error;
     }
 
-    klog("[ahci] initialized AHCI controller (version: %x.%x, link speed: %s)\n",
-            (mmio_read32(&hba_registers->vs) >> 16) & 0xffff, mmio_read32(&hba_registers->vs) & 0xffff,
+    uint32_t vs = mmio_read32(&hba_registers->vs);
+
+    klog("[ahci] initialized AHCI controller (version: %u.%u, link speed: %s)\n",
+            (vs >> 16) & 0xffff, vs & 0xffff,
             interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
     /* renable interrupts for the controller */

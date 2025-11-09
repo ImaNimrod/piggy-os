@@ -154,7 +154,7 @@ end:
 }
 
 static void detect_partitions(struct block_device* device, const char* device_name) {
-    size_t name_len = strlen(device_name) + 4;
+    size_t name_len = strlen(device_name) + 6;
     char name[name_len];
 
     size_t partition_number = 0;

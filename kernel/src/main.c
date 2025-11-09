@@ -28,52 +28,52 @@
 #include <utils/random.h>
 #include <utils/string.h>
 
-__attribute__((used, section(".limine_requests_start"))) static volatile LIMINE_REQUESTS_START_MARKER
+__attribute__((used, section(".limine_requests_start"))) static volatile uint64_t limine_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
-LIMINE_REQUEST static volatile LIMINE_BASE_REVISION(3)
+LIMINE_REQUEST static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
 
 LIMINE_REQUEST volatile struct limine_executable_address_request executable_address_request = {
-    .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST,
+    .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
     .revision = 0,
 };
 
 LIMINE_REQUEST volatile struct limine_executable_cmdline_request executable_cmdline_request = {
-    .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST,
+    .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID,
     .revision = 0,
 };
 
 LIMINE_REQUEST volatile struct limine_framebuffer_request framebuffer_request = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
     .revision = 0
 };
 
 LIMINE_REQUEST volatile struct limine_hhdm_request hhdm_request = {
-    .id = LIMINE_HHDM_REQUEST,
+    .id = LIMINE_HHDM_REQUEST_ID,
     .revision = 0,
 };
 
 LIMINE_REQUEST volatile struct limine_memmap_request memmap_request = {
-    .id = LIMINE_MEMMAP_REQUEST,
+    .id = LIMINE_MEMMAP_REQUEST_ID,
     .revision = 0,
 };
 
 LIMINE_REQUEST volatile struct limine_module_request module_request = {
-    .id = LIMINE_MODULE_REQUEST,
+    .id = LIMINE_MODULE_REQUEST_ID,
     .revision = 0,
 };
 
 LIMINE_REQUEST volatile struct limine_mp_request mp_request = {
-    .id = LIMINE_MP_REQUEST,
+    .id = LIMINE_MP_REQUEST_ID,
     .revision = 0,
-    .flags = LIMINE_MP_X2APIC,
+    .flags = LIMINE_MP_REQUEST_X86_64_X2APIC,
 };
 
 LIMINE_REQUEST volatile struct limine_rsdp_request rsdp_request = {
-    .id = LIMINE_RSDP_REQUEST,
+    .id = LIMINE_RSDP_REQUEST_ID,
     .revision = 0,
 };
 
-__attribute__((used, section(".limine_requests_end"))) static volatile LIMINE_REQUESTS_END_MARKER
+__attribute__((used, section(".limine_requests_end"))) static volatile uint64_t limine_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
 uintptr_t __stack_chk_guard;
 
@@ -90,7 +90,7 @@ NORETURN static void kernel_main(void) {
     pseudo_dev_init();
     fb_dev_init();
 
-    ps2_init();
+    //ps2_init();
     tty_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
@@ -131,7 +131,7 @@ NORETURN static void kernel_main(void) {
 }
 
 NORETURN void kernel_entry(void) {
-    if (!LIMINE_BASE_REVISION_SUPPORTED) {
+    if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         cli();
         for (;;) {
             hlt();

@@ -1,6 +1,7 @@
 #include <cpu/asm.h>
 #include <dev/acpi.h>
 #include <dev/block/ahci.h>
+#include <dev/block/nvme.h>
 #include <dev/net/e1000.h>
 #include <dev/pci.h>
 #include <dev/virtio.h>
@@ -60,6 +61,7 @@ static vector_t* pci_devices = NULL;
 static struct pci_driver* pci_drivers[] = {
     &ahci_driver,
     &e1000_driver,
+    &nvme_driver,
     &virtio_driver,
 };
 

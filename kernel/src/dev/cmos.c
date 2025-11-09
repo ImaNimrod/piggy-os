@@ -98,6 +98,12 @@ void cmos_get_rtc_time(struct timespec* tp) {
 void cmos_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
     if (likely(fadt != NULL)) {
+        uint16_t iapc_boot_arch_flags = *(uint16_t*) ((uintptr_t) fadt + 109);
+        if (!(iapc_boot_arch_flags & (1 << 5))) {
+            klog("[cmos] system lacks a legacy CMOS RTC device\n");
+            return;
+        }
+
         uint8_t acpi_century_register = *((uint8_t*) fadt + 108);
         if (acpi_century_register != 0) {
             century_register = acpi_century_register;

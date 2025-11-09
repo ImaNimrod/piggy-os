@@ -172,7 +172,7 @@ void smp_init(void) {
     struct limine_mp_response* mp_response = mp_request.response;
 
     bsp_lapic_id = mp_response->bsp_lapic_id;
-    use_x2apic = mp_response->flags & LIMINE_MP_X2APIC;
+    use_x2apic = mp_response->flags & LIMINE_MP_REQUEST_X86_64_X2APIC;
 
     bool nosmp = cmdline_get("nosmp") != NULL;
     if (nosmp) {

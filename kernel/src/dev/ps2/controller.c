@@ -85,7 +85,7 @@ uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second
 
 void ps2_init(void) {
     struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (unlikely(fadt != NULL)) {
+    if (likely(fadt != NULL)) {
         uint16_t iapc_boot_arch_flags = *(uint16_t*) ((uintptr_t) fadt + 109);
         if (!(iapc_boot_arch_flags & (1 << 1))) {
             klog("[ps2] system lacks a PS/2 controller\n");
