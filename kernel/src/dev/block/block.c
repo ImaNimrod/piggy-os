@@ -102,15 +102,13 @@ static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int 
     if (read < 0) {
         ret = read;
         goto end;
-    } else {
-        read *= device->block_size;
     }
 
     if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) (paddr + HIGH_VMA), count)) < 0) {
         goto end;
     }
 
-    ret = read;
+    ret = read * device->block_size;
 
 end:
     pmm_free(paddr, page_count);

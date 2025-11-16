@@ -67,7 +67,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
 
     struct hba_registers* hba_registers = (void*) (bar5.base_address + HIGH_VMA);
 

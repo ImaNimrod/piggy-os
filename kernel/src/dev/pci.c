@@ -59,7 +59,7 @@ static size_t mcfg_entry_count = 0;
 static struct slab_cache* pci_device_cache = NULL;
 static vector_t* pci_devices = NULL;
 static struct pci_driver* pci_drivers[] = {
-    &ahci_driver,
+    //&ahci_driver,
     &e1000_driver,
     &nvme_driver,
     &virtio_driver,
@@ -320,6 +320,8 @@ bool pci_setup_msi(struct pci_device* dev, uint8_t vector) {
     pci_write(dev, dev->msi_offset + 4, address.raw, 4);
     pci_write(dev, dev->msi_offset + data_off, data.raw, 2);
     pci_write(dev, dev->msi_offset + 2, control, 2);
+
+    pci_set_command_flags(dev, PCI_COMMAND_FLAG_INTX_DISABLE, true);
     return true;
 }
 
@@ -353,11 +355,11 @@ bool pci_enable_msix(struct pci_device* dev) {
         return false;
     }
 
-    dev->msix_table = (void*) (bar.base_address + HIGH_VMA);
+    dev->msix_table = (void*) (bar.base_address + (info & ~7) + HIGH_VMA);
 
     uint16_t control = pci_read(dev, dev->msix_offset + 2, 2);
 
-    uint16_t irq_count = (control & ((1 << 11) - 1)) + 1;
+    uint16_t irq_count = (control & 0x3ff) + 1;
     dev->msix_irq_count = irq_count;
 
     for (uint16_t i = 0; i < irq_count; i++) {
@@ -365,6 +367,8 @@ bool pci_enable_msix(struct pci_device* dev) {
     }
 
     pci_write(dev, dev->msix_offset + 2, (control & 0x7ff) | (1 << 15), 2);
+
+    pci_set_command_flags(dev, PCI_COMMAND_FLAG_INTX_DISABLE, true);
     return true;
 }
 
@@ -372,7 +376,6 @@ bool pci_setup_msix(struct pci_device* dev, uint16_t index, uint8_t vector) {
     if (!dev->msix_supported) {
         return false;
     }
-
     if (index >= dev->msix_irq_count) {
         return false;
     }
@@ -415,18 +418,14 @@ uint16_t pci_read_subsystem_id(struct pci_device* dev) {
     return pci_read(dev, PCI_CONFIG_SUBSYSTEM + 2, 2);
 }
 
-void pci_write_command_flags(struct pci_device* dev, uint16_t flags) {
+void pci_set_command_flags(struct pci_device* dev, uint16_t flags, bool set) {
     uint16_t command = pci_read(dev, PCI_CONFIG_COMMAND, 2);
-    command &= ~7;
-    command |= flags & 7;
+    if (set) {
+        command |= flags;
+    } else {
+        command &= ~flags;
+    }
     pci_write(dev, PCI_CONFIG_COMMAND, command, 2);
-}
-
-void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if) {
-    uint32_t class = pci_read(dev, PCI_CONFIG_CLASS, 4);
-    class = (class & 0xffff00ff) | (prog_if << 8);
-    pci_write(dev, PCI_CONFIG_CLASS, class, 4);
-    dev->prog_if = prog_if;
 }
 
 void pci_init(void) {

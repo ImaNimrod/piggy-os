@@ -61,8 +61,7 @@ struct acpi_sdt* acpi_find_sdt(const char signature[static 4]) {
 
 void acpi_init(void) {
     struct limine_rsdp_response* rsdp_response = rsdp_request.response;
-
-    rsdp = (struct rsdp*) (rsdp_response->address + HIGH_VMA);
+    rsdp = (struct rsdp*) rsdp_response->address;
 
     use_acpi_rev2 = rsdp->revision >= 2 && rsdp->xsdt_addr;
 

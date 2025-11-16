@@ -58,7 +58,6 @@
 #define E1000_REG_CRCERRS       0x4000
 #define E1000_REG_MTA           0x5200
 
-
 #define CTRL_FD         (1 << 0)
 #define CTRL_GIO_MD     (1 << 2)
 #define CTRL_LRST       (1 << 3)
@@ -339,10 +338,10 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
     e1000_write(device, E1000_REG_ICR, icr);
 }
 
-/* TODO: make return false if there are no available TX descriptors */
 static bool e1000_send_packet(struct netif* netif, struct packet* packet) {
     struct e1000_device* device = netif->device;
 
+    // TODO: use a semaphore to wait for access to tx queue instead of just failing when queue is full
     struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
 
     memcpy((void*) (tx_desc->address + HIGH_VMA), packet->buf, packet->length);
@@ -390,7 +389,7 @@ static void e1000_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_write_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
 
     struct e1000_device* device = kmalloc(sizeof(struct e1000_device));
     if (unlikely(device == NULL)) {

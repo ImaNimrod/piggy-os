@@ -20,12 +20,14 @@ run: run-virtio
 .PHONY: run-minimal
 run-minimal:
 	$(EMU) $(EMUOPTS) \
+		-nic none \
 		-cdrom $(IMAGE_NAME).iso
 
 .PHONY: run-realhw
 run-realhw:
 	$(EMU) $(EMUOPTS) \
-		-drive file=disk.img,format=raw,if=ide,index=0 \
+		-drive file=disk.img,format=raw,if=none,id=disk \
+		-device nvme,drive=disk,serial=12345678 \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom $(IMAGE_NAME).iso

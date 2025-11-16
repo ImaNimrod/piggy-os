@@ -35,15 +35,6 @@ static inline void copy_ata_string(char* buf, size_t len, const uint8_t* ata_str
     buf[len] = '\0';
 }
 
-static inline size_t sector_size_log2(size_t sector_size) {
-    size_t sector_size_log2 = 0;
-    while (sector_size >>= 1) {
-        sector_size_log2++;   
-    }
-
-    return sector_size_log2;
-}
-
 static int find_command_slot(struct ahci_device* device) {
     uint32_t slots = mmio_read32(&device->hba_port->sact) | mmio_read32(&device->hba_port->ci);
 
@@ -202,7 +193,7 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
         prdt = &table->prdt[i];
         prdt->dba = (uint32_t) paddr;
         prdt->dbau = (uint32_t) (paddr >> 32);
-        prdt->dbc = (count << sector_size_log2(block_device->block_size)) - 1;
+        prdt->dbc = (count << LOG2(block_device->block_size)) - 1;
 
         if (cmd == CMD_READ) {
             fis->command = device->is_lba48 ? ATA_COMMAND_READ_DMA_EXT : ATA_COMMAND_READ_DMA;

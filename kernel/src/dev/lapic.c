@@ -100,10 +100,13 @@ static void lapic_setup_nmi(struct madt_lapic_nmi* nmi) {
 
     uint32_t lvt_entry = LAPIC_LVT_DELIVERY_NMI | 2;
 
-    if (nmi->flags & (1 << 1)) {
+    uint8_t polarity_flags = nmi->flags & 0x03;
+    if (polarity_flags == 0x00 || polarity_flags == 0x03) {
         lvt_entry |= (1 << 13);
     }
-    if (nmi->flags & (1 << 3)) {
+
+    uint8_t trigger_mode_flags = (nmi->flags >> 2) & 0x03;
+    if (trigger_mode_flags == 0x03) {
         lvt_entry |= (1 << 15);
     }
 

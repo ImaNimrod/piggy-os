@@ -94,8 +94,7 @@ bool pci_setup_msix(struct pci_device* dev, uint16_t index, uint8_t vector);
 bool pci_set_msix_mask(struct pci_device* dev, uint16_t index, bool mask);
 uint8_t pci_read_irq_line(struct pci_device* dev);
 uint16_t pci_read_subsystem_id(struct pci_device* dev);
-void pci_write_command_flags(struct pci_device* dev, uint16_t flags);
-void pci_write_prog_if(struct pci_device* dev, uint8_t prog_if);
+void pci_set_command_flags(struct pci_device* dev, uint16_t flags, bool set);
 void pci_init(void);
 
 #endif /* _KERNEL_DEV_PCI_H */

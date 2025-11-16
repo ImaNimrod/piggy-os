@@ -144,10 +144,10 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags) {
     int trigger_mode;
 
     uint8_t polarity_flags = flags & 0x03;
-    if (polarity_flags == 0x00 || polarity_flags == 0x03) {
-        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
-    } else if (polarity_flags == 0x01) {
+    if (polarity_flags == 0x00 || polarity_flags == 0x01) {
         polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
+    } else if (polarity_flags == 0x03) {
+        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
     } else {
         kpanic(NULL, false, "invalid polarity flags in interrupt source override");
     }
