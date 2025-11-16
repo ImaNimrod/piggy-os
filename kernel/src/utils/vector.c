@@ -8,13 +8,6 @@
 #define VECTOR_GROWTH_FACTOR 2
 #define VECTOR_INITIAL_CAPACITY 4
 
-struct vector {
-    size_t capacity;
-    size_t size;
-    size_t item_size;
-    void* data;
-};
-
 vector_t* vector_create(size_t item_size) {
     vector_t* v = kmalloc(sizeof(vector_t));
     if (unlikely(v == NULL)) {

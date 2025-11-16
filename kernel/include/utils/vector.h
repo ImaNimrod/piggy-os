@@ -4,7 +4,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct vector vector_t;
+typedef struct vector {
+    size_t capacity;
+    size_t size;
+    size_t item_size;
+    void* data;
+} vector_t;
 
 vector_t* vector_create(size_t item_size);
 void vector_destroy(vector_t* v);

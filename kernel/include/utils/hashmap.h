@@ -4,7 +4,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct hashmap hashmap_t;
+struct hashmap_entry;
+
+typedef struct hashmap {
+    size_t capacity;
+    size_t size;
+    struct hashmap_entry** entries;
+} hashmap_t;
 
 hashmap_t* hashmap_create(size_t size);
 void hashmap_destroy(hashmap_t* hm);

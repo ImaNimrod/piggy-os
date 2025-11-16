@@ -48,6 +48,7 @@ struct thread {
     spinlock_t yield_lock;
 
     struct thread* next;
+    struct thread* next_waiter; // for semaphores
 };
 
 struct vfs_node;

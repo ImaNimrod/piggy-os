@@ -96,16 +96,13 @@ bool identify(struct nvme_controller* controller, uint32_t namespace, int subjec
 }
 
 bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
+    semaphore_wait(&queue_pair->entry_semaphore);
+
     spinlock_acquire(&queue_pair->lock);
 
     uint16_t pair = 0;
-    while (queue_pair->entries[pair] && pair < queue_pair->submission.entry_count) {
+    while (queue_pair->entries[pair] != NULL) {
         pair++;
-    }
-    // TODO: use a semaphore to wait for access to queue instead of just failing when queue is full
-    if (pair == queue_pair->submission.entry_count) {
-        spinlock_release(&queue_pair->lock);
-        return false;
     }
 
     entry_pair->submission.cid = pair;
@@ -169,6 +166,7 @@ static bool setup_io_queue_pair(struct nvme_controller* controller, uint16_t id)
         .doorbell = SQ_DOORBELL(controller->bar, id, controller->doorbell_stride),
     };
 
+    semaphore_init(&queue_pair->entry_semaphore, QUEUE_ENTRY_COUNT);
     return true;
 }
 
@@ -188,6 +186,7 @@ static void nvme_irq_handler(struct registers* r, void* arg) {
 
         scheduler_unblock(queue_pair->entries[subid]->thread);
         queue_pair->entries[subid] = NULL;
+        semaphore_signal(&queue_pair->entry_semaphore);
 
         queue_pair->completion.index++;
         queue_pair->completion.index %= queue_pair->completion.entry_count;
@@ -312,6 +311,8 @@ static void nvme_init(struct pci_device* pci_dev) {
     controller->admin_queue.completion.entry_count = PAGE_SIZE_4KB / sizeof(struct completion_entry);
     controller->admin_queue.completion.doorbell = CQ_DOORBELL(nvme_bar, 0, controller->doorbell_stride);
     controller->admin_queue.completion.phase = 1;
+
+    semaphore_init(&controller->admin_queue.entry_semaphore, PAGE_SIZE_4KB / sizeof(struct submission_entry));
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {

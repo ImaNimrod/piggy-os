@@ -1,0 +1,52 @@
+#include <cpu/smp.h>
+#include <sys/scheduler.h>
+#include <utils/semaphore.h>
+
+void semaphore_init(semaphore_t* s, uint64_t value) {
+    s->lock = (spinlock_t) {0};
+    s->value = value;
+    s->waiters = NULL;
+}
+
+void semaphore_signal(semaphore_t* s) {
+    spinlock_acquire(&s->lock);
+
+    struct thread* waiter = NULL;
+
+    if (s->value <= 0) {
+        waiter = s->waiters;
+        s->waiters = waiter->next_waiter;
+        waiter->next_waiter = NULL;
+    } else {
+        s->value++;
+    }
+
+    spinlock_release(&s->lock);
+
+    if (waiter != NULL) {
+        scheduler_unblock(waiter);
+    }
+}
+
+void semaphore_wait(semaphore_t* s) {
+    spinlock_acquire(&s->lock);
+
+    if (s->value > 0) {
+        s->value--;
+        spinlock_release(&s->lock);
+        return;
+    }
+
+    struct thread* iter = s->waiters;
+    if (iter == NULL) {
+        s->waiters = this_cpu()->running_thread;
+    } else {
+        while (iter != NULL) {
+            iter = iter->next_waiter;
+        }
+        iter->next_waiter = this_cpu()->running_thread;
+    }
+
+    spinlock_release(&s->lock);
+    scheduler_block(this_cpu()->running_thread);
+}

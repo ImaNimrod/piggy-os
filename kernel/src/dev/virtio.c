@@ -64,25 +64,30 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
         return false;
     }
 
-    // TODO: figure out exact alloc sizes for available and used spaces
+    mmio_write16(&dev->common_config->queue_select, queue_number);
 
     struct virtio_queue* queue = &dev->queues[queue_number];
     queue->size = mmio_read16(&dev->common_config->queue_size);
     queue->lock = (spinlock_t) {0};
 
-    uintptr_t descriptor_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB));
+    size_t total_size = ALIGN_UP(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB) +         // available ring needs to be 4096-byte aligned 
+        ALIGN_UP((sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB) +   // used ring needs to be 4096-byte aligned
+        (sizeof(struct virtio_queue_used) + (sizeof(struct virtio_queue_used_entry) * queue->size));
+
+    uintptr_t queue_paddr = pmm_alloc_zero(DIV_CEIL(total_size, PAGE_SIZE_4KB));
+
+    uintptr_t descriptor_paddr = queue_paddr;
     queue->descriptors = (void*) (descriptor_paddr + HIGH_VMA);
-    uintptr_t available_paddr = pmm_alloc_zero(2);
+    uintptr_t available_paddr = ALIGN_UP(descriptor_paddr + (sizeof(struct virtio_queue_descriptor) + queue->size), PAGE_SIZE_4KB);
     queue->available = (void*) (available_paddr + HIGH_VMA);
-    uintptr_t used_paddr = pmm_alloc_zero(2);
+    uintptr_t used_paddr = ALIGN_UP(available_paddr + (sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB);
     queue->used = (void*) (used_paddr + HIGH_VMA);
 
-    queue->notify = dev->notify_begin + (mmio_read16(&dev->common_config->queue_notify_offset) * dev->notify_offset_multiplier);
-
-    mmio_write16(&dev->common_config->queue_select, queue_number);
     mmio_write64(&dev->common_config->queue_desc, descriptor_paddr);
     mmio_write64(&dev->common_config->queue_driver, available_paddr);
     mmio_write64(&dev->common_config->queue_device, used_paddr);
+
+    queue->notify = dev->notify_begin + (mmio_read16(&dev->common_config->queue_notify_offset) * dev->notify_offset_multiplier);
 
     if (irq_vector != 0xff) {
         mmio_write16(&dev->common_config->queue_msix_vector, queue_number);

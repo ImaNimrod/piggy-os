@@ -16,12 +16,6 @@ struct hashmap_entry {
     struct hashmap_entry* next;
 };
 
-struct hashmap {
-    size_t capacity;
-    size_t size;
-    struct hashmap_entry** entries;
-};
-
 static uint32_t fnv1a_hash(const void* data, size_t length) {
     const uint8_t* bytes = (const uint8_t*) data;
 

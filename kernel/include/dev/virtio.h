@@ -56,13 +56,16 @@ struct virtio_queue_available {
     uint16_t ring[];
 };
 
+
+struct virtio_queue_used_entry {
+    uint32_t id;
+    uint32_t length;
+};
+
 struct virtio_queue_used {
     uint16_t flags;
     uint16_t index;
-    struct {
-        uint32_t id;
-        uint32_t length;
-    } ring[];
+    struct virtio_queue_used_entry ring[];
 };
 
 struct virtio_queue {

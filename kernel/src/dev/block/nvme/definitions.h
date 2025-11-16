@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/process.h>
+#include <utils/semaphore.h>
 #include <utils/spinlock.h>
 
 #define CAP_COMMANDSET_NVM (1 << 0)
@@ -84,6 +85,7 @@ struct queue_pair {
     struct queue_descriptor completion;
 
     struct entry_pair* entries[QUEUE_ENTRY_COUNT];
+    semaphore_t entry_semaphore;
 
     spinlock_t lock;
 };

@@ -13,6 +13,8 @@
 #include <stdint.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/semaphore.h>
+#include <utils/spinlock.h>
 #include <utils/string.h>
 
 #define NUM_RX_DESCRIPTORS 128
@@ -121,6 +123,8 @@ struct e1000_device {
     struct tx_descriptor* tx_descs;
     uintptr_t tx_buffer_paddr;
     uint16_t tx_tail;
+    spinlock_t tx_lock;
+    semaphore_t tx_semaphore;
 };
 
 static inline uint32_t e1000_read(struct e1000_device* device, uint16_t reg) {
@@ -217,6 +221,8 @@ static void init_tx(struct e1000_device* device) {
     e1000_write(device, E1000_REG_TIPG, 0x0060200a);
 
     e1000_flush(device);
+
+    semaphore_init(&device->tx_semaphore, NUM_TX_DESCRIPTORS);
 }
 
 static uint16_t read_eeprom(struct e1000_device* device, uint8_t address) {
@@ -306,6 +312,7 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 
     /* packet transmitted */
     if (icr & INT_TXDW) {
+        semaphore_signal(&device->tx_semaphore);
         device->netif->tx_count++;
     }
 
@@ -341,7 +348,10 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 static bool e1000_send_packet(struct netif* netif, struct packet* packet) {
     struct e1000_device* device = netif->device;
 
-    // TODO: use a semaphore to wait for access to tx queue instead of just failing when queue is full
+    semaphore_wait(&device->tx_semaphore);
+
+    spinlock_acquire(&device->tx_lock);
+
     struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
 
     memcpy((void*) (tx_desc->address + HIGH_VMA), packet->buf, packet->length);
@@ -350,9 +360,9 @@ static bool e1000_send_packet(struct netif* netif, struct packet* packet) {
     tx_desc->status = 0;
 
     device->tx_tail = (device->tx_tail + 1) % NUM_TX_DESCRIPTORS;
-
     e1000_write(device, E1000_REG_TXDESCTAIL, device->tx_tail);
 
+    spinlock_release(&device->tx_lock);
     return true;
 }
 
