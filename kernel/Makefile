@@ -2,7 +2,7 @@ include ../config.mk
 
 CFLAGS := \
 		  -g \
-		  -std=gnu11 \
+		  -std=gnu23 \
 		  -O2 \
 		  -fms-extensions \
 		  -ffreestanding \
@@ -19,9 +19,9 @@ CFLAGS := \
 		  -Wstrict-prototypes \
 		  -Wnested-externs \
 		  -Wredundant-decls \
-		  -pedantic \
 		  -m64 \
 		  -march=x86-64 \
+		  -mgeneral-regs-only \
 		  -mno-80387 \
 		  -mno-mmx \
 		  -mno-sse \
@@ -31,7 +31,6 @@ CFLAGS := \
 
 LDFLAGS := \
 		   -m elf_x86_64 \
-		   --build-id=none \
 		   -nostdlib \
 		   -static \
 		   --gc-sections \
@@ -40,12 +39,14 @@ LDFLAGS := \
 
 CPPFLAGS := \
 			-I include \
+			-I src/dev/acpi/uacpi/include \
 			-DGIT_COMMIT=\"$(shell git describe --always --tags)\" \
 			-DLIMINE_API_REVISION=3 \
 			-DPRINTF_DISABLE_SUPPORT_EXPONENTIAL \
 			-DPRINTF_DISABLE_SUPPORT_FLOAT \
-			-DPRINTF_DISABLE_SUPPORT_LONG_LONG \
 			-DFLANTERM_FB_DISABLE_BUMP_ALLOC \
+			-DUACPI_BAREBONES_MODE \
+			-DUACPI_OVERRIDE_LIBC \
 			-MMD \
 			-MP
 

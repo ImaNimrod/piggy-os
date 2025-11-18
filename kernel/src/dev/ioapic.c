@@ -7,6 +7,8 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 
+#include <uacpi/acpi.h>
+
 #define IOREGSEL 0x00
 #define IOREGWIN 0x10
 
@@ -143,19 +145,19 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags) {
     int polarity;
     int trigger_mode;
 
-    uint8_t polarity_flags = flags & 0x03;
-    if (polarity_flags == 0x00 || polarity_flags == 0x01) {
-        polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
-    } else if (polarity_flags == 0x03) {
+    uint8_t polarity_flags = flags & ACPI_MADT_POLARITY_MASK;
+    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
         polarity = IOAPIC_POLARITY_ACTIVE_LOW;
+    } else if (polarity_flags == ACPI_MADT_POLARITY_ACTIVE_HIGH) {
+        polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
     } else {
         kpanic(NULL, false, "invalid polarity flags in interrupt source override");
     }
 
-    uint8_t trigger_mode_flags = (flags >> 2) & 0x03;
-    if (trigger_mode_flags == 0x00 || trigger_mode_flags == 0x01) {
+    uint8_t trigger_mode_flags = flags & ACPI_MADT_TRIGGERING_MASK;
+    if (trigger_mode_flags == ACPI_MADT_TRIGGERING_CONFORMING || trigger_mode_flags == ACPI_MADT_TRIGGERING_EDGE) {
         trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
-    } else if (trigger_mode_flags == 0x03) {
+    } else if (trigger_mode_flags == ACPI_MADT_TRIGGERING_LEVEL) {
         trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
     } else {
         kpanic(NULL, false, "invalid trigger mode flags in interrupt source override");

@@ -1,11 +1,14 @@
 #include <cpu/asm.h>
-#include <dev/acpi.h>
 #include <dev/cmos.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
+#include <uacpi/uacpi.h>
 
 #define CMOS_ADDRESS_PORT   0x70
 #define CMOS_DATA_PORT      0x71
@@ -96,19 +99,22 @@ void cmos_get_rtc_time(struct timespec* tp) {
 }
 
 void cmos_init(void) {
-    struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (likely(fadt != NULL)) {
-        uint16_t iapc_boot_arch_flags = *(uint16_t*) ((uintptr_t) fadt + 109);
-        if (!(iapc_boot_arch_flags & (1 << 5))) {
-            klog("[cmos] system lacks a legacy CMOS RTC device\n");
-            return;
-        }
-
-        uint8_t acpi_century_register = *((uint8_t*) fadt + 108);
-        if (acpi_century_register != 0) {
-            century_register = acpi_century_register;
-        }
+    struct uacpi_table fadt_table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &fadt_table);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(NULL, false, "unable to find FADT table: %s", uacpi_status_to_string(ret));
     }
+
+    struct acpi_fadt* fadt = fadt_table.ptr;
+    if (fadt->iapc_boot_arch & ACPI_IA_PC_NO_CMOS_RTC) {
+        klog("[cmos] system lacks a legacy CMOS RTC device\n");
+        uacpi_table_unref(&fadt_table);
+        return;
+    }
+
+    century_register = fadt->century;
+
+    uacpi_table_unref(&fadt_table);
 
     while (is_cmos_updating()) {
         pause();

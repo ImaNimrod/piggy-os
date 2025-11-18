@@ -1,7 +1,7 @@
 include ./config.mk
 
 EMUOPTS := -machine q35 \
-		   -m 2G \
+		   -m 4G \
 		   -cpu host \
 		   -enable-kvm \
 		   -smp 2 \
@@ -60,6 +60,7 @@ limine/limine:
 
 .PHONY: kernel
 kernel:
+	$(RM) -r kernel/src/dev/acpi/uacpi/tests
 	$(MAKE) -C kernel
 
 .PHONY: libc

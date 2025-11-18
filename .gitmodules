@@ -15,3 +15,6 @@
     path = libc
     url = https://github.com/ImaNimrod/mlibc.git
     update = merge
+[submodule "kernel/src/dev/acpi/uacpi"]
+	path = kernel/src/dev/acpi/uacpi
+	url = https://github.com/uACPI/uACPI

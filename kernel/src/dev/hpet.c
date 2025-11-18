@@ -1,6 +1,5 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/acpi.h>
 #include <dev/hpet.h>
 #include <dev/ioapic.h>
 #include <dev/pit.h>
@@ -9,6 +8,10 @@
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
+#include <uacpi/uacpi.h>
 
 #define HPET_REG_ID     0x000
 #define HPET_REG_CONFIG 0x010
@@ -28,20 +31,6 @@
 #define HPET_TN_32MODE_CNF       (1 << 8)
 
 #define PIT_ISA_IRQ 0
-
-struct hpet_table {
-    struct acpi_sdt;
-    uint8_t hardware_rev_id;
-    uint8_t comparator_count: 5;
-    uint8_t counter_size: 1;
-    uint8_t : 1;
-    uint8_t legacy_replacement: 1;
-    uint16_t pci_vendor_id;
-    struct acpi_gas address;
-    uint8_t hpet_number;
-    uint16_t minimum_tick;
-    uint8_t page_protection;
-} __attribute__((packed));
 
 static uintptr_t hpet_addr;
 static uint32_t clock_period_ns;
@@ -69,13 +58,18 @@ void hpet_sleep_ns(uint64_t ns) {
 }
 
 void hpet_init(uint16_t hz) {
-    struct hpet_table* hpet_table = (struct hpet_table*) acpi_find_sdt("HPET");
-    if (unlikely(hpet_table == NULL)) {
-        kpanic(NULL, false, "system does not have an HPET\n");
+    struct uacpi_table hpet_table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &hpet_table);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(NULL, false, "unable to find HPET table: %s", uacpi_status_to_string(ret));
     }
 
-    uintptr_t hpet_paddr = hpet_table->address.base;
+    struct acpi_hpet* hpet = hpet_table.ptr;
+
+    uintptr_t hpet_paddr = hpet->address.address;
     hpet_addr = hpet_paddr + HIGH_VMA;
+
+    uacpi_table_unref(&hpet_table);
 
     pagemap_map(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
 

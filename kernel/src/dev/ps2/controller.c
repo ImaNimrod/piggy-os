@@ -1,8 +1,11 @@
-#include <dev/acpi.h>
 #include <dev/ps2.h>
 #include <stddef.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
+#include <uacpi/uacpi.h>
 
 #include "definitions.h"
 
@@ -84,13 +87,19 @@ uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second
 }
 
 void ps2_init(void) {
-    struct acpi_sdt* fadt = acpi_find_sdt("FACP");
-    if (likely(fadt != NULL)) {
-        uint16_t iapc_boot_arch_flags = *(uint16_t*) ((uintptr_t) fadt + 109);
-        if (!(iapc_boot_arch_flags & (1 << 1))) {
-            klog("[ps2] system lacks a PS/2 controller\n");
-            return;
-        }
+    struct uacpi_table fadt_table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &fadt_table);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(NULL, false, "unable to find FADT table: %s", uacpi_status_to_string(ret));
+    }
+
+    struct acpi_fadt* fadt = fadt_table.ptr;
+    uint16_t iapc_boot_arch = fadt->iapc_boot_arch;
+    uacpi_table_unref(&fadt_table);
+
+    if (!(iapc_boot_arch & ACPI_IA_PC_8042)) {
+        klog("[ps2] system missing 8042 PS/2 controller\n");
+        return;
     }
 
     send_command(PS2_COMMAND_DISABLE_PORT1);

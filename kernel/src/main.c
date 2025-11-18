@@ -86,11 +86,14 @@ NORETURN static void kernel_main(void) {
     tmpfs_init();
 
     block_init();
+    net_init();
 
     pseudo_dev_init();
     fb_dev_init();
 
-    //ps2_init();
+    pci_init();
+
+    ps2_init();
     tty_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
@@ -116,9 +119,6 @@ NORETURN static void kernel_main(void) {
     }
 
     initrd_unpack(initrd_module);
-
-    net_init();
-    pci_init();
 
     klog("\nhey pig...\n");
 

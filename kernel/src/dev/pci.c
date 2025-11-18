@@ -1,5 +1,4 @@
 #include <cpu/asm.h>
-#include <dev/acpi.h>
 #include <dev/block/ahci.h>
 #include <dev/block/nvme.h>
 #include <dev/net/e1000.h>
@@ -10,24 +9,15 @@
 #include <mem/slab.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/string.h>
 #include <utils/vector.h>
+
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
+#include <uacpi/uacpi.h>
 
 #define PCI_CONFIG_ADDRESS_PORT 0xcf8
 #define PCI_CONFIG_DATA_PORT    0xcfc
-
-struct mcfg_entry {
-    uint64_t ecm_base_address;
-    uint16_t segment;
-    uint8_t bus_start;
-    uint8_t bus_end;
-    uint32_t : 32;
-} __attribute__((packed));
-
-struct mcfg {
-    struct acpi_sdt;
-    uint64_t : 64;
-    struct mcfg_entry entries[];
-} __attribute__((packed));
 
 union msi_address {
     struct {
@@ -53,13 +43,13 @@ union msi_data {
     uint32_t raw;
 };
 
-static struct mcfg_entry* mcfg_entries = NULL;
-static size_t mcfg_entry_count = 0;
+static struct acpi_mcfg_allocation* mcfg_entries;
+static size_t mcfg_entry_count;
 
-static struct slab_cache* pci_device_cache = NULL;
-static vector_t* pci_devices = NULL;
+static struct slab_cache* pci_device_cache;
+static vector_t* pci_devices;
 static struct pci_driver* pci_drivers[] = {
-    //&ahci_driver,
+    &ahci_driver,
     &e1000_driver,
     &nvme_driver,
     &virtio_driver,
@@ -71,21 +61,21 @@ static void (*internal_write)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uin
 static void enumerate_bus(uint16_t segment, uint8_t bus);
 
 static uint32_t ecm_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
-    struct mcfg_entry* entry;
+    struct acpi_mcfg_allocation* entry;
 
     for (size_t i = 0; i < mcfg_entry_count; i++) {
         entry = &mcfg_entries[i];
 
-        if (entry->segment == segment && bus >= entry->bus_start && bus <= entry->bus_end) {
-            void* addr = (void*) (((entry->ecm_base_address + (((bus - entry->bus_start) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+        if (entry->segment == segment && bus >= entry->start_bus && bus <= entry->end_bus) {
+            void* address = (void*) (((entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
 
             switch (access_size) {
                 case 1:
-                    return mmio_read8(addr);
+                    return mmio_read8(address);
                 case 2:
-                    return mmio_read16(addr);
+                    return mmio_read16(address);
                 case 4:
-                    return mmio_read32(addr);
+                    return mmio_read32(address);
             }
 
             kpanic(NULL, false, "invalid PCI access size");
@@ -96,23 +86,23 @@ static uint32_t ecm_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t fu
 }
 
 static void ecm_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size) {
-    struct mcfg_entry* entry;
+    struct acpi_mcfg_allocation* entry;
 
     for (size_t i = 0; i < mcfg_entry_count; i++) {
         entry = &mcfg_entries[i];
 
-        if (entry->segment == segment && bus >= entry->bus_start && bus <= entry->bus_end) {
-            void* addr = (void*) (((entry->ecm_base_address + (((bus - entry->bus_start) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+        if (entry->segment == segment && bus >= entry->start_bus && bus <= entry->end_bus) {
+            void* address = (void*) (((entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
 
             switch (access_size) {
                 case 1:
-                    mmio_write8(addr, value);
+                    mmio_write8(address, value);
                     break;
                 case 2:
-                    mmio_write16(addr, value);
+                    mmio_write16(address, value);
                     break;
                 case 4:
-                    mmio_write32(addr, value);
+                    mmio_write32(address, value);
                     break;
                 default:
                     kpanic(NULL, false, "invalid PCI access size");
@@ -439,26 +429,38 @@ void pci_init(void) {
         kpanic(NULL, false, "failed to create PCI device vector");
     }
 
-    struct mcfg* mcfg = (struct mcfg*) acpi_find_sdt("MCFG");
-    if (likely(mcfg != NULL && mcfg->length >= sizeof(struct mcfg) + sizeof(struct mcfg_entry))) {
+
+
+    struct uacpi_table mcfg_table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MCFG_SIGNATURE, &mcfg_table);
+    if (uacpi_likely_success(ret)) {
         klog("[pci] using ECM for PCI device access\n");
-        mcfg_entries = mcfg->entries;
-        mcfg_entry_count = (mcfg->length - sizeof(struct mcfg)) / sizeof(struct mcfg_entry);
+
+        struct acpi_mcfg* mcfg = mcfg_table.ptr;
+
+        mcfg_entry_count = (mcfg->hdr.length - sizeof(struct acpi_mcfg)) / sizeof(struct acpi_mcfg_allocation);
+        mcfg_entries = kmalloc(sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
+        if (unlikely(mcfg_entries == NULL)) {
+            kpanic(NULL, false, "failed to allocate memory for MCFG entries");
+        }
+        memcpy(mcfg_entries, mcfg->entries, sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
+
+        uacpi_table_unref(&mcfg_table);
 
         internal_read = ecm_read;
         internal_write = ecm_write;
 
-        struct mcfg_entry* entry;
+        struct acpi_mcfg_allocation* entry;
         for (size_t i = 0; i < mcfg_entry_count; i++) {
             entry = &mcfg_entries[i];
 
-            size_t page_count = (entry->bus_end - entry->bus_start) * 32 * 8;
+            size_t page_count = (entry->end_bus - entry->start_bus) * 32 * 8;
             for (size_t j = 0; j < (page_count * PAGE_SIZE_4KB); j += PAGE_SIZE_4KB) {
-                pagemap_map(kernel_pagemap, entry->ecm_base_address + HIGH_VMA + j, entry->ecm_base_address + j,
+                pagemap_map(kernel_pagemap, entry->address + HIGH_VMA + j, entry->address + j,
                             PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
             }
 
-            for (uint8_t bus = entry->bus_start; bus < entry->bus_end; bus++) {
+            for (uint8_t bus = entry->start_bus; bus < entry->end_bus; bus++) {
                 enumerate_bus(entry->segment, bus);
             }
         }
