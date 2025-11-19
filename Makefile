@@ -82,7 +82,7 @@ $(IMAGE_NAME).iso: limine/limine kernel libc userspace initrd
 	mkdir -p iso_root/boot
 	cp -v kernel/$(KERNEL_FILE) $(INITRD_FILE) iso_root/boot/
 	mkdir -p iso_root/boot/limine
-	cp -v limine.conf iso_root/boot/limine/
+	cp -v meta/limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
 	cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/boot/limine/
 	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/

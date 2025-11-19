@@ -91,7 +91,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     cr4 |= (1 << 9) | (1 << 10);
 
-    if (cpuid(7, 0, &unused, &ebx, &unused, &unused)) {
+    if (cpuid(7, 0, &unused, &ebx, &ecx, &unused)) {
         /* if XSAVE is available and AVX512 is supported, enable AVX512 */
         if (xcr0 != 0 && ebx & (1 << 16)) {
             xcr0 |= (1 << 5) | (1 << 6) | (1 << 7);
@@ -120,6 +120,11 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
         if (ebx & (1 << 20)) {
             cr4 |= (1 << 21);
             cpu_local->has_smap = true;
+        }
+
+        /* if UMIP is supported, enable it */
+        if (ecx & (1 << 2)) {
+            cr4 |= (1 << 11);
         }
     }
 

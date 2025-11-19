@@ -197,28 +197,25 @@ void* process_sbrk(struct process* process, intptr_t size) {
         size_t remaining = process->brk_next_unallocated_page_begin - process->brk;
 
         if ((unsigned) size > remaining) {
-            size_t bytes_needed = size - remaining;
-            size_t page_count = ((bytes_needed - 1) / PAGE_SIZE_4KB) + 1;
+            size_t needed = ALIGN_UP(size - remaining, PAGE_SIZE_4KB);
 
-            uintptr_t paddr = pmm_alloc(page_count);
+            uintptr_t paddr = pmm_alloc(needed / PAGE_SIZE_4KB);
+            pagemap_map_range(process->pagemap, process->brk_next_unallocated_page_begin, paddr, needed, PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
 
-            for (size_t i = 0; i < page_count; i++) {
-                pagemap_map(process->pagemap, process->brk_next_unallocated_page_begin + (i * PAGE_SIZE_4KB),
-                        paddr + (i * PAGE_SIZE_4KB), PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX, PAGE_SIZE_4KB);
-            }
-
-            process->brk_next_unallocated_page_begin += page_count * PAGE_SIZE_4KB;
+            process->brk_next_unallocated_page_begin += needed;
         }
     } else if (size < 0) {
         uintptr_t current_page_start = process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB;
         size_t remaining = process->brk - current_page_start;
+
+        page_size_t page_size;
 
         if ((unsigned) -size > remaining) {
             size_t page_count = (((-size - remaining) - 1) / PAGE_SIZE_4KB) + 1;
             for (size_t i = 0; i < page_count; i++) {
                 if (process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB >= PROCESS_BRK_BASE) {
                     process->brk_next_unallocated_page_begin -= PAGE_SIZE_4KB;
-                    pagemap_unmap(process->pagemap, process->brk_next_unallocated_page_begin);
+                    pagemap_unmap(process->pagemap, process->brk_next_unallocated_page_begin, &page_size);
                 }
             }
         }
@@ -273,13 +270,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     spinlock_acquire(&process->lock);
 
     thread->user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
-
-    uintptr_t user_stack_paddr = thread->user_stack_paddr;
-    uintptr_t user_stack_vaddr = process->thread_stack_top - USER_STACK_SIZE;
-    for (size_t i = 0; i < USER_STACK_SIZE / PAGE_SIZE_4KB; i++) {
-        pagemap_map(process->pagemap, user_stack_vaddr + (i * PAGE_SIZE_4KB), user_stack_paddr + (i * PAGE_SIZE_4KB),
-                PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX, PAGE_SIZE_4KB);
-    }
+    pagemap_map_range(process->pagemap, process->thread_stack_top - USER_STACK_SIZE, thread->user_stack_paddr, USER_STACK_SIZE, PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
 
     thread->registers.rip = entry;
     thread->registers.cs = 0x23;
@@ -297,7 +288,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     thread->gs_base = 0;
 
     if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL) {
-        void* stack_top = (void*) (user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
+        void* stack_top = (void*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
         uintptr_t* stack = stack_top;
 
         int envp_len;

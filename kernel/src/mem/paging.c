@@ -22,6 +22,8 @@ extern size_t data_start_addr[], data_end_addr[];
 
 struct pagemap* kernel_pagemap;
 
+static bool is_1gb_page_supported;
+static bool pat_supported;
 static struct slab_cache* pagemap_cache;
 
 static inline uintptr_t entries_to_vaddr(size_t pml4_index, size_t pml3_index, size_t pml2_index, size_t pml1_index) {
@@ -146,6 +148,20 @@ void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint
     }
 
     uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+
+    if (size == PAGE_SIZE_1GB) {
+        if (is_1gb_page_supported) {
+            pml3[pml3_index] = paddr | flags | PTE_SIZE;
+        } else {
+            for (size_t i = 0; i < PAGE_SIZE_1GB; i += PAGE_SIZE_2MB) {
+                pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_2MB);
+            }
+        }
+
+        spinlock_release(&pagemap->lock);
+        return;
+    }
+
     if (!(pml3[pml3_index] & PTE_PRESENT)) {
         pml3[pml3_index] = pmm_alloc_zero(1) | PTE_PRESENT | PTE_WRITABLE | PTE_USER;
     }
@@ -173,7 +189,7 @@ void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint
     spinlock_release(&pagemap->lock);
 }
 
-bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
+bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_size) {
     spinlock_acquire(&pagemap->lock);
 
     bool ret = false;
@@ -193,6 +209,15 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
         goto end;
     }
 
+    if (pml3[pml3_index] & PTE_SIZE) {
+        pml3[pml3_index] = 0;
+        invlpg(vaddr);
+
+        *out_size = PAGE_SIZE_1GB;
+        ret = true;
+        goto end;
+    }
+
     uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     if (!(pml2[pml2_index] & PTE_PRESENT)) {
         goto end;
@@ -201,6 +226,8 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
     if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
         invlpg(vaddr);
+
+        *out_size = PAGE_SIZE_2MB;
         ret = true;
         goto end;
     }
@@ -209,6 +236,7 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr) {
     pml1[pml1_index] = 0;
     invlpg(vaddr);
 
+    *out_size = PAGE_SIZE_4KB;
     ret = true;
 
 end:
@@ -216,7 +244,53 @@ end:
     return ret;
 }
 
+void pagemap_map_range(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, size_t length, uint64_t flags) {
+    if (vaddr % PAGE_SIZE_4KB || paddr % PAGE_SIZE_4KB || length % PAGE_SIZE_4KB) {
+        kpanic(NULL, true, "unaligned arguments to pagemap_map_range");
+    }
+
+    size_t i = 0;
+    while (i < length) {
+        if (IS_ALIGNED(vaddr, PAGE_SIZE_2MB) && IS_ALIGNED(paddr, PAGE_SIZE_2MB) && length - i >= PAGE_SIZE_2MB) {
+            pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_2MB);
+            i += PAGE_SIZE_2MB;
+            continue;
+        }
+
+        pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_4KB);
+        i += PAGE_SIZE_4KB;
+    }
+}
+
+bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length) {
+    if (vaddr % PAGE_SIZE_4KB || length % PAGE_SIZE_4KB) {
+        kpanic(NULL, true, "unaligned arguments to pagemap_unmap_range");
+    }
+
+    page_size_t page_size;
+
+    size_t i = 0;
+    while (i < length) {
+        if (!pagemap_unmap(pagemap, vaddr + i, &page_size)) {
+            return false;
+        }
+
+        i += page_size;
+    }
+
+    return true;
+}
+
 void paging_init(void) {
+    uint32_t edx, unused;
+    if (cpuid(0x80000001, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 26))) {
+        is_1gb_page_supported = true;
+    }
+
+    if (cpuid(1, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 16))) {
+        pat_supported = true;
+    }
+
     pagemap_cache = slab_cache_create("struct pagemap cache", sizeof(struct pagemap));
     if (unlikely(pagemap_cache == NULL)) {
         kpanic(NULL, false, "failed to create object cache for pagemap structs");
@@ -240,26 +314,23 @@ void paging_init(void) {
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* memmap_entry = memmap_response->entries[i];
-        if (memmap_entry->type == LIMINE_MEMMAP_RESERVED && memmap_entry->base > 0xffffffff) {
-            continue;
-        }
-        if (memmap_entry->type == LIMINE_MEMMAP_BAD_MEMORY) {
-            continue;
-        }
 
         uint64_t flags = PTE_PRESENT | PTE_NX;
-        if (memmap_entry->type == LIMINE_MEMMAP_USABLE || memmap_entry->type == LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE) {
-            flags |= PTE_WRITABLE;
-        } else if (memmap_entry->type == LIMINE_MEMMAP_FRAMEBUFFER) {
-            flags |= PTE_WRITABLE | PTE_WRITE_COMBINE;
+        switch (memmap_entry->type) {
+            case LIMINE_MEMMAP_USABLE:
+            case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
+            case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES:
+                flags |= PTE_WRITABLE;
+                break;
+            case LIMINE_MEMMAP_FRAMEBUFFER:
+                flags |= PTE_WRITABLE | (pat_supported ? PTE_WRITE_COMBINE : 0);
+                break;
+            default:
+                continue;
         }
 
         paddr = ALIGN_DOWN(memmap_entry->base, PAGE_SIZE_4KB);
-
-        for (size_t j = 0; j < DIV_CEIL(memmap_entry->length, PAGE_SIZE_4KB); j++) {
-            pagemap_map(kernel_pagemap, paddr + HIGH_VMA, paddr, flags, PAGE_SIZE_4KB);
-            paddr += PAGE_SIZE_4KB;
-        }
+        pagemap_map_range(kernel_pagemap, paddr + HIGH_VMA, paddr, ALIGN_UP(memmap_entry->length, PAGE_SIZE_4KB), flags);
     }
 
     struct limine_executable_address_response* kernel_address_response = executable_address_request.response;

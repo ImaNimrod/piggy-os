@@ -89,6 +89,8 @@ static bool elf_verify(struct elf_header* header) {
     return true;
 }
 
+#include <utils/log.h>
+
 int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
     if (node->type != VFS_TYPE_REGULAR) {
         return -ENOEXEC;
@@ -120,9 +122,9 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
         }
 
         size_t misalign = pheader.p_vaddr & (PAGE_SIZE_4KB - 1);
-        size_t page_count = (misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1)) / PAGE_SIZE_4KB;
+        size_t size = ALIGN_UP(misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1), PAGE_SIZE_4KB);
 
-        uintptr_t phys_pages = pmm_alloc_zero(page_count);
+        uintptr_t paddr = pmm_alloc_zero(size / PAGE_SIZE_4KB);
 
         uint64_t pte_flags = PTE_PRESENT | PTE_USER;
         if (pheader.p_flags & PF_W) {
@@ -132,13 +134,9 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
             pte_flags |= PTE_NX;
         }
 
-        for (size_t j = 0; j < page_count; j++) {
-            uintptr_t vaddr = pheader.p_vaddr + (j * PAGE_SIZE_4KB);
-            uintptr_t paddr = phys_pages + (j * PAGE_SIZE_4KB);
-            pagemap_map(pagemap, vaddr, paddr, pte_flags, PAGE_SIZE_4KB);
-        }
+        pagemap_map_range(pagemap, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), paddr, size, pte_flags);
 
-        if ((ret = node->ops->read(node, (void*) (phys_pages + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
+        if ((ret = node->ops->read(node, (void*) (paddr + misalign + HIGH_VMA), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
             goto end;
         }
     }

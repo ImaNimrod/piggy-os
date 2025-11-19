@@ -16,7 +16,8 @@
 #define DIV_CEIL(x, div) (((x) + ((div) - 1)) / (div))
 
 #define ALIGN_UP(x, align) (DIV_CEIL((x), (align)) * (align))
-#define ALIGN_DOWN(x, align) (((x) / (align)) * (align))
+#define ALIGN_DOWN(x, align) ((x) & ~((align) - 1))
+#define IS_ALIGNED(x, align) (!((x) & ((align) - 1)))
 
 #define BITMAP_SET(bitmap, i) ((bitmap)[(i) / 8] |=  (1 << ((i) % 8)))
 #define BITMAP_CLEAR(bitmap, i) ((bitmap)[(i) / 8] &= ~(1 << ((i) % 8)))

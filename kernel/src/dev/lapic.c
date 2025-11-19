@@ -33,10 +33,10 @@
 #define LAPIC_LVT_DELIVERY_NMI  (4 << 8)
 #define LAPIC_LVT_MASK          (1 << 16)
 
-#define PIC1_COMMAND_PORT   0x20
-#define PIC1_DATA_PORT      0x21
-#define PIC2_COMMAND_PORT   0xa0
-#define PIC2_DATA_PORT      0xa1
+#define PIC1_COMMAND_PORT       0x20
+#define PIC1_DATA_PORT          0x21
+#define PIC2_COMMAND_PORT       0xa0
+#define PIC2_DATA_PORT          0xa1
 
 static struct acpi_madt* madt;
 
