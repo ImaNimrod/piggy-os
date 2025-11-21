@@ -2,7 +2,6 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <utils/cmdline.h>
@@ -125,15 +124,14 @@ void process_create_init(void) {
     char* argv[] = { init_path, NULL };
     char* envp[] = { NULL };
 
-    uintptr_t entry;
-
-    if (elf_load(init_pagemap, init_node, &entry) < 0) {
+    struct auxvals auxvals;
+    if (elf_load(init_pagemap, init_node, &auxvals) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
     }
 
     VFS_NODE_UNREF(init_node);
 
-    struct thread* init_thread = thread_create_user(init_process, entry, argv, envp);
+    struct thread* init_thread = thread_create_user(init_process, auxvals.at_entry.value, argv, envp, &auxvals);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
@@ -254,7 +252,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     return thread;
 }
 
-struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp) {
+struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals) {
     struct thread* thread = slab_cache_alloc(thread_cache);
     if (unlikely(thread == NULL)) {
         return NULL;
@@ -287,7 +285,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     thread->fs_base = 0;
     thread->gs_base = 0;
 
-    if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL) {
+    if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL && auxvals != NULL) {
         void* stack_top = (void*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
         uintptr_t* stack = stack_top;
 
@@ -311,6 +309,14 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
         if (((argv_len + envp_len + 1) & 1) != 0) {
             stack--;
         }
+
+        auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = 0 };
+        auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = 0 };
+        auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
+
+        size_t auxval_size = sizeof(struct auxvals) >> 3;
+        stack -= auxval_size;
+        memcpy64(stack, (uint64_t*) auxvals, auxval_size);
 
         uintptr_t old_rsp = thread->registers.rsp;
 

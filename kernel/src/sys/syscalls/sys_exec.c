@@ -153,8 +153,8 @@ void sys_exec(struct registers* r) {
     }
     node->ops->unlock(node);
 
-    uintptr_t entry;
-    if ((ret = elf_load(new_pagemap, node, &entry)) < 0) {
+    struct auxvals auxvals;
+    if ((ret = elf_load(new_pagemap, node, &auxvals)) < 0) {
         goto end;
     }
 
@@ -186,7 +186,7 @@ void sys_exec(struct registers* r) {
         goto end;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, entry, kargv, kenvp);
+    struct thread* new_thread = thread_create_user(current_process, auxvals.at_entry.value, kargv, kenvp, &auxvals);
     if (unlikely(new_thread == NULL)) {
         ret = -ENOMEM;
         goto end;

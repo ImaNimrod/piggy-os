@@ -21,6 +21,8 @@ extern void sys_write(struct registers* r);
 extern void sys_ioctl(struct registers* r);
 extern void sys_seek(struct registers* r);
 extern void sys_truncate(struct registers* r);
+extern void sys_poll(struct registers* r);
+extern void sys_sync(struct registers* r);
 extern void sys_stat(struct registers* r);
 extern void sys_chdir(struct registers* r);
 extern void sys_fcntl(struct registers* r);
@@ -53,6 +55,8 @@ static syscall_handler_t syscall_table[] = {
     [SYS_IOCTL]     = sys_ioctl,
     [SYS_SEEK]      = sys_seek,
     [SYS_TRUNCATE]  = sys_truncate,
+    [SYS_POLL]      = sys_poll,
+    [SYS_SYNC]      = sys_sync,
     [SYS_STAT]      = sys_stat,
     [SYS_CHDIR]     = sys_chdir,
     [SYS_FCNTL]     = sys_fcntl,

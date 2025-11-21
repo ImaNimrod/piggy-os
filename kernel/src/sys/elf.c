@@ -89,9 +89,8 @@ static bool elf_verify(struct elf_header* header) {
     return true;
 }
 
-#include <utils/log.h>
-
-int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
+// TODO: support dynamic linking because i dont think its that hard, we just need mmap files first
+int elf_load(struct pagemap* pagemap, struct vfs_node* node, struct auxvals* auxvals) {
     if (node->type != VFS_TYPE_REGULAR) {
         return -ENOEXEC;
     }
@@ -110,6 +109,13 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
         goto end;
     }
 
+    auxvals->at_phdr.type = AT_PHDR;
+    auxvals->at_phent.type = AT_PHENT;
+    auxvals->at_phnum.type = AT_PHNUM;
+    auxvals->at_pagesz.type = AT_PAGESZ;
+    auxvals->at_entry.type = AT_ENTRY;
+    auxvals->at_null = (struct auxval) { .type = AT_NULL, .value = 0 };
+
     struct elf_program_header pheader;
 
     for (size_t i = 0; i < header.e_phnum; i++) {
@@ -117,36 +123,39 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, uintptr_t* entry) {
             goto end;
         }
 
-        if (pheader.p_type != PT_LOAD) {
-            continue;
-        }
+        switch (pheader.p_type) {
+            case PT_LOAD:
+                size_t misalign = pheader.p_vaddr & (PAGE_SIZE_4KB - 1);
+                size_t size = ALIGN_UP(misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1), PAGE_SIZE_4KB);
 
-        size_t misalign = pheader.p_vaddr & (PAGE_SIZE_4KB - 1);
-        size_t size = ALIGN_UP(misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1), PAGE_SIZE_4KB);
+                uintptr_t paddr = pmm_alloc_zero(size / PAGE_SIZE_4KB);
 
-        uintptr_t paddr = pmm_alloc_zero(size / PAGE_SIZE_4KB);
+                uint64_t pte_flags = PTE_PRESENT | PTE_USER;
+                if (pheader.p_flags & PF_W) {
+                    pte_flags |= PTE_WRITABLE;
+                }
+                if (!(pheader.p_flags & PF_X)) {
+                    pte_flags |= PTE_NX;
+                }
 
-        uint64_t pte_flags = PTE_PRESENT | PTE_USER;
-        if (pheader.p_flags & PF_W) {
-            pte_flags |= PTE_WRITABLE;
-        }
-        if (!(pheader.p_flags & PF_X)) {
-            pte_flags |= PTE_NX;
-        }
+                pagemap_map_range(pagemap, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), paddr, size, pte_flags);
 
-        pagemap_map_range(pagemap, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), paddr, size, pte_flags);
-
-        if ((ret = node->ops->read(node, (void*) (paddr + misalign + HIGH_VMA), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
-            goto end;
+                if ((ret = node->ops->read(node, (void*) (paddr + misalign + HIGH_VMA), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
+                    goto end;
+                }
+                break;
+            case PT_PHDR:
+                auxvals->at_phdr.value = pheader.p_vaddr;
+                break;
         }
     }
 
-    if (likely(entry)) {
-        *entry = header.e_entry;
-    }
+    auxvals->at_phent.value = header.e_phentsize;
+    auxvals->at_phnum.value = header.e_phnum;
+    auxvals->at_pagesz.value = PAGE_SIZE_4KB;
+    auxvals->at_entry.value = header.e_entry;
 
     ret = 0;
-
 end:
     node->ops->unlock(node);
     return ret;

@@ -80,11 +80,6 @@ int vfs_unmount(struct vfs_node* target_reference, const char* target_path) {
         goto end;
     }
 
-    error = target->mounted->ops->sync(target->mounted);
-    if (error < 0) {
-        goto end;
-    }
-
     error = target->mounted->ops->unmount(target->mounted);
     if (error < 0) {
         goto end;

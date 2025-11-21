@@ -19,6 +19,14 @@ typedef int mode_t;
 typedef long blksize_t;
 typedef long blkcnt_t;
 
+typedef unsigned int nfds_t;
+
+struct pollfd {
+    int fd;
+    short int events;
+    short int revents;
+};
+
 struct stat {
     dev_t st_dev;
     ino_t st_ino;

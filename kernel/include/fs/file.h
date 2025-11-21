@@ -22,6 +22,13 @@
 #define O_NONBLOCK  00200
 #define O_CLOEXEC   00400
 
+#define POLLIN      0x01
+#define POLLOUT     0x02
+#define POLLPRI     0x04
+#define POLLHUP     0x08
+#define POLLERR     0x10
+#define POLLNVAL    0x20
+
 struct process;
 
 struct file {

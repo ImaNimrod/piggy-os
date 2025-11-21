@@ -66,10 +66,12 @@ static dev_t partition_device_minor;
 
 static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
 static ssize_t block_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
+static int block_sync(dev_t dev);
 
 static struct device_ops block_device_ops = {
     .read = block_read,
     .write = block_write,
+    .sync = block_sync,
 };
 
 static hashmap_t* block_devices;
@@ -149,6 +151,19 @@ static ssize_t block_write(dev_t dev, const void* buf, size_t count, off_t offse
 end:
     pmm_free(paddr, page_count);
     return ret;
+}
+
+static int block_sync(dev_t dev) {
+    struct block_device* device;
+
+    spinlock_acquire(&block_devices_lock);
+    if (!hashmap_get(block_devices, &dev, sizeof(dev), (void**) &device)) {
+        spinlock_release(&block_devices_lock);
+        return -ENODEV;
+    }
+    spinlock_release(&block_devices_lock);
+
+    return device->cmd_handler(device, CMD_FLUSH, 0, 0, 0);
 }
 
 static void detect_partitions(struct block_device* device, const char* device_name) {

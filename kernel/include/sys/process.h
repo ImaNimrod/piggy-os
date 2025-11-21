@@ -5,6 +5,7 @@
 #include <fs/file.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/elf.h>
 #include <types.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
@@ -89,7 +90,7 @@ void process_exit(struct process* process, int status);
 void* process_sbrk(struct process* process, intptr_t size);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
-struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp);
+struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals);
 void thread_destroy(struct thread* thread);
 struct thread* thread_fork(struct process* process, struct thread* old_thread);
 

@@ -49,6 +49,7 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int tmpfs_truncate(struct vfs_node* node, off_t length);
+static int tmpfs_sync(struct vfs_node* node);
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat);
 static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int tmpfs_lock(struct vfs_node* node);
@@ -63,6 +64,7 @@ static struct vfs_node_ops tmpfs_node_ops = {
     .write = tmpfs_write,
     .ioctl = tmpfs_ioctl,
     .truncate = tmpfs_truncate,
+    .sync = tmpfs_sync,
     .getstat = tmpfs_getstat,
     .setstat = tmpfs_setstat,
     .lock = tmpfs_lock,
@@ -328,6 +330,11 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     tnode->stat.st_blocks = DIV_CEIL(tnode->stat.st_size, tnode->stat.st_blksize);
     tnode->stat.st_atim = tnode->stat.st_mtim = time_realtime;
 
+    return 0;
+}
+
+static int tmpfs_sync(struct vfs_node* node) {
+    (void) node;
     return 0;
 }
 

@@ -19,15 +19,17 @@
 #define SYS_IOCTL       15
 #define SYS_SEEK        16
 #define SYS_TRUNCATE    17
-#define SYS_STAT        18
-#define SYS_CHDIR       19
-#define SYS_FCNTL       20
-#define SYS_DUP         21
-#define SYS_SBRK        22
-#define SYS_SLEEP       23
-#define SYS_GETTIME     24
-#define SYS_SETTIME     25
-#define SYS_UNAME       26
-#define SYS_ARCHCTL     27
+#define SYS_POLL        18
+#define SYS_SYNC        19
+#define SYS_STAT        20
+#define SYS_CHDIR       21
+#define SYS_FCNTL       22
+#define SYS_DUP         23
+#define SYS_SBRK        24
+#define SYS_SLEEP       25
+#define SYS_GETTIME     26
+#define SYS_SETTIME     27
+#define SYS_UNAME       28
+#define SYS_ARCHCTL     29
 
 #endif /* _KERNEL_SYSCALL_H */

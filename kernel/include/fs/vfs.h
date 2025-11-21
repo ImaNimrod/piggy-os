@@ -41,9 +41,7 @@ struct vfs_node;
 struct vfs_ops {
     int (*mount)(struct vfs_node*, struct vfs_node*, struct vfs_filesystem**);
     int (*unmount)(struct vfs_filesystem*);
-
     int (*root)(struct vfs_filesystem*, struct vfs_node**);
-    int (*sync)(struct vfs_filesystem*);
 };
 
 struct vfs_node_ops {
@@ -55,6 +53,8 @@ struct vfs_node_ops {
     ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t, int);
     int (*ioctl)(struct vfs_node*, int, void*);
     int (*truncate)(struct vfs_node*, off_t);
+    short (*poll)(struct vfs_node*, short);
+    int (*sync)(struct vfs_node*);
 
     int (*getstat)(struct vfs_node*, struct stat*);
     int (*setstat)(struct vfs_node*, const struct stat*, int);

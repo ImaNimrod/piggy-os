@@ -33,6 +33,8 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 static ssize_t devfs_write(struct vfs_node* node, const void*, size_t count, off_t offset, int flags);
 static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int devfs_truncate(struct vfs_node* node, off_t length);
+static short devfs_poll(struct vfs_node* node, short events);
+static int devfs_sync(struct vfs_node* node);
 static int devfs_getstat(struct vfs_node* node, struct stat* stat);
 static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int devfs_lock(struct vfs_node* node);
@@ -45,6 +47,8 @@ static struct vfs_node_ops devfs_node_ops = {
     .write = devfs_write,
     .ioctl = devfs_ioctl,
     .truncate = devfs_truncate,
+    .poll = devfs_poll,
+    .sync = devfs_sync,
     .getstat = devfs_getstat,
     .setstat = devfs_setstat,
     .lock = devfs_lock,
@@ -99,7 +103,6 @@ static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
 
 static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
     struct devfs_node* dnode = (struct devfs_node*) node;
-
     if (dnode->devops->read == NULL) {
         return -ENODEV;
     }
@@ -109,7 +112,6 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 
 static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
     struct devfs_node* dnode = (struct devfs_node*) node;
-
     if (dnode->devops->write == NULL) {
         return -ENODEV;
     }
@@ -131,6 +133,24 @@ static int devfs_truncate(struct vfs_node* node, off_t length) {
     (void) node;
     (void) length;
     return -ENODEV;
+}
+
+static short devfs_poll(struct vfs_node* node, short events) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+    if (dnode->devops->poll == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->poll(dnode->stat.st_rdev, events);
+}
+
+static int devfs_sync(struct vfs_node* node) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+    if (dnode->devops->sync == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->sync(dnode->stat.st_rdev);
 }
 
 static int devfs_getstat(struct vfs_node* node, struct stat* stat) {
