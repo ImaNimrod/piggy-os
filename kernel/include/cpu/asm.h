@@ -221,6 +221,10 @@ static USED void xsave(void* ctx) {
     asm volatile("xsave (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
 }
 
+static USED void xsaveopt(void* ctx) {
+    asm volatile("xsaveopt (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
+}
+
 static USED void xrstor(void* ctx) {
     asm volatile("xrstor (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
 }

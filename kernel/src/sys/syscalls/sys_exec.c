@@ -20,6 +20,8 @@ static void free_string_array(char** xs) {
     kfree(xs);
 }
 
+#include <utils/log.h>
+
 void sys_exec(struct registers* r) {
     const char* path = (const char*) r->rdi;
     const char** argv = (const char**) r->rsi;
@@ -169,11 +171,12 @@ void sys_exec(struct registers* r) {
 
     current_process->pagemap = new_pagemap;
     current_process->thread_stack_top = PROCESS_STACK_TOP;
+    current_process->brk = current_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
 
     struct thread* t;
     for (size_t i = 0; i < vector_size(current_process->threads); i++) {
         t = *vector_get(current_process->threads, i);
-        if (t != this_cpu()->running_thread) {
+        if (t != current_thread) {
             scheduler_dequeue(t);
             thread_destroy(t);
         }
@@ -192,6 +195,9 @@ void sys_exec(struct registers* r) {
         goto end;
     }
     scheduler_enqueue(new_thread);
+
+    pagemap_load(new_pagemap);
+    this_cpu()->running_thread = new_thread;
 
 end:
     kfree(kpath);
@@ -213,13 +219,15 @@ end:
         goto error;
     }
 
-    pagemap_load(kernel_pagemap);
-    pagemap_destroy(old_pagemap);
-    scheduler_dequeue(this_cpu()->running_thread);
-    thread_destroy(this_cpu()->running_thread);
-    this_cpu()->running_thread = NULL;
-    scheduler_yield(false);
-    __builtin_unreachable();
+    //scheduler_dequeue(current_thread);
+    //thread_destroy(current_thread);
+    //pagemap_destroy(old_pagemap);
+
+    //scheduler_yield(true);
+    //__builtin_unreachable();
+
+    klog("asldkjasd\n");
+    return;
 
 error:
     if (current_process->pagemap == old_pagemap) {

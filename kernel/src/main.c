@@ -130,6 +130,12 @@ NORETURN static void kernel_main(void) {
     scheduler_await();
 }
 
+bool get_interrupt_state() {
+    uint64_t rflags = 0;
+    asm volatile ("pushfq\n\tpop %0" : "=r"(rflags));
+    return (rflags >> 9) & 1;
+}
+
 NORETURN void kernel_entry(void) {
     if (!LIMINE_BASE_REVISION_SUPPORTED(limine_base_revision)) {
         cli();

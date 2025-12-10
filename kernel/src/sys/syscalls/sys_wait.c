@@ -6,7 +6,7 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
-#define WNOHANG (1 << 0)
+#define WNOHANG 0x01
 
 void sys_wait(struct registers* r) {
     pid_t pid = r->rdi;

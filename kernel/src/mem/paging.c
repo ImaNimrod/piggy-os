@@ -15,7 +15,6 @@
 extern struct limine_executable_address_request executable_address_request;
 extern struct limine_memmap_request memmap_request;
 
-extern size_t limine_requests_start_addr[], limine_requests_end_addr[];
 extern size_t text_start_addr[], text_end_addr[];
 extern size_t rodata_start_addr[], rodata_end_addr[];
 extern size_t data_start_addr[], data_end_addr[];
@@ -68,7 +67,8 @@ static void page_fault_handler(struct registers* r, void* arg) {
         current_thread->usercopy_registers = NULL;
         r->rax = -EFAULT;
     } else {
-        kpanic(r, false, "fatal pagefault");
+        kpanic(r, false, "fatal pagefault in pid: %d, tid: %d",
+                current_thread->process->pid, current_thread->tid);
     }
 }
 
@@ -335,9 +335,6 @@ void paging_init(void) {
 
     struct limine_executable_address_response* kernel_address_response = executable_address_request.response;
 
-    uintptr_t limine_requests_start = ALIGN_DOWN((uintptr_t) limine_requests_start_addr, PAGE_SIZE_4KB);
-    uintptr_t limine_requests_end = ALIGN_UP((uintptr_t) limine_requests_end_addr, PAGE_SIZE_4KB);
-
     uintptr_t text_start = ALIGN_DOWN((uintptr_t) text_start_addr, PAGE_SIZE_4KB);
     uintptr_t text_end = ALIGN_UP((uintptr_t) text_end_addr, PAGE_SIZE_4KB);
 
@@ -346,11 +343,6 @@ void paging_init(void) {
 
     uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE_4KB);
     uintptr_t data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE_4KB);
-
-    for (uintptr_t limine_requests_addr = limine_requests_start; limine_requests_addr < limine_requests_end; limine_requests_addr += PAGE_SIZE_4KB) {
-        paddr = limine_requests_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, limine_requests_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
-    }
 
     for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE_4KB) {
         paddr = text_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;

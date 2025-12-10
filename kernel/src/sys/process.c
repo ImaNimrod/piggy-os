@@ -1,3 +1,4 @@
+#include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
@@ -10,9 +11,6 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
-#define KERNEL_STACK_SIZE   0x4000
-#define USER_STACK_SIZE     0x20000
-
 struct process* kernel_process;
 static struct process* init_process;
 
@@ -23,7 +21,7 @@ static pid_t next_pid;
 static const uint16_t default_fcw = 0x33f;
 static const uint32_t default_mxcsr = 0x1f80;
 
-struct process* process_create(struct process* parent, struct pagemap* pagemap) {
+struct process* process_create(struct process* parent) {
     struct process* new_process = slab_cache_alloc(process_cache);
     if (unlikely(new_process == NULL)) {
         return NULL;
@@ -54,7 +52,10 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
         new_process->cwd = vfs_root;
         VFS_NODE_REF(vfs_root);
 
-        new_process->pagemap = pagemap;
+        new_process->pagemap = pagemap_create();
+        if (unlikely(new_process->pagemap == NULL)) {
+            goto error;
+        }
         new_process->thread_stack_top = PROCESS_STACK_TOP;
         new_process->brk = new_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
     }
@@ -63,8 +64,7 @@ struct process* process_create(struct process* parent, struct pagemap* pagemap) 
     __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
 
     new_process->state = PROCESS_RUNNING;
-
-    goto end;
+    return new_process;
 
 error:
     if (new_process->threads != NULL) {
@@ -72,9 +72,7 @@ error:
     }
 
     slab_cache_free(process_cache, new_process);
-    new_process = NULL;
-end:
-    return new_process;
+    return NULL;
 }
 
 void process_create_init(void) {
@@ -89,12 +87,7 @@ void process_create_init(void) {
     }
     init_node->ops->unlock(init_node);
 
-    struct pagemap* init_pagemap = pagemap_create();
-    if (unlikely(init_pagemap == NULL)) {
-        kpanic(NULL, false, "failed to create pagemap for init process");
-    }
-
-    init_process = process_create(NULL, init_pagemap);
+    init_process = process_create(NULL);
     if (unlikely(init_process == NULL)) {
         kpanic(NULL, false, "failed to create init process");
     }
@@ -125,7 +118,7 @@ void process_create_init(void) {
     char* envp[] = { NULL };
 
     struct auxvals auxvals;
-    if (elf_load(init_pagemap, init_node, &auxvals) < 0) {
+    if (elf_load(init_process->pagemap, init_node, &auxvals) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
     }
 
@@ -287,7 +280,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
 
     if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL && auxvals != NULL) {
         void* stack_top = (void*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
-        uintptr_t* stack = stack_top;
+        uint64_t* stack = stack_top;
 
         int envp_len;
         for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
@@ -310,8 +303,8 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
             stack--;
         }
 
-        auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = 0 };
-        auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = 0 };
+        // auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = 0 };
+        // auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = 0 };
         auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
 
         size_t auxval_size = sizeof(struct auxvals) >> 3;
@@ -367,7 +360,7 @@ void thread_destroy(struct thread* thread) {
     slab_cache_free(thread_cache, thread);
 }
 
-struct thread* thread_fork(struct process* process, struct thread* old_thread) {
+struct thread* thread_fork(struct process* process, struct registers* context) {
     struct thread* new_thread = slab_cache_alloc(thread_cache);
     if (unlikely(new_thread == NULL)) {
         return NULL;
@@ -380,21 +373,20 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread) {
     new_thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
     new_thread->kernel_stack = new_thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
-    memcpy64((void*) &new_thread->registers, (const void*) &old_thread->registers, sizeof(struct registers) >> 3);
+    memcpy64((uint64_t*) &new_thread->registers, (const uint64_t*) context, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;
 
-    new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
-    memcpy64(new_thread->fpu_context, old_thread->fpu_context, this_cpu()->fpu_context_size >> 3);
+    new_thread->fpu_context = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
+    this_cpu()->fpu_restore(new_thread->fpu_context);
 
-    new_thread->fs_base = old_thread->fs_base;
-    new_thread->gs_base = old_thread->gs_base;
+    new_thread->fs_base = rdmsr(IA32_FS_BASE_MSR);
+    new_thread->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
 
     spinlock_acquire(&process->lock);
-
     new_thread->tid = vector_size(process->threads);
     vector_push(process->threads, &new_thread);
-
     spinlock_release(&process->lock);
+
     return new_thread;
 }
 
@@ -409,10 +401,20 @@ void process_init(void) {
         kpanic(NULL, false, "failed to initialize object cache for thread structs");
     }
 
-    kernel_process = process_create(NULL, kernel_pagemap);
+    kernel_process = slab_cache_alloc(process_cache);
     if (unlikely(kernel_process == NULL)) {
         kpanic(NULL, false, "failed to create kernel process");
     }
+
+    kernel_process->threads = vector_create(sizeof(struct thread*));
+    if (unlikely(kernel_process->threads == NULL)) {
+        kpanic(NULL, false, "failed to create kernel process threads vector");
+    }
+
+    kernel_process->pagemap = kernel_pagemap;
+
+    kernel_process->pid = next_pid++;
+    kernel_process->state = PROCESS_RUNNING;
 
     klog("[process] initialized kernel process\n");
 }

@@ -17,8 +17,8 @@
 #define HPET_REG_CONFIG 0x010
 #define HPET_REG_ISR    0x020
 #define HPET_REG_COUNT  0x0f0
-#define HPET_REG_TIMER_CONFIG(n) (0x100 + 0x20 * n)
-#define HPET_REG_TIMER_COUNT(n) (0x108 + 0x20 * n)
+#define HPET_REG_TIMER_CONFIG(n)    (0x100 + 0x20 * n)
+#define HPET_REG_TIMER_COUNT(n)     (0x108 + 0x20 * n)
 
 #define HPET_ENABLE_CNF         (1 << 0)
 #define HPET_LEGACY_REPLACEMENT (1 << 1)

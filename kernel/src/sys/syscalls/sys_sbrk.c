@@ -2,6 +2,7 @@
 #include <cpu/smp.h>
 #include <stdint.h>
 #include <sys/process.h>
+#include <utils/log.h>
 
 // TODO: stop using shitty BSD sbrk interface
 void sys_sbrk(struct registers* r) {

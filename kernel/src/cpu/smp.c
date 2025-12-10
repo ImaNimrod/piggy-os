@@ -13,29 +13,13 @@ extern struct limine_mp_request mp_request;
 
 uintptr_t bsp_lapic_addr;
 size_t cpu_count = 1;
+struct cpu_local* cpu_local_data;
 bool use_x2apic;
 
 static uint32_t bsp_lapic_id;
 static size_t initialized_cpus;
-static struct cpu_local* cpu_local_data;
 
 extern void syscall_entry(void);
-
-static uint64_t read_fs_base_msr(void) {
-    return rdmsr(IA32_FS_BASE_MSR);
-}
-
-static void write_fs_base_msr(uint64_t fs_base) {
-    wrmsr(IA32_FS_BASE_MSR, fs_base);
-}
-
-static uint64_t read_gs_base_msr(void) {
-    return rdmsr(IA32_GS_BASE_MSR);
-}
-
-static void write_gs_base_msr(uint64_t gs_base) {
-    wrmsr(IA32_GS_BASE_MSR, gs_base);
-}
 
 static void idle(void) {
     for (;;) {
@@ -57,10 +41,13 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     cpu_local->cpu_number = mp_info->processor_id;
     cpu_local->lapic_id = mp_info->lapic_id;
 
+    wrmsr(IA32_GS_BASE_MSR, (uint64_t) cpu_local);
+
+    cpu_local->scheduler_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA;
+    cpu_local->tss.ist1 = cpu_local->scheduler_stack + KERNEL_STACK_SIZE;
+
     gdt_reload();
     idt_reload();
-
-    gdt_set_tss(&cpu_local->tss);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
         pagemap_load(kernel_pagemap);
@@ -70,7 +57,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     uint64_t cr4 = read_cr4();
     uint64_t xcr0 = 0;
 
-    uint32_t ebx = 0, ecx = 0, edx = 0, unused;
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, unused;
 
     if (cpuid(1, 0, &unused, &unused, &ecx, &edx)) {
         /* enable XSAVE */
@@ -94,21 +81,12 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     if (cpuid(7, 0, &unused, &ebx, &ecx, &unused)) {
         /* if XSAVE is available and AVX512 is supported, enable AVX512 */
         if (xcr0 != 0 && ebx & (1 << 16)) {
-            xcr0 |= (1 << 5) | (1 << 6) | (1 << 7);
+            xcr0 |= (7 << 5);
         }
 
         /* if FSGSBASE is supported, enable it */
         if (ebx & (1 << 0)) {
             cr4 |= (1 << 16);
-            cpu_local->read_fs_base = rdfsbase;
-            cpu_local->write_fs_base = wrfsbase;
-            cpu_local->read_gs_base = rdgsbase;
-            cpu_local->write_gs_base = wrgsbase;
-        } else {
-            cpu_local->read_fs_base = read_fs_base_msr;
-            cpu_local->write_fs_base = write_fs_base_msr;
-            cpu_local->read_gs_base = read_gs_base_msr;
-            cpu_local->write_gs_base = write_gs_base_msr;
         }
 
         /* if SMEP is supported, enable it */
@@ -131,11 +109,13 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     write_cr0(cr0);
     write_cr4(cr4);
 
-    if (cpuid(13, 0, &unused, &unused, &ecx, &unused) && xcr0 != 0) {
+    if (xcr0 != 0) {
         write_xcr0(xcr0);
+    }
 
-        cpu_local->fpu_context_size = ecx;
-        cpu_local->fpu_save = xsave;
+    if (xcr0 != 0 && cpuid(13, 0, &eax, &ebx, &unused, &unused)) {
+        cpu_local->fpu_context_size = ebx;
+        cpu_local->fpu_save = (eax & (1 << 0)) ? xsaveopt : xsave;
         cpu_local->fpu_restore = xrstor;
     } else {
         cpu_local->fpu_context_size = 512;
@@ -155,8 +135,6 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     cpu_local->idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
     cpu_local->running_thread = cpu_local->idle_thread;
     scheduler_enqueue(cpu_local->idle_thread);
-
-    wrmsr(IA32_GS_BASE_MSR, (uint64_t) cpu_local);
 
     /* use the same lapic base address mapping for all cpus */ 
     if (cpu_local->lapic_id != bsp_lapic_id) {
@@ -194,6 +172,7 @@ void smp_init(void) {
 
         if (mp_info->lapic_id == mp_response->bsp_lapic_id) {
             idt_init();
+            idt_set_ist(SCHEDULER_IRQ_VECTOR, 1);
 
             if (!use_x2apic) {
                 bsp_lapic_addr = rdmsr(IA32_APIC_BASE_MSR) & ~(0xffful);

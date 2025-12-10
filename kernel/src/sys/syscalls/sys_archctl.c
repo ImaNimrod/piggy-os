@@ -1,6 +1,5 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <cpu/smp.h>
 #include <errno.h>
 #include <utils/usercopy.h>
 
@@ -22,7 +21,7 @@ void sys_archctl(struct registers* r) {
 
     switch (op) {
         case ARCHCTL_GET_FS_BASE: {
-            uint64_t fs = this_cpu()->read_fs_base();
+            uint64_t fs = rdmsr(IA32_FS_BASE_MSR);
             ret = user_memcpy_to_user(arg, &fs, sizeof(uint64_t));
             break;
         }
@@ -32,7 +31,7 @@ void sys_archctl(struct registers* r) {
             break;
         }
         case ARCHCTL_SET_FS_BASE:
-            this_cpu()->write_fs_base((uint64_t) arg);
+            wrmsr(IA32_FS_BASE_MSR, (uint64_t) arg);
             break;
         case ARCHCTL_SET_GS_BASE:
             wrmsr(IA32_KERNEL_GS_BASE_MSR, (uint64_t) arg);

@@ -25,10 +25,10 @@ pushd "$DIR/build"
             --target="$TARGET" \
             --disable-multilib \
             --disable-nls \
-            --disable-shared \
             --disable-werror \
+            --enable-default-execstack=no \
             --enable-lto \
-            --enable-static \
+            --enable-shared \
             --with-system-zlib \
             --with-sysroot="$SYSROOT" \
             --without-docdir || exit 1 
@@ -55,11 +55,12 @@ pushd "$DIR/build"
             --target="$TARGET" \
             --disable-multilib \
             --disable-nls \
-            --disable-shared \
             --disable-werror \
-            --enable-languages=c,c++ \
+            --enable-host-shared \
+            --enable-languages=c,c++,lto \
             --enable-lto \
-            --enable-static \
+            --enable-shared \
+            --with-pic \
             --with-sysroot="$SYSROOT" \
             --with-system-zlib \
             --without-docdir \

@@ -254,7 +254,7 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
         actual_count = count - ((offset + count) - tnode->stat.st_size);
     }
 
-    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) ((uintptr_t) tnode->data + offset), count);
+    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) ((uintptr_t) tnode->data + offset), actual_count);
     if (ret < 0) {
         return ret;
     }

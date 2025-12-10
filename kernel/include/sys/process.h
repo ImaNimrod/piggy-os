@@ -10,6 +10,9 @@
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
+#define KERNEL_STACK_SIZE   0x4000
+#define USER_STACK_SIZE     0x20000
+
 #define PROCESS_FD_COUNT    32
 #define PROCESS_BRK_BASE    0x600000000
 #define PROCESS_STACK_TOP   0x700000000
@@ -83,7 +86,7 @@ struct process {
 
 extern struct process* kernel_process;
 
-struct process* process_create(struct process* old_process, struct pagemap* pagemap);
+struct process* process_create(struct process* parent);
 void process_create_init(void);
 void process_destroy(struct process* process);
 void process_exit(struct process* process, int status);
@@ -92,7 +95,7 @@ void* process_sbrk(struct process* process, intptr_t size);
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals);
 void thread_destroy(struct thread* thread);
-struct thread* thread_fork(struct process* process, struct thread* old_thread);
+struct thread* thread_fork(struct process* process, struct registers* context);
 
 void process_init(void);
 

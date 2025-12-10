@@ -42,7 +42,7 @@ run-virtio:
 
 .PHONY: libc-headers
 libc-headers:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=true build
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=true -Dno_headers=false build
 	cd libc/build; ninja install
 
 .PHONY: toolchain
@@ -65,7 +65,7 @@ kernel:
 
 .PHONY: libc
 libc:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dno_headers=true -Ddefault_library=static build
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false -Dno_headers=true -Ddefault_library=static build
 	cd libc/build; ninja install
 
 .PHONY: userspace

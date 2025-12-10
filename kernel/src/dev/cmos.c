@@ -94,7 +94,7 @@ void cmos_get_rtc_time(struct timespec* tp) {
         days_since_epoch += is_leap_year(i) ? 366 : 365;
     } 
 
-    tp->tv_sec =  second + (minute * 60) + (hour * 3600) + (days_since_epoch * 86400);
+    tp->tv_sec = second + (minute * 60) + (hour * 3600) + (days_since_epoch * 86400);
     tp->tv_nsec = 0;
 }
 

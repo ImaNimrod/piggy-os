@@ -11,9 +11,6 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
-#define SCHEDULER_IRQ_VECTOR 48 
-#define SCHEDULER_TIME_QUANTA_MS 10
-
 extern void context_switch(struct registers* r);
 
 static struct thread* thread_list;
@@ -64,7 +61,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
 
         if (current_thread->is_user) {
             this_cpu()->fpu_save(current_thread->fpu_context);
-            current_thread->fs_base = this_cpu()->read_fs_base();
+            current_thread->fs_base = rdmsr(IA32_FS_BASE_MSR);
             current_thread->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
         }
 
@@ -95,7 +92,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
 
     if (next_thread->is_user) {
         this_cpu()->fpu_restore(next_thread->fpu_context);
-        this_cpu()->write_fs_base(next_thread->fs_base);
+        wrmsr(IA32_FS_BASE_MSR, next_thread->fs_base);
         wrmsr(IA32_KERNEL_GS_BASE_MSR, next_thread->gs_base);
     }
 

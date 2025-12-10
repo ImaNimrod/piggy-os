@@ -252,17 +252,18 @@ void fb_dev_early_init(void) {
     struct limine_framebuffer* framebuffer = framebuffer_response->framebuffers[0];
 
     fb_context = flanterm_fb_init(
-            flanterm_alloc, flanterm_free,
-            (uint32_t*) framebuffer->address,
-            framebuffer->width, framebuffer->height, framebuffer->pitch,
-            framebuffer->red_mask_size, framebuffer->red_mask_shift,
-            framebuffer->green_mask_size, framebuffer->green_mask_shift,
-            framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
-            NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, NULL,
-            NULL, 0, 0, 1,
-            0, 0,
-            0);
+        flanterm_alloc,
+        flanterm_free,
+        (uint32_t*) framebuffer->address, framebuffer->width, framebuffer->height, framebuffer->pitch,
+        framebuffer->red_mask_size, framebuffer->red_mask_shift,
+        framebuffer->green_mask_size, framebuffer->green_mask_shift,
+        framebuffer->blue_mask_size, framebuffer->blue_mask_shift,
+        NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, 0, 0, 1,
+        0, 0,
+        0, 0
+    );
 }

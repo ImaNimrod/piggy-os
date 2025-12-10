@@ -14,16 +14,14 @@ struct cpu_local {
     struct thread* running_thread;
     struct thread* idle_thread;
 
+    uintptr_t scheduler_stack;
+
+    struct gdt gdt;
     struct tss tss;
 
     size_t fpu_context_size;
     void (*fpu_save)(void*);
     void (*fpu_restore)(void*);
-
-    uint64_t (*read_fs_base)(void);
-    void (*write_fs_base)(uint64_t);
-    uint64_t (*read_gs_base)(void);
-    void (*write_gs_base)(uint64_t);
 
     bool has_smap;
 
@@ -34,6 +32,7 @@ struct cpu_local {
 
 extern uintptr_t bsp_lapic_addr;
 extern size_t cpu_count;
+extern struct cpu_local* cpu_local_data;
 extern bool use_x2apic;
 
 void smp_init(void);

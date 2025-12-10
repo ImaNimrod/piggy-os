@@ -19,20 +19,18 @@ pushd ${DIR}/build
     pushd build_qemu
         echo "configuring ${QEMU_NAME}..."
 
-        EXTRA_ARGS=""
+        GUI_ARGS=""
         if [ ${UNAME} == "Darwin" ]; then
-            UI_LIB=cocoa
-            EXTRA_ARGS="--disable-sdl"
+            GUI_ARGS="--enable-cocoa --disable-sdl"
         else
-            UI_LIB=gtk
+            GUI_ARGS="--enable-gtk --enable-vte"
         fi
 
         ${DIR}/tarballs/${QEMU_NAME}/configure \
             --prefix=${PREFIX} \
             --target-list=x86_64-softmmu \
-            --enable-$UI_LIB \
             --enable-slirp \
-            $EXTRA_ARGS || exit 1
+            $GUI_ARGS || exit 1
 
         echo "building ${QEMU_NAME}..."
 
