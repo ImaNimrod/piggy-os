@@ -27,7 +27,9 @@ extern void sys_stat(struct registers* r);
 extern void sys_chdir(struct registers* r);
 extern void sys_fcntl(struct registers* r);
 extern void sys_dup(struct registers* r);
-extern void sys_sbrk(struct registers* r);
+extern void sys_mmap(struct registers* r);
+extern void sys_munmap(struct registers* r);
+extern void sys_mprotect(struct registers* r);
 extern void sys_sleep(struct registers* r);
 extern void sys_gettime(struct registers* r);
 extern void sys_settime(struct registers* r);
@@ -61,7 +63,9 @@ static syscall_handler_t syscall_table[] = {
     [SYS_CHDIR]     = sys_chdir,
     [SYS_FCNTL]     = sys_fcntl,
     [SYS_DUP]       = sys_dup,
-    [SYS_SBRK]      = sys_sbrk,
+    [SYS_MMAP]      = sys_mmap,
+    [SYS_MUNMAP]    = sys_munmap,
+    [SYS_MPROTECT]  = sys_mprotect,
     [SYS_SLEEP]     = sys_sleep,
     [SYS_GETTIME]   = sys_gettime,
     [SYS_SETTIME]   = sys_settime,

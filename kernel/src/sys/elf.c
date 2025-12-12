@@ -90,7 +90,7 @@ static bool elf_verify(struct elf_header* header) {
 }
 
 // TODO: support dynamic linking because i dont think its that hard, we just need mmap files first
-int elf_load(struct pagemap* pagemap, struct vfs_node* node, struct auxvals* auxvals) {
+int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxvals* auxvals) {
     if (node->type != VFS_TYPE_REGULAR) {
         return -ENOEXEC;
     }
@@ -130,15 +130,16 @@ int elf_load(struct pagemap* pagemap, struct vfs_node* node, struct auxvals* aux
 
                 uintptr_t paddr = pmm_alloc_zero(size / PAGE_SIZE_4KB);
 
-                uint64_t pte_flags = PTE_PRESENT | PTE_USER;
+                int prot = PROT_READ;
                 if (pheader.p_flags & PF_W) {
-                    pte_flags |= PTE_WRITABLE;
+                    prot |= PROT_WRITE;
                 }
-                if (!(pheader.p_flags & PF_X)) {
-                    pte_flags |= PTE_NX;
+                if (pheader.p_flags & PF_X) {
+                    prot |= PROT_EXEC;
                 }
 
-                pagemap_map_range(pagemap, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), paddr, size, pte_flags);
+                vmm_map(vmm_context, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), size,
+                        prot, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, paddr);
 
                 if ((ret = node->ops->read(node, (void*) (paddr + misalign + HIGH_VMA), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
                     goto end;

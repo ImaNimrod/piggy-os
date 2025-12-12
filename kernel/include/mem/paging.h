@@ -9,6 +9,11 @@
 
 extern volatile struct limine_hhdm_request hhdm_request;
 
+#define USER_START      0x0000000000001000
+#define USER_END        0x0000800000000000
+#define KERNEL_START    0xffff800000000000
+#define KERNEL_END      0xffffffffffffffff
+
 #define HIGH_VMA (hhdm_request.response->offset)
 
 #define PTE_PRESENT         (1ul << 0)
@@ -37,12 +42,14 @@ extern struct pagemap* kernel_pagemap;
 
 struct pagemap* pagemap_create(void);
 bool pagemap_destroy(struct pagemap* pagemap);
-struct pagemap* pagemap_fork(struct pagemap* old_pagemap);
+void pagemap_invalidate(uintptr_t vaddr, size_t size);
 void pagemap_load(struct pagemap* pagemap);
 void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size);
-void pagemap_map_range(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, size_t length, uint64_t flags);
 bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_size);
+bool pagemap_remap(struct pagemap* pagemap, uintptr_t vaddr, uint64_t flags);
+void pagemap_map_range(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, size_t length, uint64_t flags);
 bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length);
+uint64_t pagemap_get_mapping(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_size);
 void paging_init(void);
 
 #endif /* _KERNEL_MEM_PAGING_H */

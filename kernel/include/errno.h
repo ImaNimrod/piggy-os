@@ -1,6 +1,7 @@
 #ifndef _KERNEL_ERRNO_H
 #define _KERNEL_ERRNO_H
 
+#define EACCES          13
 #define EAGAIN          11
 #define EBADF            9
 #define EBUSY           16

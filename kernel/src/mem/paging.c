@@ -5,6 +5,7 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/process.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -62,13 +63,15 @@ static void page_fault_handler(struct registers* r, void* arg) {
 
     struct thread* current_thread = this_cpu()->running_thread;
 
-    if (current_thread != NULL && current_thread->usercopy_registers != NULL) {
-        memcpy64((uint64_t*) r, (const uint64_t*) current_thread->usercopy_registers, sizeof(struct registers) >> 3);
-        current_thread->usercopy_registers = NULL;
-        r->rax = -EFAULT;
-    } else {
-        kpanic(r, false, "fatal pagefault in pid: %d, tid: %d",
-                current_thread->process->pid, current_thread->tid);
+    if (!vmm_page_fault_handler(read_cr2(), r->error_code)) {
+        if (current_thread != NULL && current_thread->usercopy_registers != NULL) {
+            memcpy64((uint64_t*) r, (const uint64_t*) current_thread->usercopy_registers, sizeof(struct registers) >> 3);
+            current_thread->usercopy_registers = NULL;
+            r->rax = -EFAULT;
+        } else {
+            kpanic(r, false, "fatal pagefault in pid: %d, tid: %d",
+                    current_thread->process->pid, current_thread->tid);
+        }
     }
 }
 
@@ -94,40 +97,16 @@ bool pagemap_destroy(struct pagemap* pagemap) {
     return slab_cache_free(pagemap_cache, pagemap);
 }
 
-// TODO: implement COW and other speedups because this is painfully slow
-struct pagemap* pagemap_fork(struct pagemap* old_pagemap) {
-    struct pagemap* new_pagemap = pagemap_create();
-    if (unlikely(new_pagemap == NULL)) {
-        return NULL;
-    }
-
-    for (size_t i = 0; i < 256; i++) {
-        if (old_pagemap->top_level[i] & PTE_PRESENT) {
-            uint64_t* pml4 = (uint64_t*) ((old_pagemap->top_level[i] & ~PTE_FLAG_MASK) + HIGH_VMA);
-
-            for (size_t j = 0; j < 512; j++) {
-                if (pml4[j] & PTE_PRESENT) {
-                    uint64_t* pml3 = (uint64_t*) ((pml4[j] & ~PTE_FLAG_MASK) + HIGH_VMA);
-
-                    for (size_t k = 0; k < 512; k++) {
-                        if (pml3[k] & PTE_PRESENT) {
-                            uint64_t* pml2 = (uint64_t*) ((pml3[k] & ~PTE_FLAG_MASK) + HIGH_VMA);
-
-                            for (size_t l = 0; l < 512; l++) {
-                                if (pml2[l] & PTE_PRESENT) {
-                                    uintptr_t paddr = pmm_alloc_zero(1);
-                                    memcpy64((void*) (paddr + HIGH_VMA), (void*) ((pml2[l] & ~PTE_FLAG_MASK) + HIGH_VMA), PAGE_SIZE_4KB >> 3);
-                                    pagemap_map(new_pagemap, entries_to_vaddr(i, j, k, l), paddr, pml2[l] & PTE_FLAG_MASK, PAGE_SIZE_4KB);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+void pagemap_invalidate(uintptr_t vaddr, size_t size) {
+    size_t page_count = DIV_CEIL(size, PAGE_SIZE_4KB);
+    if (page_count <= 16) {
+        vaddr = ALIGN_DOWN(vaddr, PAGE_SIZE_4KB);
+        for (size_t i = 0; i < size; i += PAGE_SIZE_4KB) {
+            invlpg(vaddr + i);
         }
+    } else {
+        write_cr3(read_cr3());
     }
-
-    return new_pagemap;
 }
 
 void pagemap_load(struct pagemap* pagemap) {
@@ -211,8 +190,6 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_si
 
     if (pml3[pml3_index] & PTE_SIZE) {
         pml3[pml3_index] = 0;
-        invlpg(vaddr);
-
         *out_size = PAGE_SIZE_1GB;
         ret = true;
         goto end;
@@ -225,8 +202,6 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_si
 
     if (pml2[pml2_index] & PTE_SIZE) {
         pml2[pml2_index] = 0;
-        invlpg(vaddr);
-
         *out_size = PAGE_SIZE_2MB;
         ret = true;
         goto end;
@@ -234,9 +209,53 @@ bool pagemap_unmap(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_si
 
     uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
     pml1[pml1_index] = 0;
-    invlpg(vaddr);
-
     *out_size = PAGE_SIZE_4KB;
+    ret = true;
+
+end:
+    spinlock_release(&pagemap->lock);
+    return ret;
+}
+
+bool pagemap_remap(struct pagemap* pagemap, uintptr_t vaddr, uint64_t flags) {
+    spinlock_acquire(&pagemap->lock);
+
+    bool ret = false;
+
+    size_t pml4_index = (vaddr >> 39) & 0x1ff;
+    size_t pml3_index = (vaddr >> 30) & 0x1ff;
+    size_t pml2_index = (vaddr >> 21) & 0x1ff;
+    size_t pml1_index = (vaddr >> 12) & 0x1ff;
+
+    uint64_t* pml4 = pagemap->top_level;
+    if (!(pml4[pml4_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    if (pml3[pml3_index] & PTE_SIZE) {
+        pml3[pml3_index] = (pml3[pml3_index] & ~PTE_FLAG_MASK) | (flags & PTE_FLAG_MASK);
+        ret = true;
+        goto end;
+    }
+
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    if (pml2[pml2_index] & PTE_SIZE) {
+        pml2[pml2_index] = (pml2[pml2_index] & ~PTE_FLAG_MASK) | (flags & PTE_FLAG_MASK);
+        ret = true;
+        goto end;
+    }
+
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    pml1[pml1_index] = (pml1[pml1_index] & ~PTE_FLAG_MASK) | (flags & PTE_FLAG_MASK);
     ret = true;
 
 end:
@@ -279,6 +298,52 @@ bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length
     }
 
     return true;
+}
+
+uint64_t pagemap_get_mapping(struct pagemap* pagemap, uintptr_t vaddr, page_size_t* out_size) {
+    spinlock_acquire(&pagemap->lock);
+
+    uint64_t ret = 0;
+
+    size_t pml4_index = (vaddr >> 39) & 0x1ff;
+    size_t pml3_index = (vaddr >> 30) & 0x1ff;
+    size_t pml2_index = (vaddr >> 21) & 0x1ff;
+    size_t pml1_index = (vaddr >> 12) & 0x1ff;
+
+    uint64_t* pml4 = pagemap->top_level;
+    if (!(pml4[pml4_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    uint64_t* pml3 = (uint64_t*) ((pml4[pml4_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml3[pml3_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    if (pml3[pml3_index] & PTE_SIZE) {
+        ret = pml3[pml3_index];
+        *out_size = PAGE_SIZE_1GB;
+        goto end;
+    }
+
+    uint64_t* pml2 = (uint64_t*) ((pml3[pml3_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    if (!(pml2[pml2_index] & PTE_PRESENT)) {
+        goto end;
+    }
+
+    if (pml2[pml2_index] & PTE_SIZE) {
+        ret = pml2[pml2_index];
+        *out_size = PAGE_SIZE_2MB;
+        goto end;
+    }
+
+    uint64_t* pml1 = (uint64_t*) ((pml2[pml2_index] & ~PTE_FLAG_MASK) + HIGH_VMA);
+    ret = pml1[pml1_index];
+    *out_size = PAGE_SIZE_4KB;
+
+end:
+    spinlock_release(&pagemap->lock);
+    return ret;
 }
 
 void paging_init(void) {

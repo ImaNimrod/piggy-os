@@ -61,11 +61,9 @@ syscall_entry:
     pop %rbx
     pop %rax
 
-    // this skips the error code and IRQ number, as well as RIP, CS, and RFLAGS,
-    // which means the next qword on the stack is the usermode stack pointer
-    addq $40, %rsp
+    addq $56, %rsp
 
-    pop %rsp
+    mov %r9, %rsp
     swapgs
     sysretq
 .size syscall_entry, . - syscall_entry

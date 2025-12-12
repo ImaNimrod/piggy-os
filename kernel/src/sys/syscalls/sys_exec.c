@@ -4,8 +4,8 @@
 #include <errno.h>
 #include <fs/file.h>
 #include <fs/vfs.h>
-#include <mem/paging.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
@@ -59,8 +59,8 @@ void sys_exec(struct registers* r) {
     int envc = 0;
     char** kargv = NULL;
     char** kenvp = NULL;
-    struct pagemap* old_pagemap = current_process->pagemap;
-    struct pagemap* new_pagemap = NULL;
+    struct vmm_context* old_vmm_context = current_process->vmm_context;
+    struct vmm_context* new_vmm_context = NULL;
     struct vfs_node* node = NULL;
     struct vfs_node* reference = NULL;
 
@@ -141,8 +141,8 @@ void sys_exec(struct registers* r) {
         }
     }
 
-    new_pagemap = pagemap_create();
-    if (unlikely(new_pagemap == NULL)) {
+    new_vmm_context = vmm_context_create();
+    if (unlikely(new_vmm_context == NULL)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -156,7 +156,7 @@ void sys_exec(struct registers* r) {
     node->ops->unlock(node);
 
     struct auxvals auxvals;
-    if ((ret = elf_load(new_pagemap, node, &auxvals)) < 0) {
+    if ((ret = elf_load(new_vmm_context, node, &auxvals)) < 0) {
         goto end;
     }
 
@@ -169,9 +169,8 @@ void sys_exec(struct registers* r) {
         }
     }
 
-    current_process->pagemap = new_pagemap;
+    current_process->vmm_context = new_vmm_context;
     current_process->thread_stack_top = PROCESS_STACK_TOP;
-    current_process->brk = current_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
 
     struct thread* t;
     for (size_t i = 0; i < vector_size(current_process->threads); i++) {
@@ -218,17 +217,17 @@ end:
 
     pagemap_load(kernel_pagemap);
 
-    pagemap_destroy(old_pagemap);
     scheduler_dequeue(current_thread);
     thread_destroy(current_thread);
+    vmm_context_destroy(old_vmm_context);
 
     scheduler_yield(false);
     __builtin_unreachable();
 
 error:
-    if (current_process->pagemap == old_pagemap) {
-        if (new_pagemap != NULL) {
-            pagemap_destroy(new_pagemap);
+    if (current_process->vmm_context == old_vmm_context) {
+        if (new_vmm_context != NULL) {
+            vmm_context_destroy(new_vmm_context);
         }
     } else {
         process_exit(current_process, -1);

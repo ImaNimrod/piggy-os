@@ -18,6 +18,7 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <net/netif.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
@@ -127,6 +128,7 @@ NORETURN static void kernel_main(void) {
     scheduler_dequeue(this_cpu()->running_thread);
     thread_destroy(this_cpu()->running_thread);
     scheduler_yield(false);
+    __builtin_unreachable();
 }
 
 NORETURN void kernel_entry(void) {
@@ -152,6 +154,7 @@ NORETURN void kernel_entry(void) {
 
     vfs_init();
 
+    vmm_init();
     process_init();
     scheduler_init();
     timer_init();

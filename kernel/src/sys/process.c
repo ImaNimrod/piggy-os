@@ -11,15 +11,15 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
+#define DEFAULT_FCW     0x33f
+#define DEFAULT_MXCSR   0x1f80
+
 struct process* kernel_process;
 static struct process* init_process;
 
 static struct slab_cache* process_cache;
 static struct slab_cache* thread_cache;
 static pid_t next_pid;
-
-static const uint16_t default_fcw = 0x33f;
-static const uint32_t default_mxcsr = 0x1f80;
 
 struct process* process_create(struct process* parent) {
     struct process* new_process = slab_cache_alloc(process_cache);
@@ -38,13 +38,11 @@ struct process* process_create(struct process* parent) {
 
         file_fork(parent, new_process);
 
-        new_process->pagemap = pagemap_fork(parent->pagemap);
-        if (unlikely(new_process->pagemap == NULL)) {
+        new_process->vmm_context = vmm_context_fork(parent->vmm_context);
+        if (unlikely(new_process->vmm_context == NULL)) {
             goto error;
         }
         new_process->thread_stack_top = parent->thread_stack_top;
-        new_process->brk = parent->brk;
-        new_process->brk_next_unallocated_page_begin = parent->brk_next_unallocated_page_begin;
 
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
@@ -52,12 +50,11 @@ struct process* process_create(struct process* parent) {
         new_process->cwd = vfs_root;
         VFS_NODE_REF(vfs_root);
 
-        new_process->pagemap = pagemap_create();
-        if (unlikely(new_process->pagemap == NULL)) {
+        new_process->vmm_context = vmm_context_create();
+        if (unlikely(new_process->vmm_context == NULL)) {
             goto error;
         }
         new_process->thread_stack_top = PROCESS_STACK_TOP;
-        new_process->brk = new_process->brk_next_unallocated_page_begin = PROCESS_BRK_BASE;
     }
 
     new_process->pid = __atomic_load_n(&next_pid, __ATOMIC_SEQ_CST);
@@ -118,7 +115,7 @@ void process_create_init(void) {
     char* envp[] = { NULL };
 
     struct auxvals auxvals;
-    if (elf_load(init_process->pagemap, init_node, &auxvals) < 0) {
+    if (elf_load(init_process->vmm_context, init_node, &auxvals) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
     }
 
@@ -133,6 +130,8 @@ void process_create_init(void) {
 }
 
 void process_destroy(struct process* process) {
+    spinlock_acquire(&process->lock);
+
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file* file = process->fds[i].file;
         if (file != NULL) {
@@ -158,12 +157,11 @@ void process_destroy(struct process* process) {
 
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         struct thread* thread = *vector_get(process->threads, i);
-        scheduler_dequeue(thread);
         thread_destroy(thread);
     }
     vector_destroy(process->threads);
 
-    pagemap_destroy(process->pagemap);
+    vmm_context_destroy(process->vmm_context);
 
     slab_cache_free(process_cache, process);
 }
@@ -173,47 +171,16 @@ void process_exit(struct process* process, int status) {
         kpanic(NULL, false, "attempted to exit init process");
     }
 
+    spinlock_acquire(&process->lock);
+
     process->state = PROCESS_ZOMBIE;
     process->exit_status = status;
 
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         scheduler_dequeue((struct thread*) *vector_get(process->threads, i));
     }
-}
 
-void* process_sbrk(struct process* process, intptr_t size) {
-    uintptr_t old_brk = process->brk;
-
-    if (size > 0) {
-        size_t remaining = process->brk_next_unallocated_page_begin - process->brk;
-
-        if ((unsigned) size > remaining) {
-            size_t needed = ALIGN_UP(size - remaining, PAGE_SIZE_4KB);
-
-            uintptr_t paddr = pmm_alloc(needed / PAGE_SIZE_4KB);
-            pagemap_map_range(process->pagemap, process->brk_next_unallocated_page_begin, paddr, needed, PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
-
-            process->brk_next_unallocated_page_begin += needed;
-        }
-    } else if (size < 0) {
-        uintptr_t current_page_start = process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB;
-        size_t remaining = process->brk - current_page_start;
-
-        page_size_t page_size;
-
-        if ((unsigned) -size > remaining) {
-            size_t page_count = (((-size - remaining) - 1) / PAGE_SIZE_4KB) + 1;
-            for (size_t i = 0; i < page_count; i++) {
-                if (process->brk_next_unallocated_page_begin - PAGE_SIZE_4KB >= PROCESS_BRK_BASE) {
-                    process->brk_next_unallocated_page_begin -= PAGE_SIZE_4KB;
-                    pagemap_unmap(process->pagemap, process->brk_next_unallocated_page_begin, &page_size);
-                }
-            }
-        }
-    }
-
-    process->brk += size;
-    return (void*) old_brk;
+    spinlock_release(&process->lock);
 }
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
@@ -261,7 +228,8 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     spinlock_acquire(&process->lock);
 
     thread->user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
-    pagemap_map_range(process->pagemap, process->thread_stack_top - USER_STACK_SIZE, thread->user_stack_paddr, USER_STACK_SIZE, PTE_PRESENT | PTE_WRITABLE | PTE_USER | PTE_NX);
+    vmm_map(process->vmm_context, process->thread_stack_top - USER_STACK_SIZE, USER_STACK_SIZE,
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, thread->user_stack_paddr);
 
     thread->registers.rip = entry;
     thread->registers.cs = 0x23;
@@ -269,11 +237,11 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     thread->registers.ss = 0x1b;
     thread->registers.rsp = process->thread_stack_top;
 
+    process->thread_stack_top -= USER_STACK_SIZE;
+
     thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
-    this_cpu()->fpu_restore(thread->fpu_context);
-    asm volatile("fldcw %0" :: "m"(default_fcw) : "memory");
-    asm volatile("ldmxcsr %0" :: "m"(default_mxcsr) : "memory");
-    this_cpu()->fpu_save(thread->fpu_context);
+    ((uint16_t*) thread->fpu_context)[0] = DEFAULT_FCW;
+    ((uint32_t*) thread->fpu_context)[6] = DEFAULT_MXCSR;
 
     thread->fs_base = 0;
     thread->gs_base = 0;
@@ -341,15 +309,6 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
 }
 
 void thread_destroy(struct thread* thread) {
-    spinlock_acquire(&thread->process->lock);
-
-    vector_remove_by_value(thread->process->threads, thread);
-    if (vector_size(thread->process->threads) < 1) {
-        process_destroy(thread->process);
-    }
-
-    spinlock_release(&thread->process->lock);
-
     if (thread->is_user) {
         pmm_free((uintptr_t) thread->fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
         pmm_free(thread->user_stack_paddr, USER_STACK_SIZE / PAGE_SIZE_4KB);
@@ -410,8 +369,6 @@ void process_init(void) {
     if (unlikely(kernel_process->threads == NULL)) {
         kpanic(NULL, false, "failed to create kernel process threads vector");
     }
-
-    kernel_process->pagemap = kernel_pagemap;
 
     kernel_process->pid = next_pid++;
     kernel_process->state = PROCESS_RUNNING;

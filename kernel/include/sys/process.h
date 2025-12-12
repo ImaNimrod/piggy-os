@@ -3,6 +3,7 @@
 
 #include <cpu/isr.h>
 #include <fs/file.h>
+#include <mem/vmm.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/elf.h>
@@ -14,7 +15,6 @@
 #define USER_STACK_SIZE     0x20000
 
 #define PROCESS_FD_COUNT    32
-#define PROCESS_BRK_BASE    0x600000000
 #define PROCESS_STACK_TOP   0x700000000
 
 typedef enum {
@@ -67,11 +67,8 @@ struct process {
     struct file_descriptor fds[PROCESS_FD_COUNT];
     spinlock_t fd_lock;
 
-    struct pagemap* pagemap;
+    struct vmm_context* vmm_context;
     uintptr_t thread_stack_top;
-
-    uintptr_t brk;
-    uintptr_t brk_next_unallocated_page_begin;
 
     struct process* parent;
 
@@ -90,7 +87,6 @@ struct process* process_create(struct process* parent);
 void process_create_init(void);
 void process_destroy(struct process* process);
 void process_exit(struct process* process, int status);
-void* process_sbrk(struct process* process, intptr_t size);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals);

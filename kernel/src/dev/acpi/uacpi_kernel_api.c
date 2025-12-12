@@ -18,8 +18,10 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len) {
 void uacpi_kernel_unmap(void* addr, uacpi_size len) {
     size_t offset = (uintptr_t) addr & (PAGE_SIZE_4KB - 1);
     uintptr_t vaddr = ALIGN_DOWN((uintptr_t) addr, PAGE_SIZE_4KB);
+    size_t size = ALIGN_UP(len + offset, PAGE_SIZE_4KB);
 
-    pagemap_unmap_range(kernel_pagemap, vaddr, ALIGN_UP(len + offset, PAGE_SIZE_4KB));
+    pagemap_unmap_range(kernel_pagemap, vaddr, size);
+    pagemap_invalidate(vaddr, size);
 }
 
 void uacpi_kernel_log(uacpi_log_level level, const uacpi_char* str) {

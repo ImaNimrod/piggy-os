@@ -2,7 +2,7 @@
 #define _KERNEL_SYS_ELF_H
 
 #include <fs/vfs.h>
-#include <mem/paging.h>
+#include <mem/vmm.h>
 #include <stdint.h>
 
 #define AT_NULL     0
@@ -34,6 +34,6 @@ struct auxvals {
     struct auxval at_null;
 };
 
-int elf_load(struct pagemap* pagemap, struct vfs_node* node, struct auxvals* auxvals);
+int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxvals* auxvals);
 
 #endif /* _KERNEL_SYS_ELF_H */

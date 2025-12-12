@@ -25,11 +25,13 @@
 #define SYS_CHDIR       21
 #define SYS_FCNTL       22
 #define SYS_DUP         23
-#define SYS_SBRK        24
-#define SYS_SLEEP       25
-#define SYS_GETTIME     26
-#define SYS_SETTIME     27
-#define SYS_UNAME       28
-#define SYS_ARCHCTL     29
+#define SYS_MMAP        24
+#define SYS_MUNMAP      25
+#define SYS_MPROTECT    26
+#define SYS_SLEEP       27
+#define SYS_GETTIME     28
+#define SYS_SETTIME     29
+#define SYS_UNAME       30
+#define SYS_ARCHCTL     31
 
 #endif /* _KERNEL_SYSCALL_H */

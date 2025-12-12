@@ -97,7 +97,11 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     }
 
     if (next_thread != this_cpu()->idle_thread && (current_thread == NULL || current_thread->process != next_thread->process)) {
-        pagemap_load(next_thread->process->pagemap);
+        if (next_thread->is_user) {
+            pagemap_load(next_thread->process->vmm_context->pagemap);
+        } else {
+            pagemap_load(kernel_pagemap);
+        }
     }
 
     if (next_thread->registers.cs & 0x03) {
