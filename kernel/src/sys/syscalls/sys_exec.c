@@ -196,9 +196,6 @@ void sys_exec(struct registers* r) {
     }
     scheduler_enqueue(new_thread);
 
-    pagemap_load(new_pagemap);
-    this_cpu()->running_thread = new_thread;
-
 end:
     kfree(kpath);
     if (kargv != NULL) {
@@ -219,15 +216,14 @@ end:
         goto error;
     }
 
-    //scheduler_dequeue(current_thread);
-    //thread_destroy(current_thread);
-    //pagemap_destroy(old_pagemap);
+    pagemap_load(kernel_pagemap);
 
-    //scheduler_yield(true);
-    //__builtin_unreachable();
+    pagemap_destroy(old_pagemap);
+    scheduler_dequeue(current_thread);
+    thread_destroy(current_thread);
 
-    klog("asldkjasd\n");
-    return;
+    scheduler_yield(false);
+    __builtin_unreachable();
 
 error:
     if (current_process->pagemap == old_pagemap) {

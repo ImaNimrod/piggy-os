@@ -126,14 +126,7 @@ NORETURN static void kernel_main(void) {
 
     scheduler_dequeue(this_cpu()->running_thread);
     thread_destroy(this_cpu()->running_thread);
-    this_cpu()->running_thread = NULL;
-    scheduler_await();
-}
-
-bool get_interrupt_state() {
-    uint64_t rflags = 0;
-    asm volatile ("pushfq\n\tpop %0" : "=r"(rflags));
-    return (rflags >> 9) & 1;
+    scheduler_yield(false);
 }
 
 NORETURN void kernel_entry(void) {
