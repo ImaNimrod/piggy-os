@@ -63,6 +63,8 @@ void sys_exec(struct registers* r) {
     struct vmm_context* new_vmm_context = NULL;
     struct vfs_node* node = NULL;
     struct vfs_node* reference = NULL;
+    struct vfs_node* ld_node = NULL;
+    char* ld_path = NULL;
 
     for (;;) {
         char* arg;
@@ -156,8 +158,24 @@ void sys_exec(struct registers* r) {
     node->ops->unlock(node);
 
     struct auxvals auxvals;
-    if ((ret = elf_load(new_vmm_context, node, &auxvals)) < 0) {
+    if ((ret = elf_load(new_vmm_context, 0, node, &auxvals, &ld_path)) < 0) {
         goto end;
+    }
+
+    uintptr_t entry = auxvals.at_entry.value;
+
+    if (ld_path != NULL) {
+        if (vfs_lookup(vfs_root, ld_path, false, NULL, &ld_node) < 0) {
+            goto end;
+        }
+        ld_node->ops->unlock(ld_node);
+
+        struct auxvals ld_auxvals;
+        if ((ret = elf_load(new_vmm_context, INTERPRETER_LOAD_BASE, ld_node, &ld_auxvals, NULL)) < 0) {
+            goto end;
+        }
+
+        entry = ld_auxvals.at_entry.value;
     }
 
     cli(); // no going back after this point
@@ -188,11 +206,12 @@ void sys_exec(struct registers* r) {
         goto end;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, auxvals.at_entry.value, kargv, kenvp, &auxvals);
+    struct thread* new_thread = thread_create_user(current_process, entry, kargv, kenvp, &auxvals);
     if (unlikely(new_thread == NULL)) {
         ret = -ENOMEM;
         goto end;
     }
+
     scheduler_enqueue(new_thread);
 
 end:
@@ -209,6 +228,13 @@ end:
     }
     if (node != NULL) {
         VFS_NODE_UNREF(node);
+    }
+
+    if (ld_path != NULL) {
+        kfree(ld_path);
+    }
+    if (ld_node != NULL) {
+        VFS_NODE_UNREF(ld_node);
     }
 
     if (ret < 0) {

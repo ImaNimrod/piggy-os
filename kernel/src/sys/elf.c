@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <mem/pmm.h>
+#include <mem/slab.h>
 #include <sys/elf.h>
 #include <utils/macros.h>
 #include <utils/string.h>
@@ -28,18 +29,12 @@
 #define ELFOSABI_NONE   0
 #define ELFOSABI_LINUX  3
 
-#define PT_NULL     0
+#define ET_EXEC     2
+#define ET_DYN      3
+
 #define PT_LOAD     1
-#define PT_DYNAMIC  2
 #define PT_INTERP   3
-#define PT_NOTE     4
-#define PT_SHLIB    5
 #define PT_PHDR     6
-#define PT_TLS      7
-#define PT_LOOS     0x60000000
-#define PT_HIOS     0x6fffffff
-#define PT_LOPROC   0x70000000
-#define PT_HIPROC   0x7fffffff
 
 #define PF_R 0x4
 #define PF_W 0x2
@@ -82,15 +77,18 @@ static bool elf_verify(struct elf_header* header) {
         return false;
     }
 
-    if (header->e_type != 2 || header->e_machine != 0x3e || header->e_version != 1) {
+    if (header->e_type != ET_EXEC && header->e_type != ET_DYN) {
+        return false;
+    }
+
+    if (header->e_machine != 0x3e || header->e_version != 1) {
         return false;
     }
 
     return true;
 }
 
-// TODO: support dynamic linking because i dont think its that hard, we just need mmap files first
-int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxvals* auxvals) {
+int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_node* node, struct auxvals* auxvals, char** interpreter) {
     if (node->type != VFS_TYPE_REGULAR) {
         return -ENOEXEC;
     }
@@ -126,9 +124,9 @@ int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxv
         switch (pheader.p_type) {
             case PT_LOAD:
                 size_t misalign = pheader.p_vaddr & (PAGE_SIZE_4KB - 1);
-                size_t size = ALIGN_UP(misalign + pheader.p_memsz + (PAGE_SIZE_4KB - 1), PAGE_SIZE_4KB);
+                size_t page_count = DIV_CEIL(pheader.p_memsz + misalign, PAGE_SIZE_4KB);
 
-                uintptr_t paddr = pmm_alloc_zero(size / PAGE_SIZE_4KB);
+                uintptr_t paddr = pmm_alloc(page_count);
 
                 int prot = PROT_READ;
                 if (pheader.p_flags & PF_W) {
@@ -138,12 +136,29 @@ int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxv
                     prot |= PROT_EXEC;
                 }
 
-                vmm_map(vmm_context, ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), size,
+                vmm_map(vmm_context, load_base + ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), page_count * PAGE_SIZE_4KB,
                         prot, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, paddr);
 
-                if ((ret = node->ops->read(node, (void*) (paddr + misalign + HIGH_VMA), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
+                if ((ret = node->ops->read(node, (void*) (paddr + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
                     goto end;
                 }
+
+                if (pheader.p_memsz > pheader.p_filesz) {
+                    memset((void*) (paddr + HIGH_VMA + misalign + pheader.p_filesz), 0, pheader.p_memsz - pheader.p_filesz);
+                }
+                break;
+            case PT_INTERP:
+                char* buf = kmalloc(pheader.p_filesz);
+                if (unlikely(buf == NULL)) {
+                    ret = -ENOMEM;
+                    goto end;
+                }
+
+                if ((ret = node->ops->read(node, buf, pheader.p_filesz, pheader.p_offset, 0)) < 0) {
+                    goto end;
+                }
+
+                *interpreter = buf;
                 break;
             case PT_PHDR:
                 auxvals->at_phdr.value = pheader.p_vaddr;
@@ -154,7 +169,7 @@ int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxv
     auxvals->at_phent.value = header.e_phentsize;
     auxvals->at_phnum.value = header.e_phnum;
     auxvals->at_pagesz.value = PAGE_SIZE_4KB;
-    auxvals->at_entry.value = header.e_entry;
+    auxvals->at_entry.value = header.e_entry + load_base;
 
     ret = 0;
 end:

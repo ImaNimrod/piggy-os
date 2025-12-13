@@ -65,7 +65,7 @@ kernel:
 
 .PHONY: libc
 libc:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false -Dno_headers=true -Ddefault_library=static build
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false -Dno_headers=true build
 	cd libc/build; ninja install
 
 .PHONY: userspace

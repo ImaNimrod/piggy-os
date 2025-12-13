@@ -22,8 +22,8 @@ struct auxval {
 };
 
 struct auxvals {
-    struct auxval at_execfn;
-    struct auxval at_random;
+    // struct auxval at_execfn;
+    // struct auxval at_random;
     struct auxval at_secure;
 
     struct auxval at_phdr;
@@ -34,6 +34,6 @@ struct auxvals {
     struct auxval at_null;
 };
 
-int elf_load(struct vmm_context* vmm_context, struct vfs_node* node, struct auxvals* auxvals);
+int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_node* node, struct auxvals* auxvals, char** interpreter);
 
 #endif /* _KERNEL_SYS_ELF_H */

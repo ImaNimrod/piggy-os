@@ -114,14 +114,36 @@ void process_create_init(void) {
     char* argv[] = { init_path, NULL };
     char* envp[] = { NULL };
 
+    char* ld_path = NULL;
+
     struct auxvals auxvals;
-    if (elf_load(init_process->vmm_context, init_node, &auxvals) < 0) {
+    if (elf_load(init_process->vmm_context, 0, init_node, &auxvals, &ld_path) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
+    }
+
+    uintptr_t entry = auxvals.at_entry.value;
+
+    if (ld_path != NULL) {
+        struct vfs_node* ld_node;
+        if (vfs_lookup(vfs_root, ld_path, false, NULL, &ld_node) < 0) {
+            kpanic(NULL, false, "failed to find interpreter %s", ld_node);
+        }
+        ld_node->ops->unlock(ld_node);
+
+        struct auxvals ld_auxvals;
+        if (elf_load(init_process->vmm_context, INTERPRETER_LOAD_BASE, ld_node, &ld_auxvals, NULL) < 0) {
+            kpanic(NULL, false, "failed to load ELF for init process interpreter");
+        }
+
+        entry = ld_auxvals.at_entry.value;
+
+        VFS_NODE_UNREF(ld_node);
+        kfree(ld_path);
     }
 
     VFS_NODE_UNREF(init_node);
 
-    struct thread* init_thread = thread_create_user(init_process, auxvals.at_entry.value, argv, envp, &auxvals);
+    struct thread* init_thread = thread_create_user(init_process, entry, argv, envp, &auxvals);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
@@ -237,7 +259,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     thread->registers.ss = 0x1b;
     thread->registers.rsp = process->thread_stack_top;
 
-    process->thread_stack_top -= USER_STACK_SIZE;
+    process->thread_stack_top -= USER_STACK_SIZE - PAGE_SIZE_4KB; // this leaves an unmapped guard page between stacks
 
     thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     ((uint16_t*) thread->fpu_context)[0] = DEFAULT_FCW;
@@ -266,13 +288,11 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
             *((char*) stack + length) = '\0';
         }
 
-        stack = (uintptr_t*) ALIGN_DOWN((uintptr_t) stack, 16);
+        stack = (uint64_t*) ALIGN_DOWN((uintptr_t) stack, 16);
         if (((argv_len + envp_len + 1) & 1) != 0) {
             stack--;
         }
 
-        // auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = 0 };
-        // auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = 0 };
         auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
 
         size_t auxval_size = sizeof(struct auxvals) >> 3;
