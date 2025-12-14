@@ -196,10 +196,9 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
 
         bool is_dotdot = strcmp(component, "..") == 0;
         if (is_dotdot) {
-            struct vfs_node* root = NULL;
-
-            while (error == 0 && vfs_root->mounted != NULL) {
-                error = vfs_root->mounted->ops->root(vfs_root->mounted, &root);
+            struct vfs_node* root = vfs_root;
+            while (error == 0 && root->mounted != NULL) {
+                error = vfs_root->mounted->ops->root(root->mounted, &root);
             }
             if (error < 0) {
                 break;
