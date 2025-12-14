@@ -22,8 +22,8 @@ struct auxval {
 };
 
 struct auxvals {
-    // struct auxval at_execfn;
-    // struct auxval at_random;
+    //struct auxval at_execfn;
+    struct auxval at_random;
     struct auxval at_secure;
 
     struct auxval at_phdr;

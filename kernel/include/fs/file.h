@@ -7,6 +7,8 @@
 
 #define AT_FDCWD -100
 
+#define AT_EMPTY_PATH (1 << 0)
+
 #define O_PATH      01000
 
 #define O_RDONLY    00000

@@ -9,6 +9,7 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/random.h>
 #include <utils/string.h>
 
 #define DEFAULT_FCW     0x33f
@@ -75,7 +76,7 @@ error:
 void process_create_init(void) {
     char* init_path = cmdline_get("init");
     if (!init_path) {
-        init_path = "/bin/init";
+        init_path = "/usr/bin/init";
     }
 
     struct vfs_node* init_node;
@@ -269,13 +270,13 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
     thread->gs_base = 0;
 
     if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL && auxvals != NULL) {
-        void* stack_top = (void*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
+        uint64_t* stack_top = (uint64_t*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
         uint64_t* stack = stack_top;
 
         int envp_len;
         for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
             size_t length = strlen(envp[envp_len]);
-            stack = (void*) ((uintptr_t) stack - length - 1);
+            stack = (uint64_t*) ((uintptr_t) stack - length - 1);
             memcpy(stack, envp[envp_len], length);
             *((char*) stack + length) = '\0';
         }
@@ -283,16 +284,23 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
         int argv_len;
         for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
             size_t length = strlen(argv[argv_len]);
-            stack = (void*) ((uintptr_t) stack - length - 1);
+            stack = (uint64_t*) ((uintptr_t) stack - length - 1);
             memcpy(stack, argv[argv_len], length);
             *((char*) stack + length) = '\0';
         }
+
+        stack -= 2;
+        uint64_t* stack_random = stack;
+        stack_random[0] = rand64();
+        stack_random[1] = rand64();
 
         stack = (uint64_t*) ALIGN_DOWN((uintptr_t) stack, 16);
         if (((argv_len + envp_len + 1) & 1) != 0) {
             stack--;
         }
 
+        //auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
+        auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
         auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
 
         size_t auxval_size = sizeof(struct auxvals) >> 3;
@@ -303,15 +311,14 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
 
         *(--stack) = 0;
         stack -= envp_len;
-        int i;
-        for (i = 0; i < envp_len; i++) {
+        for (int i = 0; i < envp_len; i++) {
             old_rsp -= strlen(envp[i]) + 1;
             stack[i] = old_rsp;
         }
 
         *(--stack) = 0;
         stack -= argv_len;
-        for (i = 0; i < argv_len; i++) {
+        for (int i = 0; i < argv_len; i++) {
             old_rsp -= strlen(argv[i]) + 1;
             stack[i] = old_rsp;
         }

@@ -20,8 +20,6 @@ static void free_string_array(char** xs) {
     kfree(xs);
 }
 
-#include <utils/log.h>
-
 void sys_exec(struct registers* r) {
     const char* path = (const char*) r->rdi;
     const char** argv = (const char**) r->rsi;

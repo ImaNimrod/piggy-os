@@ -15,6 +15,8 @@
 #define S_IFBLK     0x05000
 #define S_IFCHR     0x07000
 #define S_IFLNK     0x09000
+#define S_IFIFO     0x0b000
+#define S_IFSOCK    0x0d000
 
 #define VFS_FLAG_ROOT (1 << 0)
 

@@ -38,6 +38,11 @@ struct stat {
     struct timespec st_atim;
     struct timespec st_mtim;
     struct timespec st_ctim;
+    /* NOT USED */
+    unsigned short _st_uid;
+    unsigned short _st_gid;
+    unsigned long _st_nlink;
+    unsigned int _padding;
 };
 
 typedef int pid_t;

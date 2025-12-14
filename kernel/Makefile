@@ -58,7 +58,7 @@ KERNEL_OBJFILES := $(addprefix obj/,$(KERNEL_CFILES:.c=.o) $(KERNEL_ASFILES:.S=.
 all: $(KERNEL_FILE)
 
 include/limine.h:
-	@cp -v ../limine/limine.h $@
+	@curl -L https://codeberg.org/Limine/limine-protocol/raw/branch/trunk/include/limine.h -o $@
 
 $(KERNEL_FILE): $(KERNEL_OBJFILES)
 	@mkdir -p "$$(dirname $@)"

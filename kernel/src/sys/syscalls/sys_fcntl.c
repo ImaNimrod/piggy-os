@@ -9,7 +9,7 @@
 #define F_SETFD         2
 #define F_GETFL         3
 #define F_SETFL         4
-#define F_DUPFD_CLOEXEC 1000
+#define F_DUPFD_CLOEXEC 5
 
 #define FD_CLOEXEC 1
 

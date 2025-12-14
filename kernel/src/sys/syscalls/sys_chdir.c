@@ -20,8 +20,8 @@ void sys_chdir(struct registers* r) {
     int ret = 0;
 
     struct vfs_node* node = file->node;
-    if (node->type == VFS_TYPE_DIRECTORY) {
-        ret = -EISDIR;
+    if (node->type != VFS_TYPE_DIRECTORY) {
+        ret = -ENOTDIR;
         goto end;
     }
 

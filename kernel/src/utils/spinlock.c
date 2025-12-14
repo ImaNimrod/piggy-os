@@ -6,12 +6,15 @@
 void spinlock_acquire(spinlock_t* lock) {
     volatile size_t deadlock_counter = 0;
 
-    while (__atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE)) {
-        if (++deadlock_counter > 1000000) {
-            kpanic(NULL, true, "deadlock");
+    for (;;) {
+        if (spinlock_test_and_acquire(lock)) {
+            return;
         }
 
         while (__atomic_load_n(lock, __ATOMIC_RELAXED)) {
+            if (++deadlock_counter > 1000000) {
+                kpanic(NULL, true, "deadlock");
+            }
             pause();
         }
     }
