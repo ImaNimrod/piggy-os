@@ -2,10 +2,8 @@
 #define _KERNEL_DEV_TTY_H
 
 #include <stdbool.h>
-#include <stddef.h>
 
-#define TTY_DEV_MAJOR 2
-#define TTY_DEV_MINOR 0
+#define TTY_DEV_MAJOR 3
 
 #define TCGETS		0x5401
 #define TCSETS		0x5402

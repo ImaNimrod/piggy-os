@@ -319,7 +319,7 @@ end:
 }
 
 void tty_init(void) {
-    if (unlikely(devfs_register("tty", VFS_TYPE_CHARDEV, &tty_ops, makedev(TTY_DEV_MAJOR, TTY_DEV_MINOR)) < 0)) {
+    if (unlikely(devfs_register("tty", VFS_TYPE_CHARDEV, &tty_ops, makedev(TTY_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create tty device");
     }
 

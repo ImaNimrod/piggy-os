@@ -3,6 +3,7 @@
 #include <mem/slab.h>
 #include <sys/elf.h>
 #include <utils/macros.h>
+#include <utils/random.h>
 #include <utils/string.h>
 
 #define ELFMAG "\177ELF"
@@ -175,4 +176,67 @@ int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_no
 end:
     node->ops->unlock(node);
     return ret;
+}
+
+// thread->registers.rsp should be set to the address of the top of the stack in the thread's address space
+void elf_setup_stack(struct thread* thread, uintptr_t stack_top_paddr, char* execfn, char* argv[], char* envp[], struct auxvals* auxvals) {
+    uint64_t* stack_top = (uint64_t*) (stack_top_paddr + HIGH_VMA);
+    uint64_t* stack = stack_top;
+
+    int envp_len;
+    for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
+        size_t length = strlen(envp[envp_len]);
+        stack = (uint64_t*) ((uintptr_t) stack - length - 1);
+        memcpy(stack, envp[envp_len], length + 1);
+    }
+
+    int argv_len;
+    for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
+        size_t length = strlen(argv[argv_len]);
+        stack = (uint64_t*) ((uintptr_t) stack - length - 1);
+        memcpy(stack, argv[argv_len], length + 1);
+    }
+
+    size_t execfn_length = strlen(execfn);
+    stack = (uint64_t*) ((uintptr_t) stack - execfn_length - 1);
+    uint64_t* stack_execfn = stack;
+    memcpy(stack, execfn, execfn_length + 1);
+
+    stack -= 2;
+    uint64_t* stack_random = stack;
+    stack_random[0] = rand64();
+    stack_random[1] = rand64();
+
+    stack = (uint64_t*) ALIGN_DOWN((uintptr_t) stack, 16);
+    if (((argv_len + envp_len + 1) & 1) != 0) {
+        stack--;
+    }
+
+    auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_execfn) };
+    auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
+    auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
+
+    size_t auxval_size = sizeof(struct auxvals) >> 3;
+    stack -= auxval_size;
+    memcpy64(stack, (uint64_t*) auxvals, auxval_size);
+
+    uintptr_t old_rsp = thread->registers.rsp;
+
+    *(--stack) = 0;
+    stack -= envp_len;
+    for (int i = 0; i < envp_len; i++) {
+        old_rsp -= strlen(envp[i]) + 1;
+        stack[i] = old_rsp;
+    }
+
+    *(--stack) = 0;
+    stack -= argv_len;
+    for (int i = 0; i < argv_len; i++) {
+        old_rsp -= strlen(argv[i]) + 1;
+        stack[i] = old_rsp;
+    }
+
+    *(--stack) = argv_len;
+
+    thread->registers.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
 }

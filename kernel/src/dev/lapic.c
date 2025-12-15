@@ -55,6 +55,7 @@ static inline void lapic_write(uint32_t reg, uint32_t value) {
     }
 
     mmio_write32((void*) (bsp_lapic_addr + HIGH_VMA + reg), value);
+    mfence();
 }
 
 static void lapic_setup_nmi(struct acpi_madt_lapic_nmi* nmi) {

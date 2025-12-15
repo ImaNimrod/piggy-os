@@ -55,66 +55,63 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     uint64_t cr0 = read_cr0();
     uint64_t cr4 = read_cr4();
-    uint64_t xcr0 = 0;
 
     uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, unused;
 
-    if (cpuid(1, 0, &unused, &unused, &ecx, &edx)) {
-        /* enable XSAVE */
-        if (ecx & (1 << 26)) {
-            cr4 |= (1 << 18);
-            xcr0 |= (1 << 0) | (1 << 1);
-
-            /* if XSAVE is available, enable AVX */
-            if (ecx & (1 << 28)) {
-                xcr0 |= (1 << 2);
-            }
-        }
-    }
-
-    /* enable SSE instruction sets */
-    cr0 &= ~(1 << 2);
+    // disable nasty legacy coprocessor things
+    cr0 &= ~((1 << 2) | (1 << 3));
     cr0 |= (1 << 1);
 
+    // enable SSE instruction sets
     cr4 |= (1 << 9) | (1 << 10);
 
-    if (cpuid(7, 0, &unused, &ebx, &ecx, &unused)) {
-        /* if XSAVE is available and AVX512 is supported, enable AVX512 */
-        if (xcr0 != 0 && ebx & (1 << 16)) {
-            xcr0 |= (7 << 5);
-        }
+    cpuid(7, 0, &unused, &ebx, &ecx, &unused);
 
-        /* if FSGSBASE is supported, enable it */
-        if (ebx & (1 << 0)) {
-            cr4 |= (1 << 16);
-        }
+    // if FSGSBASE is supported, enable it
+    if (ebx & (1 << 0)) {
+        cr4 |= (1 << 16);
+    }
 
-        /* if SMEP is supported, enable it */
-        if (ebx & (1 << 7)) {
-            cr4 |= (1 << 20);
-        }
+    // if SMEP is supported, enable it
+    if (ebx & (1 << 7)) {
+        cr4 |= (1 << 20);
+    }
 
-        /* if SMAP is supported, enable it */
-        if (ebx & (1 << 20)) {
-            cr4 |= (1 << 21);
-            cpu_local->has_smap = true;
-        }
+    // if SMAP is supported, enable it
+    if (ebx & (1 << 20)) {
+        cr4 |= (1 << 21);
+        cpu_local->has_smap = true;
+    }
 
-        /* if UMIP is supported, enable it */
-        if (ecx & (1 << 2)) {
-            cr4 |= (1 << 11);
-        }
+    // if UMIP is supported, enable it
+    if (ecx & (1 << 2)) {
+        cr4 |= (1 << 11);
+    }
+
+    // if XSAVE/XRSTOR is supported, enable it
+    bool has_xsave = false;
+    cpuid(1, 0, &unused, &unused, &ecx, &unused);
+    if (ecx & (1 << 26)) {
+        has_xsave = true;
+        cr4 |= (1 << 18);
     }
 
     write_cr0(cr0);
     write_cr4(cr4);
 
+    uint64_t xcr0 = 0;
+    if (has_xsave && cpuid(13, 0, &eax, &unused, &unused, &edx)) {
+        xcr0 = ((uint64_t) edx << 32) | eax;
+    }
+
     if (xcr0 != 0) {
         write_xcr0(xcr0);
     }
 
-    if (xcr0 != 0 && cpuid(13, 0, &eax, &ebx, &unused, &unused)) {
+    if (xcr0 != 0 && cpuid(13, 0, &unused, &ebx, &unused, &unused)) {
         cpu_local->fpu_context_size = ebx;
+
+        cpuid(13, 1, &eax, &unused, &unused, &unused);
         cpu_local->fpu_save = (eax & (1 << 0)) ? xsaveopt : xsave;
         cpu_local->fpu_restore = xrstor;
     } else {

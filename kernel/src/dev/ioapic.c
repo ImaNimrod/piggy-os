@@ -59,18 +59,22 @@ static struct isa_iso isa_isos[ISA_IRQ_NUM];
 
 static inline uint32_t ioapic_read(uintptr_t base, uint32_t reg) {
     mmio_write32((void*) (base + IOREGSEL), reg);
+    mfence();
     return mmio_read32((void*) (base + IOREGWIN));
 }
 
 static inline void ioapic_write(uintptr_t base, uint32_t reg, uint32_t value) {
     mmio_write32((void*) (base + IOREGSEL), reg);
     mmio_write32((void*) (base + IOREGWIN), value);
+    mfence();
 }
 
 static inline uint64_t ioapic_read64(uintptr_t base, uint32_t reg) {
     mmio_write32((void*) (base + IOREGSEL), reg);
+    mfence();
     uint64_t value = mmio_read32((void*) (base + IOREGWIN));
     mmio_write32((void*) (base + IOREGSEL), reg + 1);
+    mfence();
     value |= ((uint64_t) mmio_read32((void*) (base + IOREGWIN))) << 32;
     return value;
 }
@@ -78,8 +82,10 @@ static inline uint64_t ioapic_read64(uintptr_t base, uint32_t reg) {
 static inline void ioapic_write64(uintptr_t base, uint32_t reg, uint64_t value) {
     mmio_write32((void*) (base + IOREGSEL), reg);
     mmio_write32((void*) (base + IOREGWIN), (uint32_t) value);
+    mfence();
     mmio_write32((void*) (base + IOREGSEL), reg + 1);
     mmio_write32((void*) (base + IOREGWIN), (uint32_t) (value >> 32));
+    mfence();
 }
 
 static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
@@ -95,7 +101,7 @@ static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     uint32_t gsi = irq; 
     int polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
-    int trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
+    int trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
 
     if (irq < ISA_IRQ_NUM && isa_isos[irq].init) {
         gsi = isa_isos[irq].gsi;
@@ -146,10 +152,10 @@ void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags) {
     int trigger_mode;
 
     uint8_t polarity_flags = flags & ACPI_MADT_POLARITY_MASK;
-    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
-        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
-    } else if (polarity_flags == ACPI_MADT_POLARITY_ACTIVE_HIGH) {
+    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_HIGH) {
         polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
+    } else if (polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
+        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
     } else {
         kpanic(NULL, false, "invalid polarity flags in interrupt source override");
     }

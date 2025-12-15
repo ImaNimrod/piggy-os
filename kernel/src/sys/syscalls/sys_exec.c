@@ -204,11 +204,13 @@ void sys_exec(struct registers* r) {
         goto end;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, entry, kargv, kenvp, &auxvals);
+    struct thread* new_thread = thread_create_user(current_process, entry);
     if (unlikely(new_thread == NULL)) {
         ret = -ENOMEM;
         goto end;
     }
+
+    elf_setup_stack(new_thread, new_thread->user_stack_paddr + USER_STACK_SIZE, kpath, kargv, kenvp, &auxvals);
 
     scheduler_enqueue(new_thread);
 

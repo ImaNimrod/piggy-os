@@ -1,5 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
+#include <fs/devfs.h> 
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
@@ -9,7 +10,6 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/random.h>
 #include <utils/string.h>
 
 #define DEFAULT_FCW     0x33f
@@ -79,6 +79,8 @@ void process_create_init(void) {
         init_path = "/usr/bin/init";
     }
 
+    klog("[process] starting init process %s\n", init_path);
+
     struct vfs_node* init_node;
     if (vfs_lookup(vfs_root, init_path, false, NULL, &init_node) < 0) {
         kpanic(NULL, false, "failed to find %s", init_path);
@@ -90,23 +92,23 @@ void process_create_init(void) {
         kpanic(NULL, false, "failed to create init process");
     }
 
-    struct vfs_node* tty_node;
-    if (vfs_lookup(vfs_root, "/dev/tty", false, NULL, &tty_node) < 0) {
-        kpanic(NULL, false, "failed to find tty device");
+    struct vfs_node* console_node;
+    if (devfs_get("console", &console_node) < 0) {
+        kpanic(NULL, false, "failed to find console device");
     }
-    tty_node->ops->unlock(tty_node);
+    console_node->ops->unlock(console_node);
 
-    struct file* stdin_file = file_create(tty_node, O_RDONLY);
+    struct file* stdin_file = file_create(console_node, O_RDONLY);
     if (unlikely(stdin_file == NULL)) {
         kpanic(NULL, false, "failed to create stdin file descriptor for init process");
     }
     init_process->fds[0].file = stdin_file;
-    struct file* stdout_file = file_create(tty_node, O_WRONLY);
+    struct file* stdout_file = file_create(console_node, O_WRONLY);
     if (unlikely(stdout_file == NULL)) {
         kpanic(NULL, false, "failed to create stdout file descriptor for init process");
     }
     init_process->fds[1].file = stdout_file;
-    struct file* stderr_file = file_create(tty_node, O_WRONLY);
+    struct file* stderr_file = file_create(console_node, O_WRONLY);
     if (unlikely(stderr_file == NULL)) {
         kpanic(NULL, false, "failed to create stderr file descriptor for init process");
     }
@@ -144,14 +146,17 @@ void process_create_init(void) {
 
     VFS_NODE_UNREF(init_node);
 
-    struct thread* init_thread = thread_create_user(init_process, entry, argv, envp, &auxvals);
+    struct thread* init_thread = thread_create_user(init_process, entry);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
 
+    elf_setup_stack(init_thread, init_thread->user_stack_paddr + USER_STACK_SIZE, init_path, argv, envp, &auxvals);
+
     scheduler_enqueue(init_thread);
 }
 
+// TODO: actually handle destroying processes
 void process_destroy(struct process* process) {
     spinlock_acquire(&process->lock);
 
@@ -191,7 +196,7 @@ void process_destroy(struct process* process) {
 
 void process_exit(struct process* process, int status) {
     if (unlikely(process->pid == 1)) {
-        kpanic(NULL, false, "attempted to exit init process");
+        kpanic(NULL, false, "attempted to exit init process with status = %d", status);
     }
 
     spinlock_acquire(&process->lock);
@@ -235,7 +240,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     return thread;
 }
 
-struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals) {
+struct thread* thread_create_user(struct process* process, uintptr_t entry) {
     struct thread* thread = slab_cache_alloc(thread_cache);
     if (unlikely(thread == NULL)) {
         return NULL;
@@ -268,65 +273,6 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, char
 
     thread->fs_base = 0;
     thread->gs_base = 0;
-
-    if (vector_size(process->threads) == 0 && argv != NULL && envp != NULL && auxvals != NULL) {
-        uint64_t* stack_top = (uint64_t*) (thread->user_stack_paddr + USER_STACK_SIZE + HIGH_VMA);
-        uint64_t* stack = stack_top;
-
-        int envp_len;
-        for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
-            size_t length = strlen(envp[envp_len]);
-            stack = (uint64_t*) ((uintptr_t) stack - length - 1);
-            memcpy(stack, envp[envp_len], length);
-            *((char*) stack + length) = '\0';
-        }
-
-        int argv_len;
-        for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
-            size_t length = strlen(argv[argv_len]);
-            stack = (uint64_t*) ((uintptr_t) stack - length - 1);
-            memcpy(stack, argv[argv_len], length);
-            *((char*) stack + length) = '\0';
-        }
-
-        stack -= 2;
-        uint64_t* stack_random = stack;
-        stack_random[0] = rand64();
-        stack_random[1] = rand64();
-
-        stack = (uint64_t*) ALIGN_DOWN((uintptr_t) stack, 16);
-        if (((argv_len + envp_len + 1) & 1) != 0) {
-            stack--;
-        }
-
-        //auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
-        auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
-        auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
-
-        size_t auxval_size = sizeof(struct auxvals) >> 3;
-        stack -= auxval_size;
-        memcpy64(stack, (uint64_t*) auxvals, auxval_size);
-
-        uintptr_t old_rsp = thread->registers.rsp;
-
-        *(--stack) = 0;
-        stack -= envp_len;
-        for (int i = 0; i < envp_len; i++) {
-            old_rsp -= strlen(envp[i]) + 1;
-            stack[i] = old_rsp;
-        }
-
-        *(--stack) = 0;
-        stack -= argv_len;
-        for (int i = 0; i < argv_len; i++) {
-            old_rsp -= strlen(argv[i]) + 1;
-            stack[i] = old_rsp;
-        }
-
-        *(--stack) = argv_len;
-
-        thread->registers.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
-    }
 
     thread->tid = vector_size(process->threads);
     vector_push(process->threads, &thread);
@@ -362,7 +308,7 @@ struct thread* thread_fork(struct process* process, struct registers* context) {
     memcpy64((uint64_t*) &new_thread->registers, (const uint64_t*) context, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;
 
-    new_thread->fpu_context = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
+    new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     this_cpu()->fpu_restore(new_thread->fpu_context);
 
     new_thread->fs_base = rdmsr(IA32_FS_BASE_MSR);

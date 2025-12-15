@@ -35,10 +35,23 @@ void sys_mount(struct registers* r) {
         return;
     }
 
+    if ((ret = user_memcpy_from_user(ktarget, target, target_len)) < 0) {
+        kfree(ktarget);
+        r->rax = ret;
+        return;
+    }
+
     char* kfs_name = kmalloc(fs_name_len + 1);
     if (unlikely(kfs_name == NULL)) {
         kfree(ktarget);
         r->rax = -ENOMEM;
+        return;
+    }
+
+    if ((ret = user_memcpy_from_user(kfs_name, fs_name, fs_name_len)) < 0) {
+        kfree(ktarget);
+        kfree(kfs_name);
+        r->rax = ret;
         return;
     }
 

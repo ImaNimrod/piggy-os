@@ -12,6 +12,7 @@ struct device_ops {
     int (*sync)(dev_t);
 };
 
+int devfs_get(const char* name, struct vfs_node** result);
 int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, dev_t dev);
 void devfs_init(void);
 

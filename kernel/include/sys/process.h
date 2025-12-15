@@ -17,7 +17,7 @@
 #define INTERPRETER_LOAD_BASE 0x40000000
 
 #define PROCESS_FD_COUNT    32
-#define PROCESS_STACK_TOP   0x700000000
+#define PROCESS_STACK_TOP   USER_END
 
 typedef enum {
     PROCESS_RUNNING,
@@ -91,7 +91,7 @@ void process_destroy(struct process* process);
 void process_exit(struct process* process, int status);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
-struct thread* thread_create_user(struct process* process, uintptr_t entry, char** argv, char** envp, struct auxvals* auxvals);
+struct thread* thread_create_user(struct process* process, uintptr_t entry);
 void thread_destroy(struct thread* thread);
 struct thread* thread_fork(struct process* process, struct registers* context);
 

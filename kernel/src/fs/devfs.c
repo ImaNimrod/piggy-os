@@ -188,6 +188,18 @@ static void devfs_inactive(struct vfs_node* node) {
     slab_cache_free(devfs_node_cache, node);
 }
 
+int devfs_get(const char* name, struct vfs_node** result) {
+    struct vfs_node* device = NULL;
+
+    int ret = vfs_lookup((struct vfs_node*) devfs_root_node, name, false, NULL, &device);
+    if (ret == 0) {
+        device->ops->unlock(device);
+    }
+
+    *result = device;
+    return ret;
+}
+
 int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, dev_t dev) {
     if (type != VFS_TYPE_BLOCKDEV && type != VFS_TYPE_CHARDEV) {
         return -EINVAL;

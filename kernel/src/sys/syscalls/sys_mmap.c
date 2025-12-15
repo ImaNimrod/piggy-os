@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <mem/paging.h>
 #include <sys/process.h>
+#include <utils/log.h>
 
 void sys_mmap(struct registers* r) {
     void* address = (void*) r->rdi;
@@ -34,8 +35,7 @@ void sys_mmap(struct registers* r) {
     }
 
     if (!(flags & MAP_PRIVATE)) {
-        r->rax = -EINVAL;
-        return;
+        kpanic(NULL, false, "MMAP SHARED UNSUPPORTED");
     }
 
     r->rax = (uintptr_t) vmm_map(current_process->vmm_context, (uintptr_t) address, size, prot, flags, 0);

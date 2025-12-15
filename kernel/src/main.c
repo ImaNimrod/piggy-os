@@ -2,6 +2,7 @@
 #include <cpu/smp.h>
 #include <dev/acpi.h>
 #include <dev/block/block.h>
+#include <dev/char/console.h>
 #include <dev/char/fb.h>
 #include <dev/char/pseudo.h>
 #include <dev/char/tty.h>
@@ -94,13 +95,11 @@ NORETURN static void kernel_main(void) {
 
     pci_init();
 
+    console_init();
     ps2_init();
     tty_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
-
-    vfs_create(vfs_root, "/dev", VFS_TYPE_DIRECTORY, NULL);
-    vfs_mount(NULL, vfs_root, "/dev", "devfs");
 
     struct limine_module_response* module_response = module_request.response;
     if (unlikely(module_response == NULL)) {
@@ -120,8 +119,6 @@ NORETURN static void kernel_main(void) {
     }
 
     initrd_unpack(initrd_module);
-
-    klog("\nhey pig...\n");
 
     process_create_init();
 
