@@ -10,11 +10,5 @@ void sys_close(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    struct file* file = file_get(current_process, fd);
-    if (file != NULL) {
-        file_release(file);
-        r->rax = 0;
-    } else {
-        r->rax = -EBADF;
-    }
+    r->rax = file_close(current_process, fd);
 }

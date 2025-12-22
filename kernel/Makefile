@@ -2,7 +2,7 @@ include ../config.mk
 
 CFLAGS := \
 		  -g \
-		  -std=gnu23 \
+		  -std=gnu99 \
 		  -O2 \
 		  -fms-extensions \
 		  -ffreestanding \

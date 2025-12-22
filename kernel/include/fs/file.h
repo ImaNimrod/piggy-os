@@ -45,6 +45,8 @@ struct file_descriptor {
     bool cloexec;
 };
 
+
+int file_close(struct process* process, int fd);
 struct file* file_create(struct vfs_node* node, int flags);
 int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool cloexec);
 void file_fork(struct process* old_process, struct process* new_process);

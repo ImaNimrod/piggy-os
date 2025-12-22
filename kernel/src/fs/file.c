@@ -21,6 +21,25 @@ static int get_free_fd(struct process* process, int start_fd) {
     return fd;
 }
 
+int file_close(struct process* process, int fd) {
+    spinlock_acquire(&process->fd_lock);
+
+    struct file* file = process->fds[fd].file;
+    if (file != NULL) {
+        process->fds[fd].file = NULL;
+    }
+
+    spinlock_release(&process->fd_lock);
+
+    if (file != NULL) {
+        file_release(file);
+    } else {
+        return -EBADF;
+    }
+
+    return 0;
+}
+
 struct file* file_create(struct vfs_node* node, int flags) {
     if (unlikely(file_cache == NULL)) {
         file_cache = slab_cache_create("struct file cache", sizeof(struct file));
@@ -45,7 +64,7 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
     if (old_fd < 0 || old_fd >= PROCESS_FD_COUNT) {
         return -EBADF;
     }
-    if (new_fd < 0 || new_fd >= PROCESS_FD_COUNT) {
+    if (exact && (new_fd < 0 || new_fd >= PROCESS_FD_COUNT)) {
         return -EBADF;
     }
 
@@ -73,11 +92,12 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
         int fd = get_free_fd(process, new_fd);
         if (fd >= 0) {
             process->fds[fd] = (struct file_descriptor) { file, cloexec };
-            __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
         }
 
         ret = fd;
     }
+
+    __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
 
     spinlock_release(&process->fd_lock);
     return ret;

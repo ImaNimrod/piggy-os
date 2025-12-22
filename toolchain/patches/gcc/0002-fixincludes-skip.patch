@@ -1,12 +1,12 @@
 diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
-index 7112f4dcd64..2876a8f3a4c 100755
+index 7112f4dcd..cc28fed29 100755
 --- a/fixincludes/mkfixinc.sh
 +++ b/fixincludes/mkfixinc.sh
-@@ -11,6 +11,7 @@ target=fixinc.sh
- 
- # Check for special fix rules for particular targets
+@@ -13,6 +13,7 @@ target=fixinc.sh
  case $machine in
-+    *-piggy* | \
      i?86-*-cygwin* | \
      *-mingw32* | \
++    *-piggy* | \
      powerpc-*-eabisim* | \
+     powerpc-*-eabi*    | \
+     powerpc-*-rtems*   | \

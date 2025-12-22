@@ -27,10 +27,9 @@ pushd "$DIR/build"
             --disable-nls \
             --disable-werror \
             --enable-default-execstack=no \
-            --enable-lto \
             --enable-shared \
-            --with-system-zlib \
             --with-sysroot="$SYSROOT" \
+            --with-system-zlib \
             --without-docdir || exit 1 
 
         echo "building ${BINUTILS_NAME}..."
@@ -57,9 +56,9 @@ pushd "$DIR/build"
             --disable-nls \
             --disable-werror \
             --enable-host-shared \
-            --enable-languages=c,c++,lto \
-            --enable-lto \
+            --enable-languages=c,c++ \
             --enable-shared \
+            --enable-threads=posix \
             --with-pic \
             --with-sysroot="$SYSROOT" \
             --with-system-zlib \
