@@ -1,5 +1,6 @@
 #include <dev/ps2.h>
 #include <stddef.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
@@ -87,6 +88,21 @@ uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second
 }
 
 void ps2_init(void) {
+    bool brokenps2 = cmdline_get("brokenps2") != NULL;
+    if (brokenps2) {
+        klog("[ps2] 'brokenps2' argument found, assuming broken PS/2 controller emulation\n");
+
+        send_command(PS2_COMMAND_DISABLE_PORT1);
+        send_command(PS2_COMMAND_DISABLE_PORT2);
+
+        flush();
+
+        send_command(PS2_COMMAND_ENABLE_PORT1);
+
+        keyboard_init(false);
+        return;
+    }
+
     struct uacpi_table fadt_table;
     uacpi_status ret = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &fadt_table);
     if (uacpi_unlikely_error(ret)) {

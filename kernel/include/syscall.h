@@ -21,17 +21,18 @@
 #define SYS_TRUNCATE    17
 #define SYS_POLL        18
 #define SYS_SYNC        19
-#define SYS_STAT        20
-#define SYS_CHDIR       21
-#define SYS_FCNTL       22
-#define SYS_DUP         23
-#define SYS_MMAP        24
-#define SYS_MUNMAP      25
-#define SYS_MPROTECT    26
-#define SYS_SLEEP       27
-#define SYS_GETTIME     28
-#define SYS_SETTIME     29
-#define SYS_UNAME       30
-#define SYS_ARCHCTL     31
+#define SYS_GETDENTS    20
+#define SYS_STAT        21
+#define SYS_CHDIR       22
+#define SYS_FCNTL       23
+#define SYS_DUP         24
+#define SYS_MMAP        25
+#define SYS_MUNMAP      26
+#define SYS_MPROTECT    27
+#define SYS_SLEEP       28
+#define SYS_GETTIME     29
+#define SYS_SETTIME     30
+#define SYS_UNAME       31
+#define SYS_ARCHCTL     32
 
 #endif /* _KERNEL_SYSCALL_H */

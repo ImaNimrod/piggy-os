@@ -7,6 +7,7 @@ EMUOPTS := -machine q35 \
 		   -smp 2 \
 		   -no-reboot \
 		   -serial stdio \
+		   -rtc base=utc \
 		   -bios /usr/share/edk2/x64/OVMF.4m.fd
 
 export PATH := $(PATH):$(TOOLCHAIN_DIR)/build/bin

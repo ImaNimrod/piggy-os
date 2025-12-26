@@ -50,7 +50,9 @@ static ALWAYS_INLINE void mfence(void) {
 
 static ALWAYS_INLINE bool cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) {
     static uint32_t cpuid_max;
-    asm volatile("cpuid" : "=a"(cpuid_max) : "a"(leaf & 0x80000000) : "rbx", "rcx", "rdx");
+    if (cpuid_max == 0) {
+        asm volatile("cpuid" : "=a"(cpuid_max) : "a"(leaf & 0x80000000) : "rbx", "rcx", "rdx");
+    }
 
     if (leaf > cpuid_max) {
         return false;

@@ -35,6 +35,7 @@ static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int devfs_truncate(struct vfs_node* node, off_t length);
 static short devfs_poll(struct vfs_node* node, short events);
 static int devfs_sync(struct vfs_node* node);
+static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t count, off_t offset);
 static int devfs_getstat(struct vfs_node* node, struct stat* stat);
 static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
 static int devfs_lock(struct vfs_node* node);
@@ -49,6 +50,7 @@ static struct vfs_node_ops devfs_node_ops = {
     .truncate = devfs_truncate,
     .poll = devfs_poll,
     .sync = devfs_sync,
+    .getdents = devfs_getdents,
     .getstat = devfs_getstat,
     .setstat = devfs_setstat,
     .lock = devfs_lock,
@@ -151,6 +153,49 @@ static int devfs_sync(struct vfs_node* node) {
     }
 
     return dnode->devops->sync(dnode->stat.st_rdev);
+}
+
+static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t count, off_t offset) {
+    if (node != (struct vfs_node*) devfs_root_node) {
+        return -ENODEV;
+    }
+    if (node->type != VFS_TYPE_DIRECTORY) {
+        return -ENOTDIR;
+    }
+
+    ssize_t current = 0;
+    ssize_t ret = 0;
+
+    HASHMAP_FOREACH(devices) {
+        if (current < offset) {
+            current++;
+            continue;
+        }
+
+        if (ret == (ssize_t) count) {
+            break;
+        }
+
+        struct devfs_node* ent_node = entry->value;
+
+        struct dirent ent = {
+            .d_ino = ent_node->stat.st_ino,
+            .d_off = offset,
+            .d_reclen = sizeof(struct dirent),
+            .d_type = vfs_type_to_dirent(ent_node->type),
+        };
+        memcpy(ent.d_name, entry->key, entry->key_size);
+        ent.d_name[entry->key_size] = '\0';
+
+        int err;
+        if ((err = USER_MEMCPY_MAYBE_TO_USER(&buf[ret], &ent, sizeof(struct dirent))) < 0) {
+            return err;
+        }
+
+        ret += 1;
+    }
+
+    return ret;
 }
 
 static int devfs_getstat(struct vfs_node* node, struct stat* stat) {

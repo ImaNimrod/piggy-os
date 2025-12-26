@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdbool.h> 
 #include <stdio.h> 
 #include <stdlib.h> 
@@ -44,16 +45,15 @@ static bool builtin_exit(char** args) {
 static bool builtin_pwd(char** args) {
     (void) args;
 
-    char* buf = malloc(4096);
+    char* buf = malloc(PATH_MAX);
     if (buf == NULL) {
         perror("pwd");
     } else {
-        if (getcwd(buf, 4096) == NULL) {
+        if (getcwd(buf, PATH_MAX) == NULL) {
             perror("pwd");
         }
 
         puts(buf);
-        putchar('\n');
         fflush(stdout);
     }
 

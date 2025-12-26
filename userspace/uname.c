@@ -29,7 +29,7 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
-    int print_mode = 0;
+    int print_mode = PRINT_SYSNAME;
 
     int c;
     while ((c = getopt(argc, argv, "amnrsv")) != -1) {
@@ -37,8 +37,8 @@ int main(int argc, char* argv[]) {
             case 'a':
                 print_mode |= (PRINT_SYSNAME | PRINT_NODENAME | PRINT_RELEASE | PRINT_VERSION | PRINT_MACHINE);
                 break;
-            case 's':
-                print_mode |= PRINT_SYSNAME;
+            case 'm':
+                print_mode |= PRINT_MACHINE;
                 break;
             case 'n':
                 print_mode |= PRINT_NODENAME;
@@ -46,24 +46,23 @@ int main(int argc, char* argv[]) {
             case 'r':
                 print_mode |= PRINT_RELEASE;
                 break;
+            case 's':
+                print_mode |= PRINT_SYSNAME;
+                break;
             case 'v':
                 print_mode |= PRINT_VERSION;
                 break;
-            case 'm':
-                print_mode |= PRINT_MACHINE;
-                break;
-            case '?':
             default:
                 usage();
                 break;
         }
     }
 
-    if (print_mode == 0) {
-        print_mode = PRINT_SYSNAME;
-    }
+    argc -= optind;
+    argv += optind;
 
-    if (optind < argc) {
+    if (argc > 0) {
+        warnx("error: extra operands provided");
         usage();
     }
 

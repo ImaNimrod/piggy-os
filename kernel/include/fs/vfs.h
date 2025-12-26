@@ -9,6 +9,12 @@
 
 #define PATH_MAX_LENGTH 512
 
+#define DT_UNKNOWN  0
+#define DT_CHR      2
+#define DT_DIR      4
+#define DT_BLK      6
+#define DT_REG      8
+
 #define S_IFMT      0x0f000
 #define S_IFREG     0x01000
 #define S_IFDIR     0x03000
@@ -58,6 +64,7 @@ struct vfs_node_ops {
     int (*truncate)(struct vfs_node*, off_t);
     short (*poll)(struct vfs_node*, short);
     int (*sync)(struct vfs_node*);
+    ssize_t (*getdents)(struct vfs_node*, struct dirent*, size_t, off_t);
 
     int (*getstat)(struct vfs_node*, struct stat*);
     int (*setstat)(struct vfs_node*, const struct stat*, int);
@@ -94,6 +101,21 @@ extern struct vfs_node* vfs_root;
         (node)->ops->inactive((node)); \
     } \
 } while (0)
+
+static inline unsigned char vfs_type_to_dirent(vfs_type_t type) {
+    switch (type) {
+        case VFS_TYPE_REGULAR:
+            return DT_REG;
+        case VFS_TYPE_DIRECTORY:
+            return DT_DIR;
+        case VFS_TYPE_BLOCKDEV:
+            return DT_BLK;
+        case VFS_TYPE_CHARDEV:
+            return DT_CHR;
+        default:
+            return DT_UNKNOWN;
+    }
+}
 
 static inline mode_t vfs_type_to_mode(vfs_type_t type) {
     mode_t mode = 0777;

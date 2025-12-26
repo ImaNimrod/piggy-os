@@ -12,14 +12,14 @@ static char* buf;
 static int do_cat(char* filename, int rfd) {
     if (buf == NULL) {
         if ((buf = malloc(BUF_SIZE)) == NULL) {
-            err(EXIT_FAILURE, "failed to allocate I/O buffer");
+            err(EXIT_FAILURE, "malloc");
         }
     }
 
     ssize_t n;
     while ((n = read(rfd, buf, BUF_SIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, n) != n) {
-            err(EXIT_FAILURE, "failed to write to stdout");
+            err(EXIT_FAILURE, "write(stdout)");
         }
     }
 

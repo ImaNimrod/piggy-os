@@ -84,6 +84,7 @@ int main() {
             char* envp[] = {
                 "HOME=/home",
                 "PATH=/usr/bin",
+                "TZ=UTC0",
                 NULL,
             };
 

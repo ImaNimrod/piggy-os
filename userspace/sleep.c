@@ -1,3 +1,4 @@
+#include <err.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -50,7 +51,9 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
+
     if (argc < 1) {
+        warnx("error: missing operand");
         usage();
     }
 
@@ -72,5 +75,9 @@ int main(int argc, char* argv[]) {
         .tv_nsec = 1e9 * (seconds - ((time_t) seconds)),
     };
 
-    return (nanosleep(&ts, NULL) == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    if (nanosleep(&ts, NULL) < 0) {
+        err(EXIT_FAILURE, "nanosleep");
+    }
+
+    return EXIT_SUCCESS;
 }

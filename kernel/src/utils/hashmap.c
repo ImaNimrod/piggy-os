@@ -7,15 +7,6 @@
 #define FNV_OFFSET_BASIS_32 2166136261U
 #define FNV_PRIME_32        16777619U
 
-struct hashmap_entry {
-    uint32_t hash;
-    void* key;
-    size_t key_size;
-    void* value;
-    struct hashmap_entry* prev;
-    struct hashmap_entry* next;
-};
-
 static uint32_t fnv1a_hash(const void* data, size_t length) {
     const uint8_t* bytes = (const uint8_t*) data;
 

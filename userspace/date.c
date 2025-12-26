@@ -1,211 +1,95 @@
-#include <ctype.h>
-#include <errno.h>
-#include <stdbool.h>
+#include <err.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
 #include <unistd.h>
 
-#define PROGRAM_NAME "date"
+enum {
+    FORMAT_DEFAULT  = 0,
+    FORMAT_ISO8601  = 1,
+    FORMAT_RFC5332  = 2,
+};
 
-#define STANDARD_FORMAT "%a %b %e %H:%M:%S %Y"
-#define RFC5322_FORMAT "%a, %d %b %Y %H:%M:%S"
+static const char* formats[] = {
+    [FORMAT_DEFAULT] = "%a %b %e %T %Z %Y",
+    [FORMAT_ISO8601] = "%Y-%m-%dT%TZ",
+    [FORMAT_RFC5332] = "%a, %d %b %Y %T %z",
+};
 
-static void error(void) {
-    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+static void usage(void) {
+    fprintf(stderr, "usage: date [-uz:IR] [+FORMAT]\n");
     exit(EXIT_FAILURE);
 }
 
-static void help(void) {
-    puts("usage: " PROGRAM_NAME " [OPTION]... [+FORMAT]\n\nPrint the time and date in the given FORMAT.\n\n-R\t\t\toutput date and time in RFC 5322 format\n-s MMDDhhmm[.ss]\tset the system date and time described by MMDDhhmm[.ss]\n-h\t\t\tdisplay this help and exit\n");
-    exit(EXIT_SUCCESS);
-}
+int main(int argc, char* argv[]) {
+    setlocale(LC_TIME, "");
 
-static inline bool is_leap_year(int year) {
-    return !(year % 4) && ((year % 100) || !(year % 400));
-}
+    int format = FORMAT_DEFAULT;
+    char* out_zone = NULL;
 
-static time_t days_per_month(int month, int year) {
-    switch (month) {
-        case 0: return 31;
-        case 1: return is_leap_year(year) ? 29 : 28;
-        case 2: return 31;
-        case 3: return 30;
-        case 4: return 31;
-        case 5: return 30;
-        case 6: return 31;
-        case 7: return 31;
-        case 8: return 30;
-        case 9: return 31;
-        case 10: return 30;
-        case 11: return 31;
-    }
-    __builtin_unreachable();
-}
-
-// TODO: support year/century when setting system datetime
-static bool parse_time(char* time_string, struct tm* tm) {
-    char* seconds = NULL;
-
-    size_t seconds_index = strcspn(time_string, ".");
-    if (seconds_index != strlen(time_string)) {
-        seconds = time_string + seconds_index + 1;
-        time_string[seconds_index] = '\0';
-    }
-
-    if (strlen(time_string) != 8) {
-        return false;
-    }
-
-    if (seconds && strlen(seconds) != 2) {
-        return false;
-    }
-
-    char* c = time_string;
-    while (*c != '\0') {
-        if (!isdigit(*c)) {
-            return false;
+    int c;
+    while ((c = getopt(argc, argv, "uz:IR")) != -1) {
+        switch (c) {
+            case 'u':
+                setenv("TZ", "UTC0", 1);
+                break;
+            case 'z':
+                out_zone = optarg;
+                break;
+            case 'I':
+                if (format != FORMAT_DEFAULT) {
+                    warnx("error: multiple formats specified");
+                    usage();
+                }
+                format = FORMAT_ISO8601;
+                break;
+            case 'R':
+                if (format != FORMAT_DEFAULT) {
+                    warnx("error: multiple formats specified");
+                    usage();
+                }
+                format = FORMAT_RFC5332;
+                break;
+            default:
+                usage();
+                break;
         }
-        c++;
     }
 
-    if (seconds) {
-        c = seconds;
-        while (*c != '\0') {
-            if (!isdigit(*c)) {
-                return false;
-            }
-            c++;
+    argc -= optind;
+    argv += optind;
+
+    const char* format_string;
+
+    if (*argv != NULL && *argv[0] == '+') {
+        if (format != FORMAT_DEFAULT) {
+            warnx("error: multiple formats specified");
+            usage();
         }
+
+        format_string = *argv + 1;
+    } else {
+        format_string = formats[format];
+    }
+
+    if (out_zone != NULL && setenv("TZ", out_zone, 1) != 0) {
+        err(EXIT_FAILURE, "setenv(TZ)");
+    }
+
+    if (format == FORMAT_RFC5332) {
+        setlocale(LC_TIME, "C");
     }
 
     time_t now = time(NULL);
-    struct tm* now_tm = localtime(&now);
+    struct tm* tm = localtime(&now);
 
-    char buf[3];
-    size_t i = 0;
-
-    strncpy(buf, time_string + i, sizeof(buf) - 1);
-    i += sizeof(buf) - 1;
-    int monthi = atoi(buf) - 1;
-    if (monthi > 11) {
-        return false;
-    }
-    strncpy(buf, time_string + i, sizeof(buf) - 1);
-    i += sizeof(buf) - 1;
-    int dayi = atoi(buf);
-    if (dayi > days_per_month(monthi, now_tm->tm_year)) {
-        return false;
-    }
-    strncpy(buf, time_string + i, sizeof(buf) - 1);
-    i += sizeof(buf) - 1;
-    int houri = atoi(buf);
-    if (houri > 23) {
-        return false;
-    }
-    strncpy(buf, time_string + i, sizeof(buf) - 1);
-    i += sizeof(buf) - 1;
-    int minutei = atoi(buf);
-    if (minutei > 59) {
-        return false;
-    }
-
-    int secondi = 0;
-    if (seconds) {
-        strncpy(buf, seconds, sizeof(buf) - 1);
-        i += sizeof(buf) - 1;
-        secondi = atoi(buf);
-        if (secondi > 59) {
-            return false;
-        }
-    }
-
-    *tm = (struct tm) {
-        .tm_sec = seconds ? secondi : now_tm->tm_sec,
-        .tm_min = minutei,
-        .tm_hour = houri,
-        .tm_mon = monthi,
-        .tm_year = now_tm->tm_year,
-        .tm_mday = dayi,
-        .tm_yday = now_tm->tm_yday,
-        .tm_isdst = now_tm->tm_isdst
-    };
-
-    return true;
-}
-
-int main(int argc, char** argv) {
-    bool rfc5322 = false;
-    char* set_time = NULL;
-
-    int c;
-    while ((c = getopt(argc, argv, "hRs:")) != -1) {
-        switch (c) {
-            case 's':
-                set_time = optarg;
-                break;
-            case 'R':
-                rfc5322 = true;
-                break;
-            case 'h':
-                help();
-                break;
-            case ':':
-            case '?':
-                error();
-                break;
-        }
-    }
-
-    if (optind + 1 < argc) {
-        fprintf(stderr, PROGRAM_NAME ": extra operand '%s'\n", argv[optind + 1]);
-        error();
-    }
-
-    const char* format = STANDARD_FORMAT;
-
-    if (optind < argc) {
-        if (*argv[optind] == '+') {
-            if (rfc5322) {
-                fputs(PROGRAM_NAME ": multiple output formats specified\n", stderr);
-                return EXIT_FAILURE;
-            }
-            format = argv[optind];
-        }
-    } else if (rfc5322) {
-        format = RFC5322_FORMAT;
-    }
-
-    struct tm* tm;
-    if (set_time) {
-        struct tm set_tm;
-        if (!parse_time(set_time, &set_tm)) {
-            fprintf(stderr, PROGRAM_NAME ": invalid date '%s'\n", set_time);
-            return EXIT_FAILURE;
-        }
-
-        const struct timespec ts = {
-            .tv_sec = mktime(&set_tm),
-            .tv_nsec = 0
-        };
-
-        if (clock_settime(CLOCK_REALTIME, &ts) < 0) {
-            fprintf(stderr, PROGRAM_NAME ": cannot set date: %s\n", strerror(errno));
-        }
-        tm = &set_tm;
+    char buffer[1024];
+    if (strftime(buffer, sizeof(buffer), format_string, tm) == 0) {
+        putchar('\n');
     } else {
-        time_t now = time(NULL);
-        tm = localtime(&now);
+        puts(buffer);
     }
 
-    char buffer[64];
-
-    if (strftime(buffer, sizeof(buffer), format, tm) == 0) {
-        fputs(PROGRAM_NAME ": unable to create formatted timestamp\n", stderr);
-        return EXIT_FAILURE;
-    } 
-
-    puts(buffer);
     return EXIT_SUCCESS;
 }

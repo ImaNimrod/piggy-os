@@ -21,6 +21,14 @@ typedef long blkcnt_t;
 
 typedef unsigned int nfds_t;
 
+struct dirent {
+    ino_t d_ino;
+    off_t d_off;
+    unsigned short d_reclen;
+    unsigned char d_type;
+    char d_name[256];
+};
+
 struct pollfd {
     int fd;
     short int events;
