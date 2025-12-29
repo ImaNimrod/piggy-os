@@ -44,7 +44,7 @@ uint16_t virtio_queue_alloc_descriptor(struct virtio_queue* queue) {
         }
     }
 
-    return 0xffff;
+    return VIRTIO_INVALID_QUEUE_DESCRIPTOR;
 }
 
 void virtio_queue_free_descriptor(struct virtio_queue* queue, uint16_t descriptor) {

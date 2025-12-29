@@ -9,7 +9,7 @@ void semaphore_init(semaphore_t* s, uint64_t value) {
 }
 
 void semaphore_signal(semaphore_t* s) {
-    spinlock_acquire(&s->lock);
+    bool int_state = spinlock_acquire_irqsave(&s->lock);
 
     struct thread* waiter = NULL;
 
@@ -21,7 +21,7 @@ void semaphore_signal(semaphore_t* s) {
         s->value++;
     }
 
-    spinlock_release(&s->lock);
+    spinlock_release_irqsave(&s->lock, int_state);
 
     if (waiter != NULL) {
         scheduler_unblock(waiter);
@@ -29,7 +29,7 @@ void semaphore_signal(semaphore_t* s) {
 }
 
 void semaphore_wait(semaphore_t* s) {
-    spinlock_acquire(&s->lock);
+    bool int_state = spinlock_acquire_irqsave(&s->lock);
 
     if (s->value > 0) {
         s->value--;
@@ -47,6 +47,6 @@ void semaphore_wait(semaphore_t* s) {
         iter->next_waiter = this_cpu()->running_thread;
     }
 
-    spinlock_release(&s->lock);
+    spinlock_release_irqsave(&s->lock, int_state);
     scheduler_block(this_cpu()->running_thread);
 }

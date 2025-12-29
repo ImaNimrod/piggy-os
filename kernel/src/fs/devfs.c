@@ -105,6 +105,10 @@ static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
 }
 
 static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
+    if (node->type == VFS_TYPE_DIRECTORY) {
+        return -EISDIR;
+    }
+
     struct devfs_node* dnode = (struct devfs_node*) node;
     if (dnode->devops->read == NULL) {
         return -ENODEV;
@@ -114,6 +118,10 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 }
 
 static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
+    if (node->type == VFS_TYPE_DIRECTORY) {
+        return -EISDIR;
+    }
+
     struct devfs_node* dnode = (struct devfs_node*) node;
     if (dnode->devops->write == NULL) {
         return -ENODEV;

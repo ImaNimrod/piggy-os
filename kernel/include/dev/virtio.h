@@ -7,6 +7,8 @@
 #include <stdint.h>
 #include <utils/spinlock.h>
 
+#define VIRTIO_INVALID_QUEUE_DESCRIPTOR     ((uint16_t) 0xffff)
+
 #define VIRTIO_STATUS_ACKNOWLEDGE           (1 << 0)
 #define VIRTIO_STATUS_DRIVER                (1 << 1)
 #define VIRTIO_STATUS_DRIVER_OK             (1 << 2)
@@ -55,7 +57,6 @@ struct virtio_queue_available {
     uint16_t index;
     uint16_t ring[];
 };
-
 
 struct virtio_queue_used_entry {
     uint32_t id;

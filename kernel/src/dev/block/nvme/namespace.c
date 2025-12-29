@@ -54,7 +54,7 @@ struct namespace_identify {
 
 static dev_t nvme_device_minor;
 
-static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t count, uintptr_t paddr) {
+static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t block_count, uintptr_t paddr) {
     struct nvme_namespace* namespace = block_device->private;
     struct nvme_controller* controller = namespace->controller;
 
@@ -74,7 +74,7 @@ static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, blo
 
     if (cmd == CMD_FLUSH) {
         (void) lba;
-        (void) count;
+        (void) block_count;
         (void) paddr;
         entry_pair.submission.opcode = NVME_OP_FLUSH;
     } else {
@@ -82,14 +82,14 @@ static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, blo
         entry_pair.submission.prp[0] = paddr;
         entry_pair.submission.command[0] = lba & 0xffffffff;
         entry_pair.submission.command[1] = (lba >> 32) & 0xffffffff;
-        entry_pair.submission.command[2] = (count - 1) & 0xffff;
+        entry_pair.submission.command[2] = (block_count - 1) & 0xffff;
     }
 
     if (!run_command(queue_pair, &entry_pair)) {
         return -EIO;
     }
 
-    return count;
+    return block_count;
 }
 
 void namespace_init(struct nvme_controller* controller, int id) {

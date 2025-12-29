@@ -7,7 +7,9 @@
 typedef uint64_t spinlock_t;
 
 void spinlock_acquire(spinlock_t* lock);
-bool spinlock_test_and_acquire(spinlock_t* lock);
+bool spinlock_acquire_irqsave(spinlock_t* lock);
 void spinlock_release(spinlock_t* lock);
+void spinlock_release_irqsave(spinlock_t* lock, bool int_state);
+bool spinlock_test_and_acquire(spinlock_t* lock);
 
 #endif /* _KERNEL_UTILS_SPINLOCK_H */

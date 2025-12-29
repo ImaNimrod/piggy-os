@@ -20,10 +20,27 @@ void spinlock_acquire(spinlock_t* lock) {
     }
 }
 
-bool spinlock_test_and_acquire(spinlock_t* lock) {
-    return __atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) == 0;
+bool spinlock_acquire_irqsave(spinlock_t* lock) {
+    bool int_state = get_interrupt_state();
+
+    cli();
+    spinlock_acquire(lock);
+
+    return int_state;
 }
 
 void spinlock_release(spinlock_t* lock) {
     __atomic_store_n(lock, 0, __ATOMIC_RELEASE);
+}
+
+void spinlock_release_irqsave(spinlock_t* lock, bool int_state) {
+    spinlock_release(lock);
+
+    if (int_state) {
+        sti();
+    }
+}
+
+bool spinlock_test_and_acquire(spinlock_t* lock) {
+    return __atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) == 0;
 }

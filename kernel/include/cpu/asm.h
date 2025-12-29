@@ -25,19 +25,25 @@ static ALWAYS_INLINE void pause(void) {
 }
 
 static ALWAYS_INLINE void cli(void) {
-    asm volatile("cli");
+    asm volatile("cli" ::: "memory");
 }
 
 static ALWAYS_INLINE void sti(void) {
-    asm volatile("sti");
+    asm volatile("sti" ::: "memory");
+}
+
+static ALWAYS_INLINE bool get_interrupt_state(void) {
+    uint64_t rflags;
+    asm volatile("pushfq; pop %0" : "=r"(rflags));
+    return rflags & (1UL << 9);
 }
 
 static ALWAYS_INLINE void clac(void) {
-    asm volatile("clac");
+    asm volatile("clac" ::: "memory");
 }
 
 static ALWAYS_INLINE void stac(void) {
-    asm volatile("stac");
+    asm volatile("stac" ::: "memory");
 }
 
 static ALWAYS_INLINE void swapgs(void) {
@@ -63,7 +69,7 @@ static ALWAYS_INLINE bool cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, 
 }
 
 static ALWAYS_INLINE void invlpg(uintptr_t vaddr) {
-    asm volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
+    asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
 }
 
 static ALWAYS_INLINE uint8_t inb(uint16_t port) {

@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/process.h>
+#include <utils/semaphore.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
@@ -44,7 +45,14 @@
 #define HBA_PxIE_DSE        (1 << 2)
 #define HBA_PxIE_SDBE       (1 << 3)
 #define HBA_PxIE_DPE        (1 << 5)
-#define HBA_PxIE_ERROR_MASK 0x7dc00050
+
+#define HBA_PxIE_OFS        (1 << 24)
+#define HBA_PxIE_INFS       (1 << 26)
+#define HBA_PxIE_IFS        (1 << 27)
+#define HBA_PxIE_HBDS       (1 << 28)
+#define HBA_PxIE_HBFS       (1 << 29)
+#define HBA_PxIE_TFES       (1 << 30)
+#define HBA_PxIE_ERROR_MASK (HBA_PxIE_OFS | HBA_PxIE_INFS | HBA_PxIE_IFS | HBA_PxIE_HBDS | HBA_PxIE_HBFS | HBA_PxIE_TFES)
 
 #define HBA_PxSIG_ATA   0x00000101
 #define	HBA_PxSIG_ATAPI 0xeb140101
@@ -148,7 +156,7 @@ struct hba_fis_h2d {
     uint8_t featureh;
     uint8_t countl;
     uint8_t counth;
-    uint8_t icc;
+    uint8_t: 8;
     uint8_t control;
     uint32_t : 32;
 } __attribute__((packed));
@@ -161,11 +169,21 @@ typedef enum {
     ATA_DEVICE_TYPE_UNKNOWN,
 } ata_device_type_t;
 
+typedef enum {
+    AHCI_COMMAND_RESULT_OK,
+    AHCI_COMMAND_RESULT_ERROR,
+} ahci_command_result_t;
+
 struct ahci_controller {
     struct hba_registers* hba_registers;
     uint8_t port_count;
     uint8_t slot_count;
     vector_t* devices;
+};
+
+struct ahci_queued_command {
+    ahci_command_result_t result;
+    struct thread* thread;
 };
 
 struct ahci_device {
@@ -183,7 +201,9 @@ struct ahci_device {
     char firmware_revision[ATA_IDENTIFY_FIRMWARE_SIZE + 1];
     char model_number[ATA_IDENTIFY_MODEL_SIZE + 1];
 
-    struct thread** blocked_threads;
+    struct ahci_queued_command* queue_waiters;
+    semaphore_t queue_semaphore;
+
     uint32_t old_ci;
 
     spinlock_t lock;

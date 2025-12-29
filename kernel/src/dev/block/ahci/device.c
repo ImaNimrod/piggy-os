@@ -83,7 +83,7 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
 
     struct hba_port* hba_port = device->hba_port;
 
-    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
+    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ))) {
         pause();
     }
 
@@ -92,13 +92,13 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
     spinlock_release(&device->lock);
 
     while (mmio_read32(&hba_port->ci) & (1 << slot)) {
-        if (mmio_read32(&hba_port->is) & (1 << 30)) {
+        if (mmio_read32(&hba_port->is) & HBA_PxIE_ERROR_MASK) {
             return false;
         }
         hpet_sleep_ns(MS_TO_NS(1));
     }
 
-    if (mmio_read32(&hba_port->is) & (1 << 30)) {
+    if (mmio_read32(&hba_port->is) & HBA_PxIE_ERROR_MASK) {
         return false;
     }
 
@@ -128,18 +128,20 @@ static void stop_command_engine(struct ahci_device* device) {
     mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) & ~HBA_PxCMD_FRE);
 }
 
-static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t count, uintptr_t paddr) {
+static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t block_count, uintptr_t paddr) {
     struct ahci_device* device = block_device->private;
 
     if (device->is_lba48) {
-        if (count > 65536) {
+        if (block_count > 65536) {
             return -EIO;
         }
     } else {
-        if (count > 256) {
+        if (block_count > 256) {
             return -EIO;
         }
     }
+
+    semaphore_wait(&device->queue_semaphore);
 
     spinlock_acquire(&device->lock);
 
@@ -163,13 +165,13 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
 
     if (cmd == CMD_FLUSH) {
         (void) lba;
-        (void) count;
+        (void) block_count;
         (void) paddr;
 
         header->prdtl = header->prdbc = 0;
         fis->command = device->is_lba48 ? ATA_COMMAND_FLUSH_CACHE_EXT : ATA_COMMAND_FLUSH_CACHE;
     } else {
-        size_t prdt_count = (uint16_t) ((count - 1) >> 4) + 1;
+        size_t prdt_count = (uint16_t) ((block_count - 1) >> 4) + 1;
         if (prdt_count > PRDT_PER_COMMAND) {
             spinlock_release(&device->lock);
             return -EIO;
@@ -188,12 +190,12 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
             prdt->dbau = (uint32_t) (paddr >> 32);
             prdt->dbc = bytes_per_prdt - 1;
             paddr += bytes_per_prdt;
-            count -= SECTORS_PER_PRDT;
+            block_count -= SECTORS_PER_PRDT;
         }
         prdt = &table->prdt[i];
         prdt->dba = (uint32_t) paddr;
         prdt->dbau = (uint32_t) (paddr >> 32);
-        prdt->dbc = (count << LOG2(block_device->block_size)) - 1;
+        prdt->dbc = (block_count << LOG2(block_device->block_size)) - 1;
 
         if (cmd == CMD_READ) {
             fis->command = device->is_lba48 ? ATA_COMMAND_READ_DMA_EXT : ATA_COMMAND_READ_DMA;
@@ -208,60 +210,60 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
             fis->lba3 = (lba >> 24) & 0xff;
             fis->lba4 = (lba >> 32) & 0xff;
             fis->lba5 = (lba >> 40) & 0xff;
-            fis->countl = count == 65536 ? 0 : (uint8_t) (count & 0xff);
-            fis->counth = count == 65536 ? 0 : (uint8_t) ((count >> 8) & 0xff);
+            fis->countl = block_count == 65536 ? 0 : (uint8_t) (block_count & 0xff);
+            fis->counth = block_count == 65536 ? 0 : (uint8_t) ((block_count >> 8) & 0xff);
             fis->device = (1 << 6);
         } else {
             fis->lba0 = lba & 0xff;
             fis->lba1 = (lba >> 8) & 0xff;
             fis->lba2 = (lba >> 16) & 0xff;
-            fis->countl = count == 256 ? 0 : (uint8_t) (count & 0xff);
+            fis->countl = block_count == 256 ? 0 : (uint8_t) (block_count & 0xff);
             fis->device = (1 << 6) | ((lba >> 24) & 0x0f);
         }
     }
 
     struct hba_port* hba_port = device->hba_port;
 
-    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY & HBA_PxTFD_DRQ))) {
+    while ((mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ))) {
         pause();
     }
 
-    device->blocked_threads[slot] = this_cpu()->running_thread;
-    device->old_ci |= (1 << slot);
+    device->queue_waiters[slot].thread = this_cpu()->running_thread;
 
+    device->old_ci |= (1 << slot);
     mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
     spinlock_release(&device->lock);
 
     scheduler_block(this_cpu()->running_thread);
-
-    return count;
+    return (device->queue_waiters[slot].result == AHCI_COMMAND_RESULT_OK) ? (ssize_t) block_count : -EIO;
 }
 
 void ahci_device_irq_handler(struct ahci_device* device) {
     struct hba_port* hba_port = device->hba_port;
 
-    uint32_t is = mmio_read32(&hba_port->is);
-    if (is & HBA_PxIE_ERROR_MASK) {
-        klog("AHCI device error!");
-    }
+    bool int_state = spinlock_acquire_irqsave(&device->lock);
 
+    uint32_t is = mmio_read32(&hba_port->is);
     uint32_t ci = mmio_read32(&hba_port->ci);
 
     uint32_t completed_slots = device->old_ci & ~ci;
     if (completed_slots != 0) {
         for (uint8_t i = 0; i < device->controller->slot_count; i++) {
             if (completed_slots & (1 << i)) {
-                scheduler_unblock(device->blocked_threads[i]);
-                device->blocked_threads[i] = NULL;
+                scheduler_unblock(device->queue_waiters[i].thread);
+
+                device->queue_waiters[i].result = (is & HBA_PxIE_ERROR_MASK) ? AHCI_COMMAND_RESULT_ERROR : AHCI_COMMAND_RESULT_OK;
+                device->queue_waiters[i].thread = NULL;
+
+                semaphore_signal(&device->queue_semaphore);
             }
         }
 
-        spinlock_acquire(&device->lock);
         device->old_ci &= ~completed_slots;
-        spinlock_release(&device->lock);
     }
 
+    spinlock_release_irqsave(&device->lock, int_state);
     mmio_write32(&device->hba_port->is, is);
 }
 
@@ -336,10 +338,12 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
     device->clb_and_fis_paddr = clb_and_fis_paddr;
     device->command_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct hba_command_table) * controller->slot_count, PAGE_SIZE_4KB));
 
-    device->blocked_threads = kmalloc(sizeof(struct thread*) * controller->slot_count);
-    if (unlikely(device->blocked_threads == NULL)) {
+    device->queue_waiters = kmalloc(sizeof(struct ahci_queued_command) * controller->slot_count);
+    if (unlikely(device->queue_waiters == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for AHCI device blocked threads");
     }
+
+    semaphore_init(&device->queue_semaphore, controller->slot_count);
 
     struct hba_command_header* command_header = (void*) (clb_paddr + HIGH_VMA);
     for (uint8_t i = 0; i < controller->slot_count; i++) {

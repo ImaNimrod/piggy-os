@@ -176,7 +176,7 @@ static void nvme_irq_handler(struct registers* r, void* arg) {
 
     struct queue_pair* queue_pair = arg;
 
-    spinlock_acquire(&queue_pair->lock);
+    bool int_state = spinlock_acquire_irqsave(&queue_pair->lock);
 
     struct completion_entry* queue = queue_pair->completion.address;
 
@@ -202,7 +202,7 @@ static void nvme_irq_handler(struct registers* r, void* arg) {
         mmio_write32(queue_pair->completion.doorbell, queue_pair->completion.index);
     }
 
-    spinlock_release(&queue_pair->lock);
+    spinlock_release_irqsave(&queue_pair->lock, int_state);
 }
 
 static void nvme_init(struct pci_device* pci_dev) {

@@ -11,6 +11,7 @@
 #include "flanterm/src/flanterm.h"
 #include "printf/printf.h"
 
+static spinlock_t panic_lock;
 static spinlock_t print_lock;
 
 static void print_stack_trace(uintptr_t* rbp) {
@@ -55,6 +56,8 @@ void klog(const char* fmt, ...) {
 
 NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...) {
     cli();
+    spinlock_acquire(&panic_lock);
+
     spinlock_release(&print_lock);
     spinlock_acquire(&print_lock);
 

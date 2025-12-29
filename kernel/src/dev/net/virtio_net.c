@@ -94,7 +94,7 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
     spinlock_acquire(&tx_queue->lock);
 
     uint16_t desc = virtio_queue_alloc_descriptor(tx_queue);
-    if (desc == 0xffff) {
+    if (desc == VIRTIO_INVALID_QUEUE_DESCRIPTOR) {
         spinlock_release(&tx_queue->lock);
         return false;
     }

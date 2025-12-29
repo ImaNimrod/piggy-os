@@ -14,6 +14,7 @@
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/semaphore.h>
 #include <utils/spinlock.h>
 
 #include "../../utils/printf/printf.h"
@@ -42,17 +43,21 @@ struct virtio_blk_request {
 struct virtio_blk_device {
     struct virtio_device* vio_dev;
     uint64_t features;
-    struct thread** blocked_threads;
+
+    struct thread** queue_waiters; 
+    semaphore_t queue_semaphore;
 };
 
 static dev_t virtio_blk_device_minor;
 
-static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t count, uintptr_t paddr) {
+static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t block_count, uintptr_t paddr) {
     struct virtio_blk_device* device = block_device->private;
 
     if (cmd == CMD_WRITE && device->features & VIRTIO_BLK_F_RO) {
         return -EIO;
     }
+
+    semaphore_wait(&device->queue_semaphore);
 
     struct virtio_queue* queue = &device->vio_dev->queues[0];
 
@@ -61,10 +66,6 @@ static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_c
     uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
     uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
     uint16_t desc2 = virtio_queue_alloc_descriptor(queue);
-    if (desc0 == 0xffff || desc1 == 0xffff || desc2 == 0xffff) {
-        spinlock_release(&queue->lock);
-        return -EIO;
-    }
 
     uintptr_t request_paddr = pmm_alloc(1);
 
@@ -79,7 +80,7 @@ static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_c
     queue->descriptors[desc0].next = desc1;
 
     queue->descriptors[desc1].address = paddr;
-    queue->descriptors[desc1].length = count * block_device->block_size;
+    queue->descriptors[desc1].length = block_count * block_device->block_size;
     queue->descriptors[desc1].flags = VIRTQ_DESC_F_NEXT;
     if (cmd == CMD_READ) {
         queue->descriptors[desc1].flags |= VIRTQ_DESC_F_WRITE;
@@ -92,11 +93,11 @@ static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_c
     queue->descriptors[desc2].next = 0;
 
     uint16_t index = virtio_queue_insert(queue, desc0);
-    device->blocked_threads[index] = this_cpu()->running_thread;
-
-    virtio_queue_notify(queue);
+    device->queue_waiters[index] = this_cpu()->running_thread;
 
     spinlock_release(&queue->lock);
+
+    virtio_queue_notify(queue);
 
     scheduler_block(this_cpu()->running_thread);
 
@@ -105,7 +106,8 @@ static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_c
         return -EIO;
     }
 
-    return count;
+    pmm_free(request_paddr, 1);
+    return block_count;
 }
 
 static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
@@ -114,19 +116,20 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
     struct virtio_blk_device* device = ctx;
     struct virtio_queue* queue = &device->vio_dev->queues[0];
 
-    spinlock_acquire(&queue->lock);
+    bool int_state = spinlock_acquire_irqsave(&queue->lock);
 
-    for (uint16_t i = queue->last_used; i != queue->used->index; i = (i + 1) % queue->size) {
-        scheduler_unblock(device->blocked_threads[i]);
-        device->blocked_threads[i] = NULL;
+    while (queue->last_used != queue->used->index) {
+        uint16_t i = queue->last_used++ % queue->size;
+        uint16_t desc_id = queue->used->ring[i].id;
 
-        uint16_t desc0 = queue->used->ring[i].id;
-        virtio_queue_free_descriptor(queue, desc0);
-        pmm_free(queue->descriptors[desc0].address, 1);
+        scheduler_unblock(device->queue_waiters[i]);
+        device->queue_waiters[i] = NULL;
+        semaphore_signal(&device->queue_semaphore);
+
+        virtio_queue_free_descriptor(queue, desc_id);
     }
 
-    queue->last_used = queue->used->index;
-    spinlock_release(&queue->lock);
+    spinlock_release_irqsave(&queue->lock, int_state);
 }
 
 void virtio_blk_init(struct virtio_device* vio_dev) {
@@ -163,10 +166,12 @@ void virtio_blk_init(struct virtio_device* vio_dev) {
     device->vio_dev = vio_dev;
     device->features = features;
 
-    device->blocked_threads = kmalloc(sizeof(struct thread*) * vio_dev->queues[0].size);
-    if (unlikely(device->blocked_threads == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for VirtIO block device blocked threads");
+    device->queue_waiters = kmalloc(sizeof(struct thread*) * vio_dev->queues[0].size);
+    if (unlikely(device->queue_waiters == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for VirtIO block device queued threads");
     }
+
+    semaphore_init(&device->queue_semaphore, vio_dev->queues[0].size);
 
     isr_register_handler(vector, virtio_blk_irq_handler, device);
     mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
