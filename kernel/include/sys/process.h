@@ -11,8 +11,8 @@
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
-#define KERNEL_STACK_SIZE   0x4000
-#define USER_STACK_SIZE     0x20000
+#define KERNEL_STACK_SIZE   0x8000
+#define USER_STACK_SIZE     0x40000
 
 #define INTERPRETER_LOAD_BASE 0x40000000
 
@@ -63,8 +63,10 @@ struct process {
     pid_t pid;
     process_state_t state;
     int exit_status;
-    struct vfs_node* cwd;
     struct timespec time_used;
+
+    struct vfs_node* cwd;
+    struct vfs_node* root;
 
     struct file_descriptor fds[PROCESS_FD_COUNT];
     spinlock_t fd_lock;
@@ -89,6 +91,10 @@ struct process* process_create(struct process* parent);
 void process_create_init(void);
 void process_destroy(struct process* process);
 void process_exit(struct process* process, int status);
+struct vfs_node* process_get_cwd(struct process* process);
+struct vfs_node* process_get_root(struct process* process);
+void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
+void process_set_root(struct process* process, struct vfs_node* new_root);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry);

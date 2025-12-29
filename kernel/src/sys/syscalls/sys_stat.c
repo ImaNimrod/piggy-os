@@ -17,6 +17,11 @@ void sys_stat(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
+    if (!IS_USER_ADDRESS(stat)) {
+        r->rax = -EFAULT;
+        return;
+    }
+
     if (flags & AT_EMPTY_PATH) {
         struct file* file = file_get(current_process, dirfd);
         if (file == NULL) {
@@ -63,12 +68,7 @@ void sys_stat(struct registers* r) {
         ret = node->ops->getstat(node, stat);
         node->ops->unlock(node);
 
-        if (dirnode != NULL) {
-            VFS_NODE_UNREF(dirnode);
-        }
-        if (dirfile != NULL) {
-            file_release(dirfile);
-        }
+        file_cleanup_dirfd(dirfile, dirnode);
 
 end:
         kfree(kpath);

@@ -34,8 +34,12 @@ struct process* process_create(struct process* parent) {
     }
 
     if (parent != NULL) {
+        spinlock_acquire(&parent->lock);
+
         new_process->cwd = parent->cwd;
         VFS_NODE_REF(new_process->cwd);
+        new_process->root = parent->root;
+        VFS_NODE_REF(new_process->root);
 
         file_fork(parent, new_process);
 
@@ -47,8 +51,12 @@ struct process* process_create(struct process* parent) {
 
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
+
+        spinlock_release(&parent->lock);
     } else {
         new_process->cwd = vfs_root;
+        VFS_NODE_REF(vfs_root);
+        new_process->root = vfs_root;
         VFS_NODE_REF(vfs_root);
 
         new_process->vmm_context = vmm_context_create();
@@ -208,6 +216,44 @@ void process_exit(struct process* process, int status) {
         scheduler_dequeue((struct thread*) *vector_get(process->threads, i));
     }
 
+    spinlock_release(&process->lock);
+}
+
+struct vfs_node* process_get_cwd(struct process* process) {
+    spinlock_acquire(&process->lock);
+    struct vfs_node* cwd = process->cwd;
+    VFS_NODE_REF(cwd);
+    spinlock_release(&process->lock);
+    return cwd;
+}
+
+struct vfs_node* process_get_root(struct process* process) {
+    spinlock_acquire(&process->lock);
+    struct vfs_node* root = process->root;
+    VFS_NODE_REF(root);
+    spinlock_release(&process->lock);
+    return root;
+}
+
+void process_set_cwd(struct process* process, struct vfs_node* new_cwd) {
+    spinlock_acquire(&process->lock);
+    struct vfs_node* old_cwd = process->cwd;
+
+    VFS_NODE_REF(new_cwd);
+    process->cwd = new_cwd;
+
+    VFS_NODE_UNREF(old_cwd);
+    spinlock_release(&process->lock);
+}
+
+void process_set_root(struct process* process, struct vfs_node* new_root) {
+    spinlock_acquire(&process->lock);
+    struct vfs_node* old_root = process->root;
+
+    process->root = new_root;
+    VFS_NODE_REF(new_root);
+
+    VFS_NODE_UNREF(old_root);
     spinlock_release(&process->lock);
 }
 

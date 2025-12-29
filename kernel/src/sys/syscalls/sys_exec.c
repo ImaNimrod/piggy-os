@@ -147,8 +147,7 @@ void sys_exec(struct registers* r) {
         goto end;
     }
 
-    reference = kpath[0] == '/' ? vfs_root : current_process->cwd;
-    VFS_NODE_REF(reference);
+    reference = kpath[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
 
     if ((ret = vfs_lookup(reference, kpath, false, NULL, &node)) < 0) {
         goto end;

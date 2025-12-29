@@ -153,13 +153,20 @@ void file_release(struct file* file) {
     }
 }
 
+void file_cleanup_dirfd(struct file* dirfile, struct vfs_node* dirnode) {
+    if (dirnode != NULL) {
+        VFS_NODE_UNREF(dirnode);
+    }
+    if (dirfile != NULL) {
+        file_release(dirfile);
+    }
+}
+
 int file_resolve_dirfd(struct process* process, int dirfd, const char* path, struct file** dirfile, struct vfs_node** dirnode) {
     if (path[0] == '/') {
-        VFS_NODE_REF(vfs_root);
-        *dirnode = vfs_root;
+        *dirnode = process_get_root(process);
     } else if (dirfd == AT_FDCWD) {
-        VFS_NODE_REF(process->cwd);
-        *dirnode = process->cwd;
+        *dirnode = process_get_cwd(process);
     } else {
         *dirfile = file_get(process, dirfd);
         if (*dirfile == NULL) {

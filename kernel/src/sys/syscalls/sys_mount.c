@@ -55,8 +55,6 @@ void sys_mount(struct registers* r) {
         return;
     }
 
-    VFS_NODE_REF(current_process->cwd);
-
     struct vfs_node* backing_node = NULL;
     char* ksource = NULL;
 
@@ -72,7 +70,12 @@ void sys_mount(struct registers* r) {
             goto end;
         }
 
-        ret = vfs_lookup(current_process->cwd, ksource, false, NULL, &backing_node);
+        struct vfs_node* source_reference = ksource[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
+
+        ret = vfs_lookup(source_reference, ksource, false, NULL, &backing_node);
+
+        VFS_NODE_UNREF(source_reference);
+
         if (ret < 0) {
             goto end;
         }
@@ -80,15 +83,17 @@ void sys_mount(struct registers* r) {
         backing_node->ops->unlock(backing_node);
     }
 
+    struct vfs_node* target_reference = ktarget[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
+
     ret = vfs_mount(backing_node, current_process->cwd, ktarget, kfs_name);
+
+    VFS_NODE_UNREF(target_reference);
 
 end:
     if (backing_node != NULL) {
         VFS_NODE_UNREF(backing_node);
         kfree(ksource);
     }
-
-    VFS_NODE_UNREF(current_process->cwd);
 
     if (ksource != NULL) {
         kfree(ksource);

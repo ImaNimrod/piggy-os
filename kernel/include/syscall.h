@@ -29,10 +29,11 @@
 #define SYS_MMAP        25
 #define SYS_MUNMAP      26
 #define SYS_MPROTECT    27
-#define SYS_SLEEP       28
-#define SYS_GETTIME     29
-#define SYS_SETTIME     30
-#define SYS_UNAME       31
-#define SYS_ARCHCTL     32
+#define SYS_CHROOT      28
+#define SYS_SLEEP       29
+#define SYS_GETTIME     30
+#define SYS_SETTIME     31
+#define SYS_UNAME       32
+#define SYS_ARCHCTL     33
 
 #endif /* _KERNEL_SYSCALL_H */

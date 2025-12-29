@@ -45,12 +45,6 @@ void sys_mkdir(struct registers* r) {
 
     r->rax = vfs_create(dirnode, kpath, VFS_TYPE_DIRECTORY, NULL);
 
-    if (dirnode != NULL) {
-        VFS_NODE_UNREF(dirnode);
-    }
-    if (dirfile != NULL) {
-        file_release(dirfile);
-    }
-
+    file_cleanup_dirfd(dirfile, dirnode);
     kfree(kpath);
 }

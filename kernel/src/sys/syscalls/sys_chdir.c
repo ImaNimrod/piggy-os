@@ -25,9 +25,7 @@ void sys_chdir(struct registers* r) {
         goto end;
     }
 
-    VFS_NODE_UNREF(current_process->cwd);
-    current_process->cwd = node;
-    VFS_NODE_REF(current_process->cwd);
+    process_set_cwd(current_process, node);
 
 end:
     file_release(file);

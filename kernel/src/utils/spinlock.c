@@ -12,7 +12,7 @@ void spinlock_acquire(spinlock_t* lock) {
         }
 
         while (__atomic_load_n(lock, __ATOMIC_RELAXED)) {
-            if (++deadlock_counter > 1000000) {
+            if (++deadlock_counter > 100000000) {
                 kpanic(NULL, true, "deadlock");
             }
             pause();

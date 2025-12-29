@@ -77,10 +77,12 @@ static struct device_ops block_device_ops = {
 static hashmap_t* block_devices;
 static spinlock_t block_devices_lock;
 
-// TODO: support O_DIRECT flag and accesses that are not of at offset or of size divisble by block_size
-
 static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
     (void) flags;
+
+    if (count == 0) {
+        return 0;
+    }
 
     struct block_device* device;
 
@@ -91,26 +93,30 @@ static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int 
     }
     spinlock_release(&block_devices_lock);
 
-    if ((count % device->block_size) != 0 || (offset % device->block_size) != 0) {
-        return -EINVAL;
-    }
-
     ssize_t ret;
 
-    size_t page_count = DIV_CEIL(count, PAGE_SIZE_4KB);
+    off_t aligned_offset = ALIGN_DOWN(offset, device->block_size);
+    size_t offset_delta  = offset - aligned_offset;
+
+    size_t aligned_count = DIV_CEIL(offset_delta + count, device->block_size) * device->block_size;
+
+    uint64_t lba = (aligned_offset / device->block_size) + device->lba_offset;
+    size_t block_count = aligned_count / device->block_size;
+
+    size_t page_count = DIV_CEIL(aligned_count, PAGE_SIZE_4KB);
     uintptr_t paddr = pmm_alloc(page_count);
 
-    ssize_t read = device->cmd_handler(device, CMD_READ, ((uint64_t) offset / device->block_size) + device->lba_offset, count / device->block_size, paddr);
-    if (read < 0) {
-        ret = read;
+    ssize_t read_count = device->cmd_handler(device, CMD_READ, lba, block_count, paddr);
+    if (read_count < 0) {
+        ret = read_count;
         goto end;
     }
 
-    if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) (paddr + HIGH_VMA), count)) < 0) {
+    if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) (paddr + offset_delta + HIGH_VMA), count)) < 0) {
         goto end;
     }
 
-    ret = read * device->block_size;
+    ret = count;
 
 end:
     pmm_free(paddr, page_count);
@@ -120,6 +126,10 @@ end:
 static ssize_t block_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
     (void) flags;
 
+    if (count == 0) {
+        return 0;
+    }
+
     struct block_device* device;
 
     spinlock_acquire(&block_devices_lock);
@@ -129,24 +139,29 @@ static ssize_t block_write(dev_t dev, const void* buf, size_t count, off_t offse
     }
     spinlock_release(&block_devices_lock);
 
-    if ((count % device->block_size) != 0 || (offset % device->block_size) != 0) {
-        return -EINVAL;
-    }
+    off_t aligned_offset = ALIGN_DOWN(offset, device->block_size);
+    size_t offset_delta  = offset - aligned_offset;
 
-    size_t page_count = DIV_CEIL(count, PAGE_SIZE_4KB);
+    size_t aligned_count = DIV_CEIL(offset_delta + count, device->block_size) * device->block_size;
+
+    uint64_t lba = (aligned_offset / device->block_size) + device->lba_offset;
+    size_t block_count = aligned_count / device->block_size;
+
+    size_t page_count = DIV_CEIL(aligned_count, PAGE_SIZE_4KB);
     uintptr_t paddr = pmm_alloc(page_count);
 
-    ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (paddr + HIGH_VMA), buf, count);
+    ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (paddr + offset_delta + HIGH_VMA), buf, count);
     if (ret < 0) {
         goto end;
     }
 
-    ssize_t written = device->cmd_handler(device, CMD_WRITE, ((uint64_t) offset / device->block_size) + device->lba_offset, count / device->block_size, paddr);
-    if (written > 0) {
-        written *= device->block_size;
+    ssize_t write_count = device->cmd_handler(device, CMD_WRITE, lba, block_count, paddr);
+    if (write_count < 0) {
+        ret = write_count;
+        goto end;
     }
 
-    ret = written;
+    ret = count;
 
 end:
     pmm_free(paddr, page_count);
@@ -218,7 +233,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
 
             struct block_device block_device = {
                 .cmd_handler = device->cmd_handler,
-                .private = NULL,
+                .private = device->private,
                 .block_count = entry->end_lba - entry->start_lba,
                 .block_size = device->block_size,
                 .lba_offset = entry->start_lba,
@@ -246,7 +261,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
 
             struct block_device block_device = {
                 .cmd_handler = device->cmd_handler,
-                .private = NULL,
+                .private = device->private,
                 .block_count = entry->sector_count,
                 .block_size = device->block_size,
                 .lba_offset = entry->start_sector,

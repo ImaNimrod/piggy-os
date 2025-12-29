@@ -31,6 +31,7 @@ extern void sys_dup(struct registers* r);
 extern void sys_mmap(struct registers* r);
 extern void sys_munmap(struct registers* r);
 extern void sys_mprotect(struct registers* r);
+extern void sys_chroot(struct registers* r);
 extern void sys_sleep(struct registers* r);
 extern void sys_gettime(struct registers* r);
 extern void sys_settime(struct registers* r);
@@ -68,6 +69,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_MMAP]      = sys_mmap,
     [SYS_MUNMAP]    = sys_munmap,
     [SYS_MPROTECT]  = sys_mprotect,
+    [SYS_CHROOT]    = sys_chroot,
     [SYS_SLEEP]     = sys_sleep,
     [SYS_GETTIME]   = sys_gettime,
     [SYS_SETTIME]   = sys_settime,

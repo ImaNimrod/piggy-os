@@ -34,7 +34,7 @@ struct tmpfs_node {
 
 static struct slab_cache* tmpfs_node_cache;
 
-static int tmpfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result);
+static int tmpfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result);
 static int tmpfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);
 
 static struct vfs_ops tmpfs_ops = {
@@ -105,14 +105,14 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
     node->stat.st_ino = __atomic_add_fetch(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(type);
     node->stat.st_blksize = PAGE_SIZE_4KB;
-    node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
+    node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
 
     return node;
 }
 
-static int tmpfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result) {
+static int tmpfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result) {
     (void) backing;
-    (void) filesystem;
+    (void) target;
 
     struct tmpfs_filesystem* tmpfs = kmalloc(sizeof(struct tmpfs_filesystem));
     if (unlikely(tmpfs == NULL)) {
@@ -383,8 +383,7 @@ static ssize_t tmpfs_getdents(struct vfs_node* node, struct dirent* buf, size_t 
 }
 
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat) {
-    user_memcpy_to_user((void*) stat, (const void*) &((struct tmpfs_node*) node)->stat, sizeof(struct stat));
-    return 0;
+    return USER_MEMCPY_MAYBE_TO_USER((void*) stat, (const void*) &((struct tmpfs_node*) node)->stat, sizeof(struct stat));
 }
 
 static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int flags) {

@@ -27,9 +27,10 @@ void sys_unmount(struct registers* r) {
         return;
     }
 
-    VFS_NODE_REF(current_process->cwd);
-    r->rax = vfs_unmount(current_process->cwd, ktarget);
-    VFS_NODE_UNREF(current_process->cwd);
+    struct vfs_node* reference = ktarget[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
 
+    r->rax = vfs_unmount(reference, ktarget);
+
+    VFS_NODE_UNREF(reference);
     kfree(ktarget);
 }

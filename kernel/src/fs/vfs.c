@@ -26,6 +26,8 @@ static int nop(struct vfs_node* node) {
     return 0;
 }
 
+// TODO: fix .. directory entries
+
 int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name) {
     struct vfs_ops* fs_ops;
 
@@ -143,7 +145,6 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
     struct vfs_node* current = reference;
 
     int error = 0;
-
     while (error == 0 && current->mounted != NULL) {
         error = current->mounted->ops->root(current->mounted, &current);
     }

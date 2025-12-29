@@ -483,6 +483,10 @@ int vmm_remap(struct vmm_context* context, uintptr_t address, size_t size, int p
 }
 
 bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
+    if (fault_addr < USER_START || fault_addr > USER_END) {
+        return false;
+    }
+
     /* if the faulting page is already present, the fault has nothing to do with the VMM */
     if (error_code & (1 << 0)) {
         return false;

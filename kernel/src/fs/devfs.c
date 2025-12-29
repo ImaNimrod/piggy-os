@@ -20,7 +20,7 @@ static struct devfs_node* devfs_root_node;
 static hashmap_t* devices;
 static ino_t inode_counter;
 
-static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result);
+static int devfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result);
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);
 
 static struct vfs_ops devfs_ops = {
@@ -58,24 +58,25 @@ static struct vfs_node_ops devfs_node_ops = {
     .inactive = devfs_inactive,
 };
 
-static int devfs_mount(struct vfs_node* backing, struct vfs_node* filesystem, struct vfs_filesystem** result) {
+static int devfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result) {
     (void) backing;
-    (void) filesystem;
+    (void) target;
 
     struct vfs_filesystem* devfs = kmalloc(sizeof(struct vfs_filesystem));
     if (unlikely(devfs == NULL)) {
         return -ENOMEM;
     }
-
-    *result = devfs;
+    devfs->root = (struct vfs_node*) devfs_root_node;
     devfs->ops = &devfs_ops;
 
+    devfs_root_node->filesystem = devfs;
+
+    *result = devfs;
     return 0;
 }
 
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result) {
-    devfs_root_node->filesystem = filesystem;
-    *result = (struct vfs_node*) devfs_root_node;
+    *result = filesystem->root;
     return 0;
 }
 
@@ -192,15 +193,14 @@ static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t 
             return err;
         }
 
-        ret += 1;
+        ret++;
     }
 
     return ret;
 }
 
 static int devfs_getstat(struct vfs_node* node, struct stat* stat) {
-    user_memcpy_to_user((void*) stat, (const void*) &((struct devfs_node*) node)->stat, sizeof(struct stat));
-    return 0;
+    return USER_MEMCPY_MAYBE_TO_USER((void*) stat, (const void*) &((struct devfs_node*) node)->stat, sizeof(struct stat));
 }
 
 static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags) {
@@ -271,7 +271,7 @@ int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, de
     node->stat.st_mode = vfs_type_to_mode(type);
     node->stat.st_rdev = dev;
     node->stat.st_blksize = PAGE_SIZE_4KB;
-    node->stat.st_atim = node->stat.st_mtim, node->stat.st_ctim = time_realtime;
+    node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
 
     node->devops = ops;
 
@@ -298,11 +298,19 @@ void devfs_init(void) {
     if (unlikely(devices == NULL)) {
         kpanic(NULL, false, "failed to create devfs device map");
     }
+    if (unlikely(!hashmap_set(devices, ".", 1, devfs_root_node))) {
+        kpanic(NULL, false, "failed to create '.' entry in device map");
+    }
 
     devfs_root_node->type = VFS_TYPE_DIRECTORY;
     devfs_root_node->flags = VFS_FLAG_ROOT;
     devfs_root_node->ops = &devfs_node_ops;
     devfs_root_node->refcount = 1;
+
+    devfs_root_node->stat.st_ino = 1;
+    devfs_root_node->stat.st_mode = vfs_type_to_mode(devfs_root_node->type);
+    devfs_root_node->stat.st_blksize = PAGE_SIZE_4KB;
+    devfs_root_node->stat.st_atim = devfs_root_node->stat.st_mtim = devfs_root_node->stat.st_ctim = time_realtime;
 
     if (unlikely(!vfs_register_fs("devfs", &devfs_ops))) {
         kpanic(NULL, false, "failed to register devfs with vfs");

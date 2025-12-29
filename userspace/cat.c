@@ -16,14 +16,14 @@ static int do_cat(char* filename, int rfd) {
         }
     }
 
-    ssize_t n;
-    while ((n = read(rfd, buf, BUF_SIZE)) > 0) {
-        if (write(STDOUT_FILENO, buf, n) != n) {
+    ssize_t nread;
+    while ((nread = read(rfd, buf, BUF_SIZE)) > 0) {
+        if (write(STDOUT_FILENO, buf, nread) != nread) {
             err(EXIT_FAILURE, "write(stdout)");
         }
     }
 
-    if (n < 0) {
+    if (nread < 0) {
         warn("%s", filename);
         return EXIT_FAILURE;
     }

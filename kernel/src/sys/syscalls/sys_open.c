@@ -106,12 +106,6 @@ end:
         }
     }
 
-    if (dirnode != NULL) {
-        VFS_NODE_UNREF(dirnode);
-    }
-    if (dirfile != NULL) {
-        file_release(dirfile);
-    }
-
+    file_cleanup_dirfd(dirfile, dirnode);
     kfree(kpath);
 }

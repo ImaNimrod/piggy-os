@@ -1,6 +1,6 @@
 include ../config.mk
 
-CFLAGS := -Wall -Wextra -pedantic -O2 -std=gnu99
+CFLAGS := -Wall -Wextra -pedantic -O2 -std=gnu11
 
 USERSPACE_PROGRAMS := $(patsubst %.c, $(SYSROOT_DIR)/usr/bin/%, $(wildcard *.c))
 
