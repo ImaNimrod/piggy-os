@@ -298,12 +298,12 @@ int block_register(const char* name, dev_t dev, struct block_device* block_devic
     bool ret = hashmap_set(block_devices, &dev, sizeof(dev), device);
 
     spinlock_release(&block_devices_lock);
+
     if (unlikely(!ret)) {
         return -ENOMEM;
     }
 
     int ret2 = devfs_register(name, VFS_TYPE_BLOCKDEV, &block_device_ops, dev);
-
     if (ret2 <= 0 && check_partitions) {
         detect_partitions(device, name);
     }

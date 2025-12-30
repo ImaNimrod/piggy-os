@@ -194,8 +194,6 @@ struct ahci_device {
     uintptr_t clb_and_fis_paddr;
     uintptr_t command_table_paddr;
 
-    bool is_lba48;
-
     ata_device_type_t type;
     char serial_number[ATA_IDENTIFY_SERIAL_SIZE + 1];
     char firmware_revision[ATA_IDENTIFY_FIRMWARE_SIZE + 1];
