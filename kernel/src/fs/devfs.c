@@ -114,6 +114,7 @@ static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
         return -ENODEV;
     }
 
+    dnode->stat.st_atim = time_realtime;
     return dnode->devops->read(dnode->stat.st_rdev, buf, count, offset, flags);
 }
 
@@ -127,6 +128,7 @@ static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count,
         return -ENODEV;
     }
 
+    dnode->stat.st_mtim = dnode->stat.st_ctim = time_realtime;
     return dnode->devops->write(dnode->stat.st_rdev, buf, count, offset, flags);
 }
 
@@ -204,6 +206,7 @@ static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t 
         ret++;
     }
 
+    devfs_root_node->stat.st_atim = time_realtime;
     return ret;
 }
 

@@ -67,13 +67,13 @@ void initrd_unpack(struct limine_file* initrd_module) {
 
         off_t size = oct2int(current_file->size, sizeof(current_file->size));
 
-        int error = 0;
+        ssize_t error = 0;
         struct vfs_node* node = NULL;
 
         switch (current_file->type) {
             case TAR_FILE_TYPE_NORMAL:
                 error = vfs_create(vfs_root, name, VFS_TYPE_REGULAR, &node);
-                if (error != 0) {
+                if (error < 0) {
                     break;
                 }
 
@@ -91,7 +91,9 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 break;
         }
 
-        if (error == 0 && node != NULL) {
+        if (error < 0) {
+            klog("[initrd] failed to unpack file '%s': %d\n", name, error);
+        } else {
             time_t mtime = oct2int(current_file->mtime, sizeof(current_file->mtime));
             struct timespec timestamp = { .tv_sec = mtime, .tv_nsec = 0 };
 
@@ -100,10 +102,6 @@ void initrd_unpack(struct limine_file* initrd_module) {
 
             node->ops->unlock(node);
             VFS_NODE_UNREF(node);
-        }
-
-        if (error != 0) {
-            klog("[initrd] failed to unpack file '%s': %d\n", name, error);
         }
 
         file_count++;

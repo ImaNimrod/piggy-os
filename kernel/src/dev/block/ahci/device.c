@@ -129,11 +129,17 @@ static void stop_command_engine(struct ahci_device* device) {
 }
 
 static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t block_count, uintptr_t paddr) {
-    if (block_count > 65536) {
-        return -EIO;
-    }
-
     struct ahci_device* device = block_device->private;
+
+    if (device->is_lba48) {
+        if (block_count > 65536) {
+            return -EIO;
+        }
+    } else {
+        if (block_count > 256) {
+            return -EIO;
+        }
+    }
 
     semaphore_wait(&device->queue_semaphore);
 
@@ -163,7 +169,7 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
         (void) paddr;
 
         header->prdtl = header->prdbc = 0;
-        fis->command = ATA_COMMAND_FLUSH_CACHE_EXT;
+        fis->command = device->is_lba48 ? ATA_COMMAND_FLUSH_CACHE_EXT : ATA_COMMAND_FLUSH_CACHE;
     } else {
         size_t prdt_count = (uint16_t) ((block_count - 1) >> 4) + 1;
         if (prdt_count > PRDT_PER_COMMAND) {
@@ -192,20 +198,28 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
         prdt->dbc = (block_count << LOG2(block_device->block_size)) - 1;
 
         if (cmd == CMD_READ) {
-            fis->command = ATA_COMMAND_READ_DMA_EXT;
+            fis->command = device->is_lba48 ? ATA_COMMAND_READ_DMA_EXT : ATA_COMMAND_READ_DMA;
         } else if (cmd == CMD_WRITE) {
-            fis->command = ATA_COMMAND_WRITE_DMA_EXT;
+            fis->command = device->is_lba48 ? ATA_COMMAND_WRITE_DMA_EXT : ATA_COMMAND_WRITE_DMA;
         }
 
-        fis->lba0 = lba & 0xff;
-        fis->lba1 = (lba >> 8) & 0xff;
-        fis->lba2 = (lba >> 16) & 0xff;
-        fis->lba3 = (lba >> 24) & 0xff;
-        fis->lba4 = (lba >> 32) & 0xff;
-        fis->lba5 = (lba >> 40) & 0xff;
-        fis->countl = block_count == 65536 ? 0 : (uint8_t) (block_count & 0xff);
-        fis->counth = block_count == 65536 ? 0 : (uint8_t) ((block_count >> 8) & 0xff);
-        fis->device = (1 << 6);
+        if (device->is_lba48) {
+            fis->lba0 = lba & 0xff;
+            fis->lba1 = (lba >> 8) & 0xff;
+            fis->lba2 = (lba >> 16) & 0xff;
+            fis->lba3 = (lba >> 24) & 0xff;
+            fis->lba4 = (lba >> 32) & 0xff;
+            fis->lba5 = (lba >> 40) & 0xff;
+            fis->countl = block_count == 65536 ? 0 : (uint8_t) (block_count & 0xff);
+            fis->counth = block_count == 65536 ? 0 : (uint8_t) ((block_count >> 8) & 0xff);
+            fis->device = (1 << 6);
+        } else {
+            fis->lba0 = lba & 0xff;
+            fis->lba1 = (lba >> 8) & 0xff;
+            fis->lba2 = (lba >> 16) & 0xff;
+            fis->countl = block_count == 256 ? 0 : (uint8_t) (block_count & 0xff);
+            fis->device = (1 << 6) | ((lba >> 24) & 0x0f);
+        }
     }
 
     struct hba_port* hba_port = device->hba_port;
@@ -352,7 +366,14 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
 
     uint16_t* identity_buffer = (void*) (identity_buffer_paddr + HIGH_VMA);
 
-    size_t sector_count = identity_buffer[100] | (identity_buffer[101] << 16) | ((uint64_t) identity_buffer[102] << 32) | ((uint64_t) identity_buffer[103] << 48);
+    device->is_lba48 = identity_buffer[83] & (1 << 10);
+
+    size_t sector_count;
+    if (device->is_lba48) {
+        sector_count = identity_buffer[100] | (identity_buffer[101] << 16) | ((uint64_t) identity_buffer[102] << 32) | ((uint64_t) identity_buffer[103] << 48);
+    } else {
+        sector_count = identity_buffer[60] | (identity_buffer[61] << 16);
+    }
 
     size_t sector_size = 512;
     if ((identity_buffer[106] & (1 << 14)) && !(identity_buffer[106] & (1 << 15))) {

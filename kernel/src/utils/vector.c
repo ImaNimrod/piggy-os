@@ -109,6 +109,33 @@ bool vector_pop(vector_t* v, void* out) {
     return true;
 }
 
+bool vector_resize(vector_t* v, size_t new_size) {
+    if (new_size <= v->size) {
+        v->size = new_size;
+        return true;
+    }
+
+    if (new_size > v->capacity) {
+        size_t new_capacity = v->capacity;
+        while (new_capacity < new_size) {
+            new_capacity *= VECTOR_GROWTH_FACTOR;
+        }
+
+        void* new_data = krealloc(v->data, new_capacity * v->item_size);
+        if (unlikely(new_data == NULL)) {
+            return false;
+        }
+
+        v->data = new_data;
+        v->capacity = new_capacity;
+    }
+
+    memset((uint8_t*) v->data + (v->size * v->item_size), 0, (new_size - v->size) * v->item_size);
+
+    v->size = new_size;
+    return true;
+}
+
 size_t vector_size(vector_t* v) {
     return v->size;
 }

@@ -91,7 +91,7 @@ static int virtio_blk_rw(struct virtio_blk_device* device, uint64_t lba, size_t 
     request->sector = lba;
 
     queue->descriptors[desc0].address = request_paddr;
-    queue->descriptors[desc0].length = 16;
+    queue->descriptors[desc0].length = sizeof(struct virtio_blk_request);
     queue->descriptors[desc0].flags = VIRTQ_DESC_F_NEXT;
     queue->descriptors[desc0].next = desc1;
 
@@ -123,11 +123,60 @@ static int virtio_blk_rw(struct virtio_blk_device* device, uint64_t lba, size_t 
     return (status == VIRTIO_BLK_S_OK) ? 0 : -EIO;
 }
 
+static int virtio_blk_flush(struct virtio_blk_device* device) {
+    semaphore_wait(&device->queue_semaphore);
+
+    struct virtio_queue* queue = &device->vio_dev->queues[0];
+    spinlock_acquire(&queue->lock);
+
+    uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
+    uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
+
+    uintptr_t request_paddr = pmm_alloc(1);
+
+    struct virtio_blk_request* request = (void*) (request_paddr + HIGH_VMA);
+    request->type = VIRTIO_BLK_T_FLUSH;
+    request->reserved = 0;
+    request->sector = 0;
+
+    queue->descriptors[desc0].address = request_paddr;
+    queue->descriptors[desc0].length = sizeof(struct virtio_blk_request);
+    queue->descriptors[desc0].flags = VIRTQ_DESC_F_NEXT;
+    queue->descriptors[desc0].next = desc1;
+
+    queue->descriptors[desc1].address = request_paddr + sizeof(struct virtio_blk_request);
+    queue->descriptors[desc1].length = 1;
+    queue->descriptors[desc1].flags = VIRTQ_DESC_F_WRITE;
+    queue->descriptors[desc1].next = 0;
+
+    device->queue_waiters[desc0] = this_cpu()->running_thread;
+    virtio_queue_insert(queue, desc0);
+
+    spinlock_release(&queue->lock);
+
+    virtio_queue_notify(queue);
+    scheduler_block(this_cpu()->running_thread);
+
+    uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + sizeof(struct virtio_blk_request));
+
+    pmm_free(request_paddr, 1);
+
+    return (status == VIRTIO_BLK_S_OK) ? 0 : -EIO;
+}
+
 static ssize_t virtio_blk_cmd_handler(struct block_device* block_device, block_cmd_t cmd, uint64_t lba, size_t block_count, uintptr_t paddr) {
     struct virtio_blk_device* device = block_device->private;
 
     if (cmd == CMD_WRITE && device->features & VIRTIO_BLK_F_RO) {
         return -EIO;
+    }
+
+    if (cmd == CMD_FLUSH) {
+        if (!(device->features & VIRTIO_BLK_F_FLUSH)) {
+            return -EIO;
+        }
+
+        return virtio_blk_flush(device);
     }
 
     size_t remaining_blocks = block_count;
@@ -205,14 +254,23 @@ void virtio_blk_init(struct virtio_device* vio_dev) {
     }
     device->vio_dev = vio_dev;
     device->features = features;
-    device->io_size_blocks = DIV_CEIL(PAGE_SIZE_4KB, block_size);
+
+    size_t io_size = PAGE_SIZE_4KB;
+    if (features & VIRTIO_BLK_F_SIZE_MAX) {
+        size_t max_size = mmio_read32(&blk_config->size_max);
+        if (max_size != 0) {
+            io_size = MIN(io_size, max_size);
+        }
+    }
 
     if (features & VIRTIO_BLK_F_TOPOLOGY) {
         size_t optimal_io_size = mmio_read32(&blk_config->topology.optimal_io_size);
         if (optimal_io_size != 0) {
-            device->io_size_blocks = optimal_io_size;
+            device->io_size_blocks = MIN(io_size, optimal_io_size);
         }
     }
+
+    device->io_size_blocks = DIV_CEIL(io_size, block_size);
 
     device->queue_waiters = kmalloc(sizeof(struct thread*) * vio_dev->queues[0].size);
     if (unlikely(device->queue_waiters == NULL)) {

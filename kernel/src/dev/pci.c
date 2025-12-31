@@ -228,6 +228,14 @@ void pci_write(struct pci_device* dev, uint16_t offset, uint32_t value, uint8_t 
     internal_write(dev->segment, dev->bus, dev->slot, dev->function, offset, value, access_size);
 }
 
+uint32_t pci_raw_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
+    return internal_read(segment, bus, slot, function, offset, access_size);
+}
+
+void pci_raw_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size) {
+    internal_write(segment, bus, slot, function, offset, value, access_size);
+}
+
 bool pci_get_bar(struct pci_device* dev, uint8_t index, struct pci_bar* bar) {
     if (unlikely(index > 5)) {
         return false;

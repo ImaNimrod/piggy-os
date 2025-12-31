@@ -8,6 +8,12 @@ void semaphore_init(semaphore_t* s, uint64_t value) {
     s->waiters = NULL;
 }
 
+void semaphore_reset(semaphore_t* s) {
+    bool int_state = spinlock_acquire_irqsave(&s->lock);
+    s->value = 0;
+    spinlock_release_irqsave(&s->lock, int_state);
+}
+
 void semaphore_signal(semaphore_t* s) {
     bool int_state = spinlock_acquire_irqsave(&s->lock);
 

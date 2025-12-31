@@ -19,6 +19,7 @@ bool vector_remove(vector_t* v, size_t index);
 bool vector_remove_by_value(vector_t* v, const void* value);
 bool vector_push(vector_t* v, const void* value);
 bool vector_pop(vector_t* v, void* out);
+bool vector_resize(vector_t* v, size_t new_size);
 size_t vector_size(vector_t* v);
 
 #endif /* _KERNEL_UTILS_VECTOR_H */

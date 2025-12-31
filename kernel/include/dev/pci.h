@@ -85,6 +85,8 @@ struct pci_driver {
 
 uint32_t pci_read(struct pci_device* dev, uint16_t offset, uint8_t access_size);
 void pci_write(struct pci_device* dev, uint16_t offset, uint32_t value, uint8_t access_size);
+uint32_t pci_raw_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size);
+void pci_raw_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size);
 bool pci_get_bar(struct pci_device* dev, uint8_t index, struct pci_bar* bar);
 bool pci_map_bar(struct pci_bar* bar);
 bool pci_setup_msi(struct pci_device* dev, uint8_t vector);

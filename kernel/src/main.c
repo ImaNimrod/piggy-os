@@ -94,6 +94,7 @@ NORETURN static void kernel_main(void) {
     fb_dev_init();
 
     pci_init();
+    acpi_init();
 
     console_init();
     ps2_init();
@@ -146,7 +147,7 @@ NORETURN void kernel_entry(void) {
     paging_init();
     fb_dev_early_init();
 
-    acpi_init();
+    acpi_early_init();
     lapic_madt_parse();
 
     vfs_init();

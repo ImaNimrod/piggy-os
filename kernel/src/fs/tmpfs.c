@@ -12,21 +12,18 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
+#include <utils/vector.h>
 
 struct tmpfs_filesystem {
     struct vfs_filesystem;
     ino_t inode_counter;
 };
 
-// TODO: make tmpfs_node data be list of pages rather than one contiguous page that gets realloced when full
 struct tmpfs_node {
     struct vfs_node;
     struct stat stat;
     union {
-        struct {
-            void* data;
-            size_t capacity;
-        };
+        vector_t* pages;
         hashmap_t* children;
     };
     spinlock_t lock;
@@ -93,8 +90,11 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
             return NULL;
         }
     } else if (type == VFS_TYPE_REGULAR) {
-        node->data = (void*) (pmm_alloc_zero(1) + HIGH_VMA);
-        node->capacity = PAGE_SIZE_4KB;
+        node->pages = vector_create(sizeof(uintptr_t));
+        if (unlikely(node->children == NULL)) {
+            slab_cache_free(tmpfs_node_cache, node);
+            return NULL;
+        }
     }
 
     node->type = type;
@@ -251,18 +251,39 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
 
-    size_t actual_count = count;
-    if ((off_t) (offset + count) >= tnode->stat.st_size) {
-        actual_count = count - ((offset + count) - tnode->stat.st_size);
+    if (offset >= tnode->stat.st_size) {
+        return 0;
     }
 
-    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) ((uintptr_t) tnode->data + offset), actual_count);
-    if (ret < 0) {
-        return ret;
+    ssize_t remaining = tnode->stat.st_size - offset;
+    ssize_t to_read = MIN((off_t) count, remaining);
+
+    ssize_t done = 0;
+    while (done < to_read) {
+        size_t file_off = offset + done;
+        size_t page_index = file_off / PAGE_SIZE_4KB;
+        size_t page_off = file_off % PAGE_SIZE_4KB;
+        size_t chunk = MIN(PAGE_SIZE_4KB - page_off, (size_t) to_read - done);
+
+        uintptr_t* paddr = (uintptr_t*) vector_get(tnode->pages, page_index);
+
+        ssize_t ret;
+
+        if (paddr == NULL || *paddr == 0) {
+            ret = USER_MEMSET_MAYBE_USER((uint8_t*) buf + done, 0, chunk);
+        } else {
+            ret = USER_MEMCPY_MAYBE_TO_USER((uint8_t*) buf + done, (void*) (*paddr + page_off + HIGH_VMA), chunk);
+        }
+
+        if (ret < 0) {
+            return ret;
+        }
+
+        done += chunk;
     }
 
     tnode->stat.st_atim = time_realtime;
-    return actual_count;
+    return done;
 }
 
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
@@ -274,33 +295,43 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
 
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
 
-    if (offset + count >= tnode->capacity) {
-        size_t new_capacity = tnode->capacity;
-        while (offset + count >= new_capacity) {
-            new_capacity *= 2;
+    off_t end = offset + count;
+    if (end != 0 && end >= tnode->stat.st_size) {
+        tnode->stat.st_size = end;
+        tnode->stat.st_blocks = DIV_CEIL(end, tnode->stat.st_blksize);
+
+        if (!vector_resize(tnode->pages, tnode->stat.st_blocks)) {
+            return -ENOMEM;
+        }
+    }
+
+    ssize_t done = 0;
+    while (done < (off_t) count) {
+        size_t file_off = offset + done;
+        size_t page_index = file_off / PAGE_SIZE_4KB;
+        size_t page_off   = file_off % PAGE_SIZE_4KB;
+        size_t chunk = PAGE_SIZE_4KB - page_off;
+        if (chunk > count - done) {
+            chunk = count - done;
         }
 
-        void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
-        memcpy64(new_data, tnode->data, (tnode->capacity / PAGE_SIZE_4KB) >> 3);
+        uintptr_t* slot = (uintptr_t*) vector_get(tnode->pages, page_index);
+        if (*slot == 0) {
+            bool need_zero = page_off != 0 || chunk != PAGE_SIZE_4KB;
+            uintptr_t new_page = need_zero ? pmm_alloc_zero(1) : pmm_alloc(1);
+            vector_set(tnode->pages, page_index, &new_page);
+        }
 
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
+        ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (*slot + page_off + HIGH_VMA), (uint8_t*) buf + done, chunk);
+        if (ret < 0) {
+            return ret;
+        }
 
-        tnode->data = new_data;
-        tnode->capacity = new_capacity;
+        done += chunk;
     }
 
-    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER((void*) ((uintptr_t) tnode->data + offset), buf, count);
-    if (ret < 0) {
-        return ret;
-    }
-
-    if ((off_t) (offset + count) >= tnode->stat.st_size) {
-        tnode->stat.st_size = (off_t) (offset + count);
-        tnode->stat.st_blocks = DIV_CEIL(tnode->stat.st_size, tnode->stat.st_blksize);
-    }
-
-    tnode->stat.st_atim = tnode->stat.st_mtim = time_realtime;
-    return 0;
+    tnode->stat.st_mtim = tnode->stat.st_ctim = time_realtime;
+    return done;
 }
 
 static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp) {
@@ -313,25 +344,40 @@ static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp) {
 static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
 
-    if ((size_t) length > tnode->capacity) {
-        size_t new_capacity = tnode->capacity;
-        while (new_capacity < (size_t) length) {
-            new_capacity *= 2;
+    if (node->type == VFS_TYPE_DIRECTORY) {
+        return -EISDIR;
+    }
+
+    off_t old_size = tnode->stat.st_size;
+    if (old_size == length) {
+        return 0;
+    }
+
+    size_t new_page_count = DIV_CEIL(length, PAGE_SIZE_4KB);
+
+    bool ret;
+    if (length < old_size) {
+        size_t old_page_count = DIV_CEIL(old_size, PAGE_SIZE_4KB);
+
+        for (size_t i = new_page_count; i < old_page_count; i++) {
+            uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, i);
+            if (page != NULL && *page != 0) {
+                pmm_free(*page, 1);
+            }
         }
 
-        void* new_data = (void*) (pmm_alloc_zero(new_capacity / PAGE_SIZE_4KB) + HIGH_VMA);
-        memcpy64(new_data, tnode->data, (tnode->capacity / PAGE_SIZE_4KB) >> 3);
+        ret = vector_resize(tnode->pages, new_page_count);
+    } else {
+        ret = vector_resize(tnode->pages, new_page_count);
+    }
 
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, tnode->capacity / PAGE_SIZE_4KB);
-
-        tnode->capacity = new_capacity;
-        tnode->data = new_data;
+    if (!ret) {
+        return -ENOMEM;
     }
 
     tnode->stat.st_size = length;
-    tnode->stat.st_blocks = DIV_CEIL(tnode->stat.st_size, tnode->stat.st_blksize);
-    tnode->stat.st_atim = tnode->stat.st_mtim = time_realtime;
-
+    tnode->stat.st_blocks = DIV_CEIL(length, tnode->stat.st_blksize);
+    tnode->stat.st_atim = tnode->stat.st_mtim = tnode->stat.st_ctim = time_realtime;
     return 0;
 }
 
@@ -379,6 +425,7 @@ static ssize_t tmpfs_getdents(struct vfs_node* node, struct dirent* buf, size_t 
         ret += 1;
     }
 
+    tnode->stat.st_atim = time_realtime;
     return ret;
 }
 
@@ -416,7 +463,14 @@ static void tmpfs_inactive(struct vfs_node* node) {
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
 
     if (tnode->type == VFS_TYPE_REGULAR) {
-        pmm_free((uintptr_t) tnode->data - HIGH_VMA, DIV_CEIL(tnode->capacity, PAGE_SIZE_4KB));
+        for (size_t i = 0; i < vector_size(tnode->pages); i++) {
+            uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, i);
+            if (page != NULL && *page != 0) {
+                pmm_free(*page, 1);
+            }
+        }
+
+        vector_destroy(tnode->pages);
     } else if (tnode->type == VFS_TYPE_DIRECTORY) {
         hashmap_destroy(tnode->children);
     }

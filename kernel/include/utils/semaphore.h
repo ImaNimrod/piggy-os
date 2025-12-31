@@ -12,6 +12,7 @@ typedef struct semaphore {
 } semaphore_t;
 
 void semaphore_init(semaphore_t* s, uint64_t value);
+void semaphore_reset(semaphore_t* s);
 void semaphore_signal(semaphore_t* s);
 void semaphore_wait(semaphore_t* s);
 

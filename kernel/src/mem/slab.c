@@ -6,6 +6,8 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
+#define BIG_ALLOC_HEADER_MAGIC 0xfafeceedabcdeffe
+
 #define CACHE_NAME_MAX_LEN 64 
 #define OBJECTS_PER_SLAB 256
 
@@ -31,6 +33,12 @@ struct slab_cache {
     struct slab* full_slabs;
 
     spinlock_t lock;
+};
+
+struct big_alloc_header {
+    uint64_t magic;
+    size_t page_count;
+    size_t size;
 };
 
 static struct slab_cache cache_cache;
@@ -212,8 +220,8 @@ void slab_init(void) {
     kmalloc_caches[7] = slab_cache_create("kmalloc_256 cache", 256);
     kmalloc_caches[8] = slab_cache_create("kmalloc_384 cache", 384);
     kmalloc_caches[9] = slab_cache_create("kmalloc_512 cache", 512);
-    kmalloc_caches[10] = slab_cache_create("kmalloc_1024 cache", 1024);
-    kmalloc_caches[11] = slab_cache_create("kmalloc_2048 cache", 2048);
+    kmalloc_caches[10] = slab_cache_create("kmalloc_768 cache", 768);
+    kmalloc_caches[11] = slab_cache_create("kmalloc_1024 cache", 1024);
 
     klog("[slab] initialized kernel slab allocator\n");
 }
@@ -229,12 +237,38 @@ void* kmalloc(size_t size) {
         }
     }
 
-    kpanic(NULL, true, "kmalloc failed to find slab cache for object of size %zu", size);
+    size_t page_count = DIV_CEIL(size, PAGE_SIZE_4KB);
+    uintptr_t ret = pmm_alloc_zero(page_count + 1) + HIGH_VMA;
+
+    struct big_alloc_header* header = (struct big_alloc_header*) ret;
+    header->magic = BIG_ALLOC_HEADER_MAGIC;
+    header->page_count = page_count;
+    header->size = size;
+
+    return (void*) (ret + PAGE_SIZE_4KB);
 }
 
 void* krealloc(void* ptr, size_t size) {
     if (ptr == NULL) {
         return kmalloc(size);
+    }
+
+    if (!((uintptr_t) ptr & 0xfff)) {
+        struct big_alloc_header* header = (struct big_alloc_header*) ((uintptr_t) ptr - PAGE_SIZE_4KB);
+        if (DIV_CEIL(header->size, PAGE_SIZE_4KB) == DIV_CEIL(size, PAGE_SIZE_4KB)) {
+            header->size = size;
+            return ptr;
+        }
+
+        void* new_ptr = kmalloc(size);
+        if (unlikely(new_ptr == NULL)) {
+            return NULL;
+        }
+
+        memcpy(new_ptr, ptr, MAX(size, header->size));
+
+        kfree(ptr);
+        return new_ptr;
     }
 
     for (size_t i = 0; i < SIZEOF_ARRAY(kmalloc_caches); i++) {
@@ -284,6 +318,12 @@ void kfree(void* ptr) {
         if (slab_cache_free(kmalloc_caches[i], ptr)) {
             return;
         }
+    }
+
+    if (!((uintptr_t) ptr & 0xfff)) {
+        struct big_alloc_header* header = (struct big_alloc_header*) ((uintptr_t) ptr - PAGE_SIZE_4KB);
+        pmm_free((uintptr_t) ptr - HIGH_VMA, header->page_count + 1);
+        return;
     }
 
     kpanic(NULL, true, "kfree failed to find slab cache for object 0x%lx", ptr);
