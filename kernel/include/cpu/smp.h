@@ -35,6 +35,7 @@ extern size_t cpu_count;
 extern struct cpu_local* cpu_local_data;
 extern bool use_x2apic;
 
+void smp_halt_other_cpus(void);
 void smp_init(void);
 
 static ALWAYS_INLINE struct cpu_local* this_cpu(void) {

@@ -36,20 +36,20 @@ static uintptr_t inner_alloc(size_t pages, uint64_t last_limit) {
 
     while (last_used_index < last_limit) {
         if (!BITMAP_TEST(pmm_bitmap, last_used_index)) {
-            last_used_index++;
-
             if (++p == pages) {
-                size_t page = last_used_index - pages;
-                for (size_t i = page; i < last_used_index; i++) {
+                size_t page = last_used_index - pages + 1;
+                for (size_t i = page; i <= last_used_index; i++) {
                     BITMAP_SET(pmm_bitmap, i);
                 }
 
                 return page * PAGE_SIZE_4KB;
             }
         } else {
-            last_used_index++;
             p = 0;
         }
+
+        last_used_index++;
+
     }
 
     return INVALID_PADDR;
@@ -113,27 +113,30 @@ void pmm_reserve_mmio_space(uintptr_t paddr, size_t page_count) {
 void pmm_init(void) {
     struct limine_memmap_response* memmap_response = memmap_request.response;
 
-    uint64_t highest_paddr = 0;
-
     klog("[pmm] parsing memory map:\n");
+
+    uintptr_t highest_paddr = 0;
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
 
-        klog("- memory map entry #%02u: base=0x%016x, length=0x%016x, type: %s\n",
+        klog("- memory map entry #%02u: base=0x%016lx, length=0x%016lx, type: %s\n",
                 i, entry->base, entry->length, memmap_type_str(entry->type));
 
+        size_t page_count = entry->length / PAGE_SIZE_4KB;
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            usable_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
+            usable_pages += page_count;
         } else {
-            reserved_pages += DIV_CEIL(entry->length, PAGE_SIZE_4KB);
+            reserved_pages += page_count;
         }
 
-        highest_paddr = MAX(highest_paddr, entry->base + entry->length);
+        uintptr_t end = entry->base + entry->length;
+        if (end > highest_paddr)
+            highest_paddr = end;
     }
 
     highest_page_index = highest_paddr / PAGE_SIZE_4KB;
-    size_t pmm_bitmap_size = ALIGN_UP(highest_page_index / 8, PAGE_SIZE_4KB);
+    size_t pmm_bitmap_size  = ALIGN_UP(DIV_CEIL(highest_page_index, 8), PAGE_SIZE_4KB);
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
@@ -144,6 +147,10 @@ void pmm_init(void) {
         pmm_bitmap = (uint8_t*) (entry->base + HIGH_VMA);
         memset8(pmm_bitmap, 0xff, pmm_bitmap_size);
         break;
+    }
+
+    if (unlikely(pmm_bitmap == NULL)) {
+        kpanic(NULL, false, "unable to find suitable memory region for PMM bitmap");
     }
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {

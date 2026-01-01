@@ -69,7 +69,7 @@ static void page_fault_handler(struct registers* r, void* arg) {
             current_thread->usercopy_registers = NULL;
             r->rax = -EFAULT;
         } else {
-            kpanic(r, false, "fatal pagefault in pid: %d, tid: %d",
+            kpanic(r, true, "fatal pagefault in pid: %d, tid: %d",
                     current_thread->process->pid, current_thread->tid);
         }
     }

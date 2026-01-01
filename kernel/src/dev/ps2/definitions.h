@@ -5,9 +5,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PS2_KEYBOARD_ISA_IRQ    1
-#define PS2_MOUSE_ISA_IRQ       12
-
 #define PS2_DATA_PORT           0x60
 #define PS2_COMMAND_PORT        0x64
 #define PS2_STATUS_PORT         0x64
@@ -60,8 +57,8 @@ static inline void send_data(uint8_t data) {
     outb(PS2_DATA_PORT, data);
 }
 
-void keyboard_init(bool second_port);
-void mouse_init(bool second_port);
+void keyboard_init(uint8_t irq);
+void mouse_init(uint8_t irq);
 uint8_t send_device_command(uint8_t command, bool second_port);
 uint8_t send_device_command_with_data(uint8_t command, uint8_t data, bool second_port);
 

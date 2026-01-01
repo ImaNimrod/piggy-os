@@ -61,9 +61,7 @@ NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...
     spinlock_release(&print_lock);
     spinlock_acquire(&print_lock);
 
-    if (cpu_count > 1) {
-        lapic_send_ipi(LAPIC_IPI_ALL_OTHER_CPUS, PANIC_IPI_VECTOR);
-    }
+    smp_halt_other_cpus();
 
     printf("\n\n==================================| KERNEL PANIC |=============================================\nCPU #%zu panicked due to reason: ", (cpu_count > 1 ? this_cpu()->cpu_number : 0));
 

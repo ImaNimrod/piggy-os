@@ -43,8 +43,6 @@ static const char keymap_shift_capslock[] = {
     'b', 'n', 'm', '<', '>', '?', '\0', '\0', '\0', ' ',
 };
 
-static bool is_second_port;
-
 static bool shift_active;
 static bool capslock_active;
 static bool ctrl_active;
@@ -174,7 +172,7 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
         }
 
         if (new_led_state != led_state) {
-            send_device_command_with_data(PS2_KEYBOARD_COMMAND_SET_LEDS, new_led_state, is_second_port);
+            send_device_command_with_data(PS2_KEYBOARD_COMMAND_SET_LEDS, new_led_state, false);
             led_state = new_led_state;
         }
 
@@ -184,17 +182,17 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
     }
 }
 
-void keyboard_init(bool second_port) {
-    is_second_port = second_port;
-
+void keyboard_init(uint8_t irq) {
     scancode_buf = kmalloc(SCANCODE_BUF_SIZE * sizeof(uint8_t));
     if (unlikely(scancode_buf == NULL)) {
         kpanic(NULL, false, "failed to create keyboard device scancode buffer");
     }
 
-    isr_register_handler(PS2_KEYBOARD_ISA_IRQ + ISA_IRQ_BASE, ps2_keyboard_irq_handler, NULL);
-    ioapic_redirect_irq(PS2_KEYBOARD_ISA_IRQ, PS2_KEYBOARD_ISA_IRQ + ISA_IRQ_BASE);
-    ioapic_set_irq_mask(PS2_KEYBOARD_ISA_IRQ, false);
+    isr_register_handler(irq + ISA_IRQ_BASE, ps2_keyboard_irq_handler, NULL);
+    ioapic_redirect_irq(irq, irq + ISA_IRQ_BASE);
+    ioapic_set_irq_mask(irq, false);
+
+    send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
 
     if (unlikely(devfs_register("kbd", VFS_TYPE_CHARDEV, &keyboard_ops, makedev(KEYBOARD_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create keyboard device");

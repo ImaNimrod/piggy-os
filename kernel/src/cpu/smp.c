@@ -147,6 +147,12 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     }
 }
 
+void smp_halt_other_cpus(void) {
+    if (cpu_count > 1) {
+        lapic_send_ipi(LAPIC_IPI_ALL_OTHER_CPUS, PANIC_IPI_VECTOR);
+    }
+}
+
 void smp_init(void) {
     struct limine_mp_response* mp_response = mp_request.response;
 

@@ -112,8 +112,10 @@ void lapic_eoi(void) {
 
 void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
     /* wait for previous IPI to finish delivery */
-    while (lapic_read(LAPIC_REG_ICR_LOW) & (1 << 12)) {
-        pause();
+    if (!use_x2apic) {
+        while (lapic_read(LAPIC_REG_ICR_LOW) & (1 << 12)) {
+            pause();
+        }
     }
 
     uint32_t icr_low = vector | (1 << 14);
@@ -130,7 +132,7 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
             icr_low |= (0x03 << 18);
             break;
         default:
-            icr_high |= lapic_id;
+            icr_high = use_x2apic ? lapic_id : (lapic_id << 24);
             break;
     }
 
