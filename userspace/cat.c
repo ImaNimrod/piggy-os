@@ -48,22 +48,24 @@ int main(int argc, char* argv[]) {
     int ret = EXIT_SUCCESS;
 
     int fd;
+    char* filename;
     char* path;
 
     int i = 0;
-    while ((path = argv[i]) || i == 0) {
+    while ((path = argv[i]) != NULL || i == 0) {
         if (path == NULL || !strcmp(path, "-")) {
             fd = STDIN_FILENO;
-            path = "stdin";
+            filename = "stdin";
         } else {
             fd = open(path, O_RDONLY);
+            filename = path;
         }
 
         if (fd < 0) {
-            warn("%s", path);
+            warn("%s", filename);
             ret = EXIT_FAILURE;
         } else {
-            ret = do_cat(path, fd);
+            ret = do_cat(filename, fd);
 
             if (fd != STDIN_FILENO) {
                 close(fd);

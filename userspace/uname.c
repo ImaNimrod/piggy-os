@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
 
     struct utsname uts;
     if (uname(&uts) < 0) {
-        err(EXIT_FAILURE, "utsname failed");
+        err(EXIT_FAILURE, "uname");
     }
 
     if (print_mode & PRINT_SYSNAME) {
