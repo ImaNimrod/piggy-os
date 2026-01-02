@@ -143,7 +143,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
-        scheduler_await();
+        scheduler_yield(false);
     }
 }
 

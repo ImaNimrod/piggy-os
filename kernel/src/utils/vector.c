@@ -137,5 +137,5 @@ bool vector_resize(vector_t* v, size_t new_size) {
 }
 
 size_t vector_size(vector_t* v) {
-    return v->size;
+    return __atomic_load_n(&v->size, __ATOMIC_SEQ_CST);
 }

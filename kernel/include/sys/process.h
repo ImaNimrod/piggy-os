@@ -32,9 +32,7 @@ typedef enum {
 
 struct thread {
     uintptr_t kernel_stack;
-
     uintptr_t kernel_stack_paddr;
-    uintptr_t user_stack_paddr;
 
     struct registers registers;
     void* fpu_context;
@@ -62,8 +60,9 @@ struct vfs_node;
 struct process {
     pid_t pid;
     process_state_t state;
-    int exit_status;
     struct timespec time_used;
+
+    int exit_status;
 
     struct vfs_node* cwd;
     struct vfs_node* root;
@@ -97,7 +96,7 @@ void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
 void process_set_root(struct process* process, struct vfs_node* new_root);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
-struct thread* thread_create_user(struct process* process, uintptr_t entry);
+struct thread* thread_create_user(struct process* process, uintptr_t entry, uintptr_t stack);
 void thread_destroy(struct thread* thread);
 struct thread* thread_fork(struct process* process, struct registers* context);
 

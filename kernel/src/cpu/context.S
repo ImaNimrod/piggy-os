@@ -31,6 +31,11 @@ context_call_and_switch:
     mov %rsp, %r10
     addq $8, %r10
 
+    test %rdx, %rdx
+    jz 1f
+    mov %rdx, %rsp
+    1:
+
     pushq $0x10
     push %r10
     pushf
@@ -54,6 +59,11 @@ context_call_and_switch:
     push %r13
     push %r14
     push %r15
+
+    test %rdx, %rdx
+    jz 2f
+    xor %rbp, %rbp
+    2:
 
     mov %rdi, %r11
     mov %rsp, %rdi

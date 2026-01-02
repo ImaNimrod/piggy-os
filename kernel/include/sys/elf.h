@@ -36,6 +36,6 @@ struct auxvals {
 };
 
 int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_node* node, struct auxvals* auxvals, char** interpreter);
-void elf_setup_stack(struct thread* thread, uintptr_t stack_top_paddr, char* execfn, char* argv[], char* envp[], struct auxvals* auxvals);
+uintptr_t elf_setup_stack(uintptr_t stack_top_vaddr, uintptr_t stack_top_paddr, char* execfn, char* argv[], char* envp[], struct auxvals* auxvals);
 
 #endif /* _KERNEL_SYS_ELF_H */

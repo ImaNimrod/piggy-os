@@ -357,7 +357,7 @@ static int sort_time(struct directory_entry** entry1, struct directory_entry** e
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: ls [-afltACFSU1] [FILE]...\n");
+    fprintf(stderr, "usage: ls [-1ACFSUaflt] [FILE]...\n");
     exit(EXIT_FAILURE);
 }
 
@@ -370,20 +370,10 @@ int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
 
     int c;
-    while ((c = getopt(argc, argv, "afltACFSU1")) != -1) {
+    while ((c = getopt(argc, argv, "1ACFSUaflt")) != -1) {
         switch (c) {
-            case 'a':
-                filter = filter_all;
-                break;
-            case 'f':
-                filter = filter_all;
-                unsorted = true;
-                break;
-            case 'l':
-                output = output_long;
-                break;
-            case 't':
-                sort = sort_time;
+            case '1':
+                output = output_oneline;
                 break;
             case 'A':
                 if (filter != filter_all) {
@@ -402,8 +392,18 @@ int main(int argc, char* argv[]) {
             case 'U':
                 unsorted = true;
                 break;
-            case '1':
-                output = output_oneline;
+            case 'a':
+                filter = filter_all;
+                break;
+            case 'f':
+                filter = filter_all;
+                unsorted = true;
+                break;
+            case 'l':
+                output = output_long;
+                break;
+            case 't':
+                sort = sort_time;
                 break;
             default:
                 usage();

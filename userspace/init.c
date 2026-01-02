@@ -2,9 +2,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <paths.h> 
+#include <piggy/mount.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -89,8 +89,7 @@ int main() {
             };
 
             execve(argv[0], argv, envp);
-
-            err(EXIT_FAILURE, "execve failed");
+            err(EXIT_FAILURE, "execve");
         } else {
             int status = 0;
             waitpid(pid, &status, 0);

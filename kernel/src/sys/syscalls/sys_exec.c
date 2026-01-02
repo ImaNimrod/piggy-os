@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fs/file.h>
 #include <fs/vfs.h>
+#include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <sys/elf.h>
@@ -203,13 +204,18 @@ void sys_exec(struct registers* r) {
         goto end;
     }
 
-    struct thread* new_thread = thread_create_user(current_process, entry);
+    uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
+    uintptr_t user_stack_vaddr = (uintptr_t) vmm_map(current_process->vmm_context, PROCESS_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE,
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, user_stack_paddr);
+
+    uintptr_t stack_top = elf_setup_stack(user_stack_vaddr + USER_STACK_SIZE, user_stack_paddr + USER_STACK_SIZE,
+            kpath, kargv, kenvp, &auxvals);
+
+    struct thread* new_thread = thread_create_user(current_process, entry, stack_top);
     if (unlikely(new_thread == NULL)) {
         ret = -ENOMEM;
         goto end;
     }
-
-    elf_setup_stack(new_thread, new_thread->user_stack_paddr + USER_STACK_SIZE, kpath, kargv, kenvp, &auxvals);
 
     scheduler_enqueue(new_thread);
 
@@ -241,13 +247,9 @@ end:
     }
 
     pagemap_load(kernel_pagemap);
-
-    scheduler_dequeue(current_thread);
-    thread_destroy(current_thread);
     vmm_context_destroy(old_vmm_context);
 
-    scheduler_yield(false);
-    __builtin_unreachable();
+    scheduler_thread_exit();
 
 error:
     if (current_process->vmm_context == old_vmm_context) {

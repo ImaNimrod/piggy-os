@@ -7,9 +7,9 @@
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <utils/cmdline.h>
+#include <utils/macros.h>
 #include <utils/list.h>
 #include <utils/log.h>
-#include <utils/macros.h>
 #include <utils/string.h>
 
 #define DEFAULT_FCW     0x33f
@@ -154,19 +154,39 @@ void process_create_init(void) {
 
     VFS_NODE_UNREF(init_node);
 
-    struct thread* init_thread = thread_create_user(init_process, entry);
+    uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
+    uintptr_t user_stack_vaddr = (uintptr_t) vmm_map(init_process->vmm_context, PROCESS_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE,
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, user_stack_paddr);
+
+    uintptr_t stack_top = elf_setup_stack(user_stack_vaddr + USER_STACK_SIZE, user_stack_paddr + USER_STACK_SIZE,
+            init_path, argv, envp, &auxvals);
+
+    struct thread* init_thread = thread_create_user(init_process, entry, stack_top);
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
 
-    elf_setup_stack(init_thread, init_thread->user_stack_paddr + USER_STACK_SIZE, init_path, argv, envp, &auxvals);
-
     scheduler_enqueue(init_thread);
 }
 
-// TODO: actually handle destroying processes
 void process_destroy(struct process* process) {
     spinlock_acquire(&process->lock);
+
+    for (size_t i = 0; i < vector_size(process->threads); i++) {
+        thread_destroy((struct thread*) *vector_get(process->threads, i));
+    }
+    vector_destroy(process->threads);
+
+    slab_cache_free(process_cache, process);
+}
+
+// TODO: fix some of the potential race/double free issues that could occur when processes actually have multiple threads
+void process_exit(struct process* process, int status) {
+    if (unlikely(process->pid == 1)) {
+        kpanic(NULL, false, "attempted to exit init process with status = %d", status);
+    }
+
+    spinlock_acquire(&process->fd_lock);
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file* file = process->fds[i].file;
@@ -175,11 +195,20 @@ void process_destroy(struct process* process) {
         }
     }
 
-    if (likely(process->parent != NULL)) {
-        SLIST_REMOVE(process->parent->children, process);
-    }
+    spinlock_release(&process->fd_lock);
+
+    spinlock_acquire(&process->lock);
+
+    VFS_NODE_UNREF(process->cwd);
+    VFS_NODE_UNREF(process->root);
+
+    spinlock_acquire(&process->parent->lock);
+    SLIST_REMOVE(process->parent->children, process);
+    spinlock_release(&process->parent->lock);
 
     /* reparent dying process' children to init */
+    spinlock_acquire(&init_process->lock);
+
     struct process* child = process->children;
     while (child != NULL) {
         struct process* next = child->next;
@@ -191,30 +220,12 @@ void process_destroy(struct process* process) {
         child = next;
     }
 
-    for (size_t i = 0; i < vector_size(process->threads); i++) {
-        struct thread* thread = *vector_get(process->threads, i);
-        thread_destroy(thread);
-    }
-    vector_destroy(process->threads);
+    spinlock_release(&init_process->lock);
 
     vmm_context_destroy(process->vmm_context);
 
-    slab_cache_free(process_cache, process);
-}
-
-void process_exit(struct process* process, int status) {
-    if (unlikely(process->pid == 1)) {
-        kpanic(NULL, false, "attempted to exit init process with status = %d", status);
-    }
-
-    spinlock_acquire(&process->lock);
-
     process->state = PROCESS_ZOMBIE;
     process->exit_status = status;
-
-    for (size_t i = 0; i < vector_size(process->threads); i++) {
-        scheduler_dequeue((struct thread*) *vector_get(process->threads, i));
-    }
 
     spinlock_release(&process->lock);
 }
@@ -286,7 +297,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     return thread;
 }
 
-struct thread* thread_create_user(struct process* process, uintptr_t entry) {
+struct thread* thread_create_user(struct process* process, uintptr_t entry, uintptr_t stack) {
     struct thread* thread = slab_cache_alloc(thread_cache);
     if (unlikely(thread == NULL)) {
         return NULL;
@@ -301,15 +312,11 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry) {
 
     spinlock_acquire(&process->lock);
 
-    thread->user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
-    vmm_map(process->vmm_context, process->thread_stack_top - USER_STACK_SIZE, USER_STACK_SIZE,
-            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, thread->user_stack_paddr);
-
     thread->registers.rip = entry;
     thread->registers.cs = 0x23;
     thread->registers.rflags = 0x202;
     thread->registers.ss = 0x1b;
-    thread->registers.rsp = process->thread_stack_top;
+    thread->registers.rsp = stack;
 
     process->thread_stack_top -= USER_STACK_SIZE - PAGE_SIZE_4KB; // this leaves an unmapped guard page between stacks
 
@@ -330,7 +337,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry) {
 void thread_destroy(struct thread* thread) {
     if (thread->is_user) {
         pmm_free((uintptr_t) thread->fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
-        pmm_free(thread->user_stack_paddr, USER_STACK_SIZE / PAGE_SIZE_4KB);
+        // user stack physical pages are already freed during vmm_context_destroy called in process_exit
     }
 
     pmm_free(thread->kernel_stack_paddr, KERNEL_STACK_SIZE / PAGE_SIZE_4KB);

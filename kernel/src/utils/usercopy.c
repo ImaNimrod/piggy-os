@@ -4,7 +4,7 @@
 #include <errno.h>
 #include <utils/usercopy.h>
 
-extern int context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg);
+extern int context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
 
 struct memcpy_args {
     void* dest;
@@ -94,7 +94,7 @@ int user_memcpy_from_user(void* restrict dest, const void* restrict usrc, size_t
     }
 
     struct memcpy_args args = { dest, usrc, n };
-    return context_call_and_switch(memcpy_internal, &args);
+    return context_call_and_switch(memcpy_internal, &args, NULL);
 }
 
 int user_memcpy_to_user(void* restrict udest, const void* restrict src, size_t n) {
@@ -103,7 +103,7 @@ int user_memcpy_to_user(void* restrict udest, const void* restrict src, size_t n
     }
 
     struct memcpy_args args = { udest, src, n };
-    return context_call_and_switch(memcpy_internal, &args);
+    return context_call_and_switch(memcpy_internal, &args, NULL);
 }
 
 int user_memset(void* udest, int c, size_t n) {
@@ -112,7 +112,7 @@ int user_memset(void* udest, int c, size_t n) {
     }
 
     struct memset_args args = { udest, c, n };
-    return context_call_and_switch(memset_internal, &args);
+    return context_call_and_switch(memset_internal, &args, NULL);
 }
 
 int user_strlen(const char* ustr, size_t* ret) {
@@ -121,5 +121,5 @@ int user_strlen(const char* ustr, size_t* ret) {
     }
 
     struct strlen_args args = { ustr, ret };
-    return context_call_and_switch(strlen_internal, &args);
+    return context_call_and_switch(strlen_internal, &args, NULL);
 }

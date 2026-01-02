@@ -123,10 +123,7 @@ NORETURN static void kernel_main(void) {
 
     process_create_init();
 
-    scheduler_dequeue(this_cpu()->running_thread);
-    thread_destroy(this_cpu()->running_thread);
-    scheduler_yield(false);
-    __builtin_unreachable();
+    scheduler_thread_exit();
 }
 
 NORETURN void kernel_entry(void) {
@@ -164,5 +161,7 @@ NORETURN void kernel_entry(void) {
 
     struct thread* kmain_thread = thread_create_kernel((uintptr_t) kernel_main, NULL);
     scheduler_enqueue(kmain_thread);
-    scheduler_await();
+
+    scheduler_yield(false);
+    __builtin_unreachable();
 }

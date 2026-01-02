@@ -70,11 +70,13 @@ void sys_wait(struct registers* r) {
 end:
     if (status != NULL) {
         int ret;
-        if ((ret = user_memcpy_to_user(status, &child->exit_status, sizeof(int*))) < 0) {
+        if ((ret = user_memcpy_to_user(status, &child->exit_status, sizeof(int))) < 0) {
             r->rax = ret;
             return;
         }
     }
 
     r->rax = child->pid;
+
+    process_destroy(child);
 }

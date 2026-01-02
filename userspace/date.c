@@ -18,7 +18,7 @@ static const char* formats[] = {
 };
 
 static void usage(void) {
-    fprintf(stderr, "usage: date [-uz:IR] [+FORMAT]\n");
+    fprintf(stderr, "usage: date [-IRuz:] [+FORMAT]\n");
     exit(EXIT_FAILURE);
 }
 
@@ -29,14 +29,8 @@ int main(int argc, char* argv[]) {
     char* out_zone = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "uz:IR")) != -1) {
+    while ((c = getopt(argc, argv, "IRuz:")) != -1) {
         switch (c) {
-            case 'u':
-                setenv("TZ", "UTC0", 1);
-                break;
-            case 'z':
-                out_zone = optarg;
-                break;
             case 'I':
                 if (format != FORMAT_DEFAULT) {
                     warnx("error: multiple formats specified");
@@ -50,6 +44,12 @@ int main(int argc, char* argv[]) {
                     usage();
                 }
                 format = FORMAT_RFC5332;
+                break;
+            case 'u':
+                setenv("TZ", "UTC0", 1);
+                break;
+            case 'z':
+                out_zone = optarg;
                 break;
             default:
                 usage();

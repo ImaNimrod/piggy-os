@@ -1,6 +1,7 @@
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <errno.h>
+#include <mem/vmm.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
 
@@ -16,6 +17,7 @@ void sys_fork(struct registers* r) {
 
     struct thread* new_thread = thread_fork(new_process, r);
     if (new_thread == NULL) {
+        vmm_context_destroy(new_process->vmm_context);
         process_destroy(new_process);
         r->rax = -ENOMEM;
         return;

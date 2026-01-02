@@ -15,8 +15,6 @@
 void sys_poweroff(struct registers* r) {
     int how = r->rdi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
-
     switch (how) {
         case POWEROFF_HALT:
             cli();

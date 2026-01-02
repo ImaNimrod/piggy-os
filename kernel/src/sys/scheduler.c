@@ -7,11 +7,11 @@
 #include <sys/timer.h>
 #include <utils/list.h>
 #include <utils/log.h>
-#include <utils/macros.h>
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
 extern void context_switch(struct registers* r);
+extern void context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
 
 static struct thread* thread_list;
 static spinlock_t thread_state_lock;
@@ -112,13 +112,16 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     __builtin_unreachable();
 }
 
-NORETURN void scheduler_await(void) {
-    cli();
-    lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);
-    sti();
-    for (;;) {
-        hlt();
-    }
+NORETURN static void thread_exit_internal(struct registers* r, void* arg) {
+    struct thread* current_thread = this_cpu()->running_thread;
+
+    scheduler_dequeue(current_thread);
+
+    vector_remove_by_value(current_thread->process->threads, &current_thread);
+    thread_destroy(current_thread);
+
+    this_cpu()->running_thread = NULL;
+    reschedule(r, arg);
     __builtin_unreachable();
 }
 
@@ -145,6 +148,12 @@ void scheduler_enqueue(struct thread* t) {
 void scheduler_sleep(struct thread* t, const struct timespec* tp) {
     timer_sleep_thread(t, tp);
     scheduler_block(t);
+}
+
+NORETURN void scheduler_thread_exit(void) {
+    cli();
+    context_call_and_switch(thread_exit_internal, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
+    __builtin_unreachable();
 }
 
 void scheduler_unblock(struct thread* t) {

@@ -178,8 +178,7 @@ end:
     return ret;
 }
 
-// thread->registers.rsp should be set to the address of the top of the stack in the thread's address space
-void elf_setup_stack(struct thread* thread, uintptr_t stack_top_paddr, char* execfn, char* argv[], char* envp[], struct auxvals* auxvals) {
+uintptr_t elf_setup_stack(uintptr_t stack_top_vaddr, uintptr_t stack_top_paddr, char* execfn, char* argv[], char* envp[], struct auxvals* auxvals) {
     uint64_t* stack_top = (uint64_t*) (stack_top_paddr + HIGH_VMA);
     uint64_t* stack = stack_top;
 
@@ -212,15 +211,15 @@ void elf_setup_stack(struct thread* thread, uintptr_t stack_top_paddr, char* exe
         stack--;
     }
 
-    auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_execfn) };
-    auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = thread->registers.rsp - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
+    auxvals->at_execfn = (struct auxval) { .type = AT_EXECFN, .value = stack_top_vaddr - ((uintptr_t) stack_top - (uintptr_t) stack_execfn) };
+    auxvals->at_random = (struct auxval) { .type = AT_RANDOM, .value = stack_top_vaddr - ((uintptr_t) stack_top - (uintptr_t) stack_random) };
     auxvals->at_secure = (struct auxval) { .type = AT_SECURE, .value = 0 };
 
     size_t auxval_size = sizeof(struct auxvals) >> 3;
     stack -= auxval_size;
     memcpy64(stack, (uint64_t*) auxvals, auxval_size);
 
-    uintptr_t old_rsp = thread->registers.rsp;
+    uintptr_t old_rsp = stack_top_vaddr;
 
     *(--stack) = 0;
     stack -= envp_len;
@@ -238,5 +237,5 @@ void elf_setup_stack(struct thread* thread, uintptr_t stack_top_paddr, char* exe
 
     *(--stack) = argv_len;
 
-    thread->registers.rsp -= (uintptr_t) stack_top - (uintptr_t) stack;
+    return stack_top_vaddr - ((uintptr_t) stack_top - (uintptr_t) stack);
 }
