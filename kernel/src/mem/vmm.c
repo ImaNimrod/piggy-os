@@ -496,6 +496,9 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct vmm_context* context = current_thread->process->vmm_context;
+    if (context == NULL) {
+        return false;
+    }
 
     spinlock_acquire(&context->lock);
 

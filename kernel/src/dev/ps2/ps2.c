@@ -120,11 +120,15 @@ void ps2_init(void) {
 
     if (keyboard_irq != -1) {
         send_command(PS2_COMMAND_ENABLE_PORT1);
+
+        send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
         keyboard_init((uint8_t) keyboard_irq);
     }
 
     if (mouse_irq != -1) {
         send_command(PS2_COMMAND_ENABLE_PORT2);
+
+        send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, true);
         mouse_init((uint8_t) mouse_irq);
     }
 }

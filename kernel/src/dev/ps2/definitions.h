@@ -5,9 +5,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PS2_DATA_PORT           0x60
-#define PS2_COMMAND_PORT        0x64
-#define PS2_STATUS_PORT         0x64
+#define PS2_DATA_PORT       0x60
+#define PS2_COMMAND_PORT    0x64
+#define PS2_STATUS_PORT     0x64
 
 #define PS2_COMMAND_READ_CONFIG             0x20
 #define PS2_COMMAND_WRITE_CONFIG            0x60
@@ -27,14 +27,22 @@
 
 #define PS2_KEYBOARD_COMMAND_SET_LEDS       0xed
 
+static inline bool inbuffer_full(void) {
+    return inb(PS2_STATUS_PORT) & (1 << 1);
+}
+
+static inline bool outbuffer_empty(void) {
+    return !(inb(PS2_STATUS_PORT) & (1 << 0));
+}
+
 static inline void flush(void) {
-    while (inb(PS2_STATUS_PORT) & (1 << 0)) {
+    while (!outbuffer_empty()) {
         inb(PS2_DATA_PORT);
     }
 }
 
 static inline uint8_t read_data(void) {
-    while (!(inb(PS2_STATUS_PORT) & (1 << 0))) {
+    while (outbuffer_empty()) {
         pause();
     }
 
@@ -42,7 +50,7 @@ static inline uint8_t read_data(void) {
 }
 
 static inline void send_command(uint8_t command) {
-    while (inb(PS2_STATUS_PORT) & (1 << 1)) {
+    while (inbuffer_full()) {
         pause();
     }
 
@@ -50,7 +58,7 @@ static inline void send_command(uint8_t command) {
 }
 
 static inline void send_data(uint8_t data) {
-    while (inb(PS2_STATUS_PORT) & (1 << 1)) {
+    while (inbuffer_full()) {
         pause();
     }
 

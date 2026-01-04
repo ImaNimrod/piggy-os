@@ -399,7 +399,8 @@ static void e1000_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
     struct e1000_device* device = kmalloc(sizeof(struct e1000_device));
     if (unlikely(device == NULL)) {

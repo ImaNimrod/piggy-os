@@ -192,8 +192,6 @@ void keyboard_init(uint8_t irq) {
     ioapic_redirect_irq(irq, irq + ISA_IRQ_BASE);
     ioapic_set_irq_mask(irq, false);
 
-    send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, false);
-
     if (unlikely(devfs_register("kbd", VFS_TYPE_CHARDEV, &keyboard_ops, makedev(KEYBOARD_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create keyboard device");
     }

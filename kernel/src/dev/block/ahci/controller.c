@@ -67,7 +67,8 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
     struct hba_registers* hba_registers = (void*) (bar5.base_address + HIGH_VMA);
 
@@ -150,8 +151,8 @@ static void ahci_init(struct pci_device* pci_dev) {
             interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
     /* renable interrupts for the controller */
-    pci_set_msi_mask(pci_dev, false);
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_IE);
+    pci_set_msi_mask(pci_dev, false);
 
     enumerate_ports(controller);
     if (vector_size(controller->devices) == 0) {
@@ -169,7 +170,7 @@ error:
 struct pci_driver ahci_driver = {
     .init = ahci_init,
     .name = "ahci",
-    .match_condition = PCI_DRIVER_MATCH_CLASS | PCI_DRIVER_MATCH_SUBCLASS | PCI_DRIVER_MATCH_PROG_IF,
+    .match_condition = PCI_DRIVER_MATCH_ADDRESS,
     .match_data = {
         .class = 0x01,
         .subclass = 0x06,

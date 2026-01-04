@@ -3,6 +3,7 @@
 #include <dev/block/nvme.h>
 #include <dev/net/e1000.h>
 #include <dev/pci.h>
+#include <dev/usb/xhci.h>
 #include <dev/virtio.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
@@ -53,6 +54,7 @@ static struct pci_driver* pci_drivers[] = {
     &e1000_driver,
     &nvme_driver,
     &virtio_driver,
+    &xhci_driver,
 };
 
 static uint32_t (*internal_read)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint8_t) = NULL;
@@ -348,7 +350,7 @@ bool pci_enable_msix(struct pci_device* dev) {
         return false;
     }
 
-    dev->msix_table = (void*) (bar.base_address + (info & ~7) + HIGH_VMA);
+    dev->msix_table = (void*) (bar.base_address + HIGH_VMA + (info & ~7));
 
     uint16_t control = pci_read(dev, dev->msix_offset + 2, 2);
 

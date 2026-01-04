@@ -322,7 +322,7 @@ void kfree(void* ptr) {
 
     if (!((uintptr_t) ptr & 0xfff)) {
         struct big_alloc_header* header = (struct big_alloc_header*) ((uintptr_t) ptr - PAGE_SIZE_4KB);
-        pmm_free((uintptr_t) ptr - HIGH_VMA, header->page_count + 1);
+        pmm_free((uintptr_t) header - HIGH_VMA, header->page_count + 1);
         return;
     }
 

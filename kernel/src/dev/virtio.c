@@ -162,7 +162,8 @@ static void virtio_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
     dev->common_config = (void*) (bar.base_address + HIGH_VMA + common_config_offset);
     dev->device_config = (void*) (bar.base_address + HIGH_VMA + device_config_offset);

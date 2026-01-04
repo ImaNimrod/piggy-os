@@ -16,9 +16,5 @@ void mouse_init(uint8_t irq) {
     ioapic_redirect_irq(irq, irq + ISA_IRQ_BASE);
     ioapic_set_irq_mask(irq, false);
 
-    send_device_command(PS2_DEVICE_COMMAND_ENABLE_SCANNING, true);
-
-    send_device_command(0xff, true);
-
     klog("[ps2] PS/2 mouse initialized\n");
 }

@@ -216,9 +216,10 @@ static void nvme_init(struct pci_device* pci_dev) {
         return;
     }
 
-    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
+    pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
-    struct nvme_bar* nvme_bar = (struct nvme_bar*) (bar0.base_address + HIGH_VMA);
+    struct nvme_bar* nvme_bar = (void*) (bar0.base_address + HIGH_VMA);
 
     uint32_t vs = mmio_read32(&nvme_bar->vs);
     uint16_t major = (vs >> 16) & 0xffff;
@@ -418,7 +419,7 @@ error:
 struct pci_driver nvme_driver = {
     .init = nvme_init,
     .name = "nvme",
-    .match_condition = PCI_DRIVER_MATCH_CLASS | PCI_DRIVER_MATCH_SUBCLASS | PCI_DRIVER_MATCH_PROG_IF,
+    .match_condition = PCI_DRIVER_MATCH_ADDRESS,
     .match_data = {
         .class = 0x01,
         .subclass = 0x08,
