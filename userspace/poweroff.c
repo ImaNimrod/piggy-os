@@ -1,8 +1,16 @@
-#include <err.h>
 #include <piggy/poweroff.h>
+
+#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+static void usage(void);
+
+static void multiple_actions(void) {
+    warnx("multiple poweroff actions specified");
+    usage();
+}
 
 static void usage(void) {
     fprintf(stderr, "usage: poweroff -hrs\n");
@@ -17,26 +25,20 @@ int main(int argc, char* argv[]) {
         switch (c) {
             case 'h':
                 if (how != 0) {
-                    warnx("error: multiple poweroff actions specified");
-                    usage();
+                    multiple_actions();
                 }
-
                 how = POWEROFF_HALT;
                 break;
             case 'r':
                 if (how != 0) {
-                    warnx("error: multiple poweroff actions specified");
-                    usage();
+                    multiple_actions();
                 }
-
                 how = POWEROFF_REBOOT;
                 break;
             case 's':
                 if (how != 0) {
-                    warnx("error: multiple poweroff actions specified");
-                    usage();
+                    multiple_actions();
                 }
-
                 how = POWEROFF_SHUTDOWN;
                 break;
             default:
@@ -49,12 +51,12 @@ int main(int argc, char* argv[]) {
     argv += optind;
 
     if (argc > 0) {
-        warnx("error: extra operands provided");
+        warnx("extra operands provided");
         usage();
     }
 
     if (how == 0) {
-        warnx("error: poweroff action not provided");
+        warnx("poweroff action not provided");
         usage();
     }
 

@@ -1,12 +1,14 @@
+#include <sys/stat.h>
+#include <sys/wait.h>
+
+#include <piggy/mount.h>
+
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <paths.h> 
-#include <piggy/mount.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 
 static void mount_filesystems(void) {

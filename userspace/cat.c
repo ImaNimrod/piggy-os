@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 
     int i = 0;
     while ((path = argv[i]) != NULL || i == 0) {
-        if (path == NULL || !strcmp(path, "-")) {
+        if (path == NULL || strcmp(path, "-") == 0) {
             fd = STDIN_FILENO;
             filename = "stdin";
         } else {

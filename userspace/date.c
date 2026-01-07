@@ -17,6 +17,13 @@ static const char* formats[] = {
     [FORMAT_RFC5332] = "%a, %d %b %Y %T %z",
 };
 
+static void usage(void);
+
+static void multiple_formats(void) {
+    warnx("multiple formats specified");
+    usage();
+}
+
 static void usage(void) {
     fprintf(stderr, "usage: date [-IRuz:] [+FORMAT]\n");
     exit(EXIT_FAILURE);
@@ -33,15 +40,13 @@ int main(int argc, char* argv[]) {
         switch (c) {
             case 'I':
                 if (format != FORMAT_DEFAULT) {
-                    warnx("error: multiple formats specified");
-                    usage();
+                    multiple_formats();
                 }
                 format = FORMAT_ISO8601;
                 break;
             case 'R':
                 if (format != FORMAT_DEFAULT) {
-                    warnx("error: multiple formats specified");
-                    usage();
+                    multiple_formats();
                 }
                 format = FORMAT_RFC5332;
                 break;
@@ -64,8 +69,7 @@ int main(int argc, char* argv[]) {
 
     if (*argv != NULL && *argv[0] == '+') {
         if (format != FORMAT_DEFAULT) {
-            warnx("error: multiple formats specified");
-            usage();
+            multiple_formats();
         }
 
         format_string = *argv + 1;

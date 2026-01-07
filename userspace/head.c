@@ -64,7 +64,7 @@ static void head_lines(FILE* fp, size_t count) {
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: head [-c bytes | -n lines | -qvz] [FILE]...\n"
+    fprintf(stderr, "usage: head [-qvz] [-c BYTES | -n LINES |] [FILE]...\n"
             "With no FILE, or when FILE is -, read from stdin.\n");
     exit(EXIT_FAILURE);
 }
@@ -127,7 +127,7 @@ int main(int argc, char* argv[]) {
         FILE* fp;
 
         while ((path = *argv) != NULL) {
-            if (path == NULL || !strcmp(path, "-")) {
+            if (path == NULL || strcmp(path, "-") == 0) {
                 fp = stdin;
             } else {
                 fp = fopen(path, "r");

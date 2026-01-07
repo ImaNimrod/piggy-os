@@ -1,60 +1,55 @@
+#include <sys/wait.h>
+
+#include <err.h>
 #include <limits.h>
 #include <stdbool.h> 
 #include <stdio.h> 
 #include <stdlib.h> 
 #include <string.h> 
-#include <sys/wait.h>
 #include <unistd.h> 
-
-#define PROGRAM_NAME "sh"
 
 #define ARRAY_SIZE(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
 struct shell_builtin {
     const char* name;
-    bool (*func) (char**);
+    bool (*func) (char* []);
 };
 
 static char* line;
 static char** args;
 static bool do_quit = false;
 
-static void error(void) {
-    fputs("try '" PROGRAM_NAME " -h' for more information\n", stderr);
+static void usage(void) {
+    fprintf(stderr, "usage: sh [-i] [-c COMMAND]\n");
     exit(EXIT_FAILURE);
 }
 
-static void help(void) {
-    fputs("help screen\n", stdout);
-    exit(EXIT_SUCCESS);
-}
-
-static bool builtin_cd(char** args) {
+static bool builtin_cd(char* args[]) {
     if (chdir(args[1] != NULL ? args[1] : getenv("HOME")) < 0) {
-        perror("cd");
+        warn("chdir");
     }
 
     return false;
 }
 
-static bool builtin_exit(char** args) {
+static bool builtin_exit(char* args[]) {
     (void) args;
     return true;
 }
 
-static bool builtin_pwd(char** args) {
+static bool builtin_pwd(char* args[]) {
     (void) args;
 
     char* buf = malloc(PATH_MAX);
     if (buf == NULL) {
-        perror("pwd");
+        err(EXIT_FAILURE, "malloc");
     } else {
         if (getcwd(buf, PATH_MAX) == NULL) {
-            perror("pwd");
+            warn("getcwd");
+            return false;
         }
 
         puts(buf);
-        fflush(stdout);
     }
 
     free(buf);
@@ -71,13 +66,12 @@ char* read_line(void) {
     int position = 0;
 
     char* buf = malloc(256 * sizeof(char));
-    if (!buf) {
-        fputs(PROGRAM_NAME ": failed to allocate memory for line buffer\n", stderr);
-        exit(EXIT_FAILURE);
+    if (buf == NULL) {
+        err(EXIT_FAILURE, "malloc");
     }
 
     int c;
-    while (1) {
+    for (;;) {
         c = getchar();
 
         if (c == EOF || c == '\n') {
@@ -96,8 +90,7 @@ static char** split_args(char *line) {
 
     char** tokens = malloc(64 * sizeof(char*));
     if (tokens == NULL) {
-        perror(PROGRAM_NAME);
-        exit(EXIT_FAILURE);
+        err(EXIT_FAILURE, "malloc");
     }
 
     char* token = strtok(line, " \t\n\a");
@@ -113,25 +106,28 @@ static char** split_args(char *line) {
 
 static void run_program(char** args, int* status) {
     pid_t pid = fork();
+    if (pid < 0) {
+        warn("fork");
+        return;
+    }
+
     if (pid == 0) {
-        if (execvp(args[0], args) < 0) {
-            perror(PROGRAM_NAME);
-        }
-        exit(EXIT_FAILURE);
-    } else if (pid < 0) {
-        perror(PROGRAM_NAME);
+        execvp(args[0], args);
+        warn("execvp");
     } else {
-        waitpid(pid, status, 0);
+        if (waitpid(pid, status, 0) < 0) {
+            warn("waitpid");
+        }
     }
 }
 
-static bool execute(char** args, int* status) {
+static bool execute(char* args[], int* status) {
     if (args[0] == NULL) {
         return false;
     }
 
     for (size_t i = 0; i < ARRAY_SIZE(builtins); i++) {
-        if (!strcmp(args[0], builtins[i].name)) {
+        if (strcmp(args[0], builtins[i].name) == 0) {
             return (*builtins[i].func)(args);
         }
     }
@@ -140,14 +136,13 @@ static bool execute(char** args, int* status) {
     return false;
 }
 
-// TODO: rewrite this ho
-int main(int argc, char** argv) {
+int main(int argc, char* argv[]) {
     bool run_command = false;
     char* command = NULL;
     int args_index = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "c:h")) != -1) {
+    while ((c = getopt(argc, argv, "c:i")) != -1) {
         if (args_index > 0) {
             break; 
         }
@@ -157,16 +152,14 @@ int main(int argc, char** argv) {
                 run_command = true;
                 command = optarg;
 
-                if (!strcmp(command, "--")) {
+                if (strcmp(command, "--") == 0) {
                     args_index = optind;
                 }
                 break;
-            case 'h':
-                help();
+            case 'i':
                 break;
-            case ':':
-            case '?':
-                error();
+            default:
+                usage();
                 break;
         }
     }

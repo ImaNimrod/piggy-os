@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
         err(EXIT_FAILURE, "execve");
     } else {
         if (argv0 != NULL) {
-            warnx("error: must specify a command with -a");
+            warnx("must specify a command with -a");
             usage();
         }
     }

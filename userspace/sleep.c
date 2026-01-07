@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
     argv += optind;
 
     if (argc < 1) {
-        warnx("error: missing operand");
+        warnx("missing operand");
         usage();
     }
 

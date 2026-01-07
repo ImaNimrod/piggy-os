@@ -1,8 +1,9 @@
+#include <sys/utsname.h>
+
 #include <err.h> 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/utsname.h>
 #include <unistd.h>
 
 enum {
@@ -62,7 +63,7 @@ int main(int argc, char* argv[]) {
     argv += optind;
 
     if (argc > 0) {
-        warnx("error: extra operands provided");
+        warnx("extra operands provided");
         usage();
     }
 
