@@ -4,8 +4,9 @@
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/random.h>
+#include <utils/spinlock.h>
 
-// This is just a simple implementation of a 64-bit Mersenne Twister 19937 PRNG
+/* This is just an implementation of a 64-bit Mersenne Twister 19937 PRNG */
 
 #define NN 312
 #define MM 156
@@ -19,9 +20,10 @@ enum {
     HARDWARE_RNG_RDSEED,
 };
 
-static uint64_t mt[NN];
-static size_t mti = NN + 1;
+static uint64_t mt_state[NN];
+static size_t mt_index = NN + 1;
 static int hardware_rng_source = HARDWARE_RNG_NONE;
+static spinlock_t rng_lock;
 
 static void seed_mt(uint64_t seed) {
     if (hardware_rng_source != HARDWARE_RNG_NONE) {
@@ -39,45 +41,48 @@ static void seed_mt(uint64_t seed) {
         }
     }
 
-    mt[0] = seed;
-    for (mti = 1; mti < NN; mti++) {
-        mt[mti] = (6364136223846793005ULL * (mt[mti - 1] ^ (mt[mti - 1] >> 62)) + mti);
+    mt_state[0] = seed;
+    for (mt_index = 1; mt_index < NN; mt_index++) {
+        mt_state[mt_index] = (6364136223846793005ULL * (mt_state[mt_index - 1] ^ (mt_state[mt_index - 1] >> 62)) + mt_index);
     }
 }
 
 uint64_t rand64(void) {
     static uint64_t mag01[2] = { 0ULL, MATRIX_A };
 
+    spinlock_acquire(&rng_lock);
+
     uint64_t x;
 
-    if (mti >= NN) {
-        if (mti == NN + 1) {
+    if (mt_index >= NN) {
+        if (mt_index == NN + 1) {
             seed_mt(time_realtime.tv_sec);
         }
 
         size_t i;
         for (i = 0; i < NN - MM; i++) {
-            x = (mt[i] & UM) | (mt[i + 1] & LM);
-            mt[i] = mt[i + MM] ^ (x >> 1) ^ mag01[x & 1ULL];
+            x = (mt_state[i] & UM) | (mt_state[i + 1] & LM);
+            mt_state[i] = mt_state[i + MM] ^ (x >> 1) ^ mag01[x & 1ULL];
         }
 
         for (; i < NN - 1; i++) {
-            x = (mt[i] & UM) | (mt[i + 1] & LM);
-            mt[i] = mt[i + (MM - NN)] ^ (x >> 1) ^ mag01[x & 1ULL];
+            x = (mt_state[i] & UM) | (mt_state[i + 1] & LM);
+            mt_state[i] = mt_state[i + (MM - NN)] ^ (x >> 1) ^ mag01[x & 1ULL];
         }
 
-        x = (mt[NN - 1] & UM) | (mt[0] & LM);
-        mt[NN - 1] = mt[MM - 1] ^ (x >> 1) ^ mag01[x & 1ULL];
-        mti = 0;
+        x = (mt_state[NN - 1] & UM) | (mt_state[0] & LM);
+        mt_state[NN - 1] = mt_state[MM - 1] ^ (x >> 1) ^ mag01[x & 1ULL];
+        mt_index = 0;
     }
 
-    x = mt[mti++];
+    x = mt_state[mt_index++];
 
     x ^= (x >> 29) & 0x5555555555555555ULL;
     x ^= (x << 17) & 0x71d67fffeda60000ULL;
     x ^= (x << 37) & 0xfff7eee000000000ULL;
     x ^= (x >> 43);
 
+    spinlock_release(&rng_lock);
     return x;
 }
 

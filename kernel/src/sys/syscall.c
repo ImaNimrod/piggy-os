@@ -27,6 +27,7 @@ extern void sys_poll(struct registers* r);
 extern void sys_sync(struct registers* r);
 extern void sys_getdents(struct registers* r);
 extern void sys_stat(struct registers* r);
+extern void sys_utime(struct registers* r);
 extern void sys_chdir(struct registers* r);
 extern void sys_fcntl(struct registers* r);
 extern void sys_dup(struct registers* r);
@@ -68,6 +69,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_SYNC]          = sys_sync,
     [SYS_GETDENTS]      = sys_getdents,
     [SYS_STAT]          = sys_stat,
+    [SYS_UTIME]         = sys_utime,
     [SYS_CHDIR]         = sys_chdir,
     [SYS_FCNTL]         = sys_fcntl,
     [SYS_DUP]           = sys_dup,

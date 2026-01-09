@@ -71,9 +71,7 @@ void sys_mount(struct registers* r) {
         }
 
         struct vfs_node* source_reference = ksource[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
-
         ret = vfs_lookup(source_reference, ksource, false, NULL, &backing_node);
-
         VFS_NODE_UNREF(source_reference);
 
         if (ret < 0) {
@@ -84,9 +82,7 @@ void sys_mount(struct registers* r) {
     }
 
     struct vfs_node* target_reference = ktarget[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
-
-    ret = vfs_mount(backing_node, current_process->cwd, ktarget, kfs_name);
-
+    ret = vfs_mount(backing_node, target_reference, ktarget, kfs_name);
     VFS_NODE_UNREF(target_reference);
 
 end:

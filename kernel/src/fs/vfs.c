@@ -285,12 +285,26 @@ int vfs_unlink(struct vfs_node* reference, const char* path) {
         goto cleanup;
     }
 
-    struct vfs_node* child;
+    if (strcmp(component, ".") == 0 || strcmp(component, "..") == 0) {
+        parent->ops->unlock(parent);
+        VFS_NODE_UNREF(parent);
+        error = -EBUSY;
+        goto cleanup;
+    }
+
+    struct vfs_node* child = NULL;
+
+    error = vfs_lookup(parent, component, false, NULL, &child);
+    if (error < 0) {
+        parent->ops->unlock(parent);
+        VFS_NODE_UNREF(parent);
+        goto cleanup;
+    }
+
     error = parent->ops->unlink(parent, component, &child);
 
-    if (strcmp(path, "..")) {
-        parent->ops->unlock(parent);
-    }
+    child->ops->unlock(child);
+    parent->ops->unlock(parent);
 
     VFS_NODE_UNREF(child);
     VFS_NODE_UNREF(parent);

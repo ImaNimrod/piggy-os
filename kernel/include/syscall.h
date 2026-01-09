@@ -25,18 +25,19 @@
 #define SYS_SYNC        21
 #define SYS_GETDENTS    22
 #define SYS_STAT        23
-#define SYS_CHDIR       24
-#define SYS_FCNTL       25
-#define SYS_DUP         26
-#define SYS_MMAP        27
-#define SYS_MUNMAP      28
-#define SYS_MPROTECT    29
-#define SYS_CHROOT      30
-#define SYS_SLEEP       31
-#define SYS_GETTIME     32
-#define SYS_SETTIME     33
-#define SYS_UNAME       34
-#define SYS_POWEROFF    35
-#define SYS_ARCHCTL     36
+#define SYS_UTIME       24
+#define SYS_CHDIR       25
+#define SYS_FCNTL       26
+#define SYS_DUP         27
+#define SYS_MMAP        28
+#define SYS_MUNMAP      29
+#define SYS_MPROTECT    30
+#define SYS_CHROOT      31
+#define SYS_SLEEP       32
+#define SYS_GETTIME     33
+#define SYS_SETTIME     34
+#define SYS_UNAME       35
+#define SYS_POWEROFF    36
+#define SYS_ARCHCTL     37
 
 #endif /* _KERNEL_SYSCALL_H */
