@@ -5,19 +5,13 @@
 #include <string.h>
 #include <unistd.h>
 
-#define BUF_SIZE (1024 * 8)
+#define BUFSIZE (1024 * 8)
 
 static char* buf;
 
-static int do_cat(char* filename, int rfd) {
-    if (buf == NULL) {
-        if ((buf = malloc(BUF_SIZE)) == NULL) {
-            err(EXIT_FAILURE, "malloc");
-        }
-    }
-
+static int do_cat(char* filename, int fd) {
     ssize_t nread;
-    while ((nread = read(rfd, buf, BUF_SIZE)) > 0) {
+    while ((nread = read(fd, buf, BUFSIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, nread) != nread) {
             err(EXIT_FAILURE, "write(stdout)");
         }
@@ -45,13 +39,17 @@ int main(int argc, char* argv[]) {
     argc -= optind;
     argv += optind;
 
+    if ((buf = malloc(BUFSIZE)) == NULL) {
+        err(EXIT_FAILURE, "malloc");
+    }
+
     int ret = EXIT_SUCCESS;
 
     int fd;
     char* filename;
-    char* path;
 
     int i = 0;
+    char* path;
     while ((path = argv[i]) != NULL || i == 0) {
         if (path == NULL || strcmp(path, "-") == 0) {
             fd = STDIN_FILENO;

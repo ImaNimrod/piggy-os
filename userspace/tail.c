@@ -11,14 +11,21 @@
 
 static char* buf;
 
-static int head_bytes(char* filename, int fd, ssize_t count) {
-    ssize_t nread = 0;
-    while (count > 0 && (nread = read(fd, buf, count < BUFSIZE ? count : BUFSIZE)) > 0) {
+static int tail_bytes(char* filename, int fd, ssize_t count) {
+    off_t file_size = lseek(fd, 0, SEEK_END);
+    if (file_size == -1) {
+        warn("lseek %s", filename);
+        return EXIT_FAILURE;
+    }
+
+    off_t start = (file_size > count) ? file_size - count : 0;
+    lseek(fd, start, SEEK_SET);
+
+    ssize_t nread;
+    while ((nread = read(fd, buf, BUFSIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, nread) != nread) {
             err(EXIT_FAILURE, "write(stdout)");
         }
-
-        count -= nread;
     }
 
     if (nread < 0) {
@@ -29,28 +36,40 @@ static int head_bytes(char* filename, int fd, ssize_t count) {
     return EXIT_SUCCESS;
 }
 
-static int head_lines(char* filename, int fd, ssize_t count, char line_delimiter) {
+static int tail_lines(char* filename, int fd, ssize_t count, char line_delimiter) {
     if (count == 0) {
         return EXIT_SUCCESS;
     }
 
-    ssize_t line_count = 0;
+    off_t pos = lseek(fd, 0, SEEK_END);
+    if (pos == -1) {
+        warn("lseek %s", filename);
+        return EXIT_FAILURE;
+    }
 
-    ssize_t nread;
-    while ((nread = read(fd, buf, BUFSIZE)) > 0) {
-        for (ssize_t i = 0; i < nread; i++) {
+    ssize_t line_count = 0;
+    while (pos > 0 && line_count <= count) {
+        off_t step = (pos >= BUFSIZE) ? BUFSIZE : pos;
+        pos -= step;
+        lseek(fd, pos, SEEK_SET);
+
+        ssize_t nread = read(fd, buf, step);
+        for (ssize_t i = nread - 1; i >= 0; i--) {
             if (buf[i] == line_delimiter) {
                 line_count++;
-                if (line_count == count) {
-                    if (write(STDOUT_FILENO, buf, i + 1) != i + 1) {
-                        err(EXIT_FAILURE, "write(stdout)");
-                    }
-
-                    return EXIT_SUCCESS;
+                if (line_count > count) {
+                    pos += i + 1;
+                    goto done;
                 }
             }
         }
+    }
 
+done:
+    lseek(fd, pos, SEEK_SET);
+
+    ssize_t nread;
+    while ((nread = read(fd, buf, BUFSIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, nread) != nread) {
             err(EXIT_FAILURE, "write(stdout)");
         }
@@ -65,7 +84,7 @@ static int head_lines(char* filename, int fd, ssize_t count, char line_delimiter
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: head [-qvz] [-c BYTES | -n LINES |] [FILE]...\n"
+    fprintf(stderr, "usage: tail [-qvz] [-c BYTES | -n LINES] [FILE]...\n"
             "With no FILE, or when FILE is -, read from stdin.\n");
     exit(EXIT_FAILURE);
 }
@@ -159,9 +178,9 @@ int main(int argc, char* argv[]) {
             }
 
             if (byte_count == -1) {
-                head_lines(filename, fd, line_count, line_delimiter);
+                tail_lines(filename, fd, line_count, line_delimiter);
             } else {
-                head_bytes(filename, fd, byte_count);
+                tail_bytes(filename, fd, byte_count);
             }
 
             if (fd != STDIN_FILENO) {
