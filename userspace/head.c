@@ -22,7 +22,7 @@ static int head_bytes(char* filename, int fd, ssize_t count) {
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn(filename);
         return EXIT_FAILURE;
     }
 
@@ -57,7 +57,7 @@ static int head_lines(char* filename, int fd, ssize_t count, char line_delimiter
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn(filename);
         return EXIT_FAILURE;
     }
 
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn("%s", filename);
+            warn(filename);
             ret = EXIT_FAILURE;
         } else {
             if (verbose || (!quiet && argc > 1)) {
@@ -176,9 +176,6 @@ int main(int argc, char* argv[]) {
         i++;
     }
 
-    if (buf != NULL) {
-        free(buf);
-    }
-
+    free(buf);
     return ret;
 }

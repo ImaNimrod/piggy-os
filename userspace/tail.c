@@ -14,7 +14,7 @@ static char* buf;
 static int tail_bytes(char* filename, int fd, ssize_t count) {
     off_t file_size = lseek(fd, 0, SEEK_END);
     if (file_size == -1) {
-        warn("lseek %s", filename);
+        warn("lseek(%s)", filename);
         return EXIT_FAILURE;
     }
 
@@ -29,7 +29,7 @@ static int tail_bytes(char* filename, int fd, ssize_t count) {
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn(filename);
         return EXIT_FAILURE;
     }
 
@@ -43,7 +43,7 @@ static int tail_lines(char* filename, int fd, ssize_t count, char line_delimiter
 
     off_t pos = lseek(fd, 0, SEEK_END);
     if (pos == -1) {
-        warn("lseek %s", filename);
+        warn("lseek(%s)", filename);
         return EXIT_FAILURE;
     }
 
@@ -76,7 +76,7 @@ done:
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn(filename);
         return EXIT_FAILURE;
     }
 
@@ -167,7 +167,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn("%s", filename);
+            warn(filename);
             ret = EXIT_FAILURE;
         } else {
             if (verbose || (!quiet && argc > 1)) {
@@ -195,9 +195,6 @@ int main(int argc, char* argv[]) {
         i++;
     }
 
-    if (buf != NULL) {
-        free(buf);
-    }
-
+    free(buf);
     return ret;
 }

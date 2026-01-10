@@ -18,7 +18,7 @@ static int do_cat(char* filename, int fd) {
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn(filename);
         return EXIT_FAILURE;
     }
 
@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn("%s", filename);
+            warn(filename);
             ret = EXIT_FAILURE;
         } else {
             ret = do_cat(filename, fd);
@@ -77,9 +77,6 @@ int main(int argc, char* argv[]) {
         i++;
     }
 
-    if (buf != NULL) {
-        free(buf);
-    }
-
+    free(buf);
     return ret;
 }

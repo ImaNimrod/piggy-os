@@ -12,21 +12,21 @@
 static bool prompt_remove(const char* path, struct stat* st) {
     char* type;
     switch (st->st_mode & S_IFMT) {
+        case S_IFBLK:
+            type = "block special file";
+            break;
+        case S_IFCHR:
+            type = "character special file";
+            break;
+        case S_IFDIR:
+            type = "directory";
+            break;
         case S_IFREG:
             if (st->st_size == 0) {
                 type = "regular empty file";
             } else {
                 type = "regular file";
             }
-            break;
-        case S_IFDIR:
-            type = "directory";
-            break;
-        case S_IFBLK:
-            type = "block special file";
-            break;
-        case S_IFCHR:
-            type = "character special file";
             break;
         default:
             type = "unknown file";
@@ -47,7 +47,7 @@ static int remove_recursive(const char* path, bool force, bool interactive) {
     struct stat st;
     if (stat(path, &st) < 0) {
         if (!(force && errno == ENOENT)) {
-            warn("%s", path);
+            warn(path);
             return EXIT_FAILURE;
         }
 
@@ -87,7 +87,7 @@ static int remove_recursive(const char* path, bool force, bool interactive) {
                 }
 
                 if (unlink(dir_path) < 0) {
-                    warn("%s", dir_path);
+                    warn(dir_path);
                     ret = EXIT_FAILURE;
                 }
             }
@@ -99,7 +99,7 @@ static int remove_recursive(const char* path, bool force, bool interactive) {
     }
 
     if (unlink(path) < 0) {
-        warn("%s", path);
+        warn(path);
         return EXIT_FAILURE;
     }
 
@@ -148,7 +148,7 @@ int main(int argc, char* argv[]) {
             struct stat st;
             if (stat(argv[i], &st) < 0) {
                 if (!(force && errno == ENOENT)) {
-                    warn("%s", argv[i]);
+                    warn(argv[i]);
                     ret = EXIT_FAILURE;
                 }
 
@@ -161,13 +161,13 @@ int main(int argc, char* argv[]) {
 
             if (S_ISDIR(st.st_mode)) {
                 errno = EISDIR;
-                warn("%s", argv[i]);
+                warn(argv[i]);
                 ret = EXIT_FAILURE;
                 continue;
             }
 
             if (unlink(argv[i]) < 0) {
-                warn("%s", argv[i]);
+                warn(argv[i]);
                 ret = EXIT_FAILURE;
             }
         }

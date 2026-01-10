@@ -18,15 +18,15 @@ int main(int argc, char* argv[]) {
 
     const char* new_root = argv[0];
     if (chroot(new_root) < 0) {
-        err(EXIT_FAILURE, "%s", new_root);
+        err(EXIT_FAILURE, new_root);
     }
     if (chdir("/") < 0) {
-        err(EXIT_FAILURE, "%s", new_root);
+        err(EXIT_FAILURE, new_root);
     }
 
     if (argv[1] != NULL) {
         execvp(argv[1], &argv[1]);
-        err(EXIT_FAILURE, "%s", argv[1]);
+        err(EXIT_FAILURE, argv[1]);
     }
 
     const char* shell;
@@ -35,5 +35,5 @@ int main(int argc, char* argv[]) {
     }
 
     execlp(shell, shell, "-i", NULL);
-    err(EXIT_FAILURE, "%s", shell);
+    err(EXIT_FAILURE, shell);
 }
