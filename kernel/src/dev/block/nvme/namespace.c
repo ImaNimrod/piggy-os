@@ -58,13 +58,15 @@ static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, blo
     struct nvme_namespace* namespace = block_device->private;
     struct nvme_controller* controller = namespace->controller;
 
-    uint16_t cpu_number = this_cpu()->cpu_number;
-
-    uint16_t io_queue_index;
-    if (cpu_number < controller->io_queue_count - 1) {
-        io_queue_index = cpu_number + 1;
-    } else {
-        io_queue_index = cpu_number % (controller->io_queue_count - 1) + 1;
+    uint16_t io_queue_index = 0;
+    if (controller->io_queue_count > 1) {
+        uint16_t cpu_number = this_cpu()->cpu_number;
+        uint16_t usable = controller->io_queue_count - 1;
+        if (cpu_number < usable) {
+            io_queue_index = cpu_number + 1;
+        } else {
+            io_queue_index = (cpu_number % usable) + 1;
+        }
     }
 
     struct queue_pair* queue_pair = &controller->io_queues[io_queue_index];

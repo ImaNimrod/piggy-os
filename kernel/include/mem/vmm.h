@@ -4,7 +4,7 @@
 #include <fs/vfs.h>
 #include <mem/paging.h> 
 #include <stdint.h> 
-#include <utils/spinlock.h> 
+#include <utils/mutex.h> 
 
 #define PROT_NONE       0x00
 #define PROT_READ       0x01
@@ -30,7 +30,7 @@ struct vmm_range {
 struct vmm_context {
     struct pagemap* pagemap;
     struct vmm_range* ranges;
-    spinlock_t lock;
+    mutex_t mutex;
 };
 
 struct vmm_context* vmm_context_create(void);

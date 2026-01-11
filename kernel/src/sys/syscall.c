@@ -39,6 +39,7 @@ extern void sys_sleep(struct registers* r);
 extern void sys_gettime(struct registers* r);
 extern void sys_settime(struct registers* r);
 extern void sys_uname(struct registers* r);
+extern void sys_futex(struct registers* r);
 extern void sys_poweroff(struct registers* r);
 extern void sys_archctl(struct registers* r);
 
@@ -81,6 +82,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_GETTIME]       = sys_gettime,
     [SYS_SETTIME]       = sys_settime,
     [SYS_UNAME]         = sys_uname,
+    [SYS_FUTEX]         = sys_futex,
     [SYS_POWEROFF]      = sys_poweroff,
     [SYS_ARCHCTL]       = sys_archctl,
 };

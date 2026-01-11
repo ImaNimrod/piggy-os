@@ -5,7 +5,7 @@
 #include <sys/process.h>
 #include <utils/spinlock.h>
 
-typedef struct semaphore {
+typedef struct {
     spinlock_t lock;
     uint64_t value;
     struct thread* waiters;

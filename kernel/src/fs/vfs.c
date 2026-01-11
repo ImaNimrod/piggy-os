@@ -9,9 +9,6 @@
 
 struct vfs_node* vfs_root;
 
-static struct vfs_filesystem* filesystem_list;
-static spinlock_t filesystem_lock;
-
 static hashmap_t* vfs_filesystems;
 
 static int nop(struct vfs_node* node);
@@ -56,10 +53,6 @@ int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const 
         VFS_NODE_UNREF(target);
         return error;
     }
-
-    spinlock_acquire(&filesystem_lock);
-    SLIST_PUSH_FRONT(filesystem_list, filesystem);
-    spinlock_release(&filesystem_lock);
 
     target->mounted = filesystem;
     filesystem->node = target;
@@ -294,7 +287,7 @@ int vfs_unlink(struct vfs_node* reference, const char* path) {
 
     struct vfs_node* child = NULL;
 
-    error = vfs_lookup(parent, component, false, NULL, &child);
+    error = parent->ops->lookup(parent, component, &child);
     if (error < 0) {
         parent->ops->unlock(parent);
         VFS_NODE_UNREF(parent);

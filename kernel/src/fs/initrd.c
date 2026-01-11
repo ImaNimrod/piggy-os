@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fs/initrd.h>
 #include <fs/vfs.h>
 #include <mem/pmm.h>
@@ -88,6 +89,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 break;
             default:
                 klog("[initrd] file '%s' is an unsupported file type\n", name);
+                error = -EINVAL;
                 break;
         }
 

@@ -62,14 +62,15 @@ static void (*internal_write)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uin
 
 static void enumerate_bus(uint16_t segment, uint8_t bus);
 
-static uint32_t ecm_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
+static uint32_t ecam_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint8_t access_size) {
     struct acpi_mcfg_allocation* entry;
 
     for (size_t i = 0; i < mcfg_entry_count; i++) {
         entry = &mcfg_entries[i];
 
         if (entry->segment == segment && bus >= entry->start_bus && bus <= entry->end_bus) {
-            void* address = (void*) (((entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+            uintptr_t base = entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12));
+            void* address = (void*) (base + offset + HIGH_VMA);
 
             switch (access_size) {
                 case 1:
@@ -78,23 +79,26 @@ static uint32_t ecm_read(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t fu
                     return mmio_read16(address);
                 case 4:
                     return mmio_read32(address);
+                default:
+                    kpanic(NULL, false, "invalid PCI access size");
             }
 
-            kpanic(NULL, false, "invalid PCI access size");
+            __builtin_unreachable();
         }
     }
 
     kpanic(NULL, false, "unable to find ECM area for PCI device");
 }
 
-static void ecm_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size) {
+static void ecam_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function, uint16_t offset, uint32_t value, uint8_t access_size) {
     struct acpi_mcfg_allocation* entry;
 
     for (size_t i = 0; i < mcfg_entry_count; i++) {
         entry = &mcfg_entries[i];
 
         if (entry->segment == segment && bus >= entry->start_bus && bus <= entry->end_bus) {
-            void* address = (void*) (((entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12))) | offset) + HIGH_VMA);
+            uintptr_t base = entry->address + (((bus - entry->start_bus) << 20) | (slot << 15) | (function << 12));
+            void* address = (void*) (base + offset + HIGH_VMA);
 
             switch (access_size) {
                 case 1:
@@ -434,8 +438,6 @@ void pci_init(void) {
         kpanic(NULL, false, "failed to create PCI device vector");
     }
 
-
-
     struct uacpi_table mcfg_table;
     uacpi_status ret = uacpi_table_find_by_signature(ACPI_MCFG_SIGNATURE, &mcfg_table);
     if (uacpi_likely_success(ret)) {
@@ -452,18 +454,20 @@ void pci_init(void) {
 
         uacpi_table_unref(&mcfg_table);
 
-        internal_read = ecm_read;
-        internal_write = ecm_write;
+        internal_read = ecam_read;
+        internal_write = ecam_write;
 
         struct acpi_mcfg_allocation* entry;
         for (size_t i = 0; i < mcfg_entry_count; i++) {
             entry = &mcfg_entries[i];
 
-            pagemap_map_range(kernel_pagemap, entry->address + HIGH_VMA, entry->address,
-                    (entry->end_bus - entry->start_bus) * 32 * 8 * PAGE_SIZE_4KB,
+            size_t ecam_size = (entry->end_bus - entry->start_bus + 1) * 32 * 8 * 4096;
+
+            pmm_reserve_mmio_space(entry->address, DIV_CEIL(ecam_size, PAGE_SIZE_4KB));
+            pagemap_map_range(kernel_pagemap, entry->address + HIGH_VMA, entry->address, ecam_size,
                     PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX);
 
-            for (uint8_t bus = entry->start_bus; bus < entry->end_bus; bus++) {
+            for (uint16_t bus = entry->start_bus; bus <= entry->end_bus; bus++) {
                 enumerate_bus(entry->segment, bus);
             }
         }
@@ -488,10 +492,10 @@ void pci_init(void) {
     for (size_t i = 0; i < vector_size(pci_devices); i++) {
         struct pci_device* dev = *vector_get(pci_devices, i);
 
-        klog(" - %02u:%02u.%u %02u:%02u:%02u [%04x:%04x]",
-             dev->bus, dev->slot, dev->function,
-             dev->class, dev->subclass, dev->prog_if,
-             dev->vendor_id, dev->device_id);
+        klog(" - %02x:%02x.%x %02x:%02x:%02x [%04x:%04x]",
+                dev->bus, dev->slot, dev->function,
+                dev->class, dev->subclass, dev->prog_if,
+                dev->vendor_id, dev->device_id);
 
         if (dev->revision_id != 0) {
             klog(" (rev: %02u)\n", dev->revision_id);

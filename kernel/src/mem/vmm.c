@@ -325,11 +325,13 @@ struct vmm_context* vmm_context_create(void) {
         return NULL;
     }
 
+    mutex_init(&context->mutex);
+
     return context;
 }
 
 void vmm_context_destroy(struct vmm_context* context) {
-    spinlock_acquire(&context->lock);
+    mutex_acquire(&context->mutex);
 
     struct vmm_range* range = context->ranges;
     while (range != NULL) {
@@ -364,7 +366,7 @@ struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
         return NULL;
     }
 
-    spinlock_acquire(&old_context->lock);
+    mutex_acquire(&old_context->mutex);
 
     struct vmm_range* range = old_context->ranges;
     while (range != NULL) {
@@ -393,17 +395,17 @@ struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
         range = range->next;
     }
 
-    spinlock_release(&old_context->lock);
+    mutex_release(&old_context->mutex);
     return new_context;
 
 error:
-    spinlock_release(&old_context->lock);
+    mutex_release(&old_context->mutex);
     vmm_context_destroy(new_context);
     return NULL;
 }
 
 void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int prot, int flags, uintptr_t paddr) {
-    spinlock_acquire(&context->lock);
+    mutex_acquire(&context->mutex);
 
     void* ret = NULL;
     struct vmm_range* range = slab_cache_alloc(vmm_range_cache);
@@ -450,12 +452,12 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
     try_combine_ranges(range);
 
 end:
-    spinlock_release(&context->lock);
+    mutex_release(&context->mutex);
     return ret;
 }
 
 int vmm_unmap(struct vmm_context* context, uintptr_t address, size_t size) {
-    spinlock_acquire(&context->lock);
+    mutex_acquire(&context->mutex);
 
     int ret = update_range(context, address, size, 0, true) ? 0 : -ENOMEM;
     if (ret < 0) {
@@ -466,19 +468,19 @@ int vmm_unmap(struct vmm_context* context, uintptr_t address, size_t size) {
     free_unmapped_ranges(context);
 
 end:
-    spinlock_release(&context->lock);
+    mutex_release(&context->mutex);
     return ret;
 }
 
 int vmm_remap(struct vmm_context* context, uintptr_t address, size_t size, int prot) {
-    spinlock_acquire(&context->lock);
+    mutex_acquire(&context->mutex);
 
     uint64_t new_pte_flags = mmap_prot_to_pte_flags(prot);
 
     int ret = update_range(context, address, size, new_pte_flags, false) ? 0 : -ENOMEM;
     pagemap_invalidate(address, size);
 
-    spinlock_release(&context->lock);
+    mutex_release(&context->mutex);
     return ret;
 }
 
@@ -500,11 +502,11 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
         return false;
     }
 
-    spinlock_acquire(&context->lock);
+    mutex_acquire(&context->mutex);
 
     struct vmm_range* range = get_range(context, fault_addr);
 
-    spinlock_release(&context->lock);
+    mutex_release(&context->mutex);
 
     if (range == NULL) {
         return false;

@@ -144,8 +144,11 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     }
 
     if (input_buf_index == 0) {
-        input_buf_flushed = false;
-        return 0;
+        if (termios.c_lflag & ICANON) {
+            input_buf_flushed = false;
+            return 0;
+        }
+        scheduler_yield(true);
     }
 
     spinlock_acquire(&read_lock);
@@ -308,10 +311,10 @@ void tty_add_char(char c) {
         } else {
             internal_write(&c, sizeof(c));
         }
+    }
 
-        if (should_flush) {
-            input_buf_flushed = true;
-        }
+    if (should_flush) {
+        input_buf_flushed = true;
     }
 
 end:

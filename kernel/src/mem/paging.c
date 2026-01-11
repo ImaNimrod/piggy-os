@@ -268,16 +268,21 @@ void pagemap_map_range(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr
         kpanic(NULL, true, "unaligned arguments to pagemap_map_range");
     }
 
-    size_t i = 0;
-    while (i < length) {
-        if (IS_ALIGNED(vaddr, PAGE_SIZE_2MB) && IS_ALIGNED(paddr, PAGE_SIZE_2MB) && length - i >= PAGE_SIZE_2MB) {
-            pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_2MB);
-            i += PAGE_SIZE_2MB;
-            continue;
-        }
+    size_t page_count;
+    page_size_t page_size;
 
-        pagemap_map(pagemap, vaddr + i, paddr + i, flags, PAGE_SIZE_4KB);
-        i += PAGE_SIZE_4KB;
+    if ((vaddr % PAGE_SIZE_2MB == 0) && (paddr % PAGE_SIZE_2MB == 0) && (length % PAGE_SIZE_2MB == 0)) {
+        page_count = length / PAGE_SIZE_2MB;
+        page_size = PAGE_SIZE_2MB;
+    } else {
+        page_count = length / PAGE_SIZE_4KB;
+        page_size = PAGE_SIZE_4KB;
+    }
+
+    for (size_t i = 0; i < page_count; i++) {
+        pagemap_map(pagemap, vaddr, paddr, flags, page_size);
+        vaddr += page_size;
+        paddr += page_size;
     }
 }
 
@@ -286,15 +291,20 @@ bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length
         kpanic(NULL, true, "unaligned arguments to pagemap_unmap_range");
     }
 
+    size_t page_count;
     page_size_t page_size;
 
-    size_t i = 0;
-    while (i < length) {
-        if (!pagemap_unmap(pagemap, vaddr + i, &page_size)) {
-            return false;
-        }
+    if ((vaddr % PAGE_SIZE_2MB == 0) && (length % PAGE_SIZE_2MB == 0)) {
+        page_count = length / PAGE_SIZE_2MB;
+        page_size = PAGE_SIZE_2MB;
+    } else {
+        page_count = length / PAGE_SIZE_4KB;
+        page_size = PAGE_SIZE_4KB;
+    }
 
-        i += page_size;
+    for (size_t i = 0; i < page_count; i++) {
+        pagemap_unmap(pagemap, vaddr, &page_size);
+        vaddr += page_size;
     }
 
     return true;
@@ -409,20 +419,20 @@ void paging_init(void) {
     uintptr_t data_start = ALIGN_DOWN((uintptr_t) data_start_addr, PAGE_SIZE_4KB);
     uintptr_t data_end = ALIGN_UP((uintptr_t) data_end_addr, PAGE_SIZE_4KB);
 
-    for (uintptr_t text_addr = text_start; text_addr < text_end; text_addr += PAGE_SIZE_4KB) {
-        paddr = text_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, text_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL, PAGE_SIZE_4KB);
-    }
+    pagemap_map_range(kernel_pagemap,
+            text_start, text_start - kernel_address_response->virtual_base + kernel_address_response->physical_base,
+            text_end - text_start,
+            PTE_PRESENT | PTE_GLOBAL);
 
-    for (uintptr_t rodata_addr = rodata_start; rodata_addr < rodata_end; rodata_addr += PAGE_SIZE_4KB) {
-        paddr = rodata_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, rodata_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
-    }
+    pagemap_map_range(kernel_pagemap,
+            rodata_start, rodata_start - kernel_address_response->virtual_base + kernel_address_response->physical_base,
+            rodata_end - rodata_start,
+            PTE_PRESENT | PTE_GLOBAL | PTE_NX);
 
-    for (uintptr_t data_addr = data_start; data_addr < data_end; data_addr += PAGE_SIZE_4KB) {
-        paddr = data_addr - kernel_address_response->virtual_base + kernel_address_response->physical_base;
-        pagemap_map(kernel_pagemap, data_addr, ALIGN_DOWN(paddr, PAGE_SIZE_4KB), PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
-    }
+    pagemap_map_range(kernel_pagemap,
+            data_start, data_start - kernel_address_response->virtual_base + kernel_address_response->physical_base,
+            data_end - data_start,
+            PTE_PRESENT | PTE_WRITABLE | PTE_GLOBAL | PTE_NX);
 
     pagemap_load(kernel_pagemap);
 

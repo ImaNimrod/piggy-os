@@ -10,6 +10,7 @@
 #define SCHEDULER_TIME_QUANTA_MS 10
 
 void scheduler_block(struct thread* t);
+void scheduler_block_and_release(struct thread* t, spinlock_t* lock, bool int_state);
 void scheduler_dequeue(struct thread* t);
 void scheduler_enqueue(struct thread* t);
 void scheduler_sleep(struct thread* t, const struct timespec* tp);

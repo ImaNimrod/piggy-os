@@ -98,7 +98,7 @@ bool identify(struct nvme_controller* controller, uint32_t namespace, int subjec
 bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
     semaphore_wait(&queue_pair->entry_semaphore);
 
-    spinlock_acquire(&queue_pair->lock);
+    bool int_state = spinlock_acquire_irqsave(&queue_pair->lock);
 
     uint16_t pair = 0;
     while (queue_pair->entries[pair] != NULL) {
@@ -106,6 +106,7 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
     }
 
     entry_pair->submission.cid = pair;
+    entry_pair->thread = this_cpu()->running_thread;
     queue_pair->entries[pair] = entry_pair;
 
     struct submission_entry* sq_entry = queue_pair->submission.address;
@@ -117,10 +118,7 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
 
     mmio_write32(queue_pair->submission.doorbell, queue_pair->submission.index);
 
-    entry_pair->thread = this_cpu()->running_thread;
-    spinlock_release(&queue_pair->lock);
-
-    scheduler_block(this_cpu()->running_thread);
+    scheduler_block_and_release(this_cpu()->running_thread, &queue_pair->lock, int_state);
     return entry_pair->completion.status == 0;
 }
 

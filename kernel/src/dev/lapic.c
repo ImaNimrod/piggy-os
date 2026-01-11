@@ -38,8 +38,6 @@
 #define PIC2_COMMAND_PORT       0xa0
 #define PIC2_DATA_PORT          0xa1
 
-static struct acpi_madt* madt;
-
 static inline uint32_t lapic_read(uint32_t reg) {
     if (use_x2apic) {
         return rdmsr(0x800 + (reg >> 4));
@@ -163,7 +161,7 @@ void lapic_madt_parse(void) {
         kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
     }
 
-    madt = madt_table.ptr;
+    struct acpi_madt* madt = madt_table.ptr;
     if (likely(madt->flags & ACPI_PCAT_COMPAT)) {
         legacy_pic_disable();
         klog("[lapic] disabled legacy 8259 PIC\n");
@@ -192,6 +190,8 @@ void lapic_madt_parse(void) {
 
         current_ptr += entry->length;
     }
+
+    uacpi_table_unref(&madt_table);
 }
 
 void lapic_percpu_init(void) {
@@ -209,6 +209,14 @@ void lapic_percpu_init(void) {
     lapic_write(LAPIC_REG_LVT_LINT1, LAPIC_LVT_MASK);
     lapic_write(LAPIC_REG_LVT_ERROR, LAPIC_LVT_MASK);
 
+    struct uacpi_table madt_table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt_table);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
+    }
+
+    struct acpi_madt* madt = madt_table.ptr;
+
     uint8_t* current_ptr = (uint8_t*) madt->entries;
     uint8_t* end_ptr = (uint8_t*) madt->entries + madt->hdr.length;
     while (current_ptr < end_ptr) {
@@ -219,6 +227,8 @@ void lapic_percpu_init(void) {
 
         current_ptr += entry->length;
     }
+
+    uacpi_table_unref(&madt_table);
 
     lapic_timer_calibrate();
 

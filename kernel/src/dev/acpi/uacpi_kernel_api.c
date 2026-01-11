@@ -1,13 +1,17 @@
 #include <cpu/asm.h>
+#include <cpu/isr.h>
 #include <cpu/smp.h>
+#include <dev/ioapic.h>
 #include <dev/pci.h>
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
+#include <sys/process.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/mutex.h>
 #include <utils/semaphore.h>
 #include <utils/spinlock.h>
 
@@ -15,7 +19,90 @@
 #include <uacpi/status.h>
 #include <uacpi/types.h>
 
+struct uacpi_irq_context {
+    uacpi_interrupt_handler handler;
+    uacpi_handle ctx;
+};
+
+struct uacpi_work {
+    uacpi_work_handler handler;
+    uacpi_handle ctx;
+    struct uacpi_work* next;
+};
+
+struct uacpi_work_context {
+    semaphore_t semaphore;
+    struct thread* thread;
+    struct uacpi_work* queue;
+    spinlock_t queue_lock;
+};
+
 extern struct limine_rsdp_request rsdp_request;
+
+static struct uacpi_work_context gpe_work;
+static struct uacpi_work_context notification_work;
+
+static void do_work(struct uacpi_work_context* context) {
+    for (;;) {
+        semaphore_wait(&context->semaphore);
+
+        struct uacpi_work* work = NULL;
+
+        bool int_state = spinlock_acquire_irqsave(&context->queue_lock);
+        if (context->queue != NULL) {
+            work = context->queue;
+            context->queue = work->next;
+        }
+        spinlock_release_irqsave(&context->queue_lock, int_state);
+
+        if (work == NULL) {
+            continue;
+        }
+
+        work->handler(work->ctx);
+        kfree(work);
+    }
+}
+
+static void do_gpe_work(void) {
+    do_work(&gpe_work);
+}
+
+static void do_notification_work(void) {
+    do_work(&notification_work);
+}
+
+static void work_await(struct uacpi_work_context* context) {
+    struct timespec delay = {
+        .tv_sec = 0,
+        .tv_nsec = MS_TO_NS(100),
+    };
+
+    for (;;) {
+        bool empty;
+
+        bool int_state = spinlock_acquire_irqsave(&context->queue_lock);
+        empty = context->queue == NULL;
+        spinlock_release_irqsave(&context->queue_lock, int_state);
+
+        if (empty) {
+            return;
+        }
+
+        scheduler_sleep(this_cpu()->running_thread, &delay);
+	}
+}
+
+static void work_init(struct uacpi_work_context* context, void (*proc)(void)) {
+    semaphore_init(&context->semaphore, 0);
+    spinlock_init(&context->queue_lock);
+
+    context->thread = thread_create_kernel((uintptr_t) proc, NULL);
+    if (unlikely(context->thread == NULL)) {
+        kpanic(NULL, false, "failed to create uACPI worker thread");
+    }
+    scheduler_enqueue(context->thread);
+}
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out_rsdp_address) {
     *out_rsdp_address = (uintptr_t) rsdp_request.response->address - HIGH_VMA;
@@ -67,6 +154,19 @@ void uacpi_kernel_log(uacpi_log_level level, const uacpi_char* str) {
 
     klog("[acpi][%s] %s", level_str, str);
 }
+
+uacpi_status uacpi_kernel_initialize(uacpi_init_level current_init_lvl) {
+    if (current_init_lvl != UACPI_INIT_LEVEL_SUBSYSTEM_INITIALIZED) {
+        return UACPI_STATUS_OK;
+    }
+
+    work_init(&gpe_work, do_gpe_work);
+    work_init(&notification_work, do_notification_work);
+
+    return UACPI_STATUS_OK;
+}
+
+void uacpi_kernel_deinitialize(void) {}
 
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle) {
     uint64_t value = ((uint64_t) address.segment << 48) | ((uint64_t) address.bus << 32) | ((uint64_t) address.device << 16) | ((uint64_t) address.function);
@@ -217,11 +317,11 @@ void uacpi_kernel_sleep(uacpi_u64 msec) {
 }
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
-    return (uacpi_handle) kmalloc(sizeof(spinlock_t));
+    return (uacpi_handle) kmalloc(sizeof(mutex_t));
 }
 
 void uacpi_kernel_free_mutex(uacpi_handle mutex) {
-    kfree((spinlock_t*) mutex);
+    kfree((mutex_t*) mutex);
 }
 
 uacpi_handle uacpi_kernel_create_event(void) {
@@ -237,19 +337,18 @@ void uacpi_kernel_free_event(uacpi_handle event) {
 }
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void) {
-    //return (uacpi_thread_id) this_cpu()->running_thread;
-    return 0;
+    return (uacpi_thread_id) this_cpu()->running_thread;
 }
 
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle mutex, uacpi_u16 msec) {
     (void) msec;
 
-    spinlock_acquire((spinlock_t*) mutex);
+    mutex_acquire((mutex_t*) mutex);
     return UACPI_STATUS_OK;
 }
 
 void uacpi_kernel_release_mutex(uacpi_handle mutex) {
-    spinlock_release((spinlock_t*) mutex);
+    mutex_release((mutex_t*) mutex);
 }
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle event, uacpi_u16 msec) {
@@ -276,22 +375,44 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
     return UACPI_STATUS_OK;
 }
 
+static void uacpi_irq_handler(struct registers* r, void* arg) {
+    (void) r;
+
+    struct uacpi_irq_context* irq_context = arg;
+    irq_context->handler(irq_context->ctx);
+}
+
 uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 irq, uacpi_interrupt_handler handler, uacpi_handle ctx, uacpi_handle* out_irq_handle) {
-    (void) irq;
-    (void) handler;
-    (void) ctx;
     (void) out_irq_handle;
+
+    struct uacpi_irq_context* irq_context = kmalloc(sizeof(struct uacpi_irq_context));
+    if (unlikely(irq_context == NULL)) {
+        kpanic(NULL, true, "failed to allocate memory for uACPI IRQ context");
+    }
+    irq_context->handler = handler;
+    irq_context->ctx = ctx;
+
+    uint8_t vector;
+    if (unlikely(!isr_allocate_vector(&vector))) {
+        kpanic(NULL, true, "failed to allocate IRQ vector for uACPI interrupt");
+    }
+    isr_register_handler(vector, uacpi_irq_handler, irq_context);
+
+    ioapic_redirect_irq(irq, vector);
+    ioapic_set_irq_mask(irq, false);
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle irq_handle) {
     (void) handler;
     (void) irq_handle;
-    return UACPI_STATUS_OK;
+    return UACPI_STATUS_UNIMPLEMENTED;
 }
 
 uacpi_handle uacpi_kernel_create_spinlock(void) {
-    return (uacpi_handle) kmalloc(sizeof(spinlock_t));
+    spinlock_t* lock = kmalloc(sizeof(spinlock_t));
+    spinlock_init(lock);
+    return (uacpi_handle) lock;
 }
 
 void uacpi_kernel_free_spinlock(uacpi_handle lock) {
@@ -307,12 +428,33 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle lock, uacpi_cpu_flags int_state) 
 }
 
 uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx) {
-    (void) type;
-    (void) handler;
-    (void) ctx;
-    return UACPI_STATUS_UNIMPLEMENTED;
+    struct uacpi_work* work = kmalloc(sizeof(struct uacpi_work));
+    if (unlikely(work == NULL)) {
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
+    work->ctx = ctx;
+    work->handler = handler;
+
+    struct uacpi_work_context* context;
+    if (type == UACPI_WORK_GPE_EXECUTION) {
+        context = &gpe_work;
+    } else if (type == UACPI_WORK_NOTIFICATION) {
+        context = &notification_work;
+    } else {
+        kpanic(NULL, false, "unknown work type: %d", type);
+    }
+
+    bool int_state = spinlock_acquire_irqsave(&context->queue_lock);
+    work->next = context->queue;
+    context->queue = work;
+    spinlock_release_irqsave(&context->queue_lock, int_state);
+
+    semaphore_signal(&context->semaphore);
+    return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_wait_for_work_completion(void) {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    work_await(&gpe_work);
+    work_await(&notification_work);
+    return UACPI_STATUS_OK;
 }

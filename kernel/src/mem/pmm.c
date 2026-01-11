@@ -32,24 +32,30 @@ static inline const char* memmap_type_str(uint64_t memmap_type) {
 }
 
 static uintptr_t inner_alloc(size_t pages, uint64_t last_limit) {
-    size_t p = 0;
-
-    while (last_used_index < last_limit) {
-        if (!BITMAP_TEST(pmm_bitmap, last_used_index)) {
-            if (++p == pages) {
-                size_t page = last_used_index - pages + 1;
-                for (size_t i = page; i <= last_used_index; i++) {
-                    BITMAP_SET(pmm_bitmap, i);
-                }
-
-                return page * PAGE_SIZE_4KB;
-            }
-        } else {
-            p = 0;
+    for (size_t start = last_used_index; start + pages <= last_limit; start++) {
+        if (BITMAP_TEST(pmm_bitmap, start)) {
+            continue;
         }
 
-        last_used_index++;
+        bool contiguous = true;
 
+        for (size_t i = 0; i < pages; i++) {
+            if (BITMAP_TEST(pmm_bitmap, start + i)) {
+                contiguous = false;
+                start += i;
+                break;
+            }
+        }
+
+        if (!contiguous) {
+            continue;
+        }
+        for (size_t i = 0; i < pages; i++) {
+            BITMAP_SET(pmm_bitmap, start + i);
+        }
+
+        last_used_index = start + pages;
+        return start * PAGE_SIZE_4KB;
     }
 
     return INVALID_PADDR;
@@ -171,6 +177,6 @@ void pmm_init(void) {
     }
 
     klog("[pmm] usable memory: %zuMiB | reserved memory: %zuMiB\n",
-         (usable_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);
+            (usable_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);
     klog("[pmm] initialized physical memory manager\n");
 }

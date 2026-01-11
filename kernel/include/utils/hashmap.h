@@ -13,7 +13,7 @@ struct hashmap_entry {
     struct hashmap_entry* next;
 };
 
-typedef struct hashmap {
+typedef struct {
     size_t capacity;
     size_t size;
     struct hashmap_entry** entries;

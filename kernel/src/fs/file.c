@@ -4,7 +4,7 @@
 #include <mem/slab.h> 
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 
 static struct slab_cache* file_cache;
 
@@ -22,14 +22,14 @@ static int get_free_fd(struct process* process, int start_fd) {
 }
 
 int file_close(struct process* process, int fd) {
-    spinlock_acquire(&process->fd_lock);
+    mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[fd].file;
     if (file != NULL) {
         process->fds[fd].file = NULL;
     }
 
-    spinlock_release(&process->fd_lock);
+    mutex_release(&process->fd_mutex);
 
     if (file != NULL) {
         file_release(file);
@@ -68,11 +68,11 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
         return -EBADF;
     }
 
-    spinlock_acquire(&process->fd_lock);
+    mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[old_fd].file;
     if (file == NULL) {
-        spinlock_release(&process->fd_lock);
+        mutex_release(&process->fd_mutex);
         return -EBADF;
     }
 
@@ -99,12 +99,12 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
 
     __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
 
-    spinlock_release(&process->fd_lock);
+    mutex_release(&process->fd_mutex);
     return ret;
 }
 
 void file_fork(struct process* old_process, struct process* new_process) {
-    spinlock_acquire(&old_process->fd_lock);
+    mutex_acquire(&old_process->fd_mutex);
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         if (old_process->fds[i].file == NULL) {
@@ -115,7 +115,7 @@ void file_fork(struct process* old_process, struct process* new_process) {
         __atomic_add_fetch(&old_process->fds[i].file->refcount, 1, __ATOMIC_SEQ_CST);
     }
 
-    spinlock_release(&old_process->fd_lock);
+    mutex_release(&old_process->fd_mutex);
 }
 
 struct file* file_get(struct process* process, int fd) {
@@ -123,26 +123,26 @@ struct file* file_get(struct process* process, int fd) {
         return NULL;
     }
 
-    spinlock_acquire(&process->fd_lock);
+    mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[fd].file;
     if (file != NULL) {
         __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
     }
 
-    spinlock_release(&process->fd_lock);
+    mutex_release(&process->fd_mutex);
     return file;
 }
 
 int file_insert(struct process* process, struct file* file, bool cloexec) {
-    spinlock_acquire(&process->fd_lock);
+    mutex_acquire(&process->fd_mutex);
 
     int fd = get_free_fd(process, 0);
     if (fd >= 0) {
         process->fds[fd] = (struct file_descriptor) { file, cloexec };
     }
 
-    spinlock_release(&process->fd_lock);
+    mutex_release(&process->fd_mutex);
     return fd;
 }
 

@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <sys/elf.h>
 #include <types.h>
+#include <utils/mutex.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
@@ -52,7 +53,7 @@ struct thread {
     spinlock_t yield_lock;
 
     struct thread* next;
-    struct thread* next_waiter; // for semaphores
+    struct thread* next_waiter;
 };
 
 struct vfs_node;
@@ -68,7 +69,7 @@ struct process {
     struct vfs_node* root;
 
     struct file_descriptor fds[PROCESS_FD_COUNT];
-    spinlock_t fd_lock;
+    mutex_t fd_mutex;
 
     struct vmm_context* vmm_context;
     uintptr_t thread_stack_top;

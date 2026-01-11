@@ -33,6 +33,8 @@ struct process* process_create(struct process* parent) {
         goto error;
     }
 
+    mutex_init(&new_process->fd_mutex);
+
     if (parent != NULL) {
         spinlock_acquire(&parent->lock);
 
@@ -186,7 +188,7 @@ void process_exit(struct process* process, int status) {
         kpanic(NULL, false, "attempted to exit init process with status = %d", status);
     }
 
-    spinlock_acquire(&process->fd_lock);
+    mutex_acquire(&process->fd_mutex);
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file* file = process->fds[i].file;
@@ -195,7 +197,7 @@ void process_exit(struct process* process, int status) {
         }
     }
 
-    spinlock_release(&process->fd_lock);
+    mutex_release(&process->fd_mutex);
 
     spinlock_acquire(&process->lock);
 

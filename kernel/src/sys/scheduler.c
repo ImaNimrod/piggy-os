@@ -133,6 +133,16 @@ void scheduler_block(struct thread* t) {
     scheduler_yield(true);
 }
 
+void scheduler_block_and_release(struct thread* t, spinlock_t* lock, bool int_state) {
+    spinlock_acquire(&thread_state_lock);
+    t->state = THREAD_BLOCKED;
+    spinlock_release(&thread_state_lock);
+
+    spinlock_release_irqsave(lock, int_state);
+
+    scheduler_yield(true);
+}
+
 void scheduler_dequeue(struct thread* t) {
     spinlock_acquire(&thread_state_lock);
     SLIST_REMOVE(thread_list, t);

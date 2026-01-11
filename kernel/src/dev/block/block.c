@@ -7,7 +7,7 @@
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
 
@@ -75,7 +75,7 @@ static struct device_ops block_device_ops = {
 };
 
 static hashmap_t* block_devices;
-static spinlock_t block_devices_lock;
+static mutex_t block_devices_mutex;
 
 static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
     (void) flags;
@@ -86,12 +86,12 @@ static ssize_t block_read(dev_t dev, void* buf, size_t count, off_t offset, int 
 
     struct block_device* device;
 
-    spinlock_acquire(&block_devices_lock);
+    mutex_acquire(&block_devices_mutex);
     if (!hashmap_get(block_devices, &dev, sizeof(dev), (void**) &device)) {
-        spinlock_release(&block_devices_lock);
+        mutex_release(&block_devices_mutex);
         return -ENODEV;
     }
-    spinlock_release(&block_devices_lock);
+    mutex_release(&block_devices_mutex);
 
     ssize_t ret;
 
@@ -132,12 +132,12 @@ static ssize_t block_write(dev_t dev, const void* buf, size_t count, off_t offse
 
     struct block_device* device;
 
-    spinlock_acquire(&block_devices_lock);
+    mutex_acquire(&block_devices_mutex);
     if (!hashmap_get(block_devices, &dev, sizeof(dev), (void**) &device)) {
-        spinlock_release(&block_devices_lock);
+        mutex_release(&block_devices_mutex);
         return -ENODEV;
     }
-    spinlock_release(&block_devices_lock);
+    mutex_release(&block_devices_mutex);
 
     off_t aligned_offset = ALIGN_DOWN(offset, device->block_size);
     size_t offset_delta  = offset - aligned_offset;
@@ -171,12 +171,12 @@ end:
 static int block_sync(dev_t dev) {
     struct block_device* device;
 
-    spinlock_acquire(&block_devices_lock);
+    mutex_acquire(&block_devices_mutex);
     if (!hashmap_get(block_devices, &dev, sizeof(dev), (void**) &device)) {
-        spinlock_release(&block_devices_lock);
+        mutex_release(&block_devices_mutex);
         return -ENODEV;
     }
-    spinlock_release(&block_devices_lock);
+    mutex_release(&block_devices_mutex);
 
     return device->cmd_handler(device, CMD_FLUSH, 0, 0, 0);
 }
@@ -283,9 +283,9 @@ end:
 int block_register(const char* name, dev_t dev, struct block_device* block_device, bool check_partitions) {
     struct block_device* temp;
 
-    spinlock_acquire(&block_devices_lock);
+    mutex_acquire(&block_devices_mutex);
     if (hashmap_get(block_devices, &dev, sizeof(dev), (void**) &temp)) {
-        spinlock_release(&block_devices_lock);
+        mutex_release(&block_devices_mutex);
         return -EEXIST;
     }
 
@@ -297,7 +297,7 @@ int block_register(const char* name, dev_t dev, struct block_device* block_devic
 
     bool ret = hashmap_set(block_devices, &dev, sizeof(dev), device);
 
-    spinlock_release(&block_devices_lock);
+    mutex_release(&block_devices_mutex);
 
     if (unlikely(!ret)) {
         return -ENOMEM;
