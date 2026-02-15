@@ -1,4 +1,3 @@
-#include <cpu/isr.h> 
 #include <cpu/smp.h> 
 #include <errno.h>
 #include <fs/file.h>
@@ -9,7 +8,7 @@
 #define F_SETFD         2
 #define F_GETFL         3
 #define F_SETFL         4
-#define F_DUPFD_CLOEXEC 5
+#define F_DUPFD_CLOEXEC 1000
 
 #define FD_CLOEXEC 1
 
@@ -32,7 +31,7 @@ void sys_fcntl(struct registers* r) {
     switch (op) {
         case F_DUPFD:
         case F_DUPFD_CLOEXEC:
-            ret = file_dup(current_process, fd, arg, false, op & F_DUPFD_CLOEXEC);
+            ret = file_dup(current_process, fd, arg, false, op == F_DUPFD_CLOEXEC);
             break;
         case F_GETFD:
             ret = current_process->fds[fd].cloexec ? FD_CLOEXEC : 0;

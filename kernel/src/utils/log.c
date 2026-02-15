@@ -36,10 +36,21 @@ static void print_stack_trace(uintptr_t* rbp) {
 }
 
 void _putchar(char c) {
-    serial_putc(COM1_PORT, c);
+    if (c == '\n') {
+        static const char newline[2] = { '\r', '\n' };
 
-    if (fb_context != NULL) {
-        flanterm_write(fb_context, &c, sizeof(char));
+        serial_putc(COM1_PORT, newline[0]);
+        serial_putc(COM1_PORT, newline[1]);
+
+        if (likely(fb_context != NULL)) {
+            flanterm_write(fb_context, newline, sizeof(newline));
+        }
+    } else {
+        serial_putc(COM1_PORT, c);
+
+        if (likely(fb_context != NULL)) {
+            flanterm_write(fb_context, &c, sizeof(char));
+        }
     }
 }
 

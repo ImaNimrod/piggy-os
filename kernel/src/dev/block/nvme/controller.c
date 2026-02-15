@@ -165,7 +165,7 @@ static bool setup_io_queue_pair(struct nvme_controller* controller, uint16_t id)
     };
 
     semaphore_init(&queue_pair->entry_semaphore, QUEUE_ENTRY_COUNT);
-    queue_pair->lock = (spinlock_t) {0};
+    spinlock_init(&queue_pair->lock);
     return true;
 }
 

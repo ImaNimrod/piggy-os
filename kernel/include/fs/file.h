@@ -57,4 +57,6 @@ void file_release(struct file* file);
 void file_cleanup_dirfd(struct file* dirfile, struct vfs_node* dirnode);
 int file_resolve_dirfd(struct process* process, int dirfd, const char* path, struct file** dirfile, struct vfs_node** dirnode);
 
+void file_init(void);
+
 #endif /* _KERNEL_FS_FILE_H */

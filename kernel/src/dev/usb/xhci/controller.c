@@ -6,56 +6,142 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <sys/scheduler.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/string.h>
 
 #include "definitions.h"
 
 // TODO: support multiple interrupters or maybe just commit sepuku instead of doing USB :)
+// TODO: for some intel controllers, switch ports from EHCI to XHCI
 
-#define CMD_TRB_COUNT (PAGE_SIZE_4KB / sizeof(struct trb))
+static bool reset_port(struct xhci_controller* controller, uint8_t port) {
+    struct port_registers* port_registers = &controller->operational_registers->port_registers[port];
 
-struct xhci_ring {
-    struct trb* trbs;
-    uint32_t index;
-    bool cycle;
-};
+    int timeout;
 
-struct xhci_controller {
-    struct capability_registers* capability_registers;
-    struct operational_registers* operational_registers;
-    struct runtime_registers* runtime_registers;
-    uint32_t* doorbell_registers;
+    uint32_t portsc = mmio_read32(&port_registers->portsc);
+    if (!(portsc & PORTSC_PP)) {
+        portsc |= PORTSC_PP;
+        mmio_write32(&port_registers->portsc, portsc);
 
-    uint32_t command_cycle;
+        timeout = 50;
+        while (timeout != 0) {
+            if (mmio_read32(&port_registers->portsc) & PORTSC_PP) {
+                break;
+            }
+            hpet_sleep_ns(MS_TO_NS(1));
+            timeout--;
+        }
 
-    uint8_t port_count;
-    uint8_t slot_count;
-
-    struct xhci_ring command_ring;
-    struct xhci_ring event_ring;
-};
-
-static void submit_cmd(struct xhci_controller* controller, struct trb* cmd) {
-    struct xhci_ring* command_ring = &controller->command_ring;
-
-    cmd->cycle = command_ring->cycle ? 1 : 0;
-    command_ring->trbs[command_ring->index++] = *cmd;
-
-    if (command_ring->index == CMD_TRB_COUNT - 1) {
-        command_ring->trbs[CMD_TRB_COUNT - 1].control = (6 << 10) | (1 << 1) | (command_ring->cycle ? 1 : 0);
-        command_ring->index = 0;
-        command_ring->cycle = !command_ring->cycle;
+        if (unlikely(timeout == 0)) {
+            klog("[xhci] timed out while waiting for port %u to be powered\n", port);
+            return false;
+        }
     }
 
-    mmio_write32(&controller->doorbell_registers[0], 0);
+    struct port_protocol_info* info = NULL;
+    for (size_t i = 0; i < vector_size(controller->port_protocol_info); i++) {
+        struct port_protocol_info* iter = (void*) vector_get(controller->port_protocol_info, i);
+        if (iter->port_start <= port && iter->port_end >= port) {
+            info = iter;
+            break;
+        }
+    }
+
+    if (unlikely(info == NULL)) {
+        return false;
+    }
+
+    bool is_usb3 = info->version_major == 3;
+    if (is_usb3) {
+        portsc |= PORTSC_WPR;
+    } else {
+        portsc |= PORTSC_PR;
+    }
+
+    mmio_write32(&port_registers->portsc, portsc);
+
+    uint32_t success_bit = is_usb3 ? PORTSC_WPR : PORTSC_PED;
+
+    timeout = 50;
+    while (timeout != 0) {
+        if (mmio_read32(&port_registers->portsc) & success_bit) {
+            break;
+        }
+        hpet_sleep_ns(MS_TO_NS(1));
+        timeout--;
+    }
+
+    if (unlikely(timeout == 0)) {
+        klog("[xhci] timed out while waiting for port %u to reset\n", port);
+        return false;
+    }
+
+    return true;
 }
 
 static void xhci_irq_handler(struct registers* r, void* arg) {
     (void) r;
 
     struct xhci_controller* controller = arg;
-    klog("irq\n");
+
+    struct operational_registers* operational_registers = controller->operational_registers;
+    if (!(mmio_read32(&operational_registers->usbsts) & USBSTS_EINT)) {
+        return;
+    }
+
+    struct interrupter_registers* interrupter_registers = &controller->runtime_registers->interrupter_registers[0];
+
+    struct trb* trb;
+    while ((trb = ring_dequeue(&controller->event_ring)) != NULL) {
+        uint32_t trb_type = trb->trb_type;
+
+        if (trb_type == TRB_TYPE_TRANSFER_EVENT || trb_type == TRB_TYPE_COMMAND_COMPLETION_EVENT) {
+            struct xhci_ring* ring;
+            if (trb_type == TRB_TYPE_COMMAND_COMPLETION_EVENT) {
+                ring = &controller->command_ring;
+            } else {
+                uint8_t slot_id = (trb->control >> 24) & 0xff;
+                struct xhci_device* device = *vector_get(controller->devices, slot_id);
+                ring = &device->ep_rings[(trb->control >> 16) & 0x1f];
+            }
+
+            bool int_save = spinlock_acquire_irqsave(&ring->lock);
+
+            bool found_waiter = false;
+            struct completion_waiter waiter;
+
+            for (size_t i = 0; i < vector_size(ring->completion_waiters); i++) {
+                struct completion_waiter* iter = (void*) vector_get(ring->completion_waiters, i);
+                if (iter->submission_trb_paddr == trb->parameter) {
+                    found_waiter = true;
+                    memcpy(&waiter, iter, sizeof(struct completion_waiter));
+                    vector_remove(ring->completion_waiters, i);
+                    break;
+                }
+            }
+
+            if (found_waiter) {
+                memcpy(waiter.completion_trb, trb, sizeof(struct trb));
+                scheduler_unblock(waiter.thread);
+            }
+
+            spinlock_release_irqsave(&ring->lock, int_save);
+        } else if (trb_type == TRB_TYPE_PORT_STATUS_CHANGE_EVENT) {
+            klog("[xhci] port status change\n");
+        } else {
+            klog("[xhci] unknown event TRB type: %u\n", trb_type);
+        }
+
+        uintptr_t event_ring_paddr = controller->event_ring.trb_paddr;
+        event_ring_paddr += controller->event_ring.index * sizeof(struct trb);
+        mmio_write64(&interrupter_registers->erdp, event_ring_paddr | (1 << 3));
+    }
+
+    mmio_write32(&interrupter_registers->iman, mmio_read32(&interrupter_registers->iman) | IMAN_IP);
+    mmio_write32(&operational_registers->usbsts, mmio_read32(&operational_registers->usbsts) | USBSTS_EINT);
 }
 
 static void xhci_init(struct pci_device* pci_dev) {
@@ -102,23 +188,26 @@ static void xhci_init(struct pci_device* pci_dev) {
         uint8_t capid = cap & 0xff;
         uint8_t next = (cap >> 8) & 0xff;
 
-        switch (capid) {
-            case 1:
-                kpanic(NULL, false, "TODO: perform xHCI controller bios -> os handoff\n");
+        if (capid == 1) {
+            if (!(cap & USB_LEGACY_BOS)) {
                 break;
-            case 2:
-                uint32_t dword1 = mmio_read32(caps + 1);
+            }
 
-                char proto[5];
-                proto[0] = (dword1 >> 0) & 0xff;
-                proto[1] = (dword1 >> 8) & 0xff;
-                proto[2] = (dword1 >> 16) & 0xff;
-                proto[3] = (dword1 >> 24) & 0xff;
-                proto[4] = '\0';
+            mmio_write32(caps, cap | USB_LEGACY_OOS);
 
-                klog("[xhci] xHCI controller supports protocol %s v%d.%d\n",
-                        proto, (cap >> 24) & 0xff, (cap >> 16) & 0xff);
-                break;
+            timeout = 1000;
+            while (timeout != 0) {
+                if (mmio_read32(&caps) & USB_LEGACY_OOS) {
+                    break;
+                }
+                hpet_sleep_ns(MS_TO_NS(1));
+                timeout--;
+            }
+
+            if (unlikely(timeout == 0)) {
+                klog("[xhci] xHCI controller timed out while waiting for BIOS to OS handoff\n");
+                return;
+            }
         }
 
         if (next == 0) {
@@ -166,22 +255,87 @@ static void xhci_init(struct pci_device* pci_dev) {
     controller->runtime_registers = runtime_registers;
     controller->doorbell_registers = (void*) ((uintptr_t) capability_registers + mmio_read32(&capability_registers->dboff));
 
+    controller->port_protocol_info = vector_create(sizeof(struct port_protocol_info));
+    if (unlikely(controller->port_protocol_info == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for xHCI controller port info");
+    }
+    controller->devices = vector_create(sizeof(struct xhci_device*));
+    if (unlikely(controller->devices == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for xHCI devices");
+    }
+
     uint32_t hcsparams1 = mmio_read32(&capability_registers->hcsparams1);
     uint8_t slot_count = hcsparams1 & 0xff;
     uint8_t port_count = (hcsparams1 >> 24) & 0xff;
 
     /* set controller max slot count */
     uint32_t config = mmio_read32(&operational_registers->config);
-    config = (config & ~0xff) | slot_count;
+    config = (config & 0xffffff00) | slot_count;
     mmio_write32(&operational_registers->config, config);
 
     controller->slot_count = slot_count;
     controller->port_count = port_count;
 
-    /* program device context base address array pointer and command ring pointer */
-    uintptr_t dcbaa_paddr = pmm_alloc_zero(DIV_CEIL((slot_count + 1) * sizeof(uintptr_t), PAGE_SIZE_4KB));
-    mmio_write64(&operational_registers->dcbaap, dcbaa_paddr);
+    caps = (uint32_t*) ((uintptr_t) capability_registers + (xecp * 4));
+    for (;;) {
+        uint32_t cap = mmio_read32(caps);
 
+        uint8_t capid = cap & 0xff;
+        uint8_t next = (cap >> 8) & 0xff;
+
+        if (capid == 2) {
+            uint32_t dword1 = mmio_read32(caps + 1);
+            if (dword1 != 0x20425355) {
+                break;
+            }
+
+            uint8_t version_major = (cap >> 24) & 0xff;
+            uint8_t version_minor = (cap >> 16) & 0xff;
+
+            uint32_t dword2 = mmio_read32(caps + 2);
+            uint8_t start = (dword2 & 0xff) - 1;
+            uint8_t count = (dword2 >> 8) & 0xff;
+
+            klog("[xhci] xHCI controller supports protocol USB v%d.%d on ports %u-%u\n",
+                    version_major, version_minor, start, start + count - 1);
+
+            struct port_protocol_info info = {
+                .port_start = start,
+                .port_end = start + count - 1,
+                .version_major = version_major,
+                .version_minor = version_minor,
+            };
+
+            vector_push(controller->port_protocol_info, &info);
+        }
+
+        if (next == 0) {
+            break;
+        }
+
+        caps += next;
+    }
+
+    uint8_t vector;
+    if (unlikely(!isr_allocate_vector(&vector))) {
+        kpanic(NULL, false, "failed to allocate IRQ vector for xHCI controller");
+    }
+    isr_register_handler(vector, xhci_irq_handler, controller);
+
+    bool use_msix = false;
+
+    if (pci_enable_msix(pci_dev)) {
+        pci_setup_msix(pci_dev, 0, vector);
+        use_msix = true;
+    } else {
+        if (!pci_setup_msi(pci_dev, vector)) {
+            klog("[xhci] failed to enable PCI interrupts for xHCI controller\n");
+            goto error;
+        }
+    }
+
+    /* program device context base address array pointer and setup scratchpad registers */
+    uintptr_t dcbaa_paddr = pmm_alloc_zero(DIV_CEIL((slot_count + 1) * sizeof(uintptr_t), PAGE_SIZE_4KB));
     uint64_t* dcbaa = (void*) (dcbaa_paddr + HIGH_VMA);
 
     /* setup scratchpad registers */
@@ -196,72 +350,35 @@ static void xhci_init(struct pci_device* pci_dev) {
         }
 
         dcbaa[0] = scratchpad_array_paddr;
-    } else {
-        dcbaa[0] = 0;
     }
 
-    uintptr_t cmd_ring_paddr = pmm_alloc_zero(DIV_CEIL(CMD_TRB_COUNT * sizeof(struct trb), PAGE_SIZE_4KB));
+    controller->dcbaa = dcbaa;
+    mmio_write64(&operational_registers->dcbaap, dcbaa_paddr);
 
-    struct xhci_ring* command_ring = &controller->command_ring;
-    command_ring->trbs = (void*) (cmd_ring_paddr + HIGH_VMA);
-    command_ring->cycle = true;
-
-    struct trb* link = &command_ring->trbs[CMD_TRB_COUNT - 1];
-    link->parameter = cmd_ring_paddr;
-    link->status = 0;
-    link->control = (6 << 10) | (1 << 1) | (command_ring->cycle ? 1 : 0);
-
-    mmio_write64(&operational_registers->crcr, cmd_ring_paddr | (1 << 0));
-
-    bool use_msix = false;
-
-    uint8_t vector;
-    if (unlikely(!isr_allocate_vector(&vector))) {
-        kpanic(NULL, false, "failed to allocate IRQ vector for xHCI controller");
-    }
-    isr_register_handler(vector, xhci_irq_handler, controller);
-
-    if (pci_enable_msix(pci_dev)) {
-        use_msix = true;
-        klog("[xhci] using MSI-X interrupts for xHCI controller\n");
-    } else {
-        klog("[xhci] using MSI interrupts for xHCI controller\n");
-    }
-
-    bool ret;
-    if (use_msix) {
-        ret = pci_setup_msix(pci_dev, 0, vector);
-    } else {
-        ret = pci_setup_msi(pci_dev, vector);
-    }
-
-    if (unlikely(!ret)) {
-        klog("[xhci] failed to setup interrupts for xHCI controller");
-        goto error;
-    }
-
-    struct interrupter_registers* interrupter_registers = &runtime_registers->interrupter_registers[0];
-    mmio_write32(&interrupter_registers->iman, mmio_read32(&interrupter_registers->iman) | (1 << 1));
+    /* program command ring */
+    ring_init(&controller->command_ring, &controller->doorbell_registers[0], 0);
+    mmio_write64(&operational_registers->crcr, controller->command_ring.trb_paddr | (1 << 0));
 
     /* setup interrupter event ring */
-    uintptr_t event_ring_paddr = pmm_alloc_zero(DIV_CEIL(CMD_TRB_COUNT * sizeof(struct trb), PAGE_SIZE_4KB));
-    uintptr_t erst_table_paddr = pmm_alloc_zero(DIV_CEIL(sizeof(struct event_ring_table_entry), PAGE_SIZE_4KB));
+    ring_init(&controller->event_ring, NULL, 0);
 
-    struct xhci_ring* event_ring = &controller->event_ring;
-    event_ring->trbs = (void*) (event_ring_paddr + HIGH_VMA);
-    event_ring->cycle = true;
+    uintptr_t erst_table_paddr = pmm_alloc(1);
 
     struct event_ring_table_entry* erst_entry = (void*) (erst_table_paddr + HIGH_VMA);
-    erst_entry->rsba = event_ring_paddr | 1;
-    erst_entry->rsz = CMD_TRB_COUNT;
+    erst_entry->rsba = controller->event_ring.trb_paddr;
+    erst_entry->rsz = controller->event_ring.size;
+    erst_entry->reserved = 0;
 
+    struct interrupter_registers* interrupter_registers = &runtime_registers->interrupter_registers[0];
     mmio_write32(&interrupter_registers->erstsz, 1);
-    mmio_write32(&interrupter_registers->erdp, event_ring_paddr | (1 << 3));
-    mmio_write64(&interrupter_registers->erstba, erst_table_paddr | 1);
+    mmio_write64(&interrupter_registers->erstba, erst_table_paddr);
+    mmio_write32(&interrupter_registers->erdp, controller->event_ring.trb_paddr | (1 << 3));
+
+    /* renable interrupts */
+    mmio_write32(&interrupter_registers->imod, 0);
+    mmio_write32(&interrupter_registers->iman, IMAN_IE);
 
     mmio_write32(&operational_registers->usbsts, mmio_read32(&operational_registers->usbsts) | USBSTS_EINT);
-    mmio_write32(&interrupter_registers->iman, mmio_read32(&interrupter_registers->iman) | (1 << 0));
-
     mmio_write32(&operational_registers->usbcmd, mmio_read32(&operational_registers->usbcmd) | USBCMD_INTE);
 
     if (use_msix) {
@@ -276,25 +393,21 @@ static void xhci_init(struct pci_device* pci_dev) {
         pause();
     }
 
+    /* initialize all connected devices */
+    for (uint8_t i = 0; i < port_count; i++) {
+        struct port_registers* port_registers = &operational_registers->port_registers[i];
+
+        uint32_t portsc = mmio_read32(&port_registers->portsc);
+        if (!(portsc & PORTSC_CCS)) {
+            continue;
+        }
+
+        if (reset_port(controller, i)) {
+            device_try_init(controller, i);
+        }
+    }
+
     klog("[xhci] initialized xHCI controller\n");
-
-    struct trb enable_slot = {0};
-    enable_slot.trb_type = 9;
-
-    klog("USBCMD=%08x USBSTS=%08x IMAN=%08x ERDP=%016lx\n",
-            mmio_read32(&operational_registers->usbcmd),
-            mmio_read32(&operational_registers->usbsts),
-            interrupter_registers->iman,
-            interrupter_registers->erdp);
-
-    submit_cmd(controller, &enable_slot);
-
-    klog("USBCMD=%08x USBSTS=%08x IMAN=%08x ERDP=%016lx\n",
-            mmio_read32(&operational_registers->usbcmd),
-            mmio_read32(&operational_registers->usbsts),
-            interrupter_registers->iman,
-            interrupter_registers->erdp);
-
     return;
 
 error:

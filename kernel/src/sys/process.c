@@ -188,16 +188,9 @@ void process_exit(struct process* process, int status) {
         kpanic(NULL, false, "attempted to exit init process with status = %d", status);
     }
 
-    mutex_acquire(&process->fd_mutex);
-
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
-        struct file* file = process->fds[i].file;
-        if (file != NULL) {
-            file_release(file);
-        }
+        file_close(process, i);
     }
-
-    mutex_release(&process->fd_mutex);
 
     spinlock_acquire(&process->lock);
 

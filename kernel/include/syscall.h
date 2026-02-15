@@ -33,12 +33,13 @@
 #define SYS_MUNMAP      29
 #define SYS_MPROTECT    30
 #define SYS_CHROOT      31
-#define SYS_SLEEP       32
-#define SYS_GETTIME     33
-#define SYS_SETTIME     34
-#define SYS_UNAME       35
-#define SYS_FUTEX       36 
-#define SYS_POWEROFF    37
-#define SYS_ARCHCTL     38
+#define SYS_PIPE        32
+#define SYS_SLEEP       33
+#define SYS_GETTIME     34
+#define SYS_SETTIME     35
+#define SYS_UNAME       36
+#define SYS_FUTEX       37
+#define SYS_POWEROFF    38
+#define SYS_ARCHCTL     39
 
 #endif /* _KERNEL_SYSCALL_H */

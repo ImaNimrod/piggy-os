@@ -1,4 +1,5 @@
 #include <dev/ps2.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
@@ -25,8 +26,8 @@ enum {
     PS2_DEVICE_MOUSE,
 };
 
-static int keyboard_irq = -1;
-static int mouse_irq = -1;
+static int keyboard_irq = 1;
+static int mouse_irq = 12;
 
 uint8_t send_device_command(uint8_t command, bool second_port) {
     uint8_t res;
@@ -110,8 +111,14 @@ static uacpi_iteration_decision match_ps2_device(void* user, uacpi_namespace_nod
 }
 
 void ps2_init(void) {
-    uacpi_find_devices_at(uacpi_namespace_root(), ps2_keyboard_pnp_ids, match_ps2_device, (void*) PS2_DEVICE_KEYBOARD);
-    uacpi_find_devices_at(uacpi_namespace_root(), ps2_mouse_pnp_ids, match_ps2_device, (void*) PS2_DEVICE_MOUSE);
+    bool brokenps2 = cmdline_get("brokenps2") != NULL;
+    if (brokenps2) {
+        keyboard_irq = PS2_KEYBOARD_ISA_IRQ;
+        mouse_irq = PS2_MOUSE_ISA_IRQ;
+    } else {
+        uacpi_find_devices_at(uacpi_namespace_root(), ps2_keyboard_pnp_ids, match_ps2_device, (void*) PS2_DEVICE_KEYBOARD);
+        uacpi_find_devices_at(uacpi_namespace_root(), ps2_mouse_pnp_ids, match_ps2_device, (void*) PS2_DEVICE_MOUSE);
+    }
 
     send_command(PS2_COMMAND_DISABLE_PORT1);
     send_command(PS2_COMMAND_DISABLE_PORT2);

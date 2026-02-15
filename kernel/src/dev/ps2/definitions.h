@@ -9,6 +9,9 @@
 #define PS2_COMMAND_PORT    0x64
 #define PS2_STATUS_PORT     0x64
 
+#define PS2_KEYBOARD_ISA_IRQ    1
+#define PS2_MOUSE_ISA_IRQ       12
+
 #define PS2_COMMAND_READ_CONFIG             0x20
 #define PS2_COMMAND_WRITE_CONFIG            0x60
 #define PS2_COMMAND_SELF_TEST               0xaa

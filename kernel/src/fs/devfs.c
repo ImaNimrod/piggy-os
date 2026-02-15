@@ -145,7 +145,7 @@ static int devfs_ioctl(struct vfs_node* node, int request, void* argp) {
 static int devfs_truncate(struct vfs_node* node, off_t length) {
     (void) node;
     (void) length;
-    return -ENODEV;
+    return -EINVAL;
 }
 
 static short devfs_poll(struct vfs_node* node, short events) {

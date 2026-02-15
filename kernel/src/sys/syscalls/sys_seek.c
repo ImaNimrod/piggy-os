@@ -32,8 +32,8 @@ void sys_seek(struct registers* r) {
     }
 
     struct vfs_node* node = file->node;
-    if (node->type == VFS_TYPE_DIRECTORY) {
-        ret = -EISDIR;
+    if (node->type == VFS_TYPE_CHARDEV || node->type == VFS_TYPE_FIFO) {
+        ret = -ESPIPE;
         goto end2;
     }
 

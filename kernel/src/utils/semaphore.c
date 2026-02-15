@@ -3,9 +3,9 @@
 #include <utils/semaphore.h>
 
 void semaphore_init(semaphore_t* s, uint64_t value) {
-    s->lock = (spinlock_t) {0};
     s->value = value;
     s->waiters = NULL;
+    spinlock_init(&s->value);
 }
 
 void semaphore_reset(semaphore_t* s) {

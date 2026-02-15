@@ -30,4 +30,6 @@ void sys_ioctl(struct registers* r) {
     node->ops->lock(node);
     r->rax = node->ops->ioctl(node, request, argp);
     node->ops->unlock(node);
+
+    file_release(file);
 }

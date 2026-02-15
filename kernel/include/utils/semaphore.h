@@ -6,9 +6,9 @@
 #include <utils/spinlock.h>
 
 typedef struct {
-    spinlock_t lock;
     uint64_t value;
     struct thread* waiters;
+    spinlock_t lock;
 } semaphore_t;
 
 void semaphore_init(semaphore_t* s, uint64_t value);

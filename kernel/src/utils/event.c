@@ -5,7 +5,7 @@
 void event_init(struct event* event) {
     event->pending = 0;
     event->waiters = NULL;
-    event->lock = (spinlock_t) {0};
+    spinlock_init(&event->lock);
 }
 
 ssize_t event_wait(struct event* event, bool block) {

@@ -10,6 +10,7 @@
 #define PATH_MAX_LENGTH 512
 
 #define DT_UNKNOWN  0
+#define DT_FIFO     1
 #define DT_CHR      2
 #define DT_DIR      4
 #define DT_BLK      6
@@ -42,6 +43,7 @@ typedef enum {
     VFS_TYPE_DIRECTORY,
     VFS_TYPE_BLOCKDEV,
     VFS_TYPE_CHARDEV,
+    VFS_TYPE_FIFO,
 } vfs_type_t;
 
 struct vfs_filesystem;
@@ -112,6 +114,8 @@ static inline unsigned char vfs_type_to_dirent(vfs_type_t type) {
             return DT_BLK;
         case VFS_TYPE_CHARDEV:
             return DT_CHR;
+        case VFS_TYPE_FIFO:
+            return DT_FIFO;
         default:
             return DT_UNKNOWN;
     }
@@ -132,6 +136,9 @@ static inline mode_t vfs_type_to_mode(vfs_type_t type) {
             break;
         case VFS_TYPE_CHARDEV:
             mode |= S_IFCHR;
+            break;
+        case VFS_TYPE_FIFO:
+            mode |= S_IFIFO;
             break;
     }
 

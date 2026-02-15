@@ -68,7 +68,8 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
 
     struct virtio_queue* queue = &dev->queues[queue_number];
     queue->size = mmio_read16(&dev->common_config->queue_size);
-    queue->lock = (spinlock_t) {0};
+
+    spinlock_init(&queue->lock);
 
     size_t total_size = ALIGN_UP(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB) +         // available ring needs to be 4096-byte aligned 
         ALIGN_UP((sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB) +   // used ring needs to be 4096-byte aligned

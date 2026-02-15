@@ -181,7 +181,7 @@ void sys_exec(struct registers* r) {
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file_descriptor* descriptor = &current_process->fds[i];
         if (descriptor->file != NULL && descriptor->cloexec) {
-            file_release(descriptor->file);
+            file_close(current_process, i);
         }
     }
 

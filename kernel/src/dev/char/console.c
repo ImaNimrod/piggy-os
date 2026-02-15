@@ -34,7 +34,12 @@ static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t off
             return ret;
         }
 
-        flanterm_write(fb_context, &c, sizeof(char));
+        if (c == '\n') {
+            static const char crnl[2] = { '\r', '\n' };
+            flanterm_write(fb_context, crnl, sizeof(crnl));
+        } else {
+            flanterm_write(fb_context, &c, sizeof(c));
+        }
     }
 
     spinlock_release(&console_lock);

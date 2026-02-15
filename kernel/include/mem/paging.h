@@ -10,7 +10,7 @@
 extern volatile struct limine_hhdm_request hhdm_request;
 
 #define USER_START      0x0000000000001000
-#define USER_END        0x0000800000000000
+#define USER_END        0x00007fffffffe000
 #define KERNEL_START    0xffff800000000000
 #define KERNEL_END      0xffffffffffffffff
 

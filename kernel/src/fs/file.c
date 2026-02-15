@@ -41,13 +41,6 @@ int file_close(struct process* process, int fd) {
 }
 
 struct file* file_create(struct vfs_node* node, int flags) {
-    if (unlikely(file_cache == NULL)) {
-        file_cache = slab_cache_create("struct file cache", sizeof(struct file));
-        if (unlikely(file_cache == NULL)) {
-            kpanic(NULL, false, "failed to create object cache for files");
-        }
-    }
-
     struct file* file = slab_cache_alloc(file_cache);
     if (unlikely(file == NULL)) {
         return NULL;
@@ -66,6 +59,10 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
     }
     if (exact && (new_fd < 0 || new_fd >= PROCESS_FD_COUNT)) {
         return -EBADF;
+    }
+
+    if (exact && old_fd == new_fd) {
+        return new_fd;
     }
 
     mutex_acquire(&process->fd_mutex);
@@ -147,7 +144,7 @@ int file_insert(struct process* process, struct file* file, bool cloexec) {
 }
 
 void file_release(struct file* file) {
-    if (__atomic_sub_fetch(&(file)->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+    if (__atomic_sub_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
         VFS_NODE_UNREF(file->node);
         slab_cache_free(file_cache, file);
     }
@@ -181,4 +178,11 @@ int file_resolve_dirfd(struct process* process, int dirfd, const char* path, str
     }
 
     return 0;
+}
+
+void file_init(void) {
+    file_cache = slab_cache_create("struct file cache", sizeof(struct file));
+    if (unlikely(file_cache == NULL)) {
+        kpanic(NULL, false, "failed to create object cache for files");
+    }
 }

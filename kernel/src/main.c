@@ -12,6 +12,7 @@
 #include <dev/ps2.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
+#include <fs/file.h>
 #include <fs/initrd.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
@@ -86,6 +87,7 @@ NORETURN void __stack_chk_fail(void) {
 NORETURN static void kernel_main(void) {
     devfs_init();
     tmpfs_init();
+    file_init();
 
     block_init();
     net_init();

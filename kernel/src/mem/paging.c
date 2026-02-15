@@ -82,11 +82,11 @@ struct pagemap* pagemap_create(void) {
     }
 
     new_pagemap->top_level = (uint64_t*) (pmm_alloc_zero(1) + HIGH_VMA);
-    new_pagemap->lock = (spinlock_t) {0};
-
     for (size_t i = 256; i < 512; i++) {
         new_pagemap->top_level[i] = kernel_pagemap->top_level[i];
     }
+
+    spinlock_init(&new_pagemap->lock);
 
     return new_pagemap;
 }
@@ -377,11 +377,11 @@ void paging_init(void) {
     }
 
     kernel_pagemap->top_level = (uint64_t*) (pmm_alloc_zero(1) + HIGH_VMA);
-    kernel_pagemap->lock = (spinlock_t) {0};
-
     for (size_t i = 256; i < 512; i++) {
         kernel_pagemap->top_level[i] = pmm_alloc_zero(1) | PTE_PRESENT | PTE_WRITABLE;
     }
+
+    spinlock_init(&kernel_pagemap->lock);
 
     uintptr_t paddr = 0;
 

@@ -108,6 +108,8 @@ static size_t input_buf_index;
 static spinlock_t read_lock;
 static spinlock_t write_lock;
 
+static const char crnl[2] = { '\r', '\n' };
+
 static void internal_write(const char* buf, size_t count);
 
 static inline void do_backspace(void) {
@@ -194,11 +196,10 @@ static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset,
         }
 
         if (c == '\n' && (termios.c_oflag & ONLCR)) {
-            char cr = '\r';
-            internal_write(&cr, 1);
+            internal_write(crnl, sizeof(crnl));
+        } else {
+            internal_write(&c, 1);
         }
-
-        internal_write(&c, 1);
     }
 
     return count;
@@ -309,7 +310,11 @@ void tty_add_char(char c) {
 
             internal_write(control_char, sizeof(control_char));
         } else {
-            internal_write(&c, sizeof(c));
+            if (c == '\n' && (termios.c_oflag & ONLCR)) {
+                internal_write(crnl, sizeof(crnl));
+            } else {
+                internal_write(&c, sizeof(c));
+            }
         }
     }
 
@@ -332,7 +337,7 @@ void tty_init(void) {
     }
 
     termios.c_iflag = ICRNL | IXON;
-    termios.c_oflag = OPOST;
+    termios.c_oflag = OPOST | ONLCR;
     termios.c_cflag = CS8;
     termios.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 
