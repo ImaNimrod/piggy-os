@@ -1,0 +1,30 @@
+diff --git a/libstdc++-v3/configure.ac b/libstdc++-v3/configure.ac
+index 339e7bb17..1d7e0c1e2 100644
+--- a/libstdc++-v3/configure.ac
++++ b/libstdc++-v3/configure.ac
+@@ -134,7 +134,7 @@ fi
+ # Use glibcxx_compiler_pic_flag to designate a compile-time flags for
+ # creating position-independent objects. This varies with the target
+ # hardware and operating system, but is often: -DPIC -fPIC.
+-if test "$enable_shared" = yes; then
++if test "$enable_shared" = yes || test "${with_pic+set}" = set; then
+   glibcxx_lt_pic_flag="-prefer-pic"
+   glibcxx_compiler_pic_flag="$lt_prog_compiler_pic_CXX"
+   glibcxx_compiler_shared_flag="-D_GLIBCXX_SHARED"
+diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
+index b3269cb88..a5a2a5dcb 100644
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -9,6 +9,12 @@ case "${host}" in
+     # This is a freestanding configuration; there is nothing to do here.
+     ;;
+ 
++  *-piggy*)
++    GLIBCXX_CHECK_COMPILER_FEATURES
++    GLIBCXX_CHECK_LINKER_FEATURES
++    GLIBCXX_CHECK_MATH_SUPPORT
++    GLIBCXX_CHECK_STDLIB_SUPPORT
++    ;;
+   avr*-*-*)
+     AC_DEFINE(HAVE_ACOSF)
+     AC_DEFINE(HAVE_ASINF)

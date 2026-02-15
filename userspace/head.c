@@ -159,9 +159,9 @@ int main(int argc, char* argv[]) {
             }
 
             if (byte_count == -1) {
-                head_lines(filename, fd, line_count, line_delimiter);
+                ret |= head_lines(filename, fd, line_count, line_delimiter);
             } else {
-                head_bytes(filename, fd, byte_count);
+                ret |= head_bytes(filename, fd, byte_count);
             }
 
             if (fd != STDIN_FILENO) {

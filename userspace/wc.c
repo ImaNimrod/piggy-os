@@ -126,7 +126,7 @@ int main(int argc, char* argv[]) {
             warn(filename);
             ret = EXIT_FAILURE;
         } else {
-            ret = do_wc(filename, fd);
+            ret |= do_wc(filename, fd);
 
             if (fd != STDIN_FILENO) {
                 close(fd);

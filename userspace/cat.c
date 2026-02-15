@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
             warn(filename);
             ret = EXIT_FAILURE;
         } else {
-            ret = do_cat(filename, fd);
+            ret |= do_cat(filename, fd);
 
             if (fd != STDIN_FILENO) {
                 close(fd);

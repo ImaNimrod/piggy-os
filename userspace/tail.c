@@ -178,9 +178,9 @@ int main(int argc, char* argv[]) {
             }
 
             if (byte_count == -1) {
-                tail_lines(filename, fd, line_count, line_delimiter);
+                ret |= tail_lines(filename, fd, line_count, line_delimiter);
             } else {
-                tail_bytes(filename, fd, byte_count);
+                ret |= tail_bytes(filename, fd, byte_count);
             }
 
             if (fd != STDIN_FILENO) {
