@@ -13,9 +13,9 @@
 static struct slab_cache* vmm_context_cache;
 static struct slab_cache* vmm_range_cache;
 
-// TODO: implement support for memory mapping files
-// TODO: implement support for MAP_SHARED
-// TODO: implement copy-on-write support
+// TODO: Implement support for memory mapping files
+// TODO: Implement support for MAP_SHARED
+// TODO: Implement copy-on-write support
 
 static inline uint64_t mmap_prot_to_pte_flags(int prot) {
     uint64_t pte_flags = PTE_PRESENT | PTE_USER;
@@ -489,7 +489,7 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
         return false;
     }
 
-    /* if the faulting page is already present, the fault has nothing to do with the VMM */
+    // If the faulting page is already present, the fault has nothing to do with the VMM
     if (error_code & (1 << 0)) {
         return false;
     }

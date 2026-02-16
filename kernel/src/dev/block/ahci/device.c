@@ -2,13 +2,13 @@
 #include <cpu/smp.h>
 #include <dev/block/ahci.h>
 #include <dev/block/block.h>
-#include <dev/hpet.h>
 #include <errno.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <stdbool.h>
 #include <sys/scheduler.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
@@ -95,7 +95,7 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
         if (mmio_read32(&hba_port->is) & HBA_PxIE_ERROR_MASK) {
             return false;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
     }
 
     if (mmio_read32(&hba_port->is) & HBA_PxIE_ERROR_MASK) {
@@ -283,12 +283,12 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
     mmio_write32(&hba_port->ie, 0);
     mmio_write32(&hba_port->is, mmio_read32(&hba_port->is));
 
-    /* if staggered spin up is supported, spin up port */
+    // If staggered spin up is supported, spin up port
     if (mmio_read32(&controller->hba_registers->cap) & CAP_SSS) {
         mmio_write32(&hba_port->cmd, mmio_read32(&hba_port->cmd) | HBA_PxCMD_SUD);
     }
 
-    hpet_sleep_ns(MS_TO_NS(10));
+    timer_wait_ns(MS_TO_NS(10));
 
     uint32_t ssts = mmio_read32(&hba_port->ssts);
     uint8_t det = ssts & 0xf;
@@ -304,7 +304,7 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
         if (!(mmio_read32(&hba_port->tfd) & (HBA_PxTFD_BSY | HBA_PxTFD_DRQ))) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 
@@ -393,7 +393,7 @@ void ahci_device_try_init(struct ahci_controller* controller, uint8_t port_numbe
         kpanic(NULL, false, "AHCI device disk size overflow");
     }
 
-    /* renable interrupts for the port */
+    // Renable interrupts for the port
     mmio_write32(&hba_port->is, mmio_read32(&hba_port->is));
     mmio_write32(&hba_port->ie, HBA_PxIE_DHRE | HBA_PxIE_PSE | HBA_PxIE_DSE | HBA_PxIE_SDBE | HBA_PxIE_DPE | HBA_PxIE_ERROR_MASK);
 

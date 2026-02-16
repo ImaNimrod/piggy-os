@@ -71,8 +71,8 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
 
     spinlock_init(&queue->lock);
 
-    size_t total_size = ALIGN_UP(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB) +         // available ring needs to be 4096-byte aligned 
-        ALIGN_UP((sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB) +   // used ring needs to be 4096-byte aligned
+    size_t total_size = ALIGN_UP(sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB) +         // Available ring needs to be 4096-byte aligned 
+        ALIGN_UP((sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB) +   // Used ring needs to be 4096-byte aligned
         (sizeof(struct virtio_queue_used) + (sizeof(struct virtio_queue_used_entry) * queue->size));
 
     uintptr_t queue_paddr = pmm_alloc_zero(DIV_CEIL(total_size, PAGE_SIZE_4KB));
@@ -182,13 +182,13 @@ static void virtio_init(struct pci_device* pci_dev) {
     }
     dev->queues = queues;
 
-    /* first, reset the device */
+    // First, reset the device
     mmio_write8(&dev->common_config->status, 0);
     while (mmio_read8(&dev->common_config->status) != 0) {
         pause();
     }
 
-    /* then, acknowlege the device */
+    // Then, acknowlege the device
     mmio_write8(&dev->common_config->status, mmio_read8(&dev->common_config->status) | VIRTIO_STATUS_ACKNOWLEDGE);
 
     switch (pci_read_subsystem_id(pci_dev)) {

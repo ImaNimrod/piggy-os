@@ -5,16 +5,17 @@
 #include <stdint.h>
 #include <utils/macros.h>
 
-#define IA32_APIC_BASE_MSR      0x1b
-#define IA32_PAT_MSR            0x277
-#define IA32_EFER_MSR           0xc0000080
-#define IA32_STAR_MSR           0xc0000081
-#define IA32_LSTAR_MSR          0xc0000082
-#define IA32_CSTAR_MSR          0xc0000083
-#define IA32_SFMASK_MSR         0xc0000084
-#define IA32_FS_BASE_MSR        0xc0000100
-#define IA32_GS_BASE_MSR        0xc0000101
-#define IA32_KERNEL_GS_BASE_MSR 0xc0000102
+#define MSR_IA32_APIC_BASE      0x1b
+#define MSR_IA32_PAT            0x277
+#define MSR_KVM_SYSTEM_TIME_NEW 0x4b564d01
+#define MSR_IA32_EFER           0xc0000080
+#define MSR_IA32_STAR           0xc0000081
+#define MSR_IA32_LSTAR          0xc0000082
+#define MSR_IA32_CSTAR          0xc0000083
+#define MSR_IA32_SFMASK         0xc0000084
+#define MSR_IA32_FS_BASE        0xc0000100
+#define MSR_IA32_GS_BASE        0xc0000101
+#define MSR_IA32_KERNEL_GS_BASE 0xc0000102
 
 static ALWAYS_INLINE void hlt(void) {
     asm volatile("hlt");
@@ -50,22 +51,50 @@ static ALWAYS_INLINE void swapgs(void) {
     asm volatile("swapgs");
 }
 
+static ALWAYS_INLINE void lfence(void) {
+    asm volatile("lfence" ::: "memory");
+}
+
 static ALWAYS_INLINE void mfence(void) {
     asm volatile("mfence" ::: "memory");
 }
 
-static ALWAYS_INLINE bool cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) {
+static ALWAYS_INLINE void cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* eax, uint32_t* ebx, uint32_t* ecx, uint32_t* edx) {
+    asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(leaf), "c"(subleaf));
+}
+
+static ALWAYS_INLINE uint32_t cpuid_max_leaf(void) {
     static uint32_t cpuid_max;
     if (cpuid_max == 0) {
-        asm volatile("cpuid" : "=a"(cpuid_max) : "a"(leaf & 0x80000000) : "rbx", "rcx", "rdx");
+        asm volatile("cpuid" : "=a"(cpuid_max) : "a"(0) : "rbx", "rcx", "rdx");
     }
 
-    if (leaf > cpuid_max) {
-        return false;
+    return cpuid_max;
+}
+
+static ALWAYS_INLINE uint32_t cpuid_extended_max_leaf(void) {
+    static uint32_t cpuid_extended_max;
+    if (cpuid_extended_max == 0) {
+        asm volatile("cpuid" : "=a"(cpuid_extended_max) : "a"(0x80000000) : "rbx", "rcx", "rdx");
     }
 
-    asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(leaf), "c"(subleaf));
-    return true;
+    return cpuid_extended_max;
+}
+
+static ALWAYS_INLINE uint32_t cpuid_hypervisor_max_leaf(uint32_t base) {
+    static uint32_t cpuid_hypervisor_max;
+    if (cpuid_hypervisor_max == 0) {
+        asm volatile("cpuid" : "=a"(cpuid_hypervisor_max) : "a"(base) : "rbx", "rcx", "rdx");
+    }
+
+    return cpuid_hypervisor_max;
+}
+
+static ALWAYS_INLINE uint64_t rdtsc_serialized(void) {
+    uint32_t high;
+    uint32_t low;
+    asm volatile("cpuid; rdtsc;" : "=a"(low), "=d"(high) :: "rbx", "rcx");
+    return ((uint64_t) high << 32) | low;
 }
 
 static ALWAYS_INLINE void invlpg(uintptr_t vaddr) {

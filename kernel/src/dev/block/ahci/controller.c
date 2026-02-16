@@ -1,9 +1,9 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/hpet.h>
 #include <dev/pci.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/vector.h>
@@ -79,7 +79,7 @@ static void ahci_init(struct pci_device* pci_dev) {
 
     int timeout;
 
-    /* perform BIOS/OS handoff if needed */
+    // Perform BIOS/OS handoff if needed
     if (mmio_read32(&hba_registers->cap2) & (1 << 0)) {
         if (mmio_read32(&hba_registers->bohc) & BOHC_BOS) {
             mmio_write32(&hba_registers->bohc, mmio_read32(&hba_registers->bohc) | BOHC_OOS);
@@ -89,7 +89,7 @@ static void ahci_init(struct pci_device* pci_dev) {
                 if (!(mmio_read32(&hba_registers->bohc) & (BOHC_BOS & BOHC_BB)) && mmio_read32(&hba_registers->bohc) & BOHC_OOS) {
                     break;
                 }
-                hpet_sleep_ns(MS_TO_NS(1));
+                timer_wait_ns(MS_TO_NS(1));
                 timeout--;
             }
 
@@ -100,7 +100,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         }
     }
 
-    /* reset controller */
+    // Reset controller
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_HR);
 
     timeout = 1000;
@@ -108,7 +108,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         if (!(mmio_read32(&hba_registers->ghc) & GHC_HR)) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 
@@ -117,7 +117,7 @@ static void ahci_init(struct pci_device* pci_dev) {
         return;
     }
 
-    /* enable AHCI mode and disable interrupts */
+    // Enable AHCI mode and disable interrupts
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_AE);
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) & ~GHC_IE);
 
@@ -150,7 +150,7 @@ static void ahci_init(struct pci_device* pci_dev) {
             (vs >> 16) & 0xffff, vs & 0xffff,
             interface_speed_str((mmio_read32(&hba_registers->cap) >> 20) & 0xf));
 
-    /* renable interrupts for the controller */
+    // Renable interrupts for the controller
     mmio_write32(&hba_registers->ghc, mmio_read32(&hba_registers->ghc) | GHC_IE);
     pci_set_msi_mask(pci_dev, false);
 

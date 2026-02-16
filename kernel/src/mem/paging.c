@@ -358,11 +358,16 @@ end:
 
 void paging_init(void) {
     uint32_t edx, unused;
-    if (cpuid(0x80000001, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 26))) {
-        is_1gb_page_supported = true;
+
+    if (cpuid_extended_max_leaf() >= 0x80000001) {
+        cpuid(0x80000001, 0, &unused, &unused, &unused, &edx);
+        if (edx & (1 << 26)) {
+            is_1gb_page_supported = true;
+        }
     }
 
-    if (cpuid(1, 0, &unused, &unused, &unused, &edx) && (edx & (1 << 16))) {
+    cpuid(1, 0, &unused, &unused, &unused, &edx);
+    if (edx & (1 << 16)) {
         pat_supported = true;
     }
 

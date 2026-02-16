@@ -9,8 +9,9 @@
 
 void lapic_eoi(void);
 void lapic_send_ipi(uint32_t lapic_id, uint8_t vector);
+void lapic_timer_periodic(uint8_t vector, uint64_t ms);
 void lapic_timer_oneshot(uint8_t vector, uint64_t ms);
-void lapic_timer_stop(void);
+uint32_t lapic_timer_stop(void);
 void lapic_madt_parse(void);
 void lapic_percpu_init(void);
 

@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/process.h>
+#include <sys/timer.h>
 #include <utils/macros.h>
 
 struct cpu_local {
@@ -25,12 +26,17 @@ struct cpu_local {
 
     bool has_smap;
 
+    struct timer_driver* timer_driver;
+    struct timer_info* timer_info;
+    uint64_t timer_base_ticks;
+
     size_t cpu_number;
     uint32_t lapic_id;
     uint32_t lapic_ticks_per_ms;
 };
 
 extern uintptr_t bsp_lapic_addr;
+extern uint32_t bsp_lapic_id;
 extern size_t cpu_count;
 extern struct cpu_local* cpu_local_data;
 extern bool use_x2apic;

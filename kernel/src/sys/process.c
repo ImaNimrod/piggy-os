@@ -182,7 +182,7 @@ void process_destroy(struct process* process) {
     slab_cache_free(process_cache, process);
 }
 
-// TODO: fix some of the potential race/double free issues that could occur when processes actually have multiple threads
+// TODO: Fix some of the potential race/double free issues that could occur when processes actually have multiple threads
 void process_exit(struct process* process, int status) {
     if (unlikely(process->pid == 1)) {
         kpanic(NULL, false, "attempted to exit init process with status = %d", status);
@@ -201,7 +201,7 @@ void process_exit(struct process* process, int status) {
     SLIST_REMOVE(process->parent->children, process);
     spinlock_release(&process->parent->lock);
 
-    /* reparent dying process' children to init */
+    // Reparent dying process' children to init
     spinlock_acquire(&init_process->lock);
 
     struct process* child = process->children;
@@ -313,7 +313,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
     thread->registers.ss = 0x1b;
     thread->registers.rsp = stack;
 
-    process->thread_stack_top -= USER_STACK_SIZE - PAGE_SIZE_4KB; // this leaves an unmapped guard page between stacks
+    process->thread_stack_top -= USER_STACK_SIZE - PAGE_SIZE_4KB; // This leaves an unmapped "guard" page between stacks
 
     thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     ((uint16_t*) thread->fpu_context)[0] = DEFAULT_FCW;
@@ -332,7 +332,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
 void thread_destroy(struct thread* thread) {
     if (thread->is_user) {
         pmm_free((uintptr_t) thread->fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
-        // user stack physical pages are already freed during vmm_context_destroy called in process_exit
+        // User stack physical pages are already freed during vmm_context_destroy called in process_exit
     }
 
     pmm_free(thread->kernel_stack_paddr, KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
@@ -359,8 +359,8 @@ struct thread* thread_fork(struct process* process, struct registers* context) {
     new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     this_cpu()->fpu_restore(new_thread->fpu_context);
 
-    new_thread->fs_base = rdmsr(IA32_FS_BASE_MSR);
-    new_thread->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
+    new_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
+    new_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
 
     spinlock_acquire(&process->lock);
     new_thread->tid = vector_size(process->threads);

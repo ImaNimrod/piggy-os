@@ -2,10 +2,8 @@
 #include <cpu/isr.h>
 #include <dev/hpet.h>
 #include <dev/ioapic.h>
-#include <dev/pit.h>
 #include <mem/paging.h>
-#include <stddef.h>
-#include <sys/timer.h>
+#include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
@@ -32,79 +30,111 @@
 
 #define PIT_ISA_IRQ 0
 
-static uintptr_t hpet_addr;
-static uint32_t clock_period_ns;
+#define TSC_CALIBRATION_TIME_MS 2
 
-static inline uint64_t hpet_read(uint32_t reg) {
-    return mmio_read64((void*) (hpet_addr + reg));
+static struct timer_info hpet_timer_info;
+
+static inline uint64_t hpet_read(uintptr_t base, uint32_t reg) {
+    return mmio_read64((void*) (base + reg));
 }
 
-static inline void hpet_write(uint32_t reg, uint64_t value) {
-    mmio_write64((void*) (hpet_addr + reg), value);
+static inline void hpet_write(uintptr_t base, uint32_t reg, uint64_t value) {
+    mmio_write64((void*) (base + reg), value);
 }
 
-static void hpet_irq_handler(struct registers* r, void* arg) {
-    (void) r;
-    (void) arg;
-    timer_update_timers();
-}
-
-void hpet_sleep_ns(uint64_t ns) {
-    uint64_t start = hpet_read(HPET_REG_COUNT);
-    uint64_t delta = ns / clock_period_ns;
-    while (hpet_read(HPET_REG_COUNT) - start < delta) {
-        pause();
+static bool hpet_check(void) {
+    if (cmdline_get("nohpet") != NULL) {
+        return false;
     }
-}
 
-void hpet_init(uint16_t hz) {
-    struct uacpi_table hpet_table;
-    uacpi_status ret = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &hpet_table);
+    struct uacpi_table table;
+
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
     if (uacpi_unlikely_error(ret)) {
-        kpanic(NULL, false, "unable to find HPET table: %s", uacpi_status_to_string(ret));
+        return false;
     }
 
-    struct acpi_hpet* hpet = hpet_table.ptr;
+    bool usable = false;
 
-    uintptr_t hpet_paddr = hpet->address.address;
-    hpet_addr = hpet_paddr + HIGH_VMA;
-
-    uacpi_table_unref(&hpet_table);
-
-    pagemap_map(kernel_pagemap, hpet_addr, hpet_paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
-
-    hpet_write(HPET_REG_CONFIG, 0);
-
-    uint64_t hpet_id = hpet_read(HPET_REG_ID);
-    clock_period_ns = (hpet_id >> 32) / 1000000;
-
-    uint64_t config = HPET_ENABLE_CNF;
-
-    if (hpet_id & HPET_CAP_LEGACY_REPLACEMENT) {
-        config |= HPET_LEGACY_REPLACEMENT;
-
-        uint64_t timer_config = hpet_read(HPET_REG_TIMER_CONFIG(0));
-        timer_config &= ~(HPET_TN_TYPE_CNF | HPET_TN_32MODE_CNF | HPET_TN_VAL_SET_CNF);
-        timer_config |= HPET_TN_TYPE_CNF | HPET_TN_INT_ENB_CNF | HPET_TN_VAL_SET_CNF;
-        hpet_write(HPET_REG_TIMER_CONFIG(0), timer_config);
-
-        uint64_t comparator = 1000000000ULL / ((uint64_t) hz * clock_period_ns);
-        hpet_write(HPET_REG_TIMER_COUNT(0), comparator);
-        hpet_write(HPET_REG_TIMER_COUNT(0), comparator);
-
-        isr_register_handler(PIT_ISA_IRQ + ISA_IRQ_BASE, hpet_irq_handler, NULL);
-        ioapic_redirect_irq(PIT_ISA_IRQ, PIT_ISA_IRQ + ISA_IRQ_BASE);
-        ioapic_set_irq_mask(PIT_ISA_IRQ, false);
-
-        klog("[hpet] HPET supports legacy replacement mode\n");
-    } else {
-        klog("[hpet] HPET does not support legacy replacement mode, using legacy PIT instead\n");
-        pit_init(hz);
+    struct acpi_hpet* hpet_table = table.ptr;
+    if (hpet_table->address.address_space_id != ACPI_AS_ID_SYS_MEM) {
+        goto end;
     }
 
-    hpet_write(HPET_REG_COUNT, 0);
-    hpet_write(HPET_REG_CONFIG, config);
+    usable = true;
 
-    klog("[hpet] initialized HPET (address: 0x%lx, period: %uns, # comparators: %u)\n",
-            hpet_paddr, clock_period_ns, ((hpet_id >> 8) & 0x1f) + 1);
+end:
+    uacpi_table_unref(&table);
+    return usable;
 }
+
+// TODO: Support HPET with 32-bit main counter
+static struct timer_info* hpet_init(void) {
+    if (hpet_timer_info.private != NULL) {
+        return &hpet_timer_info;
+    }
+
+    struct uacpi_table table;
+    uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
+
+    struct acpi_hpet* hpet_table = table.ptr;
+    if (!(hpet_table->block_id & ACPI_HPET_COUNT_SIZE_CAP)) {
+        kpanic(NULL, false, "HPET with 32-bit main counter is unsupported");
+    }
+
+    uintptr_t hpet_paddr = hpet_table->address.address;
+    uintptr_t hpet_base = hpet_paddr + HIGH_VMA;
+
+    pagemap_map(kernel_pagemap, hpet_base, hpet_paddr,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
+
+    hpet_write(hpet_base, HPET_REG_CONFIG, 0);
+
+    uint64_t hpet_id = hpet_read(hpet_base, HPET_REG_ID);
+    hpet_timer_info.hz = 1000000000000000lu / (hpet_id >> 32);
+    hpet_timer_info.private = (void*) hpet_base;
+
+    hpet_write(hpet_base, HPET_REG_COUNT, 0);
+    hpet_write(hpet_base, HPET_REG_CONFIG, HPET_ENABLE_CNF);
+
+    klog("[hpet] initialized HPET (address: 0x%lx, frequency: %luMHz, # comparators: %u)\n",
+            hpet_paddr, hpet_timer_info.hz / 1000000, ((hpet_id >> 8) & 0x1f) + 1);
+
+    uacpi_table_unref(&table);
+    return &hpet_timer_info;
+}
+
+static uint64_t hpet_ticks(struct timer_info* info) {
+    uintptr_t hpet_base = (uintptr_t) info->private;
+    return hpet_read(hpet_base, HPET_REG_COUNT);
+}
+
+uint64_t hpet_calibrate_tsc(void) {
+    uintptr_t hpet_base = (uintptr_t) hpet_timer_info.private;
+    if (hpet_base == 0) {
+        return 0;
+    }
+
+    uint32_t fs_per_tick = (hpet_read(hpet_base, HPET_REG_ID) >> 32) & 0xffffffff;
+
+    uint64_t start_ticks = hpet_read(hpet_base, HPET_REG_COUNT);
+    uint64_t target_ticks = start_ticks + ((TSC_CALIBRATION_TIME_MS * 1000000000000lu) / fs_per_tick);
+
+    uint64_t tsc_start = rdtsc_serialized();
+    uint64_t tsc_end;
+
+    do {
+        tsc_end = rdtsc_serialized();
+    } while (hpet_read(hpet_base, HPET_REG_COUNT) < target_ticks);
+
+    return ((tsc_end - tsc_start) / TSC_CALIBRATION_TIME_MS) * 1000;
+}
+
+struct timer_driver hpet_driver = {
+    .name = "HPET",
+    .priority = 50,
+    .bootstrap = true,
+    .check = hpet_check,
+    .init = hpet_init,
+    .ticks = hpet_ticks,
+};

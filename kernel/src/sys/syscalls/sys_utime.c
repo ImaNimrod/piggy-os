@@ -50,8 +50,7 @@ void sys_utime(struct registers* r) {
             setstat_flags |= VFS_STAT_ST_MTIM;
         }
     } else {
-        stat.st_atim = time_realtime;
-        stat.st_mtim = time_realtime;
+        stat.st_atim = stat.st_mtim = time_realtime;
         setstat_flags |= (VFS_STAT_ST_ATIM | VFS_STAT_ST_MTIM);
     }
 

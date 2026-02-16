@@ -9,7 +9,7 @@
 #include <string.h> 
 #include <unistd.h> 
 
-#define ARRAY_SIZE(xs) (sizeof((xs)) / sizeof((xs)[0]))
+#define SIZEOF_ARRAY(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
 // TODO: make builtin commands set an int* status on completion 
 struct shell_builtin {
@@ -179,7 +179,7 @@ static bool execute(int argc, char* argv[], int* status) {
         return false;
     }
 
-    for (size_t i = 0; i < ARRAY_SIZE(builtins); i++) {
+    for (size_t i = 0; i < SIZEOF_ARRAY(builtins); i++) {
         if (strcmp(argv[0], builtins[i].name) == 0) {
             return (*builtins[i].func)(argc, argv);
         }

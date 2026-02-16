@@ -30,9 +30,9 @@
 
 #define SIZEOF_ARRAY(array) (sizeof((array)) / sizeof((array)[0]))
 
-#define S_TO_NS(s)      ((s) * 1000000000)
-#define MS_TO_NS(ms)    ((ms) * 1000000)
-#define US_TO_NS(us)    ((us) * 1000)
+#define S_TO_NS(s)      ((uint64_t) (s) * 1000000000ul)
+#define MS_TO_NS(ms)    ((uint64_t) (ms) * 1000000ul)
+#define US_TO_NS(us)    ((uint64_t) (us) * 1000ul)
 
 #define ALWAYS_INLINE __attribute__((always_inline)) inline
 #define LIMINE_REQUEST __attribute__((used, section(".limine_requests")))

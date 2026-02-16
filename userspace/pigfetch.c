@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define ARRAY_SIZE(xs) (sizeof((xs)) / sizeof((xs)[0]))
+#define SIZEOF_ARRAY(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
 static const char* logo[] = {
     "                         @@@@@@@@@@@@@@                            ",
@@ -48,8 +48,8 @@ int main(int argc, char* argv[]) {
 
     const char* text[] = { "pigfetch", "--------", line1, line2, line3 };
 
-    size_t logo_lines = ARRAY_SIZE(logo);
-    size_t text_lines = ARRAY_SIZE(text);
+    size_t logo_lines = SIZEOF_ARRAY(logo);
+    size_t text_lines = SIZEOF_ARRAY(text);
 
     int top_padding = (logo_lines > text_lines) ? (logo_lines - text_lines) / 2 : 0;
 

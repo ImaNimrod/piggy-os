@@ -7,6 +7,8 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
+// TODO: Fix .. directory entries
+
 struct vfs_node* vfs_root;
 
 static hashmap_t* vfs_filesystems;
@@ -22,8 +24,6 @@ static int nop(struct vfs_node* node) {
     (void) node;
     return 0;
 }
-
-// TODO: fix .. directory entries
 
 int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name) {
     struct vfs_ops* fs_ops;
@@ -61,7 +61,7 @@ int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const 
     return 0;
 }
 
-// TODO: make this not be terrible
+// TODO: Make this not be terrible
 int vfs_unmount(struct vfs_node* target_reference, const char* target_path) {
     struct vfs_node* target;
 

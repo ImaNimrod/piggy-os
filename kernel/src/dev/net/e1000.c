@@ -1,6 +1,5 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/hpet.h>
 #include <dev/ioapic.h>
 #include <dev/pci.h>
 #include <mem/paging.h>
@@ -8,9 +7,8 @@
 #include <mem/slab.h>
 #include <net/netif.h>
 #include <net/packet.h>
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/semaphore.h>
@@ -161,7 +159,7 @@ static void disable_pcie_master(struct e1000_device* device) {
         if (!(e1000_read(device, E1000_REG_STATUS) & STATUS_GIO_ME)) {
             break;
         }
-        hpet_sleep_ns(US_TO_NS(100));
+        timer_wait_ns(US_TO_NS(100));
         timeout--;
     }
 
@@ -273,11 +271,11 @@ static void reset(struct e1000_device* device) {
 
     e1000_flush(device);
 
-    hpet_sleep_ns(MS_TO_NS(10));
+    timer_wait_ns(MS_TO_NS(10));
 
-    /* perform reset */
+    // Perform reset
     e1000_write(device, E1000_REG_CTRL, e1000_read(device, E1000_REG_CTRL) | CTRL_RST);
-    hpet_sleep_ns(US_TO_NS(1));
+    timer_wait_ns(US_TO_NS(1));
     while (e1000_read(device, E1000_REG_CTRL) & CTRL_RST) {
         pause();
     }
@@ -304,19 +302,19 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 
     uint32_t icr = e1000_read(device, E1000_REG_ICR);
     
-    /* link status change */
+    // Link status change
     if (icr & INT_LSC) {
         e1000_write(device, E1000_REG_CTRL, e1000_read(device, E1000_REG_CTRL) | CTRL_SLU | CTRL_ASDE);
         update_link_status(device);
     }
 
-    /* packet transmitted */
+    // Packet transmitted
     if (icr & INT_TXDW) {
         semaphore_signal(&device->tx_semaphore);
         device->netif->tx_count++;
     }
 
-    /* packet received */
+    // Packet received
     if (icr & INT_RXT0) {
         for (;;) {
             device->rx_tail = e1000_read(device, E1000_REG_RXDESCTAIL);

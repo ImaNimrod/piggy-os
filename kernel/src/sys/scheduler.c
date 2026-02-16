@@ -47,41 +47,47 @@ static struct thread* get_next_runnable_thread(struct thread* current_thread) {
 NORETURN static void reschedule(struct registers* r, void* arg)  {
     (void) arg;
 
-    lapic_timer_stop();
+    uint32_t remaining_ticks = lapic_timer_stop();
+
+    if (this_cpu()->lapic_id == bsp_lapic_id) {
+        timer_update_timers();
+    }
 
     struct thread* current_thread = this_cpu()->running_thread;
     struct thread* next_thread = get_next_runnable_thread(current_thread);
 
-    /* save the current thread's context */
+    // Save the current thread's context
     if (current_thread != this_cpu()->idle_thread && current_thread != NULL) {
         spinlock_release(&current_thread->yield_lock);
 
-        /* we know that sizeof(struct registers) is a multiple of 8 bytes */
         memcpy64((void*) &current_thread->registers, (const void*) r, sizeof(struct registers) >> 3);
 
         if (current_thread->is_user) {
             this_cpu()->fpu_save(current_thread->fpu_context);
-            current_thread->fs_base = rdmsr(IA32_FS_BASE_MSR);
-            current_thread->gs_base = rdmsr(IA32_KERNEL_GS_BASE_MSR);
+            current_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
+            current_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
         }
 
         if (current_thread->state == THREAD_RUNNING) {
             current_thread->state = THREAD_READY;
         }
 
-        struct timespec ts = { 0, MS_TO_NS(SCHEDULER_TIME_QUANTA_MS) };
-        timespec_add(&current_thread->time_used, &ts);
-        timespec_add(&current_thread->process->time_used, &ts);
+        // Thread / process time accounting
+        uint32_t remaining_ms = remaining_ticks / this_cpu()->lapic_ticks_per_ms;
+        struct timespec quanta_used = { 0, MS_TO_NS(SCHEDULER_TIME_QUANTA_MS - remaining_ms) };
+
+        timespec_add(&current_thread->time_used, &quanta_used);
+        timespec_add(&current_thread->process->time_used, &quanta_used);
 
         spinlock_release(&current_thread->run_lock);
     }
 
-    /* if we find no threads to run, idle the cpu */
+    // If we find no threads to run, idle the cpu
     if (next_thread == NULL) {
         next_thread = this_cpu()->idle_thread;
     }
 
-    /* switch to the next thread's context */
+    // Switch to the next thread's context
     this_cpu()->running_thread = next_thread;
     next_thread->state = THREAD_RUNNING;
 
@@ -92,8 +98,8 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
 
     if (next_thread->is_user) {
         this_cpu()->fpu_restore(next_thread->fpu_context);
-        wrmsr(IA32_FS_BASE_MSR, next_thread->fs_base);
-        wrmsr(IA32_KERNEL_GS_BASE_MSR, next_thread->gs_base);
+        wrmsr(MSR_IA32_FS_BASE, next_thread->fs_base);
+        wrmsr(MSR_IA32_KERNEL_GS_BASE, next_thread->gs_base);
     }
 
     if (next_thread != this_cpu()->idle_thread && (current_thread == NULL || current_thread->process != next_thread->process)) {
@@ -175,10 +181,6 @@ void scheduler_unblock(struct thread* t) {
 }
 
 void scheduler_yield(bool save) {
-    cli();
-    lapic_timer_stop();
-    sti();
-
     struct thread* thread = this_cpu()->running_thread;
 
     if (save) {

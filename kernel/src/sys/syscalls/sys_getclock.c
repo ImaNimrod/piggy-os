@@ -5,7 +5,7 @@
 #include <sys/timer.h> 
 #include <utils/usercopy.h>
 
-void sys_gettime(struct registers* r) {
+void sys_getclock(struct registers* r) {
     clockid_t clockid = r->rdi;
     struct timespec* tp = (struct timespec*) r->rsi;
 
@@ -19,6 +19,7 @@ void sys_gettime(struct registers* r) {
             source = &time_realtime;
             break;
         case CLOCK_MONOTONIC:
+        case CLOCK_BOOTTIME:
             source = &time_monotonic;
             break;
         case CLOCK_PROCESS_CPUTIME_ID:

@@ -37,8 +37,8 @@ extern void sys_mprotect(struct registers* r);
 extern void sys_chroot(struct registers* r);
 extern void sys_pipe(struct registers* r);
 extern void sys_sleep(struct registers* r);
-extern void sys_gettime(struct registers* r);
-extern void sys_settime(struct registers* r);
+extern void sys_getclock(struct registers* r);
+extern void sys_setclock(struct registers* r);
 extern void sys_uname(struct registers* r);
 extern void sys_futex(struct registers* r);
 extern void sys_poweroff(struct registers* r);
@@ -81,8 +81,8 @@ static syscall_handler_t syscall_table[] = {
     [SYS_CHROOT]        = sys_chroot,
     [SYS_PIPE]          = sys_pipe,
     [SYS_SLEEP]         = sys_sleep,
-    [SYS_GETTIME]       = sys_gettime,
-    [SYS_SETTIME]       = sys_settime,
+    [SYS_GETCLOCK]      = sys_getclock,
+    [SYS_SETCLOCK]      = sys_setclock,
     [SYS_UNAME]         = sys_uname,
     [SYS_FUTEX]         = sys_futex,
     [SYS_POWEROFF]      = sys_poweroff,

@@ -1,12 +1,12 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/smp.h>
-#include <dev/hpet.h>
 #include <dev/usb/xhci.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
@@ -31,7 +31,7 @@ static bool reset_port(struct xhci_controller* controller, uint8_t port) {
             if (mmio_read32(&port_registers->portsc) & PORTSC_PP) {
                 break;
             }
-            hpet_sleep_ns(MS_TO_NS(1));
+            timer_wait_ns(MS_TO_NS(1));
             timeout--;
         }
 
@@ -70,7 +70,7 @@ static bool reset_port(struct xhci_controller* controller, uint8_t port) {
         if (mmio_read32(&port_registers->portsc) & success_bit) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 
@@ -170,7 +170,7 @@ static void xhci_init(struct pci_device* pci_dev) {
         if (!(mmio_read32(&operational_registers->usbsts) & USBSTS_CNR)) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 
@@ -200,7 +200,7 @@ static void xhci_init(struct pci_device* pci_dev) {
                 if (mmio_read32(&caps) & USB_LEGACY_OOS) {
                     break;
                 }
-                hpet_sleep_ns(MS_TO_NS(1));
+                timer_wait_ns(MS_TO_NS(1));
                 timeout--;
             }
 
@@ -225,7 +225,7 @@ static void xhci_init(struct pci_device* pci_dev) {
         if (mmio_read32(&operational_registers->usbsts) & USBSTS_HCH) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 
@@ -242,7 +242,7 @@ static void xhci_init(struct pci_device* pci_dev) {
         if (!(mmio_read32(&operational_registers->usbcmd) & USBCMD_HCRST)) {
             break;
         }
-        hpet_sleep_ns(MS_TO_NS(1));
+        timer_wait_ns(MS_TO_NS(1));
         timeout--;
     }
 

@@ -24,7 +24,6 @@
 #include <net/netif.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
-#include <sys/timer.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -34,6 +33,11 @@
 __attribute__((used, section(".limine_requests_start"))) static volatile uint64_t limine_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 
 LIMINE_REQUEST static volatile uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(4);
+
+LIMINE_REQUEST volatile struct limine_date_at_boot_request date_at_boot_request = {
+    .id = LIMINE_DATE_AT_BOOT_REQUEST_ID,
+    .revision = 0,
+};
 
 LIMINE_REQUEST volatile struct limine_executable_address_request executable_address_request = {
     .id = LIMINE_EXECUTABLE_ADDRESS_REQUEST_ID,
@@ -154,7 +158,6 @@ NORETURN void kernel_entry(void) {
     vmm_init();
     process_init();
     scheduler_init();
-    timer_init();
 
     random_init();
     __stack_chk_guard = rand64();

@@ -227,7 +227,7 @@ static void nvme_init(struct pci_device* pci_dev) {
     klog("[nvme] found NVMe controller v%u.%u.%u [%04x:%04x]\n",
             major, minor, patch, pci_dev->vendor_id, pci_dev->device_id);
 
-    /* ensure that we support this controller */
+    // Ensure that we support this controller
     if (major == 1 && minor < 3) {
         klog("[nvme] NVMe controller is an unsupported version\n");
         return;
@@ -254,7 +254,7 @@ static void nvme_init(struct pci_device* pci_dev) {
         return;
     }
 
-    /* reset controller */
+    // Reset controller
     if (cap & (1ul << 36)) {
         mmio_write32(&nvme_bar->rst, 0x4e564d65);
     }
@@ -264,14 +264,14 @@ static void nvme_init(struct pci_device* pci_dev) {
         pause();
     }
 
-    /* setup minimal configuration */
+    // Setup minimal configuration
     uint32_t cc = mmio_read32(&nvme_bar->cc);
     cc = (cc & ~0x7f) | (CC_COMMANDSET_NVM << 4);
     cc = (cc & ~0x780) | ((LOG2(PAGE_SIZE_4KB) - 12) << 7);
     cc = (cc & ~0x3800) | (CC_ARBITRATION_ROUNDROBIN << 11);
     mmio_write32(&nvme_bar->cc, cc);
 
-    /* setup admin queues */
+    // Setup admin queues
     uint32_t aqattr = 0;
     aqattr = (aqattr & ~0xfff) | ((PAGE_SIZE_4KB / sizeof(struct submission_entry)) - 1);
     aqattr = (aqattr & ~0xfff0000) | (((PAGE_SIZE_4KB / sizeof(struct completion_entry)) - 1) << 16);
@@ -281,7 +281,7 @@ static void nvme_init(struct pci_device* pci_dev) {
     mmio_write64(&nvme_bar->asqbase, admin_queues_paddr);
     mmio_write64(&nvme_bar->acqbase, admin_queues_paddr + PAGE_SIZE_4KB);
 
-    /* renable controller */
+    // Renable controller
     cc |= (1 << 0);
     mmio_write32(&nvme_bar->cc, cc);
     while (!(mmio_read32(&nvme_bar->csts) & 3)) {
@@ -352,7 +352,7 @@ static void nvme_init(struct pci_device* pci_dev) {
         goto error;
     }
 
-    /* set I/O submission and completion queue sizes */
+    // Configure I/O submission and completion queue sizes
     cc = (cc & ~0xf0000) | (sqlog2 << 16);
     cc = (cc & ~0xf00000) | (cqlog2 << 20);
     mmio_write32(&nvme_bar->cc, cc);
@@ -362,7 +362,7 @@ static void nvme_init(struct pci_device* pci_dev) {
         goto error;
     }
 
-    /* allocate I/O queues */
+    // Allocate I/O queues
     size_t io_queue_min = MIN(pci_dev->msix_irq_count, cpu_count) - 1;
 
     struct entry_pair entry_pair = {0};
@@ -381,7 +381,7 @@ static void nvme_init(struct pci_device* pci_dev) {
     controller->io_queue_count = MIN(2, MIN(sq_count + 1, cq_count + 1));
     controller->io_queues = (void*) (pmm_alloc(DIV_CEIL(sizeof(struct queue_pair) * controller->io_queue_count, PAGE_SIZE_4KB)) + HIGH_VMA);
 
-    /* create and initialize I/O queues */
+    // Create and initialize I/O queues
     for (uint16_t i = 1; i <= controller->io_queue_count; i++) {
         if (!setup_io_queue_pair(controller, i)) {
             klog("[nvme] unable to initialize I/O queue for NVMe controller\n");

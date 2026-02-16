@@ -80,10 +80,9 @@ static void lapic_timer_calibrate(void) {
     lapic_write(LAPIC_REG_TIMER_DIV, 3);
     lapic_write(LAPIC_REG_TIMER_INITCNT, 0xffffffff);
 
-    hpet_sleep_ns(MS_TO_NS(1));
+    timer_wait_ns(MS_TO_NS(1));
 
-    uint32_t count = lapic_read(LAPIC_REG_TIMER_CURCNT);
-    lapic_timer_stop();
+    uint32_t count = lapic_timer_stop();
 
     this_cpu()->lapic_ticks_per_ms = 0xffffffff - count;
 }
@@ -149,9 +148,13 @@ void lapic_timer_oneshot(uint8_t vector, uint64_t ms) {
     lapic_write(LAPIC_REG_TIMER_INITCNT, ms * this_cpu()->lapic_ticks_per_ms);
 }
 
-void lapic_timer_stop(void) {
+uint32_t lapic_timer_stop(void) {
+    uint32_t count = lapic_read(LAPIC_REG_TIMER_CURCNT);
+
     lapic_write(LAPIC_REG_TIMER_INITCNT, 0);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_LVT_MASK);
+
+    return count;
 }
 
 void lapic_madt_parse(void) {

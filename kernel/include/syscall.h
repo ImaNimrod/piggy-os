@@ -35,8 +35,8 @@
 #define SYS_CHROOT      31
 #define SYS_PIPE        32
 #define SYS_SLEEP       33
-#define SYS_GETTIME     34
-#define SYS_SETTIME     35
+#define SYS_GETCLOCK    34
+#define SYS_SETCLOCK    35
 #define SYS_UNAME       36
 #define SYS_FUTEX       37
 #define SYS_POWEROFF    38

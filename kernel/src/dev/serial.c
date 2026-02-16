@@ -19,7 +19,7 @@ void serial_putc(uint16_t port, char c) {
 }
 
 void serial_init(uint16_t port) {
-    outb(port + 1, 0x01); // data received IRQ enabled
+    outb(port + 1, 0x01); // Data received IRQ enabled
     outb(port + 3, 0x80);
 
     outb(port + 0, 0x01); // 115200 baud
@@ -28,5 +28,5 @@ void serial_init(uint16_t port) {
     outb(port + 3, 0x03);
     outb(port + 2, 0xc7); // 8-bit data, 1 stop bit, no parity
 
-    outb(port + 4, 0x0f); // enable OUT1, OUT2, and hardware flow control
+    outb(port + 4, 0x0f); // Enable OUT1, OUT2, and hardware flow control
 }

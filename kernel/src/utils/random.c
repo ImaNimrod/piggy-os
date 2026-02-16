@@ -6,7 +6,7 @@
 #include <utils/random.h>
 #include <utils/spinlock.h>
 
-/* This is just an implementation of a 64-bit Mersenne Twister 19937 PRNG */
+// This is just an implementation of a 64-bit Mersenne Twister 19937 PRNG
 
 #define NN 312
 #define MM 156
@@ -89,18 +89,21 @@ uint64_t rand64(void) {
 void random_init(void) {
     if (!cmdline_get("nocpurng")) {
         uint32_t ebx = 0, ecx = 0, unused;
-        if (cpuid(7, 0, &unused, &ebx, &unused, &unused) && ebx & (1 << 18)) {
+
+        cpuid(7, 0, &unused, &ebx, &unused, &unused);
+        if (ebx & (1 << 18)) {
             klog("[random] using rdseed to seed PRNG\n");
             hardware_rng_source = HARDWARE_RNG_RDSEED;
-        } else if (cpuid(1, 0, &unused, &unused, &ecx, &unused) && ecx & (1 << 30)) {
-            klog("[random] using rdrand to seed PRNG\n");
-            hardware_rng_source = HARDWARE_RNG_RDRAND;
         } else {
-            klog("[random] rdseed and rdrand both unavailable\n");
+            cpuid(1, 0, &unused, &unused, &ecx, &unused);
+            if (ecx & (1 << 30)) {
+                klog("[random] using rdrand to seed PRNG\n");
+                hardware_rng_source = HARDWARE_RNG_RDRAND;
+            } else {
+                klog("[random] rdseed and rdrand both unavailable\n");
+            }
         }
     } else {
         klog("[random] 'nocpurng' argument found, not using CPU random number generator instructions");
     }
-
-    seed_mt(time_realtime.tv_sec);
 }

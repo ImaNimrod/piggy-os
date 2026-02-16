@@ -167,7 +167,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
 
     isr_register_handler(vector, virtio_net_rx_irq_handler, device);
 
-    /* setup pakcet buffers in receieve queue */
+    // Setup pakcet buffers in receieve queue
     struct virtio_queue* rx_queue = &vio_dev->queues[0];
 
     uintptr_t packet_buffer = pmm_alloc(DIV_CEIL(netif->mtu * rx_queue->size, PAGE_SIZE_4KB));

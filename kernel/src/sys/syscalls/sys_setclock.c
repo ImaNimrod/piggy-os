@@ -3,7 +3,7 @@
 #include <sys/timer.h> 
 #include <utils/usercopy.h>
 
-void sys_settime(struct registers* r) {
+void sys_setclock(struct registers* r) {
     clockid_t clockid = r->rdi;
     const struct timespec* tp = (const struct timespec*) r->rsi;
 
@@ -16,6 +16,7 @@ void sys_settime(struct registers* r) {
         case CLOCK_MONOTONIC:
         case CLOCK_PROCESS_CPUTIME_ID:
         case CLOCK_THREAD_CPUTIME_ID:
+        case CLOCK_BOOTTIME:
         default:
             ret = -EINVAL;
             break;
