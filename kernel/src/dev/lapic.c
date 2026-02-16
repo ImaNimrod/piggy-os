@@ -158,14 +158,14 @@ uint32_t lapic_timer_stop(void) {
 }
 
 void lapic_madt_parse(void) {
-    struct uacpi_table madt_table;
-    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt_table);
+    struct uacpi_table table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &table);
     if (uacpi_unlikely_error(ret)) {
         kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
     }
 
-    struct acpi_madt* madt = madt_table.ptr;
-    if (likely(madt->flags & ACPI_PCAT_COMPAT)) {
+    struct acpi_madt* madt_table = table.ptr;
+    if (likely(madt_table->flags & ACPI_PCAT_COMPAT)) {
         legacy_pic_disable();
         klog("[lapic] disabled legacy 8259 PIC\n");
     }
@@ -173,8 +173,8 @@ void lapic_madt_parse(void) {
     struct acpi_madt_ioapic* ioapic;
     struct acpi_madt_interrupt_source_override* iso;
 
-    uint8_t* current_ptr = (uint8_t*) madt->entries;
-    uint8_t* end_ptr = (uint8_t*) madt->entries + madt->hdr.length;
+    uint8_t* current_ptr = (uint8_t*) madt_table->entries;
+    uint8_t* end_ptr = (uint8_t*) madt_table->entries + madt_table->hdr.length;
     while (current_ptr < end_ptr) {
         struct acpi_entry_hdr* entry = (struct acpi_entry_hdr*) current_ptr;
         switch (entry->type) {
@@ -194,7 +194,7 @@ void lapic_madt_parse(void) {
         current_ptr += entry->length;
     }
 
-    uacpi_table_unref(&madt_table);
+    uacpi_table_unref(&table);
 }
 
 void lapic_percpu_init(void) {
@@ -212,16 +212,16 @@ void lapic_percpu_init(void) {
     lapic_write(LAPIC_REG_LVT_LINT1, LAPIC_LVT_MASK);
     lapic_write(LAPIC_REG_LVT_ERROR, LAPIC_LVT_MASK);
 
-    struct uacpi_table madt_table;
-    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt_table);
+    struct uacpi_table table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &table);
     if (uacpi_unlikely_error(ret)) {
         kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
     }
 
-    struct acpi_madt* madt = madt_table.ptr;
+    struct acpi_madt* madt_table = table.ptr;
 
-    uint8_t* current_ptr = (uint8_t*) madt->entries;
-    uint8_t* end_ptr = (uint8_t*) madt->entries + madt->hdr.length;
+    uint8_t* current_ptr = (uint8_t*) madt_table->entries;
+    uint8_t* end_ptr = (uint8_t*) madt_table->entries + madt_table->hdr.length;
     while (current_ptr < end_ptr) {
         struct acpi_entry_hdr* entry = (struct acpi_entry_hdr*) current_ptr;
         if (entry->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
@@ -231,7 +231,7 @@ void lapic_percpu_init(void) {
         current_ptr += entry->length;
     }
 
-    uacpi_table_unref(&madt_table);
+    uacpi_table_unref(&table);
 
     lapic_timer_calibrate();
 

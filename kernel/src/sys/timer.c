@@ -1,6 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <cpu/tsc.h>
+#include <dev/cmos.h>
 #include <dev/hpet.h>
 #include <dev/pvclock.h>
 #include <mem/slab.h>
@@ -19,8 +20,6 @@ struct sleep_event {
     struct timespec ts;
     struct sleep_event* next;
 };
-
-extern struct limine_date_at_boot_request date_at_boot_request;
 
 struct timespec time_monotonic;
 struct timespec time_realtime;
@@ -97,10 +96,6 @@ void timer_wait_ns(uint64_t ns) {
 }
 
 void timer_early_percpu_init(void) {
-    if (this_cpu()->lapic_id == bsp_lapic_id) {
-        time_realtime.tv_sec = date_at_boot_request.response->timestamp;
-    }
-
     struct timer_driver* early_driver = NULL;
     int max_priority = -1;
 
@@ -154,4 +149,9 @@ void timer_percpu_init(void) {
 
     klog("[timer] CPU #%zu switching to %s for timer driver\n",
             this_cpu()->cpu_number, timer_driver->name);
+}
+
+void timer_init(void) {
+    cmos_init();
+    time_realtime.tv_sec = cmos_get_rtc_timestamp();
 }

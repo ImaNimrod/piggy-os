@@ -438,21 +438,21 @@ void pci_init(void) {
         kpanic(NULL, false, "failed to create PCI device vector");
     }
 
-    struct uacpi_table mcfg_table;
-    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MCFG_SIGNATURE, &mcfg_table);
+    struct uacpi_table table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MCFG_SIGNATURE, &table);
     if (uacpi_likely_success(ret)) {
         klog("[pci] using ECM for PCI device access\n");
 
-        struct acpi_mcfg* mcfg = mcfg_table.ptr;
+        struct acpi_mcfg* mcfg_table = table.ptr;
 
-        mcfg_entry_count = (mcfg->hdr.length - sizeof(struct acpi_mcfg)) / sizeof(struct acpi_mcfg_allocation);
+        mcfg_entry_count = (mcfg_table->hdr.length - sizeof(struct acpi_mcfg)) / sizeof(struct acpi_mcfg_allocation);
         mcfg_entries = kmalloc(sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
         if (unlikely(mcfg_entries == NULL)) {
             kpanic(NULL, false, "failed to allocate memory for MCFG entries");
         }
-        memcpy(mcfg_entries, mcfg->entries, sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
+        memcpy(mcfg_entries, mcfg_table->entries, sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
 
-        uacpi_table_unref(&mcfg_table);
+        uacpi_table_unref(&table);
 
         internal_read = ecam_read;
         internal_write = ecam_write;

@@ -11,24 +11,14 @@
 #include <uacpi/tables.h>
 #include <uacpi/uacpi.h>
 
-#define HPET_REG_ID     0x000
-#define HPET_REG_CONFIG 0x010
-#define HPET_REG_ISR    0x020
-#define HPET_REG_COUNT  0x0f0
+#define HPET_REG_ID                 0x000
+#define HPET_REG_CONFIG             0x010
+#define HPET_REG_ISR                0x020
+#define HPET_REG_COUNT              0x0f0
 #define HPET_REG_TIMER_CONFIG(n)    (0x100 + 0x20 * n)
 #define HPET_REG_TIMER_COUNT(n)     (0x108 + 0x20 * n)
 
-#define HPET_ENABLE_CNF         (1 << 0)
-#define HPET_LEGACY_REPLACEMENT (1 << 1)
-
-#define HPET_CAP_LEGACY_REPLACEMENT (1 << 15)
-
-#define HPET_TN_INT_ENB_CNF      (1 << 2)
-#define HPET_TN_TYPE_CNF         (1 << 3)
-#define HPET_TN_VAL_SET_CNF      (1 << 6)
-#define HPET_TN_32MODE_CNF       (1 << 8)
-
-#define PIT_ISA_IRQ 0
+#define HPET_ENABLE_CNF (1 << 0)
 
 #define TSC_CALIBRATION_TIME_MS 2
 
@@ -48,7 +38,6 @@ static bool hpet_check(void) {
     }
 
     struct uacpi_table table;
-
     uacpi_status ret = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
     if (uacpi_unlikely_error(ret)) {
         return false;

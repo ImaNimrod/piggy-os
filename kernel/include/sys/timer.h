@@ -58,5 +58,6 @@ void timer_wait_ns(uint64_t ns);
 
 void timer_early_percpu_init(void);
 void timer_percpu_init(void);
+void timer_init(void);
 
 #endif /* _KERNEL_SYS_TIMER_H */

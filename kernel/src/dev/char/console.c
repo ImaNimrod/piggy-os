@@ -4,7 +4,7 @@
 #include <fs/vfs.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 
 
@@ -12,7 +12,7 @@
 
 static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 
-static spinlock_t console_lock;
+static mutex_t console_mutex;
 
 static struct device_ops console_ops = {
     .write = console_write,
@@ -23,7 +23,7 @@ static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t off
     (void) offset;
     (void) flags;
 
-    spinlock_acquire(&console_lock);
+    mutex_acquire(&console_mutex);
 
     const char* cbuf = buf;
     ssize_t ret;
@@ -42,7 +42,7 @@ static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t off
         }
     }
 
-    spinlock_release(&console_lock);
+    mutex_release(&console_mutex);
     return count;
 }
 
@@ -50,4 +50,6 @@ void console_init(void) {
     if (unlikely(devfs_register("console", VFS_TYPE_CHARDEV, &console_ops, makedev(CONSOLE_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create console device");
     }
+
+    mutex_init(&console_mutex);
 }
