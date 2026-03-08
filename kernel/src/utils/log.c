@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
+#include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <dev/char/fb.h>
-#include <dev/lapic.h>
 #include <dev/serial.h>
 #include <mem/paging.h>
 #include <stdarg.h>

@@ -1,6 +1,6 @@
 #include <cpu/asm.h>
+#include <cpu/ioapic.h>
 #include <cpu/isr.h>
-#include <dev/ioapic.h>
 #include <dev/pci.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>

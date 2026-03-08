@@ -26,7 +26,7 @@ static inline const char* memmap_type_str(uint64_t memmap_type) {
         case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE: return "bootloader reclaimable";
         case LIMINE_MEMMAP_EXECUTABLE_AND_MODULES: return "kernel and modules";
         case LIMINE_MEMMAP_FRAMEBUFFER: return "framebuffer";
-        case LIMINE_MEMMAP_ACPI_TABLES: return "ACPI tables";
+        case LIMINE_MEMMAP_RESERVED_MAPPED: return "reserved mapped";
         default: return "unknown type";
     }
 }

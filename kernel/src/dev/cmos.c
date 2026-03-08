@@ -4,6 +4,7 @@
 #include <fs/devfs.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/usercopy.h>
@@ -23,15 +24,6 @@
 #define CMOS_REG_YEAR       0x09
 #define CMOS_REG_STATUS_A   0x0a
 #define CMOS_REG_STATUS_B   0x0b
-
-struct rtc_time {
-    int second;
-    int minute;
-    int hour;
-    int day;
-    int month;
-    int year;
-};
 
 static int rtc_ioctl(dev_t dev, int request, void* argp);
 
@@ -192,12 +184,12 @@ static int rtc_ioctl(dev_t dev, int request, void* argp) {
     int ret = 0;
 
     switch (request) {
-        case RTC_GET_TIME:
+        case HWCLOCK_GETTIME:
             get_rtc_time(&time);
 
             ret = user_memcpy_to_user(argp, &time, sizeof(struct rtc_time));
             break;
-        case RTC_SET_TIME:
+        case HWCLOCK_SETTIME:
             ret = user_memcpy_from_user(&time, argp, sizeof(struct rtc_time));
             if (ret < 0) {
                 break;
@@ -259,11 +251,15 @@ void cmos_init(void) {
         bcd_mode = true;
     }
 
-    klog("[cmos] initialized RTC (timestamp: %lu)\n", cmos_get_rtc_timestamp());
-}
-
-void rtc_dev_init(void) {
     if (unlikely(devfs_register("rtc", VFS_TYPE_CHARDEV, &rtc_ops, makedev(RTC_DEV_MAJOR, 0)) < 0)) {
         kpanic(NULL, false, "failed to create RTC device");
     }
+
+    time_t timestamp = cmos_get_rtc_timestamp();
+
+    time_realtime.tv_sec = timestamp;
+    struct timespec ts = timer_time_from_boot();
+    timespec_add(&time_realtime, &ts);
+
+    klog("[cmos] initialized RTC (timestamp: %lu)\n", timestamp);
 }

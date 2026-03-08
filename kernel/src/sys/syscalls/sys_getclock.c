@@ -12,26 +12,26 @@ void sys_getclock(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    struct timespec* source;
+    struct timespec source;
 
     switch (clockid) {
         case CLOCK_REALTIME:
-            source = &time_realtime;
+            source = time_realtime;
             break;
         case CLOCK_MONOTONIC:
         case CLOCK_BOOTTIME:
-            source = &time_monotonic;
+            source = timer_time_from_boot();
             break;
         case CLOCK_PROCESS_CPUTIME_ID:
-            source = &current_process->time_used;
+            source = current_process->time_used;
             break;
         case CLOCK_THREAD_CPUTIME_ID:
-            source = &current_thread->time_used;
+            source = current_thread->time_used;
             break;
         default:
             r->rax = -EINVAL;
             return;
     }
 
-    r->rax = user_memcpy_to_user((void*) tp, (void*) source, sizeof(struct timespec));
+    r->rax = user_memcpy_to_user(tp, &source, sizeof(struct timespec));
 }

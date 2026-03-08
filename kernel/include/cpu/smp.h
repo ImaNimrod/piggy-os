@@ -29,6 +29,7 @@ struct cpu_local {
     struct timer_driver* timer_driver;
     struct timer_info* timer_info;
     uint64_t timer_base_ticks;
+    uint64_t timer_tick_offset;
 
     size_t cpu_number;
     uint32_t lapic_id;

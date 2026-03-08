@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
+#include <cpu/ioapic.h>
 #include <cpu/isr.h>
 #include <cpu/smp.h>
-#include <dev/ioapic.h>
 #include <dev/pci.h>
 #include <limine.h>
 #include <mem/paging.h>
@@ -300,7 +300,8 @@ void uacpi_kernel_free(void* ptr) {
 }
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void) {
-    return S_TO_NS(time_monotonic.tv_sec) + time_monotonic.tv_nsec;
+    struct timespec boottime = timer_time_from_boot();
+    return S_TO_NS(boottime.tv_sec) + boottime.tv_nsec;
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec) {
@@ -338,6 +339,18 @@ void uacpi_kernel_free_event(uacpi_handle event) {
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void) {
     return (uacpi_thread_id) this_cpu()->running_thread;
+}
+
+uacpi_interrupt_state uacpi_kernel_disable_interrupts(void) {
+    bool int_state = get_interrupt_state();
+    cli();
+    return int_state;
+}
+
+void uacpi_kernel_restore_interrupts(uacpi_interrupt_state state) {
+    if (state) {
+        sti();
+    }
 }
 
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle mutex, uacpi_u16 msec) {

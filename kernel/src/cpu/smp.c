@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/idt.h>
+#include <cpu/lapic.h>
 #include <cpu/smp.h>
-#include <dev/lapic.h>
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
@@ -18,6 +18,11 @@ struct cpu_local* cpu_local_data;
 bool use_x2apic;
 
 static size_t initialized_cpus;
+static size_t synced_cpus;
+
+static volatile uint64_t sync_sec;
+static volatile uint64_t sync_nsec;
+static volatile bool sync_ready;
 
 extern void syscall_entry(void);
 
@@ -148,15 +153,25 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     }
 
     lapic_percpu_init();
-
     timer_percpu_init();
 
     klog("[smp] CPU #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
 
-    sti();
-
     if (cpu_local->lapic_id != bsp_lapic_id) {
+        uint64_t hz = cpu_local->timer_info->hz;
+        uint64_t ghz = hz / 1000000000;
+
+        while (!sync_ready) {
+            asm volatile("");
+        }
+
+        cpu_local->timer_base_ticks = cpu_local->timer_driver->ticks(cpu_local->timer_info);
+        cpu_local->timer_tick_offset = (sync_sec * hz) + (sync_nsec * ghz);
+
+        __atomic_add_fetch(&synced_cpus, 1, __ATOMIC_SEQ_CST);
+
+        sti();
         scheduler_yield(false);
     }
 }
@@ -205,9 +220,25 @@ void smp_init(void) {
     }
 
     if (!nosmp) {
+        struct timer_driver* timer_driver = this_cpu()->timer_driver;
+        struct timer_info* timer_info = this_cpu()->timer_info;
+        uint64_t hz = timer_info->hz;
+        uint64_t ghz = hz / 1000000000;
+
         while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count)  {
             pause();
         }
+
+        uint64_t ticks = timer_driver->ticks(timer_info) - this_cpu()->timer_base_ticks;
+        sync_sec = ticks / hz;
+        sync_nsec = (ticks % hz) / ghz;
+        sync_ready = true;
+
+        while (__atomic_load_n(&synced_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count - 1)  {
+            pause();
+        }
+
+        sti();
     }
 
     cpu_count = initialized_cpus;

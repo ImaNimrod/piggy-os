@@ -1,5 +1,5 @@
-#ifndef _KERNEL_DEV_LAPIC_H
-#define _KERNEL_DEV_LAPIC_H
+#ifndef _KERNEL_CPU_LAPIC_H
+#define _KERNEL_CPU_LAPIC_H
 
 #include <stdint.h>
 
@@ -15,4 +15,4 @@ uint32_t lapic_timer_stop(void);
 void lapic_madt_parse(void);
 void lapic_percpu_init(void);
 
-#endif /* _KERNEL_DEV_LAPIC_H */
+#endif /* _KERNEL_CPU_LAPIC_H */

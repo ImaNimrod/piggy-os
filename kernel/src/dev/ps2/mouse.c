@@ -1,5 +1,5 @@
+#include <cpu/ioapic.h>
 #include <cpu/isr.h>
-#include <dev/ioapic.h>
 #include <stddef.h>
 #include <utils/log.h>
 

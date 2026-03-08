@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
+#include <cpu/lapic.h>
 #include <cpu/smp.h>
-#include <dev/lapic.h>
 #include <mem/paging.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>

@@ -1,4 +1,5 @@
 #include <cpu/asm.h>
+#include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <dev/acpi.h>
 #include <dev/block/block.h>
@@ -8,7 +9,6 @@
 #include <dev/char/tty.h>
 #include <dev/cmos.h>
 #include <dev/hpet.h>
-#include <dev/lapic.h>
 #include <dev/pci.h>
 #include <dev/ps2.h>
 #include <dev/serial.h>
@@ -25,7 +25,6 @@
 #include <net/netif.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
-#include <sys/timer.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -90,12 +89,13 @@ NORETURN static void kernel_main(void) {
     tmpfs_init();
     file_init();
 
+    pseudo_dev_init();
+
     block_init();
     net_init();
 
-    pseudo_dev_init();
+    cmos_init();
     fb_dev_init();
-    rtc_dev_init();
 
     pci_init();
     acpi_init();
@@ -156,7 +156,6 @@ NORETURN void kernel_entry(void) {
     vmm_init();
     process_init();
     scheduler_init();
-    timer_init();
 
     random_init();
     __stack_chk_guard = rand64();

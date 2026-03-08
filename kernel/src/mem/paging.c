@@ -268,21 +268,13 @@ void pagemap_map_range(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr
         kpanic(NULL, true, "unaligned arguments to pagemap_map_range");
     }
 
-    size_t page_count;
-    page_size_t page_size;
-
-    if ((vaddr % PAGE_SIZE_2MB == 0) && (paddr % PAGE_SIZE_2MB == 0) && (length % PAGE_SIZE_2MB == 0)) {
-        page_count = length / PAGE_SIZE_2MB;
-        page_size = PAGE_SIZE_2MB;
-    } else {
-        page_count = length / PAGE_SIZE_4KB;
-        page_size = PAGE_SIZE_4KB;
-    }
+    size_t page_count = length / PAGE_SIZE_4KB;
 
     for (size_t i = 0; i < page_count; i++) {
-        pagemap_map(pagemap, vaddr, paddr, flags, page_size);
-        vaddr += page_size;
-        paddr += page_size;
+        pagemap_map(pagemap, vaddr, paddr, flags, PAGE_SIZE_4KB);
+
+        vaddr += PAGE_SIZE_4KB;
+        paddr += PAGE_SIZE_4KB;
     }
 }
 
@@ -291,16 +283,8 @@ bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length
         kpanic(NULL, true, "unaligned arguments to pagemap_unmap_range");
     }
 
-    size_t page_count;
+    size_t page_count = length / PAGE_SIZE_4KB;
     page_size_t page_size;
-
-    if ((vaddr % PAGE_SIZE_2MB == 0) && (length % PAGE_SIZE_2MB == 0)) {
-        page_count = length / PAGE_SIZE_2MB;
-        page_size = PAGE_SIZE_2MB;
-    } else {
-        page_count = length / PAGE_SIZE_4KB;
-        page_size = PAGE_SIZE_4KB;
-    }
 
     for (size_t i = 0; i < page_count; i++) {
         pagemap_unmap(pagemap, vaddr, &page_size);

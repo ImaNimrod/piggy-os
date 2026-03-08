@@ -28,7 +28,6 @@ struct timer_driver {
     uint64_t (*ticks)(struct timer_info*);
 };
 
-extern struct timespec time_monotonic;
 extern struct timespec time_realtime;
 
 static inline void timespec_add(struct timespec* a, const struct timespec* b) {
@@ -52,12 +51,12 @@ static inline bool timespec_greater(const struct timespec* a, const struct times
     return false;
 }
 
+struct timespec timer_time_from_boot(void);
 void timer_sleep_thread(struct thread* thread, const struct timespec* tp);
 void timer_update_timers(void);
 void timer_wait_ns(uint64_t ns);
 
 void timer_early_percpu_init(void);
 void timer_percpu_init(void);
-void timer_init(void);
 
 #endif /* _KERNEL_SYS_TIMER_H */

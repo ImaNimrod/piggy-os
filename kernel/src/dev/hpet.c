@@ -1,11 +1,12 @@
 #include <cpu/asm.h>
+#include <cpu/ioapic.h>
 #include <cpu/isr.h>
 #include <dev/hpet.h>
-#include <dev/ioapic.h>
 #include <mem/paging.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
+#include <utils/spinlock.h>
 
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
@@ -20,8 +21,9 @@
 
 #define HPET_ENABLE_CNF (1 << 0)
 
-#define TSC_CALIBRATION_TIME_MS 2
+#define TSC_CALIBRATION_TIME_US 500
 
+static spinlock_t hpet_init_lock;
 static struct timer_info hpet_timer_info;
 
 static inline uint64_t hpet_read(uintptr_t base, uint32_t reg) {
@@ -59,8 +61,10 @@ end:
 
 // TODO: Support HPET with 32-bit main counter
 static struct timer_info* hpet_init(void) {
+    bool int_state = spinlock_acquire_irqsave(&hpet_init_lock);
+
     if (hpet_timer_info.private != NULL) {
-        return &hpet_timer_info;
+        goto end;
     }
 
     struct uacpi_table table;
@@ -90,6 +94,9 @@ static struct timer_info* hpet_init(void) {
             hpet_paddr, hpet_timer_info.hz / 1000000, ((hpet_id >> 8) & 0x1f) + 1);
 
     uacpi_table_unref(&table);
+
+end:
+    spinlock_release_irqsave(&hpet_init_lock, int_state);
     return &hpet_timer_info;
 }
 
@@ -107,7 +114,7 @@ uint64_t hpet_calibrate_tsc(void) {
     uint32_t fs_per_tick = (hpet_read(hpet_base, HPET_REG_ID) >> 32) & 0xffffffff;
 
     uint64_t start_ticks = hpet_read(hpet_base, HPET_REG_COUNT);
-    uint64_t target_ticks = start_ticks + ((TSC_CALIBRATION_TIME_MS * 1000000000000lu) / fs_per_tick);
+    uint64_t target_ticks = start_ticks + ((TSC_CALIBRATION_TIME_US * 1000000000lu) / fs_per_tick);
 
     uint64_t tsc_start = rdtsc_serialized();
     uint64_t tsc_end;
@@ -116,7 +123,7 @@ uint64_t hpet_calibrate_tsc(void) {
         tsc_end = rdtsc_serialized();
     } while (hpet_read(hpet_base, HPET_REG_COUNT) < target_ticks);
 
-    return ((tsc_end - tsc_start) / TSC_CALIBRATION_TIME_MS) * 1000;
+    return ((tsc_end - tsc_start) / TSC_CALIBRATION_TIME_US) * 1000000;
 }
 
 struct timer_driver hpet_driver = {

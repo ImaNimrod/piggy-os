@@ -21,7 +21,6 @@ struct sleep_event {
     struct sleep_event* next;
 };
 
-struct timespec time_monotonic;
 struct timespec time_realtime;
 
 static uint64_t last_ticks;
@@ -43,6 +42,12 @@ static struct timer_driver* timer_drivers[] = {
     &tsc_driver,
 };
 
+struct timespec timer_time_from_boot(void) {
+    uint64_t ticks = this_cpu()->timer_driver->ticks(this_cpu()->timer_info) - this_cpu()->timer_base_ticks + this_cpu()->timer_tick_offset;
+    uint64_t hz = this_cpu()->timer_info->hz;
+    return (struct timespec) { ticks / hz, (ticks % hz) / (hz / 1000000000) };
+}
+
 void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
     struct sleep_event* event = kmalloc(sizeof(struct sleep_event));
     if (unlikely(event == NULL)) {
@@ -51,7 +56,9 @@ void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
 
     event->thread = thread;
     event->ts = *tp;
-    timespec_add(&event->ts, &time_monotonic);
+
+    struct timespec boottime = timer_time_from_boot();
+    timespec_add(&event->ts, &boottime);
 
     spinlock_acquire(&sleep_event_list_lock);
     SLIST_PUSH_BACK(sleep_event_list, event);
@@ -66,16 +73,17 @@ void timer_update_timers(void) {
     uint64_t current_ticks = this_cpu()->timer_driver->ticks(this_cpu()->timer_info);
     struct timespec interval = { 0, (current_ticks - last_ticks) * 1000000000 / this_cpu()->timer_info->hz };
 
-    timespec_add(&time_monotonic, &interval);
     timespec_add(&time_realtime, &interval);
 
     last_ticks = current_ticks;
 
     spinlock_acquire(&sleep_event_list_lock);
 
+    struct timespec boottime = timer_time_from_boot();
+
     struct sleep_event* iter;
     SLIST_FOREACH(sleep_event_list, iter) {
-        if (timespec_greater(&time_monotonic, &iter->ts)) {
+        if (timespec_greater(&boottime, &iter->ts)) {
             struct thread* thread = iter->thread;
             SLIST_REMOVE(sleep_event_list, iter);
             kfree(iter);
@@ -126,32 +134,37 @@ void timer_early_percpu_init(void) {
 }
 
 void timer_percpu_init(void) {
-    struct timer_driver* timer_driver = this_cpu()->timer_driver;
-    int max_priority = this_cpu()->timer_driver->priority;
+    struct timer_driver* old_driver = this_cpu()->timer_driver;
+    struct timer_info* old_info = this_cpu()->timer_info;
+
+    struct timer_driver* new_driver = old_driver;
+    int max_priority = old_driver->priority;
 
     for (size_t i = 0; i < SIZEOF_ARRAY(timer_drivers); i++) {
         struct timer_driver* driver = timer_drivers[i];
         if (max_priority < driver->priority && driver->check()) {
-            timer_driver = driver;
+            new_driver = driver;
             max_priority = driver->priority;
         }
     }
 
-    if (timer_driver == this_cpu()->timer_driver) {
+    if (new_driver == old_driver) {
         return;
     }
 
-    struct timer_info* timer_info = timer_driver->init();
+    uint64_t old_base_ticks = this_cpu()->timer_base_ticks;
 
-    this_cpu()->timer_driver = timer_driver;
-    this_cpu()->timer_info = timer_info;
-    this_cpu()->timer_base_ticks = timer_driver->ticks(timer_info);
+    struct timer_info* new_info = new_driver->init();
+
+    this_cpu()->timer_driver = new_driver;
+    this_cpu()->timer_info = new_info;
+    this_cpu()->timer_base_ticks = new_driver->ticks(new_info);
+
+    uint64_t old_ticks = old_driver->ticks(old_info);
+    uint64_t old_ns = (old_ticks - old_base_ticks) / (old_info->hz / 1000000000);
+
+    this_cpu()->timer_tick_offset = old_ns * (new_info->hz / 1000000000);
 
     klog("[timer] CPU #%zu switching to %s for timer driver\n",
-            this_cpu()->cpu_number, timer_driver->name);
-}
-
-void timer_init(void) {
-    cmos_init();
-    time_realtime.tv_sec = cmos_get_rtc_timestamp();
+            this_cpu()->cpu_number, new_driver->name);
 }

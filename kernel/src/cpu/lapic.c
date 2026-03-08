@@ -1,8 +1,8 @@
 #include <cpu/asm.h>
+#include <cpu/ioapic.h>
+#include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <dev/hpet.h>
-#include <dev/lapic.h>
-#include <dev/ioapic.h>
 #include <mem/paging.h>
 #include <utils/log.h>
 #include <utils/macros.h>

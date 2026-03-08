@@ -1,6 +1,6 @@
+#include <cpu/ioapic.h>
 #include <cpu/isr.h>
 #include <dev/char/tty.h>
-#include <dev/ioapic.h>
 #include <fs/devfs.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>

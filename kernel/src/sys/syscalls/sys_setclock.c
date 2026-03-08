@@ -8,18 +8,10 @@ void sys_setclock(struct registers* r) {
     const struct timespec* tp = (const struct timespec*) r->rsi;
 
     int ret = 0;
-
-    switch (clockid) {
-        case CLOCK_REALTIME:
-            ret = user_memcpy_from_user(&time_realtime, tp, sizeof(struct timespec));
-            break;
-        case CLOCK_MONOTONIC:
-        case CLOCK_PROCESS_CPUTIME_ID:
-        case CLOCK_THREAD_CPUTIME_ID:
-        case CLOCK_BOOTTIME:
-        default:
-            ret = -EINVAL;
-            break;
+    if (clockid == CLOCK_REALTIME) {
+        ret = user_memcpy_from_user(&time_realtime, tp, sizeof(struct timespec));
+    } else {
+        ret =  -EINVAL;
     }
 
     r->rax = ret;

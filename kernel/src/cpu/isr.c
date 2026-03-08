@@ -1,6 +1,6 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/lapic.h>
+#include <cpu/lapic.h>
 #include <stddef.h>
 #include <utils/log.h>
 #include <utils/macros.h>
