@@ -9,6 +9,10 @@
 #include <string.h> 
 #include <unistd.h> 
 
+#define HISTORY_MAX_LENGTH 100
+#define LINE_LENGTH 256
+
+#define MIN(a ,b) (((a) < (b)) ? (a) : (b))
 #define SIZEOF_ARRAY(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
 // TODO: make builtin commands set an int* status on completion 
@@ -23,6 +27,7 @@ static bool builtin_cd(int argc, char* argv[]);
 static bool builtin_exec(int argc, char* argv[]);
 static bool builtin_exit(int argc, char* argv[]);
 static bool builtin_export(int argc, char* argv[]);
+static bool builtin_history(int argc, char* argv[]);
 static bool builtin_pwd(int argc, char* argv[]);
 static bool builtin_source(int argc, char* argv[]);
 static bool builtin_unset(int argc, char* argv[]);
@@ -36,10 +41,20 @@ static struct shell_builtin builtins[] = {
     { "exec", builtin_exec },
     { "exit", builtin_exit },
     { "export", builtin_export },
+    { "history", builtin_history },
     { "pwd", builtin_pwd },
     { "source", builtin_source },
     { "unset", builtin_unset },
 };
+
+static char cwd[PATH_MAX];
+
+static char line_buf[LINE_LENGTH];
+
+static char* history[HISTORY_MAX_LENGTH];
+static size_t history_end_index = 0;
+static size_t history_start_index = 0;
+static size_t history_total = 0;
 
 static inline bool is_valid_variable(char* s) {
     if (s == NULL || (!isalpha(*s) && *s != '_')) {
@@ -55,6 +70,11 @@ static inline bool is_valid_variable(char* s) {
     return true;
 }
 
+static inline void setpwd(void) {
+    getcwd(cwd, sizeof(cwd));
+    setenv("PWD", cwd, 1);
+}
+
 static bool builtin_cd(int argc, char* argv[]) {
     (void) argc;
 
@@ -62,6 +82,7 @@ static bool builtin_cd(int argc, char* argv[]) {
         warn(argv[1]);
     }
 
+    setpwd();
     return false;
 }
 
@@ -111,6 +132,34 @@ static bool builtin_export(int argc, char* argv[]) {
                 setenv(argv[i], "", 0);
             }
         }
+    }
+
+    return false;
+}
+
+static bool builtin_history(int argc, char* argv[]) {
+    (void) argc;
+
+    size_t count = 10;
+
+    if (argv[1] != NULL) {
+        char* endptr;
+
+        size_t tmp = strtol(argv[1], &endptr, 10);
+        if (endptr == argv[1] || *endptr != '\0') {
+            printf("invalid history entry count '%s'\n", argv[1]);
+            return false;
+        } else {
+            count = tmp;
+        }
+    }
+
+    count = MIN(count, history_end_index);
+
+    for (size_t i = 0; i < count; i++) {
+        size_t index = (history_end_index + HISTORY_MAX_LENGTH - count + i) % HISTORY_MAX_LENGTH;
+        size_t absolute_index = history_total - (count - i);
+        printf("%4zu: %s\n", absolute_index + 1, history[index]);
     }
 
     return false;
@@ -189,13 +238,8 @@ static bool execute(int argc, char* argv[], int* status) {
     return false;
 }
 
-static char* read_line(void) {
+static void read_line(char* buf) {
     int position = 0;
-
-    char* buf = malloc(256 * sizeof(char));
-    if (buf == NULL) {
-        err(EXIT_FAILURE, "malloc");
-    }
 
     int c;
     for (;;) {
@@ -203,7 +247,7 @@ static char* read_line(void) {
 
         if (c == EOF || c == '\n') {
             buf[position] = '\0';
-            return buf;
+            return;
         } else {
             buf[position] = c;
         }
@@ -260,6 +304,8 @@ int main(int argc, char* argv[]) {
 
     char* command = NULL;
     int args_index = 0;
+
+    setpwd();
 
     int c;
     while ((c = getopt(argc, argv, "c:i")) != -1) {
@@ -327,16 +373,30 @@ int main(int argc, char* argv[]) {
 
     bool do_quit = false;
     do {
-        fputs("$ ", stderr);
+        fprintf(stderr, "\033[94msh\033[0m:\033[32m%s\033[0m> ", cwd);
 
-        char* line = read_line();
+        read_line(line_buf);
+        if (line_buf[0] != '\0') {
+            history[history_end_index] = realloc(history[history_end_index], strlen(line_buf) + 1);
+            if (history[history_end_index] == NULL) {
+                err(EXIT_FAILURE, "realloc");
+            }
+
+            strcpy(history[history_end_index], line_buf);
+
+            history_total++;
+
+            history_end_index = (history_end_index + 1) % HISTORY_MAX_LENGTH;
+            if (history_end_index == history_start_index) {
+                history_start_index = (history_start_index + 1) % HISTORY_MAX_LENGTH;
+            }
+        }
 
         char** argv;
-        int argc = split_args(line, &argv);
+        int argc = split_args(line_buf, &argv);
 
         do_quit = execute(argc, argv, NULL);
 
-        free(line);
         free(argv);
     } while (!do_quit);
 

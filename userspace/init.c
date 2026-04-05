@@ -59,7 +59,7 @@ static int switch_terminal(const char* tty) {
 
 int main() {
     if (getpid() != 1) {
-        errx(EXIT_FAILURE, "must be run from pid = 1");
+        errx(EXIT_FAILURE, "init must be run from PID = 1");
     }
 
     mount_filesystems();

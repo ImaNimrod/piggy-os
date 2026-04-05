@@ -10,10 +10,15 @@ EMUOPTS := -machine q35 \
 		   -rtc base=utc \
 		   -bios /usr/share/edk2/x64/OVMF.4m.fd
 
-export PATH := $(PATH):$(TOOLCHAIN_DIR)/build/bin
+NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))
+ifeq ($(NPROC),)
+	NPROC := 1
+endif
+
+export PATH := $(PATH):$(TOOLCHAIN_DIR)/local/bin
 
 .PHONY: all
-all: $(IMAGE_NAME).iso
+all: piggy.iso
 
 .PHONY: run
 run: run-virtio
@@ -22,7 +27,7 @@ run: run-virtio
 run-minimal:
 	$(EMU) $(EMUOPTS) \
 		-nic none \
-		-cdrom $(IMAGE_NAME).iso
+		-cdrom piggy.iso
 
 .PHONY: run-realhw
 run-realhw:
@@ -31,7 +36,7 @@ run-realhw:
 		-device nvme,drive=disk,serial=12345678 \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device e1000e,netdev=net0,mac=52:54:00:12:34:56 \
-		-cdrom $(IMAGE_NAME).iso
+		-cdrom piggy.iso
 
 .PHONY: run-virtio
 run-virtio:
@@ -39,15 +44,10 @@ run-virtio:
 		-drive id=disk,file=disk.img,format=raw,if=none -device virtio-blk-pci,drive=disk \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
-		-cdrom $(IMAGE_NAME).iso
-
-.PHONY: libc-headers
-libc-headers:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=true -Dno_headers=false build
-	cd libc/build; ninja install
+		-cdrom piggy.iso
 
 .PHONY: toolchain
-toolchain: libc-headers
+toolchain:
 	./toolchain/build_gcc.sh
 	./toolchain/build_qemu.sh
 
@@ -60,14 +60,19 @@ limine/limine:
 	$(MAKE) -C limine CC="cc" CFLAGS="-O2 -pipe"
 
 .PHONY: kernel
-kernel:
-	$(RM) -r kernel/src/dev/acpi/uacpi/tests
-	$(MAKE) -C kernel
+kernel: kernel/build
+	cd kernel; meson compile --jobs $(NPROC) -C build
+
+kernel/build:
+	cd kernel; meson setup --cross-file=../meta/crossfile.txt build
 
 .PHONY: libc
-libc:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false -Dno_headers=true build
-	cd libc/build; ninja install
+libc: libc/build
+	cd libc; meson compile --jobs $(NPROC) -C build
+	cd libc; meson install -C build
+
+libc/build:
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false build
 
 .PHONY: userspace
 userspace:
@@ -75,13 +80,13 @@ userspace:
 
 .PHONY: initrd
 initrd:
-	cd $(SYSROOT_DIR); tar -cf ../$(INITRD_FILE) *
+	cd $(SYSROOT_DIR); tar -cf ../initrd.tar *
 
 .NOTPARALLEL:
-$(IMAGE_NAME).iso: limine/limine kernel libc userspace initrd
+piggy.iso: limine/limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp -v kernel/$(KERNEL_FILE) $(INITRD_FILE) iso_root/boot/
+	cp -v kernel/build/kernel.elf initrd.tar iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v meta/limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
@@ -92,17 +97,15 @@ $(IMAGE_NAME).iso: limine/limine kernel libc userspace initrd
 		-no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
 		-apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
-		iso_root -o $(IMAGE_NAME).iso
-	./limine/limine bios-install $(IMAGE_NAME).iso
+		iso_root -o piggy.iso
+	./limine/limine bios-install piggy.iso
 	rm -rf iso_root
 
 .PHONY: clean
 clean:
-	$(RM) -r iso_root libc/build $(IMAGE_NAME).iso $(INITRD_FILE)
+	$(RM) -r iso_root kernel/build libc/build piggy.iso initrd.tar
 	$(MAKE) -C userspace clean
-	$(MAKE) -C kernel clean
 
 .PHONY: distclean
 distclean:
 	$(MAKE) -C limine clean
-	$(MAKE) -C kernel distclean

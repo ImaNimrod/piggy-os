@@ -18,28 +18,28 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
-    int how = 0;
+    int action = 0;
 
     int c;
     while ((c = getopt(argc, argv, "hrs")) != -1) {
         switch (c) {
             case 'h':
-                if (how != 0) {
+                if (action != 0) {
                     multiple_actions();
                 }
-                how = POWEROFF_HALT;
+                action = POWEROFF_HALT;
                 break;
             case 'r':
-                if (how != 0) {
+                if (action != 0) {
                     multiple_actions();
                 }
-                how = POWEROFF_REBOOT;
+                action = POWEROFF_REBOOT;
                 break;
             case 's':
-                if (how != 0) {
+                if (action != 0) {
                     multiple_actions();
                 }
-                how = POWEROFF_SHUTDOWN;
+                action = POWEROFF_SHUTDOWN;
                 break;
             default:
                 usage();
@@ -55,12 +55,12 @@ int main(int argc, char* argv[]) {
         usage();
     }
 
-    if (how == 0) {
+    if (action == 0) {
         warnx("poweroff action not provided");
         usage();
     }
 
-    int ret = poweroff(how);
+    int ret = poweroff(action);
     if (ret < 0) {
         err(EXIT_FAILURE, "poweroff");
     }

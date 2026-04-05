@@ -1,7 +1,3 @@
-[submodule "printf"]
-    path = kernel/src/utils/printf
-    url = https://github.com/mpaland/printf.git
-    update = merge
 [submodule "limine"]
     path = limine
     url = https://github.com/limine-bootloader/limine.git
@@ -15,6 +11,9 @@
     path = libc
     url = https://github.com/ImaNimrod/mlibc.git
     update = merge
-[submodule "kernel/src/dev/acpi/uacpi"]
-	path = kernel/src/dev/acpi/uacpi
-	url = https://github.com/uACPI/uACPI
+[submodule "subprojects/uacpi"]
+	path = kernel/subprojects/uacpi
+	url = https://github.com/uACPI/uACPI.git
+[submodule "kernel/src/utils/printf"]
+	path = kernel/src/utils/printf
+	url = https://github.com/mpaland/printf.git

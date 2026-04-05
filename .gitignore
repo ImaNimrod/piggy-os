@@ -2,5 +2,5 @@
 *.img
 *.tar
 
-toolchain/build/
+toolchain/local/
 toolchain/tarballs/

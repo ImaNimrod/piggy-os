@@ -1,4 +1,2 @@
-*.o
-*.d
-kernel.elf
-include/limine.h
+/subprojects/*
+!/subprojects/*.wrap
