@@ -88,11 +88,11 @@ static void lapic_timer_calibrate(void) {
 }
 
 static void legacy_pic_disable(void) {
-    /* mask all PIC interrupts, */
+    // Mask all PIC interrupts
     outb(PIC1_DATA_PORT, 0xff);
     outb(PIC2_DATA_PORT, 0xff);
 
-    /* then remap PIC interrupts to 0x20 - 0x30 to avoid conflicts with builtin CPU exceptions */
+    // Remap PIC interrupts to 0x20 - 0x30 to avoid conflicts with builtin CPU exceptions
     outb(PIC1_COMMAND_PORT, 0x11);
     outb(PIC2_COMMAND_PORT, 0x11);
     outb(PIC1_DATA_PORT, 0x20);
@@ -108,7 +108,7 @@ void lapic_eoi(void) {
 }
 
 void lapic_send_ipi(uint32_t lapic_id, uint8_t vector) {
-    /* wait for previous IPI to finish delivery */
+    // Wait for previous IPI to finish delivery
     if (!use_x2apic) {
         while (lapic_read(LAPIC_REG_ICR_LOW) & (1 << 12)) {
             pause();

@@ -7,20 +7,20 @@
 syscall_entry:
     swapgs
 
-    // there aren't any syscalls (FOR NOW) that use all six arguments
-    // we use r9 to switch stacks because SYSV ABI says it is safe to clobber and in the meantime,
-    movq %gs:8, %r9
-    movq 0(%r9), %r9
-    xchg %r9, %rsp
+    movq %rax, %gs:32
 
-    push $0x1b
-    push %r9
+    movq %gs:8, %rax
+    movq 0(%rax), %rax
+    xchg %rax, %rsp
+
+    pushq $0x1b
+    push %rax
+    movq %gs:32, %rax
     push %r11
-    push $0x23
+    pushq $0x23
     push %rcx
 
     subq $16, %rsp
-
     push %rax
     push %rbx
     push %rcx
@@ -60,10 +60,9 @@ syscall_entry:
     pop %rcx
     pop %rbx
     pop %rax
+    addq $40, %rsp
 
-    addq $56, %rsp
-
-    mov %r9, %rsp
+    pop %rsp
     swapgs
     sysretq
 .size syscall_entry, . - syscall_entry

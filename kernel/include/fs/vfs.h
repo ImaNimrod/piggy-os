@@ -26,6 +26,7 @@
 #define S_IFSOCK    0x0d000
 
 #define VFS_FLAG_ROOT (1 << 0)
+#define VFS_FLAG_MMAP (1 << 1)
 
 #define VFS_STAT_ST_DEV     (1 << 0)
 #define VFS_STAT_ST_INO     (1 << 1)
@@ -66,6 +67,8 @@ struct vfs_node_ops {
     int (*truncate)(struct vfs_node*, off_t);
     short (*poll)(struct vfs_node*, short);
     int (*sync)(struct vfs_node*);
+    int (*mmap)(struct vfs_node*, void*, off_t, int, uint64_t);
+    int (*munmap)(struct vfs_node*, void*, off_t);
     ssize_t (*getdents)(struct vfs_node*, struct dirent*, size_t, off_t);
 
     int (*getstat)(struct vfs_node*, struct stat*);

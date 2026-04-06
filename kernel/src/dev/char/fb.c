@@ -1,3 +1,4 @@
+#include <cpu/smp.h>
 #include <dev/char/fb.h>
 #include <errno.h>
 #include <fs/devfs.h>
@@ -5,6 +6,7 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
@@ -79,14 +81,14 @@ extern struct limine_framebuffer_request framebuffer_request;
 
 struct flanterm_context* fb_context;
 
-static ssize_t fb_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
-static ssize_t fb_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 static int fb_ioctl(dev_t dev, int request, void* argp);
+static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_flags);
+static int fb_munmap(dev_t dev, void* addr, off_t offset);
 
 static struct device_ops fb_ops = {
-    .read = fb_read,
-    .write = fb_write,
     .ioctl = fb_ioctl,
+    .mmap = fb_mmap,
+    .munmap = fb_munmap,
 };
 
 static struct framebuffer_info* framebuffers;
@@ -98,62 +100,6 @@ static void* flanterm_alloc(size_t size) {
 
 static void flanterm_free(void* ptr, size_t size) {
     pmm_free((uintptr_t) ptr - HIGH_VMA, DIV_CEIL(size, PAGE_SIZE_4KB));
-}
-
-static ssize_t fb_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
-    (void) flags;
-
-    dev_t minor = minor(dev);
-    if ((unsigned) minor >= framebuffer_count) {
-        return -ENODEV;
-    }
-
-    struct framebuffer_info* framebuffer = &framebuffers[minor];
-
-    ssize_t end = framebuffer->fix_info.mmio_len;
-    if (offset >= end) {
-        return 0;
-    }
-
-    ssize_t actual_count = count;
-    if (actual_count + offset > end) {
-        actual_count = end - offset;
-    }
-
-    ssize_t ret = USER_MEMCPY_MAYBE_TO_USER(buf, (void*) (framebuffer->address + offset), actual_count);
-    if (ret < 0) {
-        return ret;
-    }
-
-    return actual_count;
-}
-
-static ssize_t fb_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
-    (void) flags;
-
-    dev_t minor = minor(dev);
-    if ((unsigned) minor >= framebuffer_count) {
-        return -ENODEV;
-    }
-
-    struct framebuffer_info* framebuffer = &framebuffers[minor];
-
-    ssize_t end = framebuffer->fix_info.mmio_len;
-    if (offset >= end) {
-        return 0;
-    }
-
-    ssize_t actual_count = count;
-    if (actual_count + offset > end) {
-        actual_count = end - offset;
-    }
-
-    ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (framebuffer->address + offset), buf, actual_count);
-    if (ret < 0) {
-        return ret;
-    }
-
-    return actual_count;
 }
 
 static int fb_ioctl(dev_t dev, int request, void* argp) {
@@ -185,6 +131,51 @@ static int fb_ioctl(dev_t dev, int request, void* argp) {
     return ret;
 }
 
+static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_flags) {
+    dev_t minor = minor(dev);
+    if (minor >= framebuffer_count) {
+        return -ENODEV;
+    }
+
+    struct framebuffer_info* framebuffer = &framebuffers[minor];
+    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+
+    if (flags & MAP_SHARED) {
+        pagemap_map(context->pagemap, (uintptr_t) addr, framebuffer->address + offset, pte_flags | PTE_WRITE_COMBINE, PAGE_SIZE_4KB);
+    } else {
+        off_t end = framebuffer->fix_info.mmio_len;
+        size_t size = offset + PAGE_SIZE_4KB < end ? PAGE_SIZE_4KB : end - offset;
+
+        uintptr_t paddr = pmm_alloc_zero(1);
+        memcpy((void*) (paddr + HIGH_VMA), (void*) (framebuffer->address + offset), size);
+        pagemap_map(context->pagemap, (uintptr_t) addr, paddr, pte_flags, PAGE_SIZE_4KB);
+    }
+
+    return 0;
+}
+
+static int fb_munmap(dev_t dev, void* addr, off_t offset) {
+    (void) offset;
+
+    dev_t minor = minor(dev);
+    if (minor >= framebuffer_count) {
+        return -ENODEV;
+    }
+
+    struct framebuffer_info* framebuffer = &framebuffers[minor];
+    if (offset >= framebuffer->fix_info.mmio_len) {
+        return 0;
+    }
+
+    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+
+    page_size_t page_size;
+    pagemap_unmap(context->pagemap, (uintptr_t) addr, &page_size);
+    pagemap_invalidate((uintptr_t) addr, page_size);
+
+    return 0;
+}
+
 void fb_dev_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
     if (unlikely(framebuffer_response->framebuffer_count == 0)) {
@@ -205,7 +196,7 @@ void fb_dev_init(void) {
                 i, limine_framebuffer->width, limine_framebuffer->height,
                 limine_framebuffer->bpp, limine_framebuffer->address);
 
-        framebuffer->address = (uintptr_t) limine_framebuffer->address;
+        framebuffer->address = (uintptr_t) limine_framebuffer->address - HIGH_VMA;
 
         struct fb_fix_screeninfo* fix_info = &framebuffer->fix_info;
         strncpy(fix_info->id, "LIMINE FB", sizeof(fix_info->id) - 1);

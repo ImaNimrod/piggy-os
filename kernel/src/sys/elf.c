@@ -91,7 +91,7 @@ static bool elf_verify(struct elf_header* header) {
 
 int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_node* node, struct auxvals* auxvals, char** interpreter) {
     if (node->type != VFS_TYPE_REGULAR) {
-        return -ENOEXEC;
+        return -EACCES;
     }
 
     int ret;
@@ -138,7 +138,7 @@ int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_no
                 }
 
                 vmm_map(vmm_context, load_base + ALIGN_DOWN(pheader.p_vaddr, PAGE_SIZE_4KB), page_count * PAGE_SIZE_4KB,
-                        prot, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, paddr);
+                        prot, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, NULL, 0, paddr);
 
                 if ((ret = node->ops->read(node, (void*) (paddr + HIGH_VMA + misalign), pheader.p_filesz, pheader.p_offset, 0)) < 0) {
                     goto end;

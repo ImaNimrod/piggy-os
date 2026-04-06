@@ -2,5 +2,6 @@
 *.img
 *.tar
 
+edk2-ovmf/
 toolchain/local/
 toolchain/tarballs/

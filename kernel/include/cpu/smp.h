@@ -10,12 +10,13 @@
 #include <utils/macros.h>
 
 struct cpu_local {
-    struct cpu_local* self;
+    struct cpu_local* self;         // do not move 
 
-    struct thread* running_thread;
-    struct thread* idle_thread;
+    struct thread* running_thread;  // do not move
+    struct thread* idle_thread;     // do not move
 
-    uintptr_t scheduler_stack;
+    uintptr_t scheduler_stack;      // do not move
+    uintptr_t scratch;              // do not move
 
     struct gdt gdt;
     struct tss tss;

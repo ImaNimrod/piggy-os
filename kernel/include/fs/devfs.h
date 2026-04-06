@@ -9,6 +9,8 @@ struct device_ops {
     int (*ioctl)(dev_t, int, void*);
     short (*poll)(dev_t, short);
     int (*sync)(dev_t);
+    int (*mmap)(dev_t, void*, off_t, int, uint64_t);
+    int (*munmap)(dev_t, void*, off_t);
 };
 
 int devfs_get(const char* name, struct vfs_node** result);

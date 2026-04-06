@@ -13,8 +13,6 @@
 static struct slab_cache* vmm_context_cache;
 static struct slab_cache* vmm_range_cache;
 
-// TODO: Implement support for memory mapping files
-// TODO: Implement support for MAP_SHARED
 // TODO: Implement copy-on-write support
 
 static inline uint64_t mmap_prot_to_pte_flags(int prot) {
@@ -41,13 +39,19 @@ static void free_unmapped_ranges(struct vmm_context* context) {
         page_size_t unused;
         for (size_t i = 0; i < range->size; i += PAGE_SIZE_4KB) {
             uintptr_t vaddr = range->base + i;
-            uint64_t entry = pagemap_get_mapping(context->pagemap, vaddr, &unused);
+            uintptr_t entry = pagemap_get_mapping(context->pagemap, vaddr, &unused);
             if (entry == 0) {
                 continue;
             }
 
-            pagemap_unmap(context->pagemap, vaddr, &unused);
-            pmm_free(entry & ~PTE_FLAG_MASK, 1);
+            if (range->flags & MAP_SHARED) {
+                range->node->ops->lock(range->node);
+                range->node->ops->munmap(range->node, (void*) vaddr, range->offset + i);
+                range->node->ops->unlock(range->node);
+            } else {
+                pagemap_unmap(context->pagemap, vaddr, &unused);
+                pmm_free(entry & ~PTE_FLAG_MASK, 1);
+            }
         }
 
         if (range->prev != NULL) {
@@ -340,15 +344,19 @@ void vmm_context_destroy(struct vmm_context* context) {
         page_size_t unused;
         for (size_t i = 0; i < range->size; i += PAGE_SIZE_4KB) {
             uintptr_t vaddr = range->base + i;
-            uintptr_t paddr = pagemap_get_mapping(context->pagemap, vaddr, &unused) & ~PTE_FLAG_MASK;
-            if (paddr == 0) {
+            uintptr_t entry = pagemap_get_mapping(context->pagemap, vaddr, &unused);
+            if (entry == 0) {
                 continue;
             }
 
-            pagemap_unmap(context->pagemap, vaddr, &unused);
-            pagemap_invalidate(vaddr, PAGE_SIZE_4KB);
-
-            pmm_free(paddr, 1);
+            if (range->flags & MAP_SHARED) {
+                range->node->ops->lock(range->node);
+                range->node->ops->munmap(range->node, (void*) vaddr, range->offset + i);
+                range->node->ops->unlock(range->node);
+            } else {
+                pagemap_unmap(context->pagemap, vaddr, &unused);
+                pmm_free(entry & ~PTE_FLAG_MASK, 1);
+            }
         }
 
         slab_cache_free(vmm_range_cache, range);
@@ -404,17 +412,13 @@ error:
     return NULL;
 }
 
-void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int prot, int flags, uintptr_t paddr) {
+void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int prot, int flags, struct vfs_node* node, off_t offset, uintptr_t paddr) {
     mutex_acquire(&context->mutex);
 
     void* ret = NULL;
     struct vmm_range* range = slab_cache_alloc(vmm_range_cache);
     if (unlikely(range == NULL)) {
         goto end;
-    }
-
-    if (!(flags & MAP_ANONYMOUS)) {
-        kpanic(NULL, true, "MMAPING FILES NOT SUPPORTED");
     }
 
     if (flags & MAP_FIXED) {
@@ -438,6 +442,12 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
         range->size = size;
         range->flags = flags;
         range->pte_flags = mmap_prot_to_pte_flags(prot);
+    }
+
+    if (node != NULL) {
+        range->node = node;
+        range->offset = offset;
+        VFS_NODE_REF(node);
     }
 
     if (paddr != 0) {
@@ -515,7 +525,9 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
     if (range->flags & MAP_ANONYMOUS) {
         pagemap_map(context->pagemap, fault_addr, pmm_alloc_zero(1), range->pte_flags, PAGE_SIZE_4KB);
     } else {
-        kpanic(NULL, false, "FILE MMAP TODO");
+        range->node->ops->lock(range->node);
+        range->node->ops->mmap(range->node, (void*) fault_addr, range->offset + (fault_addr - range->base), range->flags, range->pte_flags);
+        range->node->ops->unlock(range->node);
     }
 
     return true;

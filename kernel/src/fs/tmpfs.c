@@ -1,9 +1,11 @@
+#include <cpu/smp.h>
 #include <errno.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <mem/vmm.h>
 #include <sys/timer.h>
 #include <types.h>
 #include <utils/hashmap.h>
@@ -47,6 +49,8 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
 static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int tmpfs_truncate(struct vfs_node* node, off_t length);
 static int tmpfs_sync(struct vfs_node* node);
+static int tmpfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags);
+static int tmpfs_munmap(struct vfs_node* node, void* addr, off_t offset);
 static ssize_t tmpfs_getdents(struct vfs_node* node, struct dirent* buf, size_t count, off_t offset);
 static int tmpfs_getstat(struct vfs_node* node, struct stat* stat);
 static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
@@ -63,6 +67,8 @@ static struct vfs_node_ops tmpfs_node_ops = {
     .ioctl = tmpfs_ioctl,
     .truncate = tmpfs_truncate,
     .sync = tmpfs_sync,
+    .mmap = tmpfs_mmap,
+    .munmap = tmpfs_munmap,
     .getdents = tmpfs_getdents,
     .getstat = tmpfs_getstat,
     .setstat = tmpfs_setstat,
@@ -95,6 +101,8 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
             slab_cache_free(tmpfs_node_cache, node);
             return NULL;
         }
+
+        node->flags |= VFS_FLAG_MMAP;
     }
 
     node->type = type;
@@ -265,14 +273,14 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
         size_t page_off = file_off % PAGE_SIZE_4KB;
         size_t chunk = MIN(PAGE_SIZE_4KB - page_off, (size_t) to_read - done);
 
-        uintptr_t* paddr = (uintptr_t*) vector_get(tnode->pages, page_index);
+        uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, page_index);
 
         ssize_t ret;
 
-        if (paddr == NULL || *paddr == 0) {
+        if (page == NULL || *page == 0) {
             ret = USER_MEMSET_MAYBE_USER((uint8_t*) buf + done, 0, chunk);
         } else {
-            ret = USER_MEMCPY_MAYBE_TO_USER((uint8_t*) buf + done, (void*) (*paddr + page_off + HIGH_VMA), chunk);
+            ret = USER_MEMCPY_MAYBE_TO_USER((uint8_t*) buf + done, (void*) (*page + page_off + HIGH_VMA), chunk);
         }
 
         if (ret < 0) {
@@ -315,14 +323,14 @@ static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count,
             chunk = count - done;
         }
 
-        uintptr_t* slot = (uintptr_t*) vector_get(tnode->pages, page_index);
-        if (*slot == 0) {
+        uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, page_index);
+        if (*page == 0) {
             bool need_zero = page_off != 0 || chunk != PAGE_SIZE_4KB;
             uintptr_t new_page = need_zero ? pmm_alloc_zero(1) : pmm_alloc(1);
             vector_set(tnode->pages, page_index, &new_page);
         }
 
-        ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (*slot + page_off + HIGH_VMA), (uint8_t*) buf + done, chunk);
+        ssize_t ret = USER_MEMCPY_MAYBE_FROM_USER((void*) (*page + page_off + HIGH_VMA), (uint8_t*) buf + done, chunk);
         if (ret < 0) {
             return ret;
         }
@@ -383,6 +391,41 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
 
 static int tmpfs_sync(struct vfs_node* node) {
     (void) node;
+    return 0;
+}
+
+static int tmpfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags) {
+    struct tmpfs_node* tnode = (struct tmpfs_node*) node;
+    uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, offset / PAGE_SIZE_4KB);
+
+    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+
+    if (flags & MAP_SHARED) {
+        pagemap_map(context->pagemap, (uintptr_t) addr, *page, pte_flags, PAGE_SIZE_4KB);
+    } else {
+        off_t end = tnode->stat.st_size;
+        size_t size = offset + PAGE_SIZE_4KB < end ? PAGE_SIZE_4KB : end - offset;
+
+        uintptr_t paddr = pmm_alloc_zero(1);
+        memcpy((void*) (paddr + HIGH_VMA), (void*) (*page + HIGH_VMA), size);
+        pagemap_map(context->pagemap, (uintptr_t) addr, paddr, pte_flags, PAGE_SIZE_4KB);
+    }
+
+    return 0;
+}
+
+static int tmpfs_munmap(struct vfs_node* node, void* addr, off_t offset) {
+    struct tmpfs_node* tnode = (struct tmpfs_node*) node;
+    if (offset >= tnode->stat.st_size) {
+        return 0;
+    }
+
+    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+
+    page_size_t page_size;
+    pagemap_unmap(context->pagemap, (uintptr_t) addr, &page_size);
+    pagemap_invalidate((uintptr_t) addr, page_size);
+
     return 0;
 }
 

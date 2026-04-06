@@ -13,6 +13,7 @@
 
 #define MAP_FILE        0x00
 #define MAP_PRIVATE     0x01
+#define MAP_SHARED      0x02
 #define MAP_FIXED       0x04
 #define MAP_ANONYMOUS   0x08
 #define MAP_ANON        MAP_ANONYMOUS
@@ -22,6 +23,9 @@ struct vmm_range {
     size_t size;
     int flags;
     uint64_t pte_flags;
+
+    struct vfs_node* node;
+    off_t offset;
 
     struct vmm_range* prev;
     struct vmm_range* next;
@@ -36,7 +40,7 @@ struct vmm_context {
 struct vmm_context* vmm_context_create(void);
 void vmm_context_destroy(struct vmm_context* context);
 struct vmm_context* vmm_context_fork(struct vmm_context* old_context);
-void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int prot, int flags, uintptr_t paddr);
+void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int prot, int flags, struct vfs_node* node, off_t offset, uintptr_t paddr);
 int vmm_unmap(struct vmm_context* context, uintptr_t address, size_t size);
 int vmm_remap(struct vmm_context* context, uintptr_t address, size_t size, int prot);
 bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code);

@@ -35,6 +35,8 @@ static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int devfs_truncate(struct vfs_node* node, off_t length);
 static short devfs_poll(struct vfs_node* node, short events);
 static int devfs_sync(struct vfs_node* node);
+static int devfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags);
+static int devfs_munmap(struct vfs_node* node, void* addr, off_t offset);
 static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t count, off_t offset);
 static int devfs_getstat(struct vfs_node* node, struct stat* stat);
 static int devfs_setstat(struct vfs_node* node, const struct stat* stat, int flags);
@@ -50,6 +52,8 @@ static struct vfs_node_ops devfs_node_ops = {
     .truncate = devfs_truncate,
     .poll = devfs_poll,
     .sync = devfs_sync,
+    .mmap = devfs_mmap,
+    .munmap = devfs_munmap,
     .getdents = devfs_getdents,
     .getstat = devfs_getstat,
     .setstat = devfs_setstat,
@@ -166,6 +170,24 @@ static int devfs_sync(struct vfs_node* node) {
     return dnode->devops->sync(dnode->stat.st_rdev);
 }
 
+static int devfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+    if (dnode->devops->mmap == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->mmap(dnode->stat.st_rdev, addr, offset, flags, pte_flags);
+}
+
+static int devfs_munmap(struct vfs_node* node, void* addr, off_t offset) {
+    struct devfs_node* dnode = (struct devfs_node*) node;
+    if (dnode->devops->munmap == NULL) {
+        return -ENODEV;
+    }
+
+    return dnode->devops->munmap(dnode->stat.st_rdev, addr, offset);
+}
+
 static ssize_t devfs_getdents(struct vfs_node* node, struct dirent* buf, size_t count, off_t offset) {
     if (node != (struct vfs_node*) devfs_root_node) {
         return -ENODEV;
@@ -277,6 +299,10 @@ int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, de
     node->ops = &devfs_node_ops;
     node->filesystem = devfs_root_node->filesystem;
     node->refcount = 1;
+
+    if (ops->mmap != NULL && ops->munmap != NULL) {
+        node->flags |= VFS_FLAG_MMAP;
+    }
 
     node->stat.st_ino = __atomic_add_fetch(&inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(type);

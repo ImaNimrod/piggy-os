@@ -116,6 +116,10 @@ void pagemap_load(struct pagemap* pagemap) {
 void pagemap_map(struct pagemap* pagemap, uintptr_t vaddr, uintptr_t paddr, uint64_t flags, page_size_t size) {
     spinlock_acquire(&pagemap->lock);
 
+    if (!pat_supported) {
+        flags &= ~PTE_WRITE_COMBINE;
+    }
+
     size_t pml4_index = (vaddr >> 39) & 0x1ff;
     size_t pml3_index = (vaddr >> 30) & 0x1ff;
     size_t pml2_index = (vaddr >> 21) & 0x1ff;
@@ -387,7 +391,7 @@ void paging_init(void) {
                 flags |= PTE_WRITABLE;
                 break;
             case LIMINE_MEMMAP_FRAMEBUFFER:
-                flags |= PTE_WRITABLE | (pat_supported ? PTE_WRITE_COMBINE : 0);
+                flags |= PTE_WRITABLE | PTE_WRITE_COMBINE;
                 break;
             default:
                 continue;

@@ -8,7 +8,7 @@ EMUOPTS := -machine q35 \
 		   -no-reboot \
 		   -serial stdio \
 		   -rtc base=utc \
-		   -bios /usr/share/edk2/x64/OVMF.4m.fd
+		   -bios edk2-ovmf/ovmf-code-x86_64.fd
 
 NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))
 ifeq ($(NPROC),)
@@ -24,13 +24,13 @@ all: piggy.iso
 run: run-virtio
 
 .PHONY: run-minimal
-run-minimal:
+run-minimal: edk2-ovmf
 	$(EMU) $(EMUOPTS) \
 		-nic none \
 		-cdrom piggy.iso
 
 .PHONY: run-realhw
-run-realhw:
+run-realhw: edk2-ovmf
 	$(EMU) $(EMUOPTS) \
 		-drive file=disk.img,format=raw,if=none,id=disk \
 		-device nvme,drive=disk,serial=12345678 \
@@ -39,12 +39,15 @@ run-realhw:
 		-cdrom piggy.iso
 
 .PHONY: run-virtio
-run-virtio:
+run-virtio: edk2-ovmf
 	$(EMU) $(EMUOPTS) \
 		-drive id=disk,file=disk.img,format=raw,if=none -device virtio-blk-pci,drive=disk \
 		-netdev tap,id=net0,ifname=tap0,script=no,downscript=no \
 		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom piggy.iso
+
+edk2-ovmf:
+	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | gunzip | tar -xf -
 
 .PHONY: toolchain
 toolchain:
