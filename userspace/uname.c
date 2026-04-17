@@ -14,7 +14,7 @@ enum {
     PRINT_MACHINE   = 0x10,
 };
 
-static void print_info(char* str) {
+static void print_info(const char* str) {
     static bool space = false;
     if (space) {
         putchar(' ');

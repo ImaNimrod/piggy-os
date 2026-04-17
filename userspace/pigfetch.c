@@ -32,10 +32,7 @@ static const char* logo[] = {
     "                         @@@@@@@@@@@@@@                            ",
 };
 
-int main(int argc, char* argv[]) {
-    (void) argc;
-    (void) argv;
-
+int main(void) {
     struct utsname uts;
     if (uname(&uts) < 0) {
         err(EXIT_FAILURE, "uname");

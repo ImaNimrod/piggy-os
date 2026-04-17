@@ -9,7 +9,7 @@
 
 static char* buf;
 
-static int do_cat(char* filename, int fd) {
+static int do_cat(const char* filename, int fd) {
     ssize_t nread;
     while ((nread = read(fd, buf, BUFSIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, nread) != nread) {

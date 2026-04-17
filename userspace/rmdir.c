@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static int rmdir_parents(char* path, bool verbose) {
+static int rmdir_parents(const char* path, bool verbose) {
     char* p = path + strlen(path);
 
     while (p > path && p[-1] == '/') {

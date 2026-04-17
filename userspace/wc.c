@@ -19,7 +19,7 @@ static char* buf;
 static int print_mode;
 static size_t total_chars, total_lines, total_words;
 
-static int do_wc(char* filename, int fd) {
+static int do_wc(const char* filename, int fd) {
     size_t c = 0, l = 0, w = 0;
     bool in_word = false;
 

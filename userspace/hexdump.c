@@ -54,7 +54,7 @@ static int do_canonical_hexdump(char* filename, int fd) {
     return EXIT_SUCCESS;
 }
 
-static int do_hexdump(char* filename, int fd) {
+static int do_hexdump(const char* filename, int fd) {
     unsigned char buf[BYTES_PER_LINE];
     off_t offset = 0;
 

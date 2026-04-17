@@ -13,7 +13,7 @@ struct out_file {
     struct out_file* next;
 };
 
-static void add_file(struct out_file** head, int fd, char* filename) {
+static void add_file(struct out_file** head, int fd, const char* filename) {
     struct out_file* node = malloc(sizeof(struct out_file));
     if (node == NULL) {
         err(EXIT_FAILURE, "malloc");

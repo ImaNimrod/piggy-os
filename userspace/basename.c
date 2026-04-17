@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 static void usage(void) {
-    fprintf(stderr, "usage: basename [-z] NAME...");
+    fprintf(stderr, "usage: basename [-z] NAME...\n");
 }
 
 int main(int argc, char* argv[]) {

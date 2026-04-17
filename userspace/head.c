@@ -11,7 +11,7 @@
 
 static char* buf;
 
-static int head_bytes(char* filename, int fd, ssize_t count) {
+static int head_bytes(const char* filename, int fd, ssize_t count) {
     ssize_t nread = 0;
     while (count > 0 && (nread = read(fd, buf, count < BUFSIZE ? count : BUFSIZE)) > 0) {
         if (write(STDOUT_FILENO, buf, nread) != nread) {
@@ -29,7 +29,7 @@ static int head_bytes(char* filename, int fd, ssize_t count) {
     return EXIT_SUCCESS;
 }
 
-static int head_lines(char* filename, int fd, ssize_t count, char line_delimiter) {
+static int head_lines(const char* filename, int fd, ssize_t count, char line_delimiter) {
     if (count == 0) {
         return EXIT_SUCCESS;
     }

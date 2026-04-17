@@ -1,29 +1,31 @@
-#include <sys/stat.h>
 #include <sys/wait.h>
-
-#include <piggy/mount.h>
 
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <paths.h> 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-static void mount_filesystems(void) {
-    if (mkdir(_PATH_DEV, 0) < 0 && errno != EEXIST) {
-        errx(EXIT_FAILURE, "failed to mkdir %s for devfs", _PATH_DEV);
-    }
-    if (mount(NULL, _PATH_DEV, "devfs") < 0) {
-        errx(EXIT_FAILURE, "failed to mount devfs");
+static void run_rc_script(void) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        err(EXIT_FAILURE, "fork");
     }
 
-    if (mkdir(_PATH_TMP, 0) < 0 && errno != EEXIST) {
-        errx(EXIT_FAILURE, "failed to mkdir %s for tmpfs", _PATH_TMP);
+    if (pid == 0) {
+        char* const argv[] = { "/usr/bin/sh", "/etc/rc", NULL };
+        execve(argv[0], argv, (char* const []) { NULL });
+        err(EXIT_FAILURE, "execve");
     }
-    if (mount(NULL, _PATH_TMP, "tmpfs") < 0) {
-        errx(EXIT_FAILURE, "failed to mount tmpfs");
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < -1) {
+        err(EXIT_FAILURE, "waitpid");
+    }
+
+    if (WEXITSTATUS(status)) {
+        err(EXIT_FAILURE, "/etc/rc failed with status %d\n", WEXITSTATUS(status));
     }
 }
 
@@ -57,15 +59,19 @@ static int switch_terminal(const char* tty) {
     return 0;
 }
 
-int main() {
+int main(void) {
     if (getpid() != 1) {
         errx(EXIT_FAILURE, "init must be run from PID = 1");
     }
 
-    mount_filesystems();
+    run_rc_script();
 
     puts("\nhey pig...\n");
     fflush(stdout);
+
+    setenv("HOME", "/home", 1);
+    setenv("PATH", "/usr/bin", 1);
+    setenv("TERM", "linux", 1);
 
     for (;;) {
         pid_t pid = fork();
@@ -83,14 +89,7 @@ int main() {
                 NULL,
             };
 
-            char* envp[] = {
-                "HOME=/home",
-                "PATH=/usr/bin",
-                "TZ=UTC0",
-                NULL,
-            };
-
-            execve(argv[0], argv, envp);
+            execv(argv[0], argv);
             err(EXIT_FAILURE, "execve");
         } else {
             int status = 0;
@@ -98,6 +97,5 @@ int main() {
         }
     }
 
-    // should be impossible
-    return EXIT_FAILURE;
+    __builtin_unreachable();
 }

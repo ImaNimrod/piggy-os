@@ -11,7 +11,7 @@
 
 static char* buf;
 
-static int tail_bytes(char* filename, int fd, ssize_t count) {
+static int tail_bytes(const char* filename, int fd, ssize_t count) {
     off_t file_size = lseek(fd, 0, SEEK_END);
     if (file_size == -1) {
         warn("lseek(%s)", filename);
@@ -36,7 +36,7 @@ static int tail_bytes(char* filename, int fd, ssize_t count) {
     return EXIT_SUCCESS;
 }
 
-static int tail_lines(char* filename, int fd, ssize_t count, char line_delimiter) {
+static int tail_lines(const char* filename, int fd, ssize_t count, char line_delimiter) {
     if (count == 0) {
         return EXIT_SUCCESS;
     }

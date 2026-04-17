@@ -1,7 +1,5 @@
 #include <stdlib.h>
 
-int main(int argc, char* argv[]) {
-    (void) argc;
-    (void) argv;
+int main(void) {
     return EXIT_FAILURE;
 }

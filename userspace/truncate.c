@@ -11,7 +11,7 @@
 static bool io_blocks = false;
 static bool no_create = false;
 
-static int do_truncate(char* path, off_t size, char size_operator) {
+static int do_truncate(const char* path, off_t size, char size_operator) {
     int fd = open(path, O_WRONLY | (no_create ? 0 : O_CREAT));
     if (fd < 0) {
         if (!(no_create && errno == ENOENT)) {
