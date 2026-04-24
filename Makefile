@@ -47,7 +47,7 @@ run-virtio: edk2-ovmf
 		-cdrom piggy.iso
 
 edk2-ovmf:
-	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | gunzip | tar -xf -
+	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | tar -xzf -
 
 .PHONY: toolchain
 toolchain:
@@ -67,7 +67,7 @@ kernel: kernel/build
 	cd kernel; meson compile --jobs $(NPROC) -C build
 
 kernel/build:
-	cd kernel; meson setup --cross-file=../meta/crossfile.txt build
+	cd kernel; meson setup --cross-file=../toolchain/meson-crossfile.txt build
 
 .PHONY: libc
 libc: libc/build
@@ -75,11 +75,15 @@ libc: libc/build
 	cd libc; meson install -C build
 
 libc/build:
-	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../meta/crossfile.txt -Dheaders_only=false build
+	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../toolchain/meson-crossfile.txt -Dheaders_only=false build
 
 .PHONY: userspace
-userspace:
-	$(MAKE) -C userspace
+userspace: userspace/build
+	cd userspace; meson compile --jobs $(NPROC) -C build
+	cd userspace; meson install -C build
+
+userspace/build:
+	cd userspace; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../toolchain/meson-crossfile.txt build
 
 .PHONY: initrd
 initrd:
@@ -106,7 +110,8 @@ piggy.iso: limine/limine kernel libc userspace initrd
 
 .PHONY: clean
 clean:
-	$(RM) -r iso_root kernel/build libc/build piggy.iso initrd.tar
+	$(RM) -r iso_root kernel/build libc/build userspace/build
+	$(RM) piggy.iso initrd.tar
 	$(MAKE) -C userspace clean
 
 .PHONY: distclean

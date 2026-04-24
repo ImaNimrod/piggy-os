@@ -1,0 +1,97 @@
+.TH MORE "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+more \- display the contents of a file in the terminal
+
+.SH SYNOPSIS
+.B more
+[\fI\,FILE\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Page through the contents of FILE(s) one line or screen at a time.
+
+.PP
+With no FILE, or when FILE is \-, read standard input.
+
+.SH OPTIONS
+None.
+
+.SH COMMANDS
+
+\fBSPACE\fP
+.RS 4
+Display next screen of text.
+.RE
+.sp
+
+\fBRETURN\fP
+.RS 4
+Display next line of text.
+.RE
+.sp
+
+\fBb\fP
+.RS 4
+Display previous screen of text.
+.RE
+.sp
+
+\fBf\fP
+.RS 4
+Display next screen of text.
+.RE
+.sp
+
+\fBd\fP
+.RS 4
+Skip backward one half of a screen of text.
+.RE
+.sp
+
+\fBu\fP
+.RS 4
+Skip forward one half of a screen of text.
+.RE
+.sp
+
+\fBj\fP
+.RS 4
+Skip backward one line of text.
+.RE
+.sp
+
+\fBk\fP
+.RS 4
+Skip forward one line of text.
+.RE
+.sp
+
+\fBg\fP
+.RS 4
+Skip backward to the first page of text.
+.RE
+.sp
+
+\fBG\fP
+.RS 4
+Skip forward to the final page of text.
+.RE
+.sp
+
+\fBq\fP or \fBQ\fP
+.RS 4
+Exit.
+.RE
+.sp
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

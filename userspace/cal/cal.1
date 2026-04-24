@@ -1,0 +1,42 @@
+.TH CAL "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+cal \- display a calendar
+
+.SH SYNOPSIS
+.B cal
+[\fI\,OPTION\/\fR]... [\fI\,YEAR\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Display a calendar. If no arguments are specfied, the current month is displayed.
+MONTH can be specified as a number 1-12.
+
+.SH OPTIONS
+
+.TP
+.B \-3
+display three months spanning the specified date
+
+.TP
+.B \-n NUMBER
+display NUMBER of months, starting from the current month
+
+.TP
+.B \-y
+display a calendar for the current year
+
+.TP
+.B \-Y
+display a calendar for the next twelve months
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

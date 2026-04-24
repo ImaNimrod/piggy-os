@@ -1,0 +1,50 @@
+.TH UNAME "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+uname \- print system information
+
+.SH SYNOPSIS
+.B uname
+[\fI\,OPTION\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Print certain system information.
+With no OPTION(s), the default is equivalvent to the \fB\-s\fP.
+
+.SH OPTIONS
+
+.TP
+.B \-a
+print all information, in order of the subsequent options
+
+.TP
+.B \-s
+print the kernel name
+
+.TP
+.B \-n
+print the hostname
+
+.TP
+.B \-r
+print the kernel release
+
+.TP
+.B \-v
+print the kernel version
+
+.TP
+.B \-m
+print the machine hardware architecture name
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

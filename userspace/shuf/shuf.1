@@ -1,0 +1,47 @@
+.TH SHUF "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+shuf \- generate random permutations
+
+.SH SYNOPSIS
+.B shuf
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]
+.br
+.B shuf
+-e [\fI\,OPTION\/\fR]... [\fI\,ARG\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Write a random permutation of the input lines to standard output.
+
+.PP
+With no FILE, or when FILE is \-, read standard input.
+
+.SH OPTIONS
+
+.TP
+.B \-n
+treat each ARG as an input line
+
+.TP
+.B \-n COUNT
+at most COUNT lines are printed
+
+.TP
+.B \-r
+lines may be repeated
+
+.TP
+.B \-z
+line delimiter is NUL, not newline
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

@@ -5,3 +5,6 @@ mount /dev:devfs
 
 mkdir /tmp
 mount /tmp:tmpfs
+
+echo synchronizing system clock with hardware clock...
+hwclock -h

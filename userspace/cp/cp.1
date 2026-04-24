@@ -1,0 +1,40 @@
+.TH CP "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+cp \- copy files or directories
+
+.SH SYNOPSIS
+.B cp
+[\fI\,OPTION\/\fR]... \fI\,SOURCE DESTINATION\/\fR
+.br
+.B cp
+[\fI\,OPTION\/\fR]... \fI\,SOURCE\/\fR... \fI\,DIRECTORY\/\fR
+
+.SH DESCRIPTION
+
+.PP
+Copy SOURCE to DESTINATION, or multiple SOURCE(s) to DIRECTORY.
+
+.SH OPTIONS
+
+.TP
+.B \-f
+if an existing destination file cannot be opened, remove it and try again
+
+.TP
+.B \-i
+prompt before overwrite
+
+.TP
+.B \-p
+preserve file timestamps
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

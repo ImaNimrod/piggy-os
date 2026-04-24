@@ -1,0 +1,44 @@
+.TH TRUNCATE "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+truncate \- shrink or extend the size of a file to a specified size
+
+.SH SYNOPSIS
+.B truncate
+\fI\,OPTION\/\fR... \fI\,FILE\/\fR...
+
+.SH DESCRIPTION
+
+.PP
+Shrink or extend the size of each FILE to the specified size
+
+.PP
+A FILE argument that does not exist is created.
+
+.PP
+The SIZE argument is an integer.
+It may be prefixed by one of the following modifying characters: '+' extend by, '-' reduce by, '<' at most, '>' at least.
+
+.SH OPTIONS
+
+.TP
+.B \-c
+do not create any files
+
+.TP
+.B \-o
+interpret SIZE as number of IO blocks instead of bytes
+
+.TP
+.B \-s SIZE
+set or adjust the file size by SIZE bytes
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

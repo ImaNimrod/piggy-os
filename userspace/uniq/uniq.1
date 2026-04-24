@@ -1,0 +1,41 @@
+.TH UNIQ "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+uniq \- print or omit repeated lines
+
+.SH SYNOPSIS
+.B uniq
+[\fI\,OPTION\/\fR]... [\fI\,INPUT \/\fR[\fI\,OUTPUT\/\fR]]
+
+.SH DESCRIPTION
+
+.PP
+Filter adjacent repeated lines from INPUT (standard input if none is specified) and write them to OUTPUT (standard output if none is specified).
+
+.SH OPTIONS
+
+.TP
+.B \-d
+only print duplicate lines
+
+.TP
+.B \-i
+ignore case when comparing lines
+
+.TP
+.B \-u
+only print unique lines
+
+.TP
+.B \-z
+line delimiter is NUL, not newline
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

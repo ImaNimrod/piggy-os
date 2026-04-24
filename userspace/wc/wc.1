@@ -1,0 +1,44 @@
+.TH WC "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+wc \- print newline, word, and byte counts for each file
+
+.SH SYNOPSIS
+.B wc
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Print newline, word, and byte counts for each FILE, and if more than one FILE is provided, a total will also be printed.
+A word is a nonempty sequence of non wnite space delimited by white space characters or by start or end of input.
+
+.PP
+With no FILE, or when FILE is \-, read standard input.
+
+.PP
+Counts are always printed in the following order: newline, word, byte.
+
+.SH OPTIONS
+
+.TP
+.B \-c
+print the byte counts
+
+.TP
+.B \-l
+print the newline counts
+
+.TP
+.B \-w
+print the word counts
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

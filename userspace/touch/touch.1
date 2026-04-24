@@ -1,0 +1,40 @@
+.TH TOUCH "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+touch \- create file, or change file timestamps
+
+.SH SYNOPSIS
+.B touch
+[\fI\,OPTION\/\fR]... \fI\,FILE\/\fR...
+
+.SH DESCRIPTION
+
+.PP
+Update the access and modifications times of each FILE to the current time.
+
+.PP
+A FILE argument that does not exist is created empty, unless -c is supplied.
+
+.SH OPTIONS
+
+.TP
+.B \-a
+only update the access time
+
+.TP
+.B \-c
+do not create any files
+
+.TP
+.B \-m
+only update the modification time
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

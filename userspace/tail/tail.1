@@ -1,0 +1,47 @@
+.TH TAIL "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+tail \- output the last part of files
+
+.SH DESCRIPTION
+.B tail
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+
+.PP
+Print the last 10 lines of each FILE to standard output.
+If more than one FILE is provided, each is preceded with a header giving the file name.
+
+.PP
+With no FILE, or when FILE is \-, read standard input.
+
+.SH OPTIONS
+
+.TP
+.B \-c NUM
+output the last NUM bytes
+
+.TP
+.B \-n NUM
+output the last NUM lines
+
+.TP
+.B \-q
+never output headers giving file names
+
+.TP
+.B \-v
+always output headers giving file names
+
+.TP
+.B \-z
+line delimiter is NUL, not newline
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

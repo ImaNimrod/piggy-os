@@ -1,5 +1,5 @@
 project(
-  'piggy-os',
+  'kernel',
   'c',
   default_options: ['c_std=gnu99', 'debug=true', 'optimization=2', 'warning_level=2'],
 )
@@ -103,6 +103,7 @@ kernel_sources = files(
   'src/fs/devfs.c',
   'src/fs/file.c',
   'src/fs/initrd.c',
+  'src/fs/pipe.c',
   'src/fs/tmpfs.c',
   'src/fs/vfs.c',
 
@@ -192,4 +193,9 @@ kernel_sources += uacpi_sources
 uacpi_includes = uacpi.get_variable('includes')
 kernel_includes += uacpi_includes
 
-executable('kernel.elf', kernel_sources, include_directories: kernel_includes, install: true)
+executable(
+  'kernel.elf',
+  kernel_sources,
+  include_directories: kernel_includes,
+  install: true,
+)

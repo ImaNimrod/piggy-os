@@ -1,0 +1,27 @@
+.TH MOUNT "8" "April 2026" "PiggyOS" "System Administration"
+
+.SH NAME
+mount \- mount a filesystem
+
+.SH SYNOPSIS
+.B mount
+[\fI\,DEVICE\/\fR] \fI\,DIRECTORY\/\fR:\fI\,FSTYPE\/\fR
+
+.SH DESCRIPTION
+
+.PP
+Mount a filesystem on DEVICE with type FSTYPE to the specified DIRECTORY.
+DEVICE is optional because some filesystems (devfs, tmpfs) are not backed by a block device.
+
+.SH OPTIONS
+None.
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

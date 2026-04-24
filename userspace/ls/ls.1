@@ -1,0 +1,68 @@
+.TH LS "1" "April 2026" "PiggyOS" "User Commands"
+.SH NAME
+ls \- list directory contents
+
+.SH SYNOPSIS
+.B ls
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+List information about the FILE(s).
+Entries are sorted alphabetically by default.
+
+.PP
+With no FILE, entires in the current directory are displayed
+
+.SH OPTIONS
+
+.TP
+.B \-1
+list one file per line
+
+.TP
+.B \-a
+do not ignore entries starting with .
+
+.TP
+.B \-A
+do not list implied . and .. entries
+
+.TP
+.B \-C
+list entries by columns
+
+.TP
+.B \-f
+same as -a -U
+
+.TP
+.B \-F
+append file type classification indicator to entries
+
+.TP
+.B \-l
+use a long listing format
+
+.TP
+.B \-S
+sort entries by file size from largest to smallest
+
+.TP
+.B \-t
+sort entires by time from newest to oldest
+
+.TP
+.B \-U
+do not sort entries
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

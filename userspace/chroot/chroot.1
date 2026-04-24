@@ -1,0 +1,27 @@
+.TH CHROOT "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+chroot \- run command or shell with updated root directory
+
+.SH SYNOPSIS
+.B chroot
+\fI\,NEWROOT\/\fR [\fI\,COMMAND\/\fR [\fI\,ARG\/\fR\]...]
+
+.SH DESCRIPTION
+
+.PP
+Run COMMAND with root directory set to NEWROOT. If not COMMAND is given, run '$SHELL -i' 
+(defaults to '/usr/bin/sh -i').
+
+.SH OPTIONS
+None.
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

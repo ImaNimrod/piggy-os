@@ -1,0 +1,38 @@
+.TH RM "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+rm \- remove files or directories
+
+.SH SYNOPSIS
+.B rm
+[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Remove the specified FILE(s).
+By default, do not remove directories.
+
+.SH OPTIONS
+
+.TP
+.B \-f
+do not prompt, ignore nonexistent files and arguments
+
+.TP
+.B \-i
+prompt before every removal
+
+.TP
+.B \-r
+remove directories and their contents recursively
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

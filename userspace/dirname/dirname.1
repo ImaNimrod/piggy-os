@@ -1,0 +1,30 @@
+.TH DIRNAME "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+dirname \- strip last component from filenames
+
+.SH SYNOPSIS
+.B dirname
+[\fI\,OPTION\/\fR]... \fI\,NAME\/\fR...
+
+.SH DESCRIPTION
+
+.PP
+Print the directory component of each NAME.
+If NAME contains no slashes, output '.' to indicate the current directory.
+
+.SH OPTIONS
+
+.TP
+.B \-z
+line delimiter is NUL, not newline
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.
