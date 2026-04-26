@@ -5,7 +5,7 @@
 void semaphore_init(semaphore_t* s, uint64_t value) {
     s->value = value;
     s->waiters = NULL;
-    spinlock_init(&s->value);
+    spinlock_init(&s->lock);
 }
 
 void semaphore_reset(semaphore_t* s) {
@@ -53,6 +53,5 @@ void semaphore_wait(semaphore_t* s) {
         iter->next_waiter = this_cpu()->running_thread;
     }
 
-    spinlock_release_irqsave(&s->lock, int_state);
-    scheduler_block(this_cpu()->running_thread);
+    scheduler_block_and_release(this_cpu()->running_thread, &s->lock, int_state);
 }

@@ -283,6 +283,9 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     thread->registers.ss = 0x10;
     thread->registers.rsp = thread->kernel_stack;
 
+    spinlock_init(&thread->run_lock);
+    spinlock_init(&thread->yield_lock);
+
     spinlock_acquire(&kernel_process->lock);
 
     thread->tid = vector_size(kernel_process->threads);
@@ -321,6 +324,9 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
 
     thread->fs_base = 0;
     thread->gs_base = 0;
+
+    spinlock_init(&thread->run_lock);
+    spinlock_init(&thread->yield_lock);
 
     thread->tid = vector_size(process->threads);
     vector_push(process->threads, &thread);

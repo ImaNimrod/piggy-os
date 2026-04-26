@@ -13,15 +13,18 @@
 extern void context_switch(struct registers* r);
 extern void context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
 
-static struct thread* thread_list;
-static spinlock_t thread_state_lock;
+static struct thread* blocked_thread_list;
+static spinlock_t running_thread_list_lock;
+
+static struct thread* running_thread_list;
+static spinlock_t blocked_thread_list_lock;
 
 static struct thread* get_next_runnable_thread(struct thread* current_thread) {
-    spinlock_acquire(&thread_state_lock);
+    spinlock_acquire(&running_thread_list_lock);
 
     struct thread* iter;
     if (current_thread == NULL || current_thread == this_cpu()->idle_thread) {
-        iter = thread_list;
+        iter = running_thread_list;
     } else {
         iter = current_thread->next;
     }
@@ -33,14 +36,14 @@ static struct thread* get_next_runnable_thread(struct thread* current_thread) {
         }
 
         if (spinlock_test_and_acquire(&iter->run_lock)) {
-            spinlock_release(&thread_state_lock);
+            spinlock_release(&running_thread_list_lock);
             return iter;
         }
 
         iter = iter->next;
     }
 
-    spinlock_release(&thread_state_lock);
+    spinlock_release(&running_thread_list_lock);
     return NULL;
 }
 
@@ -132,17 +135,27 @@ NORETURN static void thread_exit_internal(struct registers* r, void* arg) {
 }
 
 void scheduler_block(struct thread* t) {
-    spinlock_acquire(&thread_state_lock);
+    spinlock_acquire(&running_thread_list_lock);
+    SLIST_REMOVE(running_thread_list, t);
+    spinlock_release(&running_thread_list_lock);
+
+    spinlock_acquire(&blocked_thread_list_lock);
     t->state = THREAD_BLOCKED;
-    spinlock_release(&thread_state_lock);
+    SLIST_PUSH_BACK(blocked_thread_list, t);
+    spinlock_release(&blocked_thread_list_lock);
 
     scheduler_yield(true);
 }
 
 void scheduler_block_and_release(struct thread* t, spinlock_t* lock, bool int_state) {
-    spinlock_acquire(&thread_state_lock);
+    spinlock_acquire(&running_thread_list_lock);
+    SLIST_REMOVE(running_thread_list, t);
+    spinlock_release(&running_thread_list_lock);
+
+    spinlock_acquire(&blocked_thread_list_lock);
     t->state = THREAD_BLOCKED;
-    spinlock_release(&thread_state_lock);
+    SLIST_PUSH_BACK(blocked_thread_list, t);
+    spinlock_release(&blocked_thread_list_lock);
 
     spinlock_release_irqsave(lock, int_state);
 
@@ -150,15 +163,15 @@ void scheduler_block_and_release(struct thread* t, spinlock_t* lock, bool int_st
 }
 
 void scheduler_dequeue(struct thread* t) {
-    spinlock_acquire(&thread_state_lock);
-    SLIST_REMOVE(thread_list, t);
-    spinlock_release(&thread_state_lock);
+    spinlock_acquire(&running_thread_list_lock);
+    SLIST_REMOVE(running_thread_list, t);
+    spinlock_release(&running_thread_list_lock);
 }
 
 void scheduler_enqueue(struct thread* t) {
-    spinlock_acquire(&thread_state_lock);
-    SLIST_PUSH_BACK(thread_list, t);
-    spinlock_release(&thread_state_lock);
+    spinlock_acquire(&running_thread_list_lock);
+    SLIST_PUSH_BACK(running_thread_list, t);
+    spinlock_release(&running_thread_list_lock);
 }
 
 void scheduler_sleep(struct thread* t, const struct timespec* tp) {
@@ -173,11 +186,16 @@ NORETURN void scheduler_thread_exit(void) {
 }
 
 void scheduler_unblock(struct thread* t) {
-    spinlock_acquire(&thread_state_lock);
+    spinlock_acquire(&blocked_thread_list_lock);
+    SLIST_REMOVE(blocked_thread_list, t);
+    spinlock_release(&blocked_thread_list_lock);
+
+    spinlock_acquire(&running_thread_list_lock);
     if (t->state == THREAD_BLOCKED) {
         t->state = THREAD_READY;
     }
-    spinlock_release(&thread_state_lock);
+    SLIST_PUSH_BACK(running_thread_list, t);
+    spinlock_release(&running_thread_list_lock);
 }
 
 void scheduler_yield(bool save) {
@@ -190,6 +208,7 @@ void scheduler_yield(bool save) {
     }
 
     lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
+    sti();
 
     if (save) {
         spinlock_acquire(&thread->yield_lock);

@@ -50,11 +50,13 @@ static size_t mcfg_entry_count;
 static struct slab_cache* pci_device_cache;
 static vector_t* pci_devices;
 static struct pci_driver* pci_drivers[] = {
+    /*
     &ahci_driver,
+    &xhci_driver,
+    */
     &e1000_driver,
     &nvme_driver,
     &virtio_driver,
-    &xhci_driver,
 };
 
 static uint32_t (*internal_read)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint8_t) = NULL;

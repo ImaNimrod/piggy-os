@@ -316,4 +316,6 @@ void block_init(void) {
     if (unlikely(block_devices == NULL)) {
         kpanic(NULL, false, "failed to create block device map");
     }
+
+    mutex_init(&block_devices_mutex);
 }

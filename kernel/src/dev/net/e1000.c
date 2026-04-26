@@ -421,7 +421,7 @@ static void e1000_init(struct pci_device* pci_dev) {
 
     reset(device);
 
-    /* setup device for normal operation */
+    // Setup device for normal operation
     uint32_t ctrl = e1000_read(device, E1000_REG_CTRL);
     ctrl &= ~CTRL_LRST;
     ctrl &= ~CTRL_ILOS;
@@ -446,15 +446,15 @@ static void e1000_init(struct pci_device* pci_dev) {
 
     isr_register_handler(vector, e1000_irq_handler, device);
 
-    /* start link and enable automatic link speed detection */
+    // Start link and enable automatic link speed detection
     e1000_write(device, E1000_REG_CTRL, e1000_read(device, E1000_REG_CTRL) | CTRL_SLU | CTRL_ASDE);
 
-    /* clear statistic registers */ 
+    // Clear statistic registers
     for (size_t i = 0; i < 64; i++) {
         e1000_read(device, E1000_REG_CRCERRS + (i * 4));
     }
 
-    /* clear the multicast table array */ 
+    // Clear the multicast table array
     for (size_t i = 0; i < 128; i++) {
         e1000_write(device, E1000_REG_MTA + (i * 4), 0);
     }
@@ -464,7 +464,7 @@ static void e1000_init(struct pci_device* pci_dev) {
 
     e1000_write(device, E1000_REG_ITR, 0);
 
-    /* renable desired interrupts */
+    // Renable desired interrupts
     e1000_write(device, E1000_REG_IMS, INT_TXDW | INT_TXQE | INT_LSC | INT_RXDMT0 | INT_RXO | INT_RXT0);
     e1000_read(device, E1000_REG_ICR);
 

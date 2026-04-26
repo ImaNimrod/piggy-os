@@ -55,14 +55,14 @@ void _putchar(char c) {
 }
 
 void klog(const char* fmt, ...) {
-    spinlock_acquire(&print_lock);
+    bool int_state = spinlock_acquire_irqsave(&print_lock);
 
     va_list args;
     va_start(args, fmt);
     vprintf(fmt, args);
     va_end(args);
 
-    spinlock_release(&print_lock);
+    spinlock_release_irqsave(&print_lock, int_state);
 }
 
 NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...) {
