@@ -29,7 +29,7 @@ static int tail_bytes(const char* filename, int fd, ssize_t count) {
     }
 
     if (nread < 0) {
-        warn(filename);
+        warn("%s", filename);
         return EXIT_FAILURE;
     }
 
@@ -76,7 +76,7 @@ done:
     }
 
     if (nread < 0) {
-        warn(filename);
+        warn("%s", filename);
         return EXIT_FAILURE;
     }
 
@@ -151,8 +151,8 @@ int main(int argc, char* argv[]) {
 
     int ret = EXIT_SUCCESS;
 
-    int fd;
     char* filename;
+    int fd;
 
     int i = 0;
     while (argv[i] != NULL || i == 0) {
@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn(filename);
+            warn("cannot open '%s'", filename);
             ret = EXIT_FAILURE;
         } else {
             if (verbose || (!quiet && argc > 1)) {

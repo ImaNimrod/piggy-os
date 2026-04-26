@@ -59,6 +59,7 @@ struct vfs_ops {
 struct vfs_node_ops {
     int (*create)(struct vfs_node*, char*, vfs_type_t, struct vfs_node**);
     int (*lookup)(struct vfs_node*, char*, struct vfs_node**);
+    int (*rename)(struct vfs_node*, struct vfs_node*, char*, struct vfs_node*, char*);
     int (*unlink)(struct vfs_node*, char*, struct vfs_node**);
 
     ssize_t (*read)(struct vfs_node*, void*, size_t, off_t, int);
@@ -103,7 +104,8 @@ extern struct vfs_node* vfs_root;
 #define VFS_NODE_REF(node) __atomic_add_fetch(&(node)->refcount, 1, __ATOMIC_SEQ_CST)
 #define VFS_NODE_UNREF(node) do { \
     if (__atomic_sub_fetch(&(node)->refcount, 1, __ATOMIC_SEQ_CST) == 0) { \
-        (node)->ops->inactive((node)); \
+        (node)->ops->inactive((struct vfs_node*) (node)); \
+        (node) = NULL; \
     } \
 } while (0)
 
@@ -151,6 +153,7 @@ static inline mode_t vfs_type_to_mode(vfs_type_t type) {
 int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name);
 int vfs_unmount(struct vfs_node* target_reference, const char* target_path);
 int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, struct vfs_node** result);
+int vfs_rename(struct vfs_node* src, const char* src_path, struct vfs_node* dest, const char* dest_path);
 int vfs_unlink(struct vfs_node* reference, const char* path);
 int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent, char* last_component, struct vfs_node** result);
 bool vfs_register_fs(const char* name, struct vfs_ops* ops);

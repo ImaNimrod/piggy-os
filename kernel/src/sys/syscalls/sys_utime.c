@@ -92,13 +92,12 @@ void sys_utime(struct registers* r) {
         }
 
         struct vfs_node* node;
-        if ((ret = vfs_lookup(dirnode, kpath, false, NULL, &node)) < 0) {
-            goto end;
-        }
-        ret = node->ops->setstat(node, &stat, setstat_flags);
-        node->ops->unlock(node);
+        if ((ret = vfs_lookup(dirnode, kpath, false, NULL, &node)) == 0) {
+            ret = node->ops->setstat(node, &stat, setstat_flags);
 
-        file_cleanup_dirfd(dirfile, dirnode);
+            node->ops->unlock(node);
+            file_cleanup_dirfd(dirfile, dirnode);
+        }
 
 end:
         kfree(kpath);

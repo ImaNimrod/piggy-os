@@ -15,7 +15,7 @@ static int do_truncate(const char* path, off_t size, char size_operator) {
     int fd = open(path, O_WRONLY | (no_create ? 0 : O_CREAT));
     if (fd < 0) {
         if (!(no_create && errno == ENOENT)) {
-            warn(path);
+            warn("cannot access '%s'", path);
         }
 
         return EXIT_FAILURE;
@@ -26,7 +26,7 @@ static int do_truncate(const char* path, off_t size, char size_operator) {
     struct stat st;
 
     if (fstat(fd, &st) < 0) {
-        warn(path);
+        warn("%s", path);
         ret = EXIT_FAILURE;
         goto end;
     }
@@ -35,7 +35,7 @@ static int do_truncate(const char* path, off_t size, char size_operator) {
 
     if (io_blocks) {
         if (__builtin_mul_overflow(st.st_blksize, size, &size)) {
-            warnx("overflow when calculating new size of %s\n", path);
+            warnx("overflow when calculating new size of '%s'", path);
             ret = EXIT_FAILURE;
             goto end;
         }
@@ -44,14 +44,14 @@ static int do_truncate(const char* path, off_t size, char size_operator) {
     switch (size_operator) {
         case '+':
             if (__builtin_add_overflow(st.st_size, size, &actual_size)) {
-                warnx("overflow when extending size of %s\n", path);
+                warnx("overflow when extending size of '%s'", path);
                 ret = EXIT_FAILURE;
                 goto end;
             }
             break;
         case '-':
             if (__builtin_sub_overflow(st.st_size, size, &actual_size)) {
-                warnx("overflow when reducing size of %s\n", path);
+                warnx("overflow when reducing size of '%s'", path);
                 ret = EXIT_FAILURE;
                 goto end;
             }
@@ -68,7 +68,7 @@ static int do_truncate(const char* path, off_t size, char size_operator) {
     }
 
     if (ftruncate(fd, actual_size) < 0) {
-        warn(path);
+        warn("ftruncate(%s)", path);
         ret = EXIT_FAILURE;
         goto end;
     }
@@ -110,7 +110,7 @@ int main(int argc, char* argv[]) {
 
                 size = strtol(size_arg, &end_ptr, 10);
                 if (errno != 0 || size < 0 || *end_ptr) {
-                    warnx("invalid size argument '%s'", optarg);
+                    warnx("invalid size argument: '%s'", optarg);
                     usage();
                 }
                 break;

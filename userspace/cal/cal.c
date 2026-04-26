@@ -1,3 +1,5 @@
+#include <sys/param.h>
+
 #include <err.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -6,8 +8,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 enum {
     MODE_DEFAULT,

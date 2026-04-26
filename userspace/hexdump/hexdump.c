@@ -43,7 +43,7 @@ static int do_canonical_hexdump(char* filename, int fd) {
     }
 
     if (nread < 0) {
-        warn(filename);
+        warn("%s", filename);
         return EXIT_FAILURE;
     }
 
@@ -74,7 +74,7 @@ static int do_hexdump(const char* filename, int fd) {
     }
 
     if (nread < 0) {
-        warn(filename);
+        warn("%s", filename);
         return EXIT_FAILURE;
     }
 
@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn(filename);
+            warn("%s", filename);
             ret = EXIT_FAILURE;
         } else {
             if (i != 0) {

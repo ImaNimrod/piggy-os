@@ -22,7 +22,7 @@ static void usage(void);
 static int hardware_to_system(void) {
     int rtc = open(_PATH_DEVRTC, O_RDONLY);
     if (rtc < 0) {
-        warn("open");
+        warn("open(%s)", _PATH_DEVRTC);
         return EXIT_FAILURE;
     }
 
@@ -46,8 +46,8 @@ static int hardware_to_system(void) {
     tm_time.tm_year = rtc_time.year - 1900;
 
     time_t epoch = mktime(&tm_time);
-    if (epoch == -1) {
-        warn("mktime");
+    if (epoch == (time_t) -1) {
+        warnx("mktime");
         return EXIT_FAILURE;
     }
 
@@ -69,7 +69,7 @@ static void multiple_actions(void) {
 static int print_hardware_timestamp(void) {
     int rtc = open(_PATH_DEVRTC, O_RDONLY);
     if (rtc < 0) {
-        warn("open");
+        warn("open(%s)", _PATH_DEVRTC);
         return EXIT_FAILURE;
     }
 

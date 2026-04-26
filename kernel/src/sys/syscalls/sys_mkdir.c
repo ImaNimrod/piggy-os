@@ -37,14 +37,11 @@ void sys_mkdir(struct registers* r) {
 
     struct file* dirfile = NULL;
     struct vfs_node* dirnode = NULL;
-    if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) < 0) {
-        kfree(kpath);
-        r->rax = ret;
-        return;
+    if ((ret = file_resolve_dirfd(current_process, dirfd, kpath, &dirfile, &dirnode)) == 0) {
+        ret = vfs_create(dirnode, kpath, VFS_TYPE_DIRECTORY, NULL);
+        file_cleanup_dirfd(dirfile, dirnode);
     }
 
-    r->rax = vfs_create(dirnode, kpath, VFS_TYPE_DIRECTORY, NULL);
-
-    file_cleanup_dirfd(dirfile, dirnode);
     kfree(kpath);
+    r->rax = ret;
 }

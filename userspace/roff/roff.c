@@ -477,10 +477,9 @@ int main(int argc, char* argv[]) {
         fp = stdin;
     } else {
         filename = argv[0];
-
         fp = fopen(filename, "r");
         if (fp == NULL) {
-            err(EXIT_FAILURE, filename);
+            err(EXIT_FAILURE, "%s", filename);
         }
     }
 

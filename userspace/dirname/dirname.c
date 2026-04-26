@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < argc; i++) {
         if ((dir = dirname(argv[i])) == NULL) {
-            err(EXIT_FAILURE, argv[i]);
+            err(EXIT_FAILURE, "dirname");
         }
 
         printf("%s%c", dir, delimiter);

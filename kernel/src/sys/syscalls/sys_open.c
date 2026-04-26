@@ -44,14 +44,21 @@ void sys_open(struct registers* r) {
         return;
     }
 
+retry:
     struct vfs_node* node = NULL;
     struct file* file = NULL;
 
     ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
     if (ret == 0 && (flags & O_CREAT) && (flags & O_EXCL)) {
         ret = -EEXIST;
+        goto end;
     } else if (ret == -ENOENT && (flags & O_CREAT)) {
         ret = vfs_create(dirnode, kpath, VFS_TYPE_REGULAR, &node);
+        if (ret == -EEXIST && !(flags & O_EXCL)) {
+            goto retry;
+        } else if (ret == 0) {
+            node->ops->unlock(node);
+        }
     }
 
     if (ret < 0) {
@@ -82,12 +89,12 @@ void sys_open(struct registers* r) {
     }
 
     if (flags & O_APPEND) {
-        struct stat stat;
-        if ((ret = node->ops->getstat(node, &stat)) < 0) {
+        struct stat st;
+        if ((ret = node->ops->getstat(node, &st)) < 0) {
             goto end;
         }
 
-        file->offset = stat.st_size;
+        file->offset = st.st_size;
     }
 
     ret = fd;

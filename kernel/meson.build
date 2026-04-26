@@ -144,6 +144,7 @@ kernel_sources = files(
   'src/sys/syscalls/sys_poll.c',
   'src/sys/syscalls/sys_poweroff.c',
   'src/sys/syscalls/sys_read.c',
+  'src/sys/syscalls/sys_rename.c',
   'src/sys/syscalls/sys_seek.c',
   'src/sys/syscalls/sys_setclock.c',
   'src/sys/syscalls/sys_sleep.c',

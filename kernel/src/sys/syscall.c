@@ -14,6 +14,7 @@ extern void sys_threadexit(struct registers* r);
 extern void sys_gettid(struct registers* r);
 extern void sys_open(struct registers* r);
 extern void sys_mkdir(struct registers* r);
+extern void sys_rename(struct registers* r);
 extern void sys_unlink(struct registers* r);
 extern void sys_mount(struct registers* r);
 extern void sys_unmount(struct registers* r);
@@ -58,6 +59,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_GETTID]        = sys_gettid,
     [SYS_OPEN]          = sys_open,
     [SYS_MKDIR]         = sys_mkdir,
+    [SYS_RENAME]        = sys_rename,
     [SYS_UNLINK]        = sys_unlink,
     [SYS_MOUNT]         = sys_mount,
     [SYS_UNMOUNT]       = sys_unmount,

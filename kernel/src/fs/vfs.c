@@ -265,6 +265,76 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
     return error;
 } 
 
+int vfs_rename(struct vfs_node* src_reference, const char* src_path, struct vfs_node* dest_reference, const char* dest_path) {
+    char* src_component = kmalloc(strlen(src_path) + 1);
+    if (unlikely(src_component == NULL)) {
+        return -ENOMEM;
+    }
+
+    char* dest_component = kmalloc(strlen(dest_path) + 1);
+    if (unlikely(dest_component == NULL)) {
+        kfree(src_component);
+        return -ENOMEM;
+    }
+
+    struct vfs_node* src_dir = NULL;
+    struct vfs_node* dest_dir = NULL;
+
+    int error = vfs_lookup(src_reference, src_path, true, src_component, &src_dir);
+    if (error < 0) {
+        goto cleanup_components;
+    }
+
+    src_dir->ops->unlock(src_dir);
+
+    error = vfs_lookup(dest_reference, dest_path, true, dest_component, &dest_dir);
+    if (error < 0) {
+        VFS_NODE_UNREF(src_dir);
+        goto cleanup_components;
+    }
+
+    if (src_dir != dest_dir) {
+        src_dir->ops->lock(src_dir);
+    }
+
+    if (strcmp(src_component, ".") == 0 || strcmp(src_component, "..") == 0) {
+        error = -EBUSY;
+        goto cleanup_nodes;
+    }
+
+    if (strcmp(dest_component, ".") == 0 || strcmp(dest_component, "..") == 0) {
+        error = -EEXIST;
+        goto cleanup_nodes;
+    }
+
+    struct vfs_node* src = NULL;
+    error = src_dir->ops->lookup(src_dir, src_component, &src);
+    if (error < 0) {
+        klog("error: %d\n", error);
+        goto cleanup_nodes;
+    }
+
+    error = src_dir->ops->rename(src_dir, src, src_component, dest_dir, dest_component);
+
+    src->ops->unlock(src);
+    VFS_NODE_UNREF(src);
+
+cleanup_nodes:
+    if (src_dir != dest_dir) {
+        src_dir->ops->unlock(src_dir);
+    }
+
+    dest_dir->ops->unlock(dest_dir);
+    VFS_NODE_UNREF(src_dir);
+    VFS_NODE_UNREF(dest_dir);
+
+cleanup_components:
+    kfree(src_component);
+    kfree(dest_component);
+
+    return error;
+}
+
 int vfs_unlink(struct vfs_node* reference, const char* path) {
     char* component = kmalloc(strlen(path) + 1);
     if (unlikely(component == NULL)) {

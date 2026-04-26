@@ -296,7 +296,7 @@ static void print_listing(struct directory_listing* listing) {
 static int read_entries(const char* path, struct directory_listing* listing) {
     int fd = open(path, O_DIRECTORY);
     if (fd < 0) {
-        warn("'%s'", path);
+        warn("cannot access '%s'", path);
         return EXIT_FAILURE;
     }
 

@@ -22,6 +22,10 @@ static int get_free_fd(struct process* process, int start_fd) {
 }
 
 int file_close(struct process* process, int fd) {
+    if (fd < 0 || fd >= PROCESS_FD_COUNT) {
+        return -EBADF;
+    }
+
     mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[fd].file;
@@ -151,11 +155,10 @@ void file_release(struct file* file) {
 }
 
 void file_cleanup_dirfd(struct file* dirfile, struct vfs_node* dirnode) {
-    if (dirnode != NULL) {
-        VFS_NODE_UNREF(dirnode);
-    }
     if (dirfile != NULL) {
         file_release(dirfile);
+    } else if (dirnode != NULL) {
+        VFS_NODE_UNREF(dirnode);
     }
 }
 

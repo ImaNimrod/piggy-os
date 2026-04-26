@@ -1,31 +1,29 @@
-.TH RM "1" "April 2026" "PiggyOS" "User Commands"
+.TH MV "1" "April 2026" "PiggyOS" "User Commands"
 
 .SH NAME
-rm \- remove files or directories
+mv \- move files
 
 .SH SYNOPSIS
-.B rm
-[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+.B mv
+[\fI\,OPTION\/\fR]... \fI\,SOURCE\/\fR \fI\,DESTINATION\/\f
+.br
+.B mv
+[\fI\,OPTION\/\fR]... \fI\,SOURCE\/\fR... \fI\,DIRECTORY\/\f
 
 .SH DESCRIPTION
 
 .PP
-Remove the specified FILE(s).
-By default, do not remove directories.
+Rename SOURCE to DESTINATION, or move SOURCE(s) into DIRECTORY.
 
 .SH OPTIONS
 
 .TP
 .B \-f
-do not prompt, ignore nonexistent files and arguments
+do not prompt before overwriting
 
 .TP
 .B \-i
-prompt before every removal
-
-.TP
-.B \-r
-remove directories and their contents recursively
+prompt before overwriting
 
 .TP
 .B \-v

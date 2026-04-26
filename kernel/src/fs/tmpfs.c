@@ -43,6 +43,7 @@ static struct vfs_ops tmpfs_ops = {
 
 static int tmpfs_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result);
 static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
+static int tmpfs_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name);
 static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
 static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
@@ -61,6 +62,7 @@ static void tmpfs_inactive(struct vfs_node* node);
 static struct vfs_node_ops tmpfs_node_ops = {
     .create = tmpfs_create,
     .lookup = tmpfs_lookup,
+    .rename = tmpfs_rename,
     .unlink = tmpfs_unlink,
     .read = tmpfs_read,
     .write = tmpfs_write,
@@ -112,6 +114,7 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
 
     node->stat.st_ino = __atomic_add_fetch(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(type);
+    node->stat.st_nlink = type == VFS_TYPE_DIRECTORY ? 2 : 1;
     node->stat.st_blksize = PAGE_SIZE_4KB;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
 
@@ -183,6 +186,7 @@ static int tmpfs_create(struct vfs_node* parent, char* name, vfs_type_t type, st
     }
 
     if (type == VFS_TYPE_DIRECTORY) {
+        tmpfs_parent->stat.st_nlink++;
         VFS_NODE_REF(tmpfs_parent);
     }
 
@@ -191,7 +195,6 @@ static int tmpfs_create(struct vfs_node* parent, char* name, vfs_type_t type, st
 
     VFS_NODE_REF(new);
     new->ops->lock((struct vfs_node*) new);
-
     return 0;
 }
 
@@ -216,6 +219,83 @@ static int tmpfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
     }
 
     *result = (struct vfs_node*) child;
+    return 0;
+}
+
+static int tmpfs_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name) {
+    if (src_dir->filesystem != target_dir->filesystem) {
+        return -EXDEV;
+    }
+
+    if (src_dir->type != VFS_TYPE_DIRECTORY || target_dir->type != VFS_TYPE_DIRECTORY) {
+        return -ENOTDIR;
+    }
+
+    struct tmpfs_node* tsrc_dir = (struct tmpfs_node*) src_dir;
+    struct tmpfs_node* ttarget_dir = (struct tmpfs_node*) target_dir;
+
+    struct vfs_node* old_node = NULL;
+
+    size_t old_len = strlen(old_name);
+    size_t new_len = strlen(new_name);
+
+    void* res;
+    if (hashmap_get(ttarget_dir->children, new_name, new_len, &res)) {
+        old_node = res;
+    }
+
+    if (old_node != NULL) {
+        if (src == old_node) {
+            return 0;
+        }
+
+        if (src->type != VFS_TYPE_DIRECTORY && old_node->type == VFS_TYPE_DIRECTORY) {
+            return -EISDIR;
+        }
+
+        if (src->type == VFS_TYPE_DIRECTORY && old_node->type != VFS_TYPE_DIRECTORY) {
+            return -ENOTDIR;
+        }
+
+        if (old_node->type == VFS_TYPE_DIRECTORY && hashmap_size(((struct tmpfs_node*) old_node)->children) > 2) {
+            return -ENOTEMPTY;
+        }
+    }
+
+    if (src->mounted || (old_node != NULL && old_node->mounted)) {
+        return -EBUSY;
+    }
+
+    if (tsrc_dir == ttarget_dir && strcmp(old_name, new_name) == 0) {
+        return 0;
+    }
+
+    if (!hashmap_set(ttarget_dir->children, new_name, new_len, src)) {
+        return -ENOMEM;
+    }
+
+    hashmap_remove(tsrc_dir->children, old_name, old_len);
+
+    if (src->type == VFS_TYPE_DIRECTORY && src_dir != target_dir) {
+        struct tmpfs_node* tsrc = (struct tmpfs_node*) src;
+        hashmap_set(tsrc->children, "..", 2, target_dir);
+
+        tsrc_dir->stat.st_nlink--;
+        ttarget_dir->stat.st_nlink++;
+
+        VFS_NODE_UNREF(src);
+        VFS_NODE_REF(target_dir);
+    }
+
+    if (old_node != NULL) {
+        if (old_node->type == VFS_TYPE_DIRECTORY) {
+            VFS_NODE_REF(old_node);
+        }
+
+        ((struct tmpfs_node*) old_node)->stat.st_nlink--;
+        VFS_NODE_UNREF(old_node);
+    }
+
     return 0;
 }
 
@@ -245,7 +325,9 @@ static int tmpfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** r
         return -EIO;
     }
 
-    VFS_NODE_UNREF((struct vfs_node*) child);
+    child->stat.st_nlink -= child->type == VFS_TYPE_DIRECTORY ? 2 : 1;
+
+    VFS_NODE_UNREF(child);
     *result = (struct vfs_node*) child;
     return 0;
 }
@@ -515,6 +597,17 @@ static void tmpfs_inactive(struct vfs_node* node) {
 
         vector_destroy(tnode->pages);
     } else if (tnode->type == VFS_TYPE_DIRECTORY) {
+        if (hashmap_size(tnode->children) != 2) {
+            kpanic(NULL, true, "nonempty tmpfs directory node is being released");
+        }
+
+        struct vfs_node* parent;
+        if (!hashmap_get(tnode->children, "..", 2, (void**) &parent)) {
+            kpanic(NULL, true, "tmpfs directory node missing '..' entry");
+        }
+
+        VFS_NODE_UNREF(parent);
+
         hashmap_destroy(tnode->children);
     }
 

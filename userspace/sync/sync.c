@@ -23,13 +23,13 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < argc; i++) {
             int fd = open(argv[i], O_WRONLY);
             if (fd < 0) {
-                warn(argv[i]);
+                warn("cannot access '%s'", argv[i]);
                 ret = EXIT_FAILURE;
                 continue;
             }
 
             if (fsync(fd) < 0) {
-                warn(argv[i]);
+                warn("fsync(%s)", argv[i]);
                 ret = EXIT_FAILURE;
             }
 

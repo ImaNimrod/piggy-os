@@ -21,7 +21,7 @@ static size_t initialized_cpus;
 static size_t synced_cpus;
 
 static volatile uint64_t sync_sec;
-static volatile uint64_t sync_nsec;
+static volatile uint64_t sync_usec;
 static volatile bool sync_ready;
 
 extern void syscall_entry(void);
@@ -160,14 +160,14 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
         uint64_t hz = cpu_local->timer_info->hz;
-        uint64_t ghz = hz / 1000000000;
+        uint64_t mhz = hz / 1000000;
 
         while (!sync_ready) {
             asm volatile("");
         }
 
         cpu_local->timer_base_ticks = cpu_local->timer_driver->ticks(cpu_local->timer_info);
-        cpu_local->timer_tick_offset = (sync_sec * hz) + (sync_nsec * ghz);
+        cpu_local->timer_tick_offset = (sync_sec * hz) + (sync_usec * mhz);
 
         __atomic_add_fetch(&synced_cpus, 1, __ATOMIC_SEQ_CST);
 
@@ -223,7 +223,7 @@ void smp_init(void) {
         struct timer_driver* timer_driver = this_cpu()->timer_driver;
         struct timer_info* timer_info = this_cpu()->timer_info;
         uint64_t hz = timer_info->hz;
-        uint64_t ghz = hz / 1000000000;
+        uint64_t mhz = hz / 1000000;
 
         while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count)  {
             pause();
@@ -231,15 +231,15 @@ void smp_init(void) {
 
         uint64_t ticks = timer_driver->ticks(timer_info) - this_cpu()->timer_base_ticks;
         sync_sec = ticks / hz;
-        sync_nsec = (ticks % hz) / ghz;
+        sync_usec = (ticks % hz) / mhz;
         sync_ready = true;
 
         while (__atomic_load_n(&synced_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count - 1)  {
             pause();
         }
-
-        sti();
     }
+
+    sti();
 
     cpu_count = initialized_cpus;
     klog("[smp] initialized %zu processor%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));

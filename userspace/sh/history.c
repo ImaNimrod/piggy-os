@@ -1,3 +1,5 @@
+#include <sys/param.h>
+
 #include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,8 +8,6 @@
 #include "history.h"
 
 #define HISTORY_MAX_LENGTH 100
-
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 static char* history[HISTORY_MAX_LENGTH];
 static size_t history_end_index;

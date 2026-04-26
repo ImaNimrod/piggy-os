@@ -4,6 +4,8 @@ project(
   default_options: ['c_std=gnu99', 'debug=true', 'optimization=2', 'warning_level=2'],
 )
 
+subdir('shared')
+
 subdir('base64')
 subdir('basename')
 subdir('cal')
@@ -26,6 +28,7 @@ subdir('man')
 subdir('mkdir')
 subdir('more')
 subdir('mount')
+subdir('mv')
 subdir('pigfetch')
 subdir('poweroff')
 subdir('pwd')

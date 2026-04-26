@@ -306,6 +306,7 @@ int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, de
 
     node->stat.st_ino = __atomic_add_fetch(&inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(type);
+    node->stat.st_nlink = 1;
     node->stat.st_rdev = dev;
     node->stat.st_blksize = PAGE_SIZE_4KB;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
@@ -346,6 +347,7 @@ void devfs_init(void) {
 
     devfs_root_node->stat.st_ino = 1;
     devfs_root_node->stat.st_mode = vfs_type_to_mode(devfs_root_node->type);
+    devfs_root_node->stat.st_nlink = 2;
     devfs_root_node->stat.st_blksize = PAGE_SIZE_4KB;
     devfs_root_node->stat.st_atim = devfs_root_node->stat.st_mtim = devfs_root_node->stat.st_ctim = time_realtime;
 

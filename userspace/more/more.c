@@ -3,6 +3,7 @@
 #include <err.h>
 #include <fcntl.h>
 #include <locale.h>
+#include <paths.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +139,7 @@ static int page_content(struct page_buffer* buf) {
 
         char c;
         if (read(tty_fd, &c, 1) <= 0) {
-            warn("read(tty)");
+            warn("read");
             ret = EXIT_FAILURE;
             break;
         }
@@ -227,9 +228,9 @@ int main(int argc, char* argv[]) {
     if (isatty(STDIN_FILENO)) {
         tty_fd = STDIN_FILENO;
     } else {
-        tty_fd = open("/dev/tty", O_RDONLY);
+        tty_fd = open(_PATH_TTY, O_RDONLY);
         if (tty_fd < 0) {
-            err(EXIT_FAILURE, "open");
+            err(EXIT_FAILURE, "open(%s)", _PATH_TTY);
         }
     }
 
@@ -256,7 +257,6 @@ int main(int argc, char* argv[]) {
         fp = stdin;
     } else {
         filename = argv[0];
-
         fp = fopen(filename, "r");
         if (fp == NULL) {
             err(EXIT_FAILURE, "cannot open '%s'", filename);

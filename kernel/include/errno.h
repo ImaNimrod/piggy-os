@@ -25,5 +25,6 @@
 #define ENOTTY          25
 #define EOVERFLOW       75
 #define ESPIPE          29
+#define EXDEV           18
 
 #endif /* _KERNEL_ERRNO_H */

@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     if (argv[i] != NULL) {
         if (cwd != NULL) {
             if (chdir(cwd) < 0) {
-                err(EXIT_FAILURE, "failed to change directory to %s", cwd);
+                err(EXIT_FAILURE, "failed to change directory to '%s'", cwd);
             }
         }
 

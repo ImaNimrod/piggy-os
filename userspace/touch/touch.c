@@ -64,19 +64,19 @@ int main(int argc, char* argv[]) {
                 if (errno == ENOENT) {
                     int fd = open(argv[i], O_WRONLY | O_CREAT);
                     if (fd < 0) {
-                        warn("open: '%s'", argv[i]);
+                        warn("cannot access '%s'", argv[i]);
                         ret = EXIT_FAILURE;
                         continue;
                     }
 
                     if (futimens(fd, ts) < 0) {
-                        warn("futimens: '%s'", argv[i]);
+                        warn("futimens(%s)", argv[i]);
                         ret = EXIT_FAILURE;
                     }
 
                     close(fd);
                 } else {
-                    warn("utimensat: '%s'", argv[i]);
+                    warn("utimensat(%s)", argv[i]);
                     ret = EXIT_FAILURE;
                 }
             }

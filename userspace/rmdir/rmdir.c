@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 
-static int rmdir_parents(const char* path, bool verbose) {
+static bool rmdir_parents(const char* path, bool verbose) {
     char* p = (char*) path + strlen(path);
 
     while (p > path && p[-1] == '/') {
@@ -25,16 +25,14 @@ static int rmdir_parents(const char* path, bool verbose) {
         }
 
         if (rmdir(path) < 0) {
-            warn(path);
-            return EXIT_FAILURE;
-        }
-
-        if (verbose) {
-            puts(path);
+            warn("failed to remove '%s'", path);
+            return false;
+        } else if (verbose) {
+            printf("removed directory '%s'\n", path);
         }
     }
 
-    return EXIT_SUCCESS;
+    return true;
 }
 
 static void usage(void) {
@@ -72,15 +70,17 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < argc; i++) {
         if (rmdir(argv[i]) < 0) {
-            warn(argv[i]);
+            warn("failed to remove '%s'", argv[i]);
             ret = EXIT_FAILURE;
         } else {
             if (verbose) {
-                puts(argv[i]);
+                printf("removed directory '%s'\n", argv[i]);
             }
 
             if (remove_parents) {
-                ret |= rmdir_parents(argv[i], verbose);
+                if (!rmdir_parents(argv[i], verbose)) {
+                    ret = EXIT_FAILURE;
+                }
             }
         }
     }

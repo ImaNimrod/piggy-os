@@ -33,8 +33,7 @@ static double parse_interval(const char* arg) {
         }
     }
 
-    fprintf(stderr, "invalid time interval: %s\n", arg);
-    exit(EXIT_FAILURE);
+    errx(EXIT_FAILURE, "invalid time interval '%s'", arg);
 }
 
 static void usage(void) {

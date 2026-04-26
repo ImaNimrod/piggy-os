@@ -9,6 +9,12 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "util.h"
+
+static bool force = false;
+static bool interactive = false;
+static bool verbose = false;
+
 static bool prompt_remove(const char* path, struct stat* st) {
     char* type;
     switch (st->st_mode & S_IFMT) {
@@ -34,20 +40,14 @@ static bool prompt_remove(const char* path, struct stat* st) {
     }
 
     fprintf(stderr, "remove %s '%s'? ", type, path);
-
-    char buf[64];
-    if (fgets(buf, sizeof(buf), stdin) == NULL) {
-        return false;
-    }
-
-    return buf[0] == 'Y' || buf[0] == 'y';
+    return get_prompt();
 }
 
-static int remove_recursive(const char* path, bool force, bool interactive) {
+static int remove_recursive(const char* path) {
     struct stat st;
     if (stat(path, &st) < 0) {
         if (!(force && errno == ENOENT)) {
-            warn(path);
+            warn("failed to stat '%s'", path);
             return EXIT_FAILURE;
         }
 
@@ -80,15 +80,19 @@ static int remove_recursive(const char* path, bool force, bool interactive) {
             dir_path[path_len + dir_len + 1] = '\0';
 
             if (dirent->d_type == DT_DIR) {
-                ret = remove_recursive(dir_path, force, interactive);
+                ret = remove_recursive(dir_path);
             } else {
                 if (interactive && !prompt_remove(dir_path, &st)) {
                     continue;
                 }
 
                 if (unlink(dir_path) < 0) {
-                    warn(dir_path);
+                    warn("failed to remove '%s'", dir_path);
                     ret = EXIT_FAILURE;
+                } else {
+                    if (verbose) {
+                        printf("removed '%s'\n", dir_path);
+                    }
                 }
             }
 
@@ -99,25 +103,27 @@ static int remove_recursive(const char* path, bool force, bool interactive) {
     }
 
     if (unlink(path) < 0) {
-        warn(path);
+        warn("failed to remove '%s'", path);
         return EXIT_FAILURE;
+    }
+
+    if (verbose) {
+        printf("removed '%s'\n", path);
     }
 
     return ret;
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: rm [-fi] FILE...\n");
+    fprintf(stderr, "usage: rm [-firv] FILE...\n");
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char* argv[]) {
-    bool force = false;
-    bool interactive = false;
     bool recursive = false;
 
     int c;
-    while ((c = getopt(argc, argv, "fir")) != -1) {
+    while ((c = getopt(argc, argv, "firv")) != -1) {
         switch (c) {
             case 'f':
                 force = true;
@@ -129,6 +135,9 @@ int main(int argc, char* argv[]) {
                 break;
             case 'r':
                 recursive = true;
+                break;
+            case 'v':
+                verbose = true;
                 break;
             default:
                 usage();
@@ -142,12 +151,12 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < argc; i++) {
         if (recursive) {
-            ret = remove_recursive(argv[i], force, interactive);
+            ret = remove_recursive(argv[i]);
         } else {
             struct stat st;
             if (stat(argv[i], &st) < 0) {
                 if (!(force && errno == ENOENT)) {
-                    warn(argv[i]);
+                    warn("%s", argv[i]);
                     ret = EXIT_FAILURE;
                 }
 
@@ -160,14 +169,16 @@ int main(int argc, char* argv[]) {
 
             if (S_ISDIR(st.st_mode)) {
                 errno = EISDIR;
-                warn(argv[i]);
+                warn("cannot remove '%s'", argv[i]);
                 ret = EXIT_FAILURE;
                 continue;
             }
 
             if (unlink(argv[i]) < 0) {
-                warn(argv[i]);
+                warn("failed to remove '%s'", argv[i]);
                 ret = EXIT_FAILURE;
+            } else if (verbose) {
+                printf("removed '%s'\n", argv[i]);
             }
         }
     }

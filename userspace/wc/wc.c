@@ -25,7 +25,7 @@ static int do_wc(const char* filename, int fd) {
 
     struct stat stat;
     if (fstat(fd, &stat) < 0) {
-        warn("failed to stat %s", filename);
+        warn("failed to stat '%s'", filename);
         return EXIT_FAILURE;
     }
 
@@ -48,7 +48,7 @@ static int do_wc(const char* filename, int fd) {
     }
 
     if (nread < 0) {
-        warn(filename);
+        warn("%s", filename);
         return EXIT_FAILURE;
     }
 
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (fd < 0) {
-            warn(filename);
+            warn("cannot open '%s'", filename);
             ret = EXIT_FAILURE;
         } else {
             ret |= do_wc(filename, fd);

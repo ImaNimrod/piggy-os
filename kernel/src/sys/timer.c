@@ -13,7 +13,7 @@
 #include <utils/macros.h>
 #include <utils/spinlock.h>
 
-#define NS_PER_S 1000000000
+#define NS_PER_S 1000000000ULL
 
 struct sleep_event {
     struct thread* thread;
@@ -45,7 +45,15 @@ static struct timer_driver* timer_drivers[] = {
 struct timespec timer_time_from_boot(void) {
     uint64_t ticks = this_cpu()->timer_driver->ticks(this_cpu()->timer_info) - this_cpu()->timer_base_ticks + this_cpu()->timer_tick_offset;
     uint64_t hz = this_cpu()->timer_info->hz;
-    return (struct timespec) { ticks / hz, (ticks % hz) / (hz / 1000000000) };
+    if (hz == 0) {
+        return (struct timespec) {0};
+    }
+
+    time_t secs = ticks / hz;
+    time_t rem = ticks % hz;
+    time_t nsecs = (rem * NS_PER_S) / hz;
+
+    return (struct timespec) { secs, nsecs };
 }
 
 void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
@@ -161,9 +169,11 @@ void timer_percpu_init(void) {
     this_cpu()->timer_base_ticks = new_driver->ticks(new_info);
 
     uint64_t old_ticks = old_driver->ticks(old_info);
-    uint64_t old_ns = (old_ticks - old_base_ticks) / (old_info->hz / 1000000000);
+    uint64_t delta_ticks = old_ticks - old_base_ticks;
 
-    this_cpu()->timer_tick_offset = old_ns * (new_info->hz / 1000000000);
+    uint64_t old_ns = (delta_ticks * NS_PER_S) / old_info->hz;
+
+    this_cpu()->timer_tick_offset = (old_ns * new_info->hz) / NS_PER_S;
 
     klog("[timer] CPU #%zu switching to %s for timer driver\n",
             this_cpu()->cpu_number, new_driver->name);

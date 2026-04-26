@@ -15,6 +15,7 @@ typedef long ssize_t;
 typedef unsigned short dev_t;
 typedef unsigned long ino_t;
 typedef int mode_t;
+typedef unsigned long nlink_t;
 
 typedef long blksize_t;
 typedef long blkcnt_t;
@@ -39,6 +40,7 @@ struct stat {
     dev_t st_dev;
     ino_t st_ino;
     mode_t st_mode;
+    nlink_t st_nlink;
     dev_t st_rdev;
     off_t st_size;
     blksize_t st_blksize;
@@ -46,10 +48,9 @@ struct stat {
     struct timespec st_atim;
     struct timespec st_mtim;
     struct timespec st_ctim;
-    /* NOT USED */
-    unsigned short _st_uid;
-    unsigned short _st_gid;
-    unsigned long _st_nlink;
+
+    unsigned short _st_uid; // NOT USED
+    unsigned short _st_gid; // NOT USED
     unsigned int _padding;
 };
 

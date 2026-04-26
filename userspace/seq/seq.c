@@ -24,9 +24,9 @@ static double checked_strtod(const char* s) {
     double ret = strtod(s, &end_ptr);
 
     if (errno == ERANGE) {
-        err(EXIT_FAILURE, s);
+        err(EXIT_FAILURE, "%s", s);
     } else if (*end_ptr != '\0') {
-        errx(EXIT_FAILURE, "invalid floating point argument: %s", s);
+        errx(EXIT_FAILURE, "invalid floating point argument: '%s'", s);
     }
 
     if (ret == -0.0) {

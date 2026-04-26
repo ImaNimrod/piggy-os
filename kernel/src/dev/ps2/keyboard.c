@@ -43,6 +43,13 @@ static const char keymap_shift_capslock[] = {
     'b', 'n', 'm', '<', '>', '?', '\0', '\0', '\0', ' ',
 };
 
+static const char keymap_control[] = {
+    '\0', '\033', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\b', '\t',
+    0x11, 0x17, 0x05, 0x12, 0x14, 0x19, 0x15, 0x09, 0x0f, 0x10, '\0', '\0', '\n', '\0', 0x01, 0x13,
+    0x04, 0x06, 0x07, 0x08, 0x0a, 0x0b, 0x0c, '\0', '\0', '\0', '\0', '\0', 0x1a, 0x18, 0x03, 0x16,
+    0x02, 0x0e, 0x0d, '\0', '\0', '\0', '\0', '\0', '\0', ' ',
+};
+
 static bool shift_active;
 static bool capslock_active;
 static bool ctrl_active;
@@ -84,17 +91,21 @@ static char translate_scancode(uint8_t scancode) {
     char c = '\0';
 
     if (scancode < sizeof(keymap_normal)) {
-        if (!capslock_active && !shift_active) {
-            c = keymap_normal[scancode];
-        }
-        if (shift_active && !capslock_active) {
-            c = keymap_shift[scancode];
-        }
-        if (!shift_active && capslock_active) {
-            c = keymap_capslock[scancode];
-        }
-        if (shift_active && capslock_active) {
-            c = keymap_shift_capslock[scancode];
+        if (ctrl_active) {
+            c = keymap_control[scancode];
+        } else {
+            if (!capslock_active && !shift_active) {
+                c = keymap_normal[scancode];
+            }
+            if (shift_active && !capslock_active) {
+                c = keymap_shift[scancode];
+            }
+            if (!shift_active && capslock_active) {
+                c = keymap_capslock[scancode];
+            }
+            if (shift_active && capslock_active) {
+                c = keymap_shift_capslock[scancode];
+            }
         }
     }
 

@@ -14,6 +14,8 @@
 
 #include "../../utils/flanterm/src/flanterm.h"
 
+#define CTRL(c) ((c) & 0x1f)
+
 #define INPUT_BUF_SIZE 1024
 
 #define IGNBRK  0x00001
@@ -245,7 +247,9 @@ void tty_add_char(char c) {
 
     if ((termios.c_iflag & ICRNL) && c == '\r') {
         c = '\n';
-    } else if ((termios.c_iflag & INLCR) && c == '\n') {
+    }
+
+    if ((termios.c_iflag & INLCR) && c == '\n') {
         c = '\r';
     }
 
@@ -275,7 +279,9 @@ void tty_add_char(char c) {
 
         if (c == '\n' || c == '\r' || c == termios.c_cc[VEOL]) {
             should_flush = true;
-            force_echo = !!(termios.c_lflag & ECHONL);
+            if (c == '\n') {
+                force_echo = (termios.c_lflag & ECHONL);
+            }
         }
     }
 
@@ -288,27 +294,11 @@ void tty_add_char(char c) {
     }
 
     if (should_append && (force_echo || (termios.c_lflag & ECHO))) {
-        if ((c <= 31 || c == 127) && c != '\n') {
+        if ((c < 32 && c != '\n' && c != '\t') || c == 127) {
             char control_char[2];
             control_char[0] = '^';
-
-            if (c <= 26 && c != 10) {
-                control_char[1] = 'A' + c - 1;
-            } else if (c == 27) {
-                control_char[1] = '[';
-            } else if (c == 28) {
-                control_char[1] = '\\';
-            } else if (c == 29) {
-                control_char[1] = ']';
-            } else if (c == 30) {
-                control_char[1] = '^';
-            } else if (c == 31) {
-                control_char[1] = '_';
-            } else if (c == 127) {
-                control_char[1] = '?';
-            }
-
-            internal_write(control_char, sizeof(control_char));
+            control_char[1] = (c == 127) ? '?' : (c ^ 0x40);
+            internal_write(control_char, 2);
         } else {
             if (c == '\n' && (termios.c_oflag & ONLCR)) {
                 internal_write(crnl, sizeof(crnl));
@@ -338,18 +328,19 @@ void tty_init(void) {
 
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = OPOST | ONLCR;
-    termios.c_cflag = CS8;
+    termios.c_cflag = CREAD | CS8;
     termios.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 
-    termios.c_cc[VMIN] = 1;
-    termios.c_cc[VINTR] = 0x03;
-    termios.c_cc[VQUIT] = 0x1c;
+    termios.c_cc[VEOF] = CTRL('D');
     termios.c_cc[VERASE] = '\b';
-    termios.c_cc[VKILL] = 0x15;
-    termios.c_cc[VEOF] = 0x04;
-    termios.c_cc[VSTART] = 0x11;
-    termios.c_cc[VSTOP] = 0x13;
-    termios.c_cc[VSUSP] = 0x1a;
+    termios.c_cc[VINTR] = CTRL('C');
+    termios.c_cc[VKILL] = CTRL('U');
+    termios.c_cc[VMIN] = 1;
+    termios.c_cc[VQUIT] = CTRL('\\');
+    termios.c_cc[VSTART] = CTRL('Q');
+    termios.c_cc[VSTOP] = CTRL('S');
+    termios.c_cc[VSUSP] = CTRL('Z');
+
 
     size_t cols, rows;
     flanterm_get_dimensions(fb_context, &cols, &rows);

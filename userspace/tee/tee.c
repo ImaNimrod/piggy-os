@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < argc; i++) {
         int fd = open(argv[i], oflag, 0777);
         if (fd < 0) {
-            warn(argv[i]);
+            warn("%s", argv[i]);
             ret = EXIT_FAILURE;
             continue;
         }
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
             while (off < nread) {
                 ssize_t nwritten = write(iter->fd, buf + off, nread - off);
                 if (nwritten <= 0) {
-                    warn(iter->filename);
+                    warn("write(%s)", iter->filename);
                     ret = EXIT_FAILURE;
                     break;
                 }

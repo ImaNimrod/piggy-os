@@ -77,7 +77,6 @@ int main(int argc, char* argv[]) {
         in_fp = stdin;
     } else {
         in_filename = argv[0];
-
         in_fp = fopen(in_filename, "r");
         if (in_fp == NULL) {
             err(EXIT_FAILURE, in_filename);

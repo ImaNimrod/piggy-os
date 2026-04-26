@@ -1,3 +1,5 @@
+#include <sys/param.h> 
+
 #include <err.h> 
 #include <errno.h> 
 #include <stdbool.h>
@@ -9,8 +11,6 @@
 #include <unistd.h>
 
 #define INITIAL_LINE_COUNT 4
-
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
 
 static bool repeat = false;
 static char delimiter = '\n';
@@ -130,7 +130,7 @@ static int do_shuf_file(const char* filename, FILE* fp) {
 static void seed_rng(void) {
     struct timespec ts;
     if (clock_gettime(CLOCK_REALTIME, &ts) < 0) {
-        err(EXIT_FAILURE, "clock_gettime");
+        err(EXIT_FAILURE, "clock_gettime(CLOCK_REALTIME)");
     }
 
     srandom(ts.tv_sec ^ ts.tv_nsec);
@@ -196,7 +196,6 @@ int main(int argc, char* argv[]) {
         fp = stdin;
     } else {
         filename = argv[0];
-
         fp = fopen(filename, "r");
         if (fp == NULL) {
             err(EXIT_FAILURE, filename);

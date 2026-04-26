@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < argc; i++) {
         if ((base = basename(argv[i])) == NULL) {
-            err(EXIT_FAILURE, argv[i]);
+            err(EXIT_FAILURE, "basename");
         }
 
         printf("%s%c", base, delimiter);
