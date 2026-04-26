@@ -2,8 +2,8 @@
 
 #include <err.h> 
 #include <errno.h> 
+#include <inttypes.h> 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,41 +12,38 @@
 
 #define INITIAL_LINE_COUNT 4
 
-static bool repeat = false;
 static char delimiter = '\n';
-static size_t print_line_count = SIZE_MAX;
+static uintmax_t print_line_count = UINTMAX_MAX;
+static bool repeat = false;
 
-static void seed_rng(void);
+static void fisher_yates(char** lines, size_t line_count);
+static size_t random_uniform(size_t n);
 
 static int do_shuf_args(int argc, char** argv) {
     if (argc <= 0) {
         return EXIT_SUCCESS;
     }
 
-    size_t limit = (print_line_count == SIZE_MAX) ? (size_t) argc : print_line_count;
-    size_t printed = 0;
+    if (!repeat) {
+        size_t limit = (print_line_count == UINTMAX_MAX) ? (size_t) argc : (size_t) print_line_count;
 
-    while (printed < limit) {
-        seed_rng();
+        fisher_yates(argv, argc);
 
-        for (size_t i = argc - 1; i > 0; i--) {
-            size_t j = (((size_t) random() << 32) | random()) % (i + 1);
-
-            char* tmp = argv[j];
-            argv[j] = argv[i];
-            argv[i] = tmp;
-        }
-
-        size_t to_print = MIN(limit - printed, (size_t) argc);
-
+        size_t to_print = MIN(limit, argc);
         for (size_t i = 0; i < to_print; i++) {
             printf("%s%c", argv[i], delimiter);
         }
 
-        printed += to_print;
+        return EXIT_SUCCESS;
+    }
 
-        if (!repeat) {
-            break;
+    if (print_line_count == UINTMAX_MAX) {
+        for (;;) {
+            printf("%s%c", argv[random_uniform(argc)], delimiter);
+        }
+    } else {
+        for (size_t i = 0; i < print_line_count; i++) {
+            printf("%s%c", argv[random_uniform(argc)], delimiter);
         }
     }
 
@@ -92,33 +89,35 @@ static int do_shuf_file(const char* filename, FILE* fp) {
         return EXIT_FAILURE;
     }
 
-    size_t limit = (print_line_count == SIZE_MAX) ? line_count : print_line_count;
-    size_t printed = 0;
+    if (line_count == 0) {
+        free(lines);
+        return EXIT_SUCCESS;
+    }
 
-    while (printed < limit) {
-        seed_rng();
+    if (!repeat) {
+        size_t limit = (print_line_count == UINTMAX_MAX) ? line_count : (size_t) print_line_count;
 
-        for (size_t i = line_count - 1; i > 0; i--) {
-            size_t j = (((size_t) random() << 32) | random()) % (i + 1);
+        fisher_yates(lines, line_count);
 
-            char* tmp = lines[j];
-            lines[j] = lines[i];
-            lines[i] = tmp;
-        }
-
-        size_t to_print = MIN(limit - printed, line_count);
-
+        size_t to_print = MIN(limit, line_count);
         for (size_t i = 0; i < to_print; i++) {
-            printf("%s", lines[i]);
+            fputs(lines[i], stdout);
         }
 
-        printed += to_print;
+        goto end;
+    }
 
-        if (!repeat) {
-            break;
+    if (print_line_count == UINTMAX_MAX) {
+        for (;;) {
+            fputs(lines[random_uniform(line_count)], stdout);
+        }
+    } else {
+        for (size_t i = 0; i < print_line_count; i++) {
+            fputs(lines[random_uniform(line_count)], stdout);
         }
     }
 
+end:
     for (size_t i = 0; i < line_count; i++) {
         free(lines[i]);
     }
@@ -127,13 +126,28 @@ static int do_shuf_file(const char* filename, FILE* fp) {
     return EXIT_SUCCESS;
 }
 
-static void seed_rng(void) {
-    struct timespec ts;
-    if (clock_gettime(CLOCK_REALTIME, &ts) < 0) {
-        err(EXIT_FAILURE, "clock_gettime(CLOCK_REALTIME)");
+static void fisher_yates(char** lines, size_t line_count) {
+    for (size_t i = line_count - 1; i > 0; i--) {
+        size_t j = random_uniform(i + 1);
+        char* tmp = lines[j];
+        lines[j] = lines[i];
+        lines[i] = tmp;
     }
+}
 
-    srandom(ts.tv_sec ^ ts.tv_nsec);
+static size_t random_uniform(size_t n) {
+    long limit = RAND_MAX - (RAND_MAX % n);
+
+    long r;
+    do {
+        r = random();
+    } while (r >= limit);
+
+    return (size_t) (r % n);
+}
+
+static void seed_random(void) {
+    srandom(time(NULL) ^ getpid());
 }
 
 static void usage(void) {
@@ -155,8 +169,8 @@ int main(int argc, char* argv[]) {
                 break;
             case 'n':
                 errno = 0;
-                print_line_count = (size_t) strtoull(optarg, &end_ptr, 10);
-                if (errno != 0 || optarg == end_ptr) {
+                print_line_count = strtoumax(optarg, &end_ptr, 10);
+                if (errno != 0 || end_ptr == optarg || *end_ptr) {
                     warnx("invalid line count: '%s'", optarg);
                     usage();
                 }
@@ -185,6 +199,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (echo_mode) {
+        seed_random();
         return do_shuf_args(argc, argv);
     }
 
@@ -201,6 +216,8 @@ int main(int argc, char* argv[]) {
             err(EXIT_FAILURE, filename);
         }
     }
+
+    seed_random();
 
     int ret = do_shuf_file(filename, fp);
 
