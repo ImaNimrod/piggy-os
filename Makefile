@@ -57,7 +57,7 @@ toolchain:
 .PHONY: todolist
 todolist:
 	@echo -e "List of todos and fixme in sources: \n"
-	-@grep -FHr -e TODO -e FIXME kernel
+	@git grep -e TODO -e FIXME
 
 limine/limine:
 	$(MAKE) -C limine CC="cc" CFLAGS="-O2 -pipe"

@@ -265,7 +265,7 @@ void* krealloc(void* ptr, size_t size) {
             return NULL;
         }
 
-        memcpy(new_ptr, ptr, MAX(size, header->size));
+        memcpy(new_ptr, ptr, MIN(size, header->size));
 
         kfree(ptr);
         return new_ptr;

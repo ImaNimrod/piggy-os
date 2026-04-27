@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/common.sh"
 
 pushd "$DIR/../libc"
-    meson setup --prefix="${SYSROOT}/usr" --cross-file=./meson-crossfile.txt -Dheaders_only=true build
+    meson setup --prefix="${SYSROOT}/usr" --cross-file="$DIR"/meson-crossfile.txt -Dheaders_only=true build
     meson install -C build
 popd
 

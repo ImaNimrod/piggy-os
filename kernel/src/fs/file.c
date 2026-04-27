@@ -98,7 +98,9 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
         ret = fd;
     }
 
-    __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+    if (ret >= 0) {
+        __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+    }
 
     mutex_release(&process->fd_mutex);
     return ret;

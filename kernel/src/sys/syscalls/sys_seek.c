@@ -56,18 +56,16 @@ void sys_seek(struct registers* r) {
 
     switch (whence) {
         case SEEK_CUR:
-            new_offset = current_offset + offset;
-            if (offset > 0 && new_offset < current_offset) {
+            if (__builtin_add_overflow(current_offset, offset, &new_offset)) {
                 ret = -EOVERFLOW;
-                goto end;
-            }
-            if (offset < 0 && new_offset > current_offset) {
-                ret = -EINVAL;
                 goto end;
             }
             break;
         case SEEK_END:
-            new_offset = offset + stat.st_size;
+            if (__builtin_add_overflow(stat.st_size, offset, &new_offset)) {
+                ret = -EOVERFLOW;
+                goto end;
+            }
             break;
         case SEEK_SET:
             new_offset = offset;
@@ -75,6 +73,11 @@ void sys_seek(struct registers* r) {
         default:
             ret = -EINVAL;
             goto end;
+    }
+
+    if (new_offset < 0) {
+        ret = -EINVAL;
+        goto end;
     }
 
     file->offset = new_offset;
