@@ -7,5 +7,5 @@ init_exe = executable(
 
 install_data(
   'init.8',
-  install_dir: get_option('mandir') / 'man1'
+  install_dir: get_option('mandir') / 'man8'
 )

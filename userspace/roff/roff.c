@@ -12,6 +12,8 @@
 #define DEFAULT_INDENT  7
 #define MARGIN_SPACE    5
 
+// TODO: just put the duct tape down and do a serious rewrite
+
 struct roff_context {
     size_t cur_x;
     size_t indent;

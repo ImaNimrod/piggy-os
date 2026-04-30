@@ -9,8 +9,7 @@
 
 #define BUF_SIZE (4 * 1024)
 
-static const char* BASE64_ENCODE_TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-static const uint8_t BASE64_DECODE_TABLE[256] = {
+static const unsigned char BASE64_DECODE_TABLE[256] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -44,6 +43,8 @@ static const uint8_t BASE64_DECODE_TABLE[256] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 };
+
+__attribute__((nonstring)) static const char BASE64_ENCODE_TABLE[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static inline bool is_whitespace(unsigned char c) {
     return c == '\n' || c == '\r' || c == ' ' || c == '\t';
@@ -111,7 +112,7 @@ static ssize_t decode_final(const unsigned char* in, ssize_t in_size, unsigned c
     return out_index;
 }
 
-static int decode_file(int fd, char* filename) {
+static int decode_file(const char* filename, int fd) {
     unsigned char in_buf[BUF_SIZE + 4];
     unsigned char out_buf[(BUF_SIZE * 3) / 4];
 
@@ -145,7 +146,7 @@ static int decode_file(int fd, char* filename) {
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn("read(%s)", filename);
         return EXIT_FAILURE;
     }
 
@@ -195,7 +196,7 @@ static ssize_t encode_block(const unsigned char* in, ssize_t in_size, unsigned c
     return o;
 }
 
-static int encode_file(int fd, char* filename) {
+static int encode_file(const char* filename, int fd) {
     unsigned char in_buf[BUF_SIZE];
     unsigned char out_buf[((BUF_SIZE * 4) / 3) + 4];
 
@@ -208,7 +209,7 @@ static int encode_file(int fd, char* filename) {
     }
 
     if (nread < 0) {
-        warn("%s", filename);
+        warn("read(%s)", filename);
         return EXIT_FAILURE;
     }
 
@@ -256,13 +257,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    int ret = EXIT_SUCCESS;
-
-    if (decode) {
-        ret = decode_file(fd, filename);
-    } else {
-        ret = encode_file(fd, filename);
-    }
+    int ret = decode ? decode_file(filename, fd) : encode_file(filename, fd);
 
     if (fd != STDIN_FILENO) {
         close(fd);

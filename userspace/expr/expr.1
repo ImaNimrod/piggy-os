@@ -1,0 +1,81 @@
+.TH EXPR "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+expr \- evaluate expressions
+
+.SH SYNOPSIS
+.B expr
+\fI\,EXPRESSION\/\fR
+
+.SH DESCRIPTION
+
+.PP
+Evaulate EXPRESSION and print the result to standard output.
+
+.PP
+The following are the supported EXPRESSION operators listed in increasing precedence groups:
+
+.TP
+ARG1 | ARG2
+ARG1 if it is neither null nor 0, otherwise ARG2
+
+.TP
+ARG1 & ARG2
+ARG1 if neither argument is null or 0, otherwise 0
+
+.TP
+ARG1 < ARG2
+ARG1 is less than ARG2
+
+.TP
+ARG1 <= ARG2
+ARG1 is less than or equal to ARG2
+
+.TP
+ARG1 = ARG2
+ARG1 is equal to ARG2
+
+.TP
+ARG1 != ARG2
+ARG1 is unequal to ARG2
+
+.TP
+ARG1 > ARG2
+ARG1 is greater than ARG2
+
+.TP
+ARG1 + ARG2
+arithmetic sum of ARG1 and ARG2
+
+.TP
+ARG1 \- ARG2
+arithmetic difference of ARG1 and ARG2
+
+.TP
+ARG1 * ARG2
+arithmetic product of ARG1 and ARG2
+
+.TP
+ARG1 / ARG2
+arithmetic quotient of ARG1 divided by ARG2
+
+.TP
+ARG1 % ARG2
+arithmetic remainder of ARG1 divided by ARG2
+
+.TP
+STRING : REGEXP
+anchored pattern match of REGEXP in STRING
+
+.SH OPTIONS
+None.
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

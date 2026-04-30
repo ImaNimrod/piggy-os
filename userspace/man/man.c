@@ -16,6 +16,15 @@
 
 static const char* SECTIONS[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
+static inline char* build_path(const char* section, const char* page) {
+    char* path;
+    if (asprintf(&path, "%s/man%s/%s.%s", _PATH_MAN, section, page, section) < 0) {
+        err(EXIT_FAILURE, "asprintf");
+    }
+
+    return path;
+}
+
 static inline bool check_file(const char* path) {
     int fd = open(path, O_RDONLY);
     if (fd >= 0) {
@@ -24,16 +33,6 @@ static inline bool check_file(const char* path) {
     }
 
     return false;
-}
-
-static char* build_path(const char* section, const char* page) {
-    char* path = NULL;
-
-    if (asprintf(&path, "%s/man%s/%s.%s", _PATH_MAN, section, page, section) == -1) {
-        err(EXIT_FAILURE, "asprintf");
-    }
-
-    return path;
 }
 
 static char* find_page(const char* section, const char* page) {

@@ -1,11 +1,12 @@
 project(
   'userspace',
   'c',
-  default_options: ['c_std=gnu99', 'debug=true', 'optimization=2', 'warning_level=2'],
+  default_options: ['c_std=gnu99', 'optimization=2', 'warning_level=2'],
 )
 
 subdir('shared')
 
+subdir('base32')
 subdir('base64')
 subdir('basename')
 subdir('cal')
@@ -17,6 +18,7 @@ subdir('date')
 subdir('dirname')
 subdir('echo')
 subdir('env')
+subdir('expr')
 subdir('factor')
 subdir('false')
 subdir('head')
@@ -32,6 +34,7 @@ subdir('mv')
 subdir('pigfetch')
 subdir('poweroff')
 subdir('pwd')
+subdir('realpath')
 subdir('rm')
 subdir('rmdir')
 subdir('roff')

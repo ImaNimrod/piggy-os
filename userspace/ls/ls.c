@@ -368,8 +368,6 @@ int main(int argc, char* argv[]) {
         colors = true;
     }
 
-    setlocale(LC_ALL, "");
-
     int c;
     while ((c = getopt(argc, argv, "1ACFSUaflt")) != -1) {
         switch (c) {
@@ -413,6 +411,8 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
+
+    setlocale(LC_ALL, "");
 
     int ret = EXIT_SUCCESS;
 

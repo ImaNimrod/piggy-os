@@ -61,14 +61,19 @@ int main(int argc, char* argv[]) {
             }
 
             path = strdup(path);
+            if (path == NULL) {
+                err(EXIT_FAILURE, "strdup");
+            }
 
             bool found = false;
 
             char* p;
             char* last;
             for ((p = strtok_r(path, ":", &last)); p; p = strtok_r(NULL, ":", &last)) {
-                char* file = NULL;
-                asprintf(&file, "%s/%s", p, argv[i]);
+                char* file;
+                if (asprintf(&file, "%s/%s", p, argv[i]) < 0) {
+                    err(EXIT_FAILURE, "asprintf");
+                }
 
                 if (!check_file(file)) {
                     free(path);

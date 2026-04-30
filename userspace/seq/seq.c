@@ -17,16 +17,14 @@
 
 static char* decimal_point = ".";
 
-static double checked_strtod(const char* s) {
+static double get_double(const char* token) {
     errno = 0;
 
     char* end_ptr;
-    double ret = strtod(s, &end_ptr);
 
-    if (errno == ERANGE) {
-        err(EXIT_FAILURE, "%s", s);
-    } else if (*end_ptr != '\0') {
-        errx(EXIT_FAILURE, "invalid floating point argument: '%s'", s);
+    double ret = strtod(token, &end_ptr);
+    if (errno != 0 || *end_ptr) {
+        errx(EXIT_FAILURE, "invalid floating point argument: '%s'", token);
     }
 
     if (ret == -0.0) {
@@ -242,19 +240,18 @@ int main(int argc, char* argv[]) {
     double end;
 
     if (argc >= 2) {
-        start = checked_strtod(argv[0]);
+        start = get_double(argv[0]);
     }
 
     if (argc == 3) {
-        increment = checked_strtod(argv[1]);
+        increment = get_double(argv[1]);
         if (increment == 0.0) {
             warn("invalid zero increment value");
             usage();
         }
     }
 
-    errno = 0;
-    end = checked_strtod(argv[argc - 1]);
+    end = get_double(argv[argc - 1]);
 
     if ((end < start && increment > 0) || (end > start && increment < 0)) {
         return EXIT_SUCCESS;

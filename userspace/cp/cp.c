@@ -252,10 +252,8 @@ int main(int argc, char* argv[]) {
             dest_name = ".";
         }
 
-        char* dest_path = NULL;
-
-        asprintf(&dest_path, "%s/%s", destination_path, dest_name);
-        if (dest_path == NULL) {
+        char* dest_path;
+        if (asprintf(&dest_path, "%s/%s", destination_path, dest_name) < 0) {
             err(EXIT_FAILURE, "asprintf");
         }
 

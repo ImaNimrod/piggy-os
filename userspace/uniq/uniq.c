@@ -37,8 +37,6 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
-    setlocale(LC_ALL, "");
-
     char delimiter = '\n';
 
     int c;
@@ -68,6 +66,8 @@ int main(int argc, char* argv[]) {
         warnx("extra operands provided");
         usage();
     }
+
+    setlocale(LC_ALL, "");
 
     char* in_filename;
     FILE* in_fp;
