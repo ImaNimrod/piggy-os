@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <mem/vmm.h>
 #include <sys/process.h>
+#include <utils/usercopy.h>
 
 void sys_munmap(struct registers* r) {
     void* address = (void*) r->rdi;
@@ -11,11 +12,12 @@ void sys_munmap(struct registers* r) {
     struct thread* current_thread = this_cpu()->running_thread;
     struct process* current_process = current_thread->process;
 
-    if (address != NULL && ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {
-        r->rax = -EINVAL;
+    if (!IS_USER_ADDRESS(address)) {
+        r->rax = -EFAULT;
         return;
     }
-    if (size == 0 || (size % PAGE_SIZE_4KB) != 0) {
+
+    if (size == 0 || ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {
         r->rax = -EINVAL;
         return;
     }

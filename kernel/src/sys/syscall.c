@@ -21,6 +21,8 @@ extern void sys_unmount(struct registers* r);
 extern void sys_close(struct registers* r);
 extern void sys_read(struct registers* r);
 extern void sys_write(struct registers* r);
+extern void sys_pread(struct registers* r);
+extern void sys_pwrite(struct registers* r);
 extern void sys_ioctl(struct registers* r);
 extern void sys_seek(struct registers* r);
 extern void sys_truncate(struct registers* r);
@@ -66,6 +68,8 @@ static syscall_handler_t syscall_table[] = {
     [SYS_CLOSE]         = sys_close,
     [SYS_READ]          = sys_read,
     [SYS_WRITE]         = sys_write,
+    [SYS_PREAD]         = sys_pread,
+    [SYS_PWRITE]        = sys_pwrite,
     [SYS_IOCTL]         = sys_ioctl,
     [SYS_SEEK]          = sys_seek,
     [SYS_TRUNCATE]      = sys_truncate,
