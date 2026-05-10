@@ -76,13 +76,13 @@ bool ring_submit_and_wait(struct xhci_ring* ring, struct trb* submission_trb, st
     struct completion_waiter waiter = {
         .submission_trb_paddr = (uintptr_t) &ring->trbs[ring->index] - HIGH_VMA,
         .completion_trb = completion_trb,
-        .thread = this_cpu()->running_thread,
+        .thread = this_cpu()->scheduler.current_thread,
     };
 
     vector_push(ring->completion_waiters, &waiter);
     internal_ring_submit(ring, submission_trb);
 
-    scheduler_block_and_release(this_cpu()->running_thread, &ring->lock, int_state);
+    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &ring->lock, int_state);
 
     return ((completion_trb->status >> 24) & 0xff) == TRB_STATUS_SUCCESS;
 }

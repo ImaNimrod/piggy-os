@@ -19,6 +19,6 @@ void sys_sleep(struct registers* r) {
         return;
     }
 
-    scheduler_sleep(this_cpu()->running_thread, &kduration);
+    scheduler_sleep(this_cpu()->scheduler.current_thread, &kduration);
     r->rax = 0;
 }

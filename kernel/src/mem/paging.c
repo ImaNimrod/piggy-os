@@ -61,16 +61,21 @@ static void destroy_levels_recursive(uint64_t* level, size_t start, size_t end, 
 static void page_fault_handler(struct registers* r, void* arg) {
     (void) arg;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+    uintptr_t fault_addr = read_cr2();
 
-    if (!vmm_page_fault_handler(read_cr2(), r->error_code)) {
+    if (current_thread == NULL || current_thread->process == kernel_process) {
+        kpanic(r, true, "fatal kernel pagefault at address: 0x%016lx\n", fault_addr);
+    }
+
+    if (!vmm_page_fault_handler(fault_addr, r->error_code)) {
         if (current_thread != NULL && current_thread->usercopy_registers != NULL) {
             memcpy64((uint64_t*) r, (const uint64_t*) current_thread->usercopy_registers, sizeof(struct registers) >> 3);
             current_thread->usercopy_registers = NULL;
             r->rax = -EFAULT;
         } else {
-            kpanic(r, true, "fatal pagefault in pid: %d, tid: %d",
-                    current_thread->process->pid, current_thread->tid);
+            kpanic(r, true, "fatal pagefault in pid: %d, tid: %d, address 0x%16lx",
+                    current_thread->process->pid, current_thread->tid, fault_addr);
         }
     }
 }

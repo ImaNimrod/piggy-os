@@ -17,7 +17,7 @@ void sys_mmap(struct registers* r) {
     int fd = r->r8;
     off_t offset = r->r9;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (size == 0 || ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {

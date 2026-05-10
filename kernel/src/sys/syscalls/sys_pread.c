@@ -12,7 +12,7 @@ void sys_pread(struct registers* r) {
     size_t count = r->rdx;
     off_t offset = r->r10;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (!IS_USER_ADDRESS(buf)) {

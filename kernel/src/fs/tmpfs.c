@@ -480,7 +480,7 @@ static int tmpfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags
     struct tmpfs_node* tnode = (struct tmpfs_node*) node;
     uintptr_t* page = (uintptr_t*) vector_get(tnode->pages, offset / PAGE_SIZE_4KB);
 
-    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+    struct vmm_context* context = this_cpu()->scheduler.current_thread->process->vmm_context;
 
     if (flags & MAP_SHARED) {
         pagemap_map(context->pagemap, (uintptr_t) addr, *page, pte_flags, PAGE_SIZE_4KB);
@@ -502,7 +502,7 @@ static int tmpfs_munmap(struct vfs_node* node, void* addr, off_t offset) {
         return 0;
     }
 
-    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+    struct vmm_context* context = this_cpu()->scheduler.current_thread->process->vmm_context;
 
     page_size_t page_size;
     pagemap_unmap(context->pagemap, (uintptr_t) addr, &page_size);

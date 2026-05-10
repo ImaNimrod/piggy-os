@@ -9,7 +9,7 @@ void sys_mprotect(struct registers* r) {
     size_t size = r->rsi;
     int prot = r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (address != NULL && ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {

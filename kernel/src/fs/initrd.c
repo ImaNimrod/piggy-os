@@ -88,7 +88,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 name_override[size] = '\0';
                 break;
             default:
-                klog("[initrd] file '%s' is an unsupported file type\n", name);
+                klog("[initrd] file '%s' is an unsupported file type (%d)\n", name, current_file->type);
                 error = -EINVAL;
                 break;
         }

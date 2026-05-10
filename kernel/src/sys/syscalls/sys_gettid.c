@@ -3,6 +3,6 @@
 #include <sys/process.h>
 
 void sys_gettid(struct registers* r) {
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     r->rax = current_thread->tid;
 }

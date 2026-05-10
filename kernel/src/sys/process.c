@@ -167,8 +167,6 @@ void process_create_init(void) {
     if (unlikely(init_thread == NULL)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
-
-    scheduler_enqueue(init_thread);
 }
 
 void process_destroy(struct process* process) {
@@ -269,7 +267,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
         return NULL;
     }
 
-    thread->state = THREAD_READY;
+    thread->cpu = this_cpu();
     thread->is_user = false;
     thread->process = kernel_process;
 
@@ -292,6 +290,8 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     vector_push(kernel_process->threads, &thread);
 
     spinlock_release(&kernel_process->lock);
+
+    scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
 }
 
@@ -301,7 +301,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
         return NULL;
     }
 
-    thread->state = THREAD_READY;
+    thread->cpu = this_cpu();
     thread->is_user = true;
     thread->process = process;
 
@@ -332,6 +332,8 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
     vector_push(process->threads, &thread);
 
     spinlock_release(&process->lock);
+
+    scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
 }
 
@@ -352,7 +354,7 @@ struct thread* thread_fork(struct process* process, struct registers* context) {
         return NULL;
     }
 
-    new_thread->state = THREAD_READY;
+    new_thread->cpu = this_cpu();
     new_thread->is_user = true;
     new_thread->process = process;
 
@@ -369,10 +371,13 @@ struct thread* thread_fork(struct process* process, struct registers* context) {
     new_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
 
     spinlock_acquire(&process->lock);
+
     new_thread->tid = vector_size(process->threads);
     vector_push(process->threads, &new_thread);
+
     spinlock_release(&process->lock);
 
+    scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
     return new_thread;
 }
 

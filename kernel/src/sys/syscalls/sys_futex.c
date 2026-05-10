@@ -89,7 +89,7 @@ void sys_futex(struct registers* r) {
     int op = r->rsi;
     uint32_t value = r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (!IS_USER_ADDRESS(addr)) {

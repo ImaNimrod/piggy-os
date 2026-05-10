@@ -14,7 +14,7 @@ void sys_poll(struct registers* r) {
     nfds_t nfds = r->rsi;
     const struct timespec* timeout = (const struct timespec*) r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     struct pollfd* kfds = kmalloc(sizeof(struct pollfd) * nfds);

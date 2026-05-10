@@ -26,7 +26,7 @@ struct strlen_args {
 static void memcpy_internal(struct registers* r, void* arg) {
     struct memcpy_args* args = arg;
 
-    this_cpu()->running_thread->usercopy_registers = r;
+    this_cpu()->scheduler.current_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
@@ -42,14 +42,14 @@ static void memcpy_internal(struct registers* r, void* arg) {
         clac();
     }
 
-    this_cpu()->running_thread->usercopy_registers = NULL;
+    this_cpu()->scheduler.current_thread->usercopy_registers = NULL;
     r->rax = 0;
 }
 
 static void memset_internal(struct registers* r, void* arg) {
     struct memset_args* args = arg;
 
-    this_cpu()->running_thread->usercopy_registers = r;
+    this_cpu()->scheduler.current_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
@@ -65,14 +65,14 @@ static void memset_internal(struct registers* r, void* arg) {
         clac();
     }
 
-    this_cpu()->running_thread->usercopy_registers = NULL;
+    this_cpu()->scheduler.current_thread->usercopy_registers = NULL;
     r->rax = 0;
 }
 
 static void strlen_internal(struct registers* r, void* arg) {
     struct strlen_args* args = arg;
 
-    this_cpu()->running_thread->usercopy_registers = r;
+    this_cpu()->scheduler.current_thread->usercopy_registers = r;
 
     if (this_cpu()->has_smap) {
         stac();
@@ -84,7 +84,7 @@ static void strlen_internal(struct registers* r, void* arg) {
         clac();
     }
 
-    this_cpu()->running_thread->usercopy_registers = NULL;
+    this_cpu()->scheduler.current_thread->usercopy_registers = NULL;
     r->rax = 0;
 }
 

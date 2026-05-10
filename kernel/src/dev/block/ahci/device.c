@@ -228,14 +228,14 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
         pause();
     }
 
-    device->queue_waiters[slot].thread = this_cpu()->running_thread;
+    device->queue_waiters[slot].thread = this_cpu()->scheduler.current_thread;
 
     device->old_ci |= (1 << slot);
     mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
     spinlock_release(&device->lock);
 
-    scheduler_block(this_cpu()->running_thread);
+    scheduler_block(this_cpu()->scheduler.current_thread);
     return (device->queue_waiters[slot].result == AHCI_COMMAND_RESULT_OK) ? (ssize_t) block_count : -EIO;
 }
 

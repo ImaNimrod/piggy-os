@@ -8,7 +8,7 @@
 void sys_chroot(struct registers* r) {
     const char* path = (const char*) r->rdi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     int ret = 0;

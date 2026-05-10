@@ -108,13 +108,13 @@ static int virtio_blk_rw(struct virtio_blk_device* device, uint64_t lba, size_t 
     queue->descriptors[desc2].flags = VIRTQ_DESC_F_WRITE;
     queue->descriptors[desc2].next = 0;
 
-    device->queue_waiters[desc0] = this_cpu()->running_thread;
+    device->queue_waiters[desc0] = this_cpu()->scheduler.current_thread;
     virtio_queue_insert(queue, desc0);
 
     spinlock_release(&queue->lock);
 
     virtio_queue_notify(queue);
-    scheduler_block(this_cpu()->running_thread);
+    scheduler_block(this_cpu()->scheduler.current_thread);
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + sizeof(struct virtio_blk_request));
 
@@ -149,13 +149,13 @@ static int virtio_blk_flush(struct virtio_blk_device* device) {
     queue->descriptors[desc1].flags = VIRTQ_DESC_F_WRITE;
     queue->descriptors[desc1].next = 0;
 
-    device->queue_waiters[desc0] = this_cpu()->running_thread;
+    device->queue_waiters[desc0] = this_cpu()->scheduler.current_thread;
     virtio_queue_insert(queue, desc0);
 
     spinlock_release(&queue->lock);
 
     virtio_queue_notify(queue);
-    scheduler_block(this_cpu()->running_thread);
+    scheduler_block(this_cpu()->scheduler.current_thread);
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + sizeof(struct virtio_blk_request));
 

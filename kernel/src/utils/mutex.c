@@ -12,7 +12,7 @@ void mutex_init(mutex_t* m) {
 void mutex_acquire(mutex_t* m) {
     bool int_state = spinlock_acquire_irqsave(&m->lock);
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
     if (m->owner == NULL) {
         m->owner = current_thread;
@@ -30,7 +30,7 @@ void mutex_acquire(mutex_t* m) {
 void mutex_release(mutex_t* m) {
     bool int_state = spinlock_acquire_irqsave(&m->lock);
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
     if (m->owner != current_thread) {
         kpanic(NULL, true, "mutex unlocked by thread that does not own it");
@@ -38,11 +38,17 @@ void mutex_release(mutex_t* m) {
 
     m->owner = NULL;
 
+    struct thread* waiter = NULL;
+
     if (m->waiters != NULL) {
-        struct thread* waiter = m->waiters;
+        waiter = m->waiters;
         m->waiters = waiter->next_waiter;
-        scheduler_unblock(waiter);
+        waiter->next_waiter = NULL;
     }
 
     spinlock_release_irqsave(&m->lock, int_state);
+
+    if (waiter != NULL) {
+        scheduler_unblock(waiter);
+    }
 }

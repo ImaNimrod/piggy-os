@@ -10,7 +10,7 @@ void sys_truncate(struct registers* r) {
     int fd = r->rdi;
     off_t length = r->rsi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (length < 0) {

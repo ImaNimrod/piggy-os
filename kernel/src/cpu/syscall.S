@@ -7,15 +7,15 @@
 syscall_entry:
     swapgs
 
-    movq %rax, %gs:32
+    movq %rax, %gs:16
 
-    movq %gs:8, %rax
+    movq %gs:24, %rax
     movq 0(%rax), %rax
     xchg %rax, %rsp
 
     pushq $0x1b
     push %rax
-    movq %gs:32, %rax
+    movq %gs:16, %rax
     push %r11
     pushq $0x23
     push %rcx

@@ -14,7 +14,7 @@ void sys_rename(struct registers* r) {
     int new_dirfd = r->rdx;
     const char* new_path = (const char*) r->r10;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     int ret = 0;

@@ -138,7 +138,7 @@ static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_
     }
 
     struct framebuffer_info* framebuffer = &framebuffers[minor];
-    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+    struct vmm_context* context = this_cpu()->scheduler.current_thread->process->vmm_context;
 
     if (flags & MAP_SHARED) {
         pagemap_map(context->pagemap, (uintptr_t) addr, framebuffer->address + offset, pte_flags | PTE_WRITE_COMBINE, PAGE_SIZE_4KB);
@@ -167,7 +167,7 @@ static int fb_munmap(dev_t dev, void* addr, off_t offset) {
         return 0;
     }
 
-    struct vmm_context* context = this_cpu()->running_thread->process->vmm_context;
+    struct vmm_context* context = this_cpu()->scheduler.current_thread->process->vmm_context;
 
     page_size_t page_size;
     pagemap_unmap(context->pagemap, (uintptr_t) addr, &page_size);

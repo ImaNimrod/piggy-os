@@ -5,7 +5,6 @@
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
-#include <sys/scheduler.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 
@@ -144,8 +143,8 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     wrmsr(MSR_IA32_LSTAR, (uint64_t) syscall_entry);
     wrmsr(MSR_IA32_SFMASK, (uint64_t) 0x700);
 
-    cpu_local->idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
-    cpu_local->running_thread = cpu_local->idle_thread;
+    cpu_local->scheduler.idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
+    cpu_local->scheduler.current_thread = cpu_local->scheduler.idle_thread;
 
     // Use the same lapic base address mapping for all cpus
     if (cpu_local->lapic_id != bsp_lapic_id) {

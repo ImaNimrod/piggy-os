@@ -162,8 +162,9 @@ NORETURN void kernel_entry(void) {
 
     smp_init();
 
-    struct thread* kmain_thread = thread_create_kernel((uintptr_t) kernel_main, NULL);
-    scheduler_enqueue(kmain_thread);
+    if (unlikely(thread_create_kernel((uintptr_t) kernel_main, NULL) == NULL)) {
+        kpanic(NULL, false, "failed to create kernel main thread");
+    }
 
     scheduler_yield(false);
     __builtin_unreachable();

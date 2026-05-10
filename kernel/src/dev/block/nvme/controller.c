@@ -106,7 +106,7 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
     }
 
     entry_pair->submission.cid = pair;
-    entry_pair->thread = this_cpu()->running_thread;
+    entry_pair->thread = this_cpu()->scheduler.current_thread;
     queue_pair->entries[pair] = entry_pair;
 
     struct submission_entry* sq_entry = queue_pair->submission.address;
@@ -118,7 +118,7 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
 
     mmio_write32(queue_pair->submission.doorbell, queue_pair->submission.index);
 
-    scheduler_block_and_release(this_cpu()->running_thread, &queue_pair->lock, int_state);
+    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &queue_pair->lock, int_state);
     return entry_pair->completion.status == 0;
 }
 

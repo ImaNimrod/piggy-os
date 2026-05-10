@@ -8,7 +8,7 @@ void sys_threadnew(struct registers* r) {
     void* entry = (void*) r->rdi;
     void* stack = (void*) r->rsi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     struct thread* new_thread = thread_create_user(current_process, (uintptr_t) entry, (uintptr_t) stack);
@@ -17,6 +17,5 @@ void sys_threadnew(struct registers* r) {
         return;
     }
 
-    scheduler_enqueue(new_thread);
     r->rax = new_thread->tid;
 }

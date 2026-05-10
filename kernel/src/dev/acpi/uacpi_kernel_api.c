@@ -89,7 +89,7 @@ static void work_await(struct uacpi_work_context* context) {
             return;
         }
 
-        scheduler_sleep(this_cpu()->running_thread, &delay);
+        scheduler_sleep(this_cpu()->scheduler.current_thread, &delay);
 	}
 }
 
@@ -101,7 +101,6 @@ static void work_init(struct uacpi_work_context* context, void (*proc)(void)) {
     if (unlikely(context->thread == NULL)) {
         kpanic(NULL, false, "failed to create uACPI worker thread");
     }
-    scheduler_enqueue(context->thread);
 }
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out_rsdp_address) {
@@ -314,7 +313,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec) {
         .tv_nsec = (msec % 1000) * 1000000L,
     };
 
-    scheduler_sleep(this_cpu()->running_thread, &ts);
+    scheduler_sleep(this_cpu()->scheduler.current_thread, &ts);
 }
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
@@ -338,7 +337,7 @@ void uacpi_kernel_free_event(uacpi_handle event) {
 }
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void) {
-    return (uacpi_thread_id) this_cpu()->running_thread;
+    return (uacpi_thread_id) this_cpu()->scheduler.current_thread;
 }
 
 uacpi_interrupt_state uacpi_kernel_disable_interrupts(void) {

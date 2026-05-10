@@ -26,7 +26,7 @@ void sys_exec(struct registers* r) {
     const char** argv = (const char**) r->rsi;
     const char** envp = (const char**) r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (!IS_USER_ADDRESS(path) || !IS_USER_ADDRESS(argv) || !IS_USER_ADDRESS(envp)) {
@@ -192,7 +192,7 @@ void sys_exec(struct registers* r) {
     for (size_t i = 0; i < vector_size(current_process->threads); i++) {
         t = *vector_get(current_process->threads, i);
         if (t != current_thread) {
-            scheduler_dequeue(t);
+            scheduler_dequeue(&t->cpu->scheduler, t);
             thread_destroy(t);
         }
     }
@@ -216,8 +216,6 @@ void sys_exec(struct registers* r) {
         ret = -ENOMEM;
         goto end;
     }
-
-    scheduler_enqueue(new_thread);
 
 end:
     kfree(kpath);

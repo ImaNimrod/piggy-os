@@ -26,10 +26,13 @@ typedef enum {
 } process_state_t;
 
 typedef enum {
+    THREAD_INIT = 0,
     THREAD_READY,
     THREAD_RUNNING,
     THREAD_BLOCKED,
 } thread_state_t;
+
+struct cpu_local;
 
 struct thread {
     uintptr_t kernel_stack;
@@ -40,8 +43,13 @@ struct thread {
     uint64_t fs_base;
     uint64_t gs_base;
 
+    struct cpu_local* cpu;
+
     tid_t tid;
+
     thread_state_t state;
+    spinlock_t state_lock;
+
     bool is_user;
     struct timespec time_used;
 
@@ -52,7 +60,11 @@ struct thread {
     spinlock_t run_lock;
     spinlock_t yield_lock;
 
+    // for scheduler run queues
+    struct thread* prev;
     struct thread* next;
+
+    // for events, mutexes, semaphores
     struct thread* next_waiter;
 };
 

@@ -22,10 +22,10 @@ ssize_t event_wait(struct event* event, bool block) {
         return -1;
     }
 
-    this_cpu()->running_thread->next_waiter = event->waiters;
-    event->waiters = this_cpu()->running_thread;
+    this_cpu()->scheduler.current_thread->next_waiter = event->waiters;
+    event->waiters = this_cpu()->scheduler.current_thread;
 
-    scheduler_block_and_release(this_cpu()->running_thread, &event->lock, int_state);
+    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &event->lock, int_state);
     return 0;
 }
 

@@ -6,7 +6,7 @@
 #include <sys/scheduler.h>
 
 void sys_fork(struct registers* r) {
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     struct process* new_process = process_create(current_process);
@@ -24,6 +24,4 @@ void sys_fork(struct registers* r) {
     }
 
     r->rax = new_process->pid;
-
-    scheduler_enqueue(new_thread);
 }

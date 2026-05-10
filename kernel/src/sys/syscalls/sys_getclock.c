@@ -9,7 +9,7 @@ void sys_getclock(struct registers* r) {
     clockid_t clockid = r->rdi;
     struct timespec* tp = (struct timespec*) r->rsi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     struct timespec source;

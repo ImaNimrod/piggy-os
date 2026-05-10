@@ -162,30 +162,50 @@ static void insert_range_ordered(struct vmm_context* context, struct vmm_range* 
     new_range->next = NULL;
 }
 
-static void try_combine_ranges(struct vmm_range* range) {
-    struct vmm_range* prev = range->prev;
-    if (prev != NULL && (prev->base + prev->size) == range->base && range->flags == prev->flags && range->pte_flags == prev->pte_flags) {
-        prev->size += range->size;
-        prev->next = range->next;
-
-        if (range->next != NULL) {
-            range->next->prev = prev;
-        }
-
-        slab_cache_free(vmm_range_cache, range);
+static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
+    if (range == NULL) {
+        return NULL;
     }
 
-    struct vmm_range* next = range->next;
-    if (next != NULL && next->base == (range->base + range->size) && range->flags == next->flags && range->pte_flags == next->pte_flags) {
-        range->size += next->size;
-        range->next = next->next;
+    if (range->prev != NULL) {
+        struct vmm_range* prev = range->prev;
 
-        if (next->next != NULL) {
-            next->next->prev = range;
+        if ((prev->base + prev->size) == range->base &&
+            prev->flags == range->flags &&
+            prev->pte_flags == range->pte_flags) {
+
+            prev->size += range->size;
+            prev->next = range->next;
+
+            if (range->next != NULL) {
+                range->next->prev = prev;
+            }
+
+            slab_cache_free(vmm_range_cache, range);
+
+            range = prev;
         }
-
-        slab_cache_free(vmm_range_cache, next);
     }
+
+    if (range->next != NULL) {
+        struct vmm_range* next = range->next;
+
+        if ((range->base + range->size) == next->base &&
+            range->flags == next->flags &&
+            range->pte_flags == next->pte_flags) {
+
+            range->size += next->size;
+            range->next = next->next;
+
+            if (next->next != NULL) {
+                next->next->prev = range;
+            }
+
+            slab_cache_free(vmm_range_cache, next);
+        }
+    }
+
+    return range;
 }
 
 static void update_pte_flags(struct vmm_context* context, uintptr_t address, size_t size, uint64_t new_pte_flags) {
@@ -220,6 +240,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
                 return false;
             }
             memcpy(right, range, sizeof(struct vmm_range));
+            right->prev = right->next = NULL;
 
             right->base = top;
             right->size = range_top - top;
@@ -232,6 +253,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
                 return false;
             }
             memcpy(middle, range, sizeof(struct vmm_range));
+            middle->prev = middle->next = NULL;
 
             middle->base = address;
             middle->size = size;
@@ -256,6 +278,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
                 return false;
             }
             memcpy(new, range, sizeof(struct vmm_range));
+            new->prev = new->next = NULL;
 
             new->base = range->base;
             new->size = delta;
@@ -297,6 +320,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
                 return false;
             }
             memcpy(new, range, sizeof(struct vmm_range));
+            new->prev = new->next = NULL;
 
             new->base = address;
             new->size = delta;
@@ -506,7 +530,7 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
 
     fault_addr = ALIGN_DOWN(fault_addr, PAGE_SIZE_4KB);
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct vmm_context* context = current_thread->process->vmm_context;
     if (context == NULL) {
         return false;

@@ -12,7 +12,7 @@ void sys_mount(struct registers* r) {
     const char* target = (const char*) r->rsi;
     const char* fs_name = (const char*) r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     int ret;

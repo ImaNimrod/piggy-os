@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef uint64_t spinlock_t;
+typedef uint32_t spinlock_t;
 
 #define spinlock_init(lock) \
     do { \

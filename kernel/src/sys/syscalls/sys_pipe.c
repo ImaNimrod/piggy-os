@@ -13,7 +13,7 @@ void sys_pipe(struct registers* r) {
     int* fds = (int*) r->rdi;
     int flags = r->rsi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (!IS_USER_ADDRESS(fds)) {

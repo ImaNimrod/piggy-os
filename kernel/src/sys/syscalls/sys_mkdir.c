@@ -12,7 +12,7 @@ void sys_mkdir(struct registers* r) {
     int dirfd = r->rdi;
     const char* path = (const char*) r->rsi;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     int ret;

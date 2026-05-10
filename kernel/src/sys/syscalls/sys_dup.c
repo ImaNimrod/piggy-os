@@ -11,7 +11,7 @@ void sys_dup(struct registers* r) {
     int new_fd = r->rsi;
     int flags = r->rdx;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     if (old_fd == new_fd || flags & ~VALID_FLAGS) {

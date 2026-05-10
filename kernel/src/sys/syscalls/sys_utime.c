@@ -17,7 +17,7 @@ void sys_utime(struct registers* r) {
     const struct timespec* times = (const struct timespec*) r->rdx;
     int flags = r->r10;
 
-    struct thread* current_thread = this_cpu()->running_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     int ret;
