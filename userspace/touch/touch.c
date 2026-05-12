@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 static void usage(void) {
-    fprintf(stderr, "usage: touch [-acm] FILE...\n");
+    fprintf(stderr, "usage: touch [-acm] [-r FILE] FILE...\n");
     exit(EXIT_FAILURE);
 }
 
@@ -17,9 +17,10 @@ int main(int argc, char* argv[]) {
     bool modify_atime = true;
     bool modify_mtime = true;
     bool no_create = false;
+    char* reference_file = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "acm")) != -1) {
+    while ((c = getopt(argc, argv, "acmr:")) != -1) {
         switch (c) {
             case 'a':
                 modify_atime = true;
@@ -31,6 +32,9 @@ int main(int argc, char* argv[]) {
             case 'm':
                 modify_atime = false;
                 modify_mtime = true;
+                break;
+            case 'r':
+                reference_file = optarg;
                 break;
             default:
                 usage();
@@ -48,6 +52,16 @@ int main(int argc, char* argv[]) {
     struct timespec ts[2];
     ts[0].tv_nsec = UTIME_NOW;
     ts[1].tv_nsec = UTIME_NOW;
+
+    if (reference_file != NULL) {
+        struct stat st;
+        if (stat(reference_file, &st) < 0) {
+            err(EXIT_FAILURE, "%s", reference_file);
+        }
+
+        ts[0] = st.st_atim;
+        ts[1] = st.st_mtim;
+    }
 
     if (!modify_atime) {
         ts[0].tv_nsec = UTIME_OMIT;

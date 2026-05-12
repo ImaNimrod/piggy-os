@@ -1,22 +1,20 @@
-.TH TEE "1" "April 2026" "PiggyOS" "User Commands"
+.TH PRINTF "1" "April 2026" "PiggyOS" "User Commands"
 
 .SH NAME
-tee \- read from standard input and write to standard output and files
+printf \- format and print data
 
 .SH SYNOPSIS
-.B tee
-[\fI\,OPTION\/\fR]... [\fI\,FILE\/\fR]...
+.B printf
+\fI\,FORMAT\/\fR [\fI\,ARGUMENT\/\fR]...
 
 .SH DESCRIPTION
 
 .PP
-Copy standard input to each FILE, and also to standard output.
+Print ARGUMENT(s) according to FORMAT.
+FORMAT controls the output as with C printf.
 
 .SH OPTIONS
-
-.TP
-.B \-a
-append to each FILE, do not overwrite
+None.
 
 .SH AUTHOR
 Written by nimrod.

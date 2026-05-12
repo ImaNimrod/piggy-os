@@ -3,5 +3,6 @@
 *.tar
 
 edk2-ovmf/
+limine-binary/
 toolchain/local/
 toolchain/tarballs/

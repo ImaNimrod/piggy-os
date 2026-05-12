@@ -1,0 +1,40 @@
+.TH MKTEMP "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+mktemp \- create temporary files or directories
+
+.SH SYNOPSIS
+.B mktemp
+[\fI\,OPTION\/\fR]... [\fI\,TEMPLATE\/\fR]
+
+.SH DESCRIPTION
+
+.PP
+Create a temporary file or directory, and display its name to standard output.
+TEMPLATE must contain at least 3 consecutive 'X's in the last component.
+
+If TEMPLATE is not specified, use tmp.XXXXXX, and -p is implied.
+
+.SH OPTIONS
+
+.TP
+.B \-d
+create a directory, not a file
+
+.TP
+.B \-p DIR
+interpret TEMPLATE relative to DIR
+
+.TP
+.B \-q
+supress diagnostics about file/directory creation failure
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

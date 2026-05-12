@@ -30,6 +30,8 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_TIME, "");
+
     int format = FORMAT_DEFAULT;
     char* out_zone = NULL;
 
@@ -61,8 +63,6 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
-
-    setlocale(LC_TIME, "");
 
     const char* format_string;
 

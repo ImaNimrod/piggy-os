@@ -46,9 +46,6 @@ run-virtio: edk2-ovmf
 		-device virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56 \
 		-cdrom piggy.iso
 
-edk2-ovmf:
-	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | tar -xzf -
-
 .PHONY: toolchain
 toolchain:
 	./toolchain/build_gcc.sh
@@ -58,9 +55,6 @@ toolchain:
 todolist:
 	@echo -e "List of todos and fixme in sources: \n"
 	@git grep -e TODO -e FIXME
-
-limine/limine:
-	$(MAKE) -C limine CC="cc" CFLAGS="-O2 -pipe"
 
 .PHONY: kernel
 kernel: kernel/build
@@ -90,23 +84,32 @@ initrd:
 	cd $(SYSROOT_DIR); tar -cf ../initrd.tar *
 
 .NOTPARALLEL:
-piggy.iso: limine/limine kernel libc userspace initrd
+piggy.iso: limine-binary/limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel/build/kernel.elf initrd.tar iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v meta/limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT
-	cp -v limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/boot/limine/
-	cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
-	cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/
+	cp -v limine-binary/limine-bios.sys limine-binary/limine-bios-cd.bin limine-binary/limine-uefi-cd.bin iso_root/boot/limine/
+	cp -v limine-binary/BOOTX64.EFI iso_root/EFI/BOOT/
+	cp -v limine-binary/BOOTIA32.EFI iso_root/EFI/BOOT/
 	xorriso -as mkisofs -R -r -J -b boot/limine/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus \
 		-apm-block-size 2048 --efi-boot boot/limine/limine-uefi-cd.bin \
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
 		iso_root -o piggy.iso
-	./limine/limine bios-install piggy.iso
+	./limine-binary/limine bios-install piggy.iso
 	rm -rf iso_root
+
+edk2-ovmf:
+	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | tar -xzf -
+
+limine-binary/limine: limine-binary
+	$(MAKE) -C limine-binary CC="cc" CFLAGS="-O2 -pipe"
+
+limine-binary:
+	curl -L https://github.com/Limine-Bootloader/Limine/releases/download/v12.2.0/limine-binary.tar.xz | tar -xJf -
 
 .PHONY: clean
 clean:
@@ -116,4 +119,4 @@ clean:
 
 .PHONY: distclean
 distclean:
-	$(MAKE) -C limine clean
+	$(MAKE) -C limine-binary clean

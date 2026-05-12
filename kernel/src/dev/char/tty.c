@@ -18,75 +18,93 @@
 
 #define INPUT_BUF_SIZE 1024
 
-#define IGNBRK  0x00001
-#define BRKINT  0x00002
-#define IGNPAR  0x00004
-#define PARMRK  0x00008
-#define INPCK   0x00010
-#define ISTRIP  0x00020
-#define INLCR   0x00040
-#define IGNCR   0x00080
-#define ICRNL   0x00100
-#define IUCLC   0x00200
-#define IXON    0x00400
-#define IXANY   0x00800
-#define IXOFF   0x01000
-#define IMAXBEL 0x02000
-#define IUTF8   0x04000
+#define BRKINT  0x0001
+#define ICRNL   0x0002
+#define IGNBRK  0x0004
+#define IGNCR   0x0008
+#define IGNPAR  0x0010
+#define INLCR   0x0020
+#define INPCK   0x0040
+#define ISTRIP  0x0080
+#define IXANY   0x0100
+#define IXOFF   0x0200
+#define IXON    0x0400
+#define PARMRK  0x0800
 
-#define OPOST   0x00001
-#define OLCUC   0x00002
-#define ONLCR   0x00004
-#define OCRNL   0x00008
-#define ONOCR   0x00010
-#define ONLRET  0x00020
-#define OFILL   0x00040
+#define OPOST   0x0001
+#define ONLCR   0x0002
+#define OCRNL   0x0004
+#define ONOCR   0x0008
+#define ONLRET  0x0010
+#define OFILL   0x0020
+#define OFDEL   0x0040
 
-#define ISIG    0x00001
-#define ICANON  0x00002
-#define ECHO    0x00004
-#define ECHOE   0x00008
-#define ECHOK   0x00010
-#define ECHONL  0x00020
-#define NOFLSH  0x00040
-#define TOSTOP  0x00080
-#define ECHOCTL 0x00100
-#define ECHOPRT 0x00200
-#define ECHOKE  0x00400
-#define IEXTEN  0x00800
+#define B0       0
+#define B50      1
+#define B75      2
+#define B110     3
+#define B134     4
+#define B150     5
+#define B200     6
+#define B300     7
+#define B600     8
+#define B1200    9
+#define B1800    10
+#define B2400    11
+#define B4800    12
+#define B9600    13
+#define B19200   14
+#define B38400   15
+#define B57600   0010001
+#define B115200  0010002
+#define B230400  0010003
+#define B460800  0010004
+#define B500000  0010005
+#define B576000  0010006
+#define B921600  0010007
+#define B1000000 0010010
+#define B1152000 0010011
+#define B1500000 0010012
+#define B2000000 0010013
+#define B2500000 0010014
+#define B3000000 0010015
+#define B3500000 0010016
+#define B4000000 0010017
 
-#define CSIZE  0000060
-#define CS5    0000000
-#define CS6    0000020
-#define CS7    0000040
-#define CS8    0000060
-#define CSTOPB 0000100
-#define CREAD  0000200
-#define PARENB 0000400
-#define PARODD 0001000
-#define HUPCL  0002000
-#define CLOCAL 0004000
-#define CBAUD  0010017
+#define CBAUD   0x100f
+#define CLOCAL  0x0010
+#define CREAD   0x0020
+#define CSIZE   0x00c0
+#define CS5     0x0000
+#define CS6     0x0040
+#define CS7     0x0080
+#define CS8     0x00c0
+#define CSTOPB  0x0100
+#define HUPCL   0x0200
+#define PARENB  0x0400
+#define PARODD  0x0800
 
-#define NCCS 32
+#define ECHO    0x0001
+#define ECHOE   0x0002
+#define ECHOK   0x0004
+#define ECHONL  0x0008
+#define ICANON  0x0010
+#define IEXTEN  0x0020
+#define ISIG    0x0040
+#define NOFLSH  0x0080
+#define TOSTOP  0x0100
 
-#define VINTR     0
-#define VQUIT     1
-#define VERASE    2
-#define VKILL     3
-#define VEOF      4
-#define VTIME     5
-#define VMIN      6
-#define VSWTC     7
-#define VSTART    8
-#define VSTOP     9
-#define VSUSP    10
-#define VEOL     11
-#define VREPRINT 12
-#define VDISCARD 13
-#define VWERASE  14
-#define VLNEXT   15
-#define VEOL2    16
+#define VEOF    0
+#define VEOL    1
+#define VERASE  2
+#define VINTR   3
+#define VKILL   4
+#define VMIN    5
+#define VQUIT   6
+#define VSUSP   7
+#define VTIME   8
+#define VSTART  9
+#define VSTOP   10
 
 bool tty_is_ready;
 
@@ -161,7 +179,8 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     size_t to_copy = max_to_copy;
     if (termios.c_lflag & ICANON) {
         for (to_copy = 1; to_copy < max_to_copy; to_copy++) {
-            if (input_buf[to_copy - 1] == '\n') {
+            char end = input_buf[to_copy - 1];
+            if (end == '\n' || end == termios.c_cc[VEOL] || end == termios.c_cc[VEOF]) {
                 break;
             }
         }
@@ -197,11 +216,18 @@ static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset,
             return ret;
         }
 
-        if (c == '\n' && (termios.c_oflag & ONLCR)) {
-            internal_write(crnl, sizeof(crnl));
-        } else {
-            internal_write(&c, 1);
+        if (termios.c_oflag & OPOST) {
+            if (c == '\n' && (termios.c_oflag & ONLCR)) {
+                internal_write(crnl, sizeof(crnl));
+                continue;
+            }
+
+            if (c == '\r' && (termios.c_oflag & OCRNL)) {
+                c = '\n';
+            }
         }
+
+        internal_write(&c, 1);
     }
 
     return count;
@@ -295,15 +321,13 @@ void tty_add_char(char c) {
 
     if (should_append && (force_echo || (termios.c_lflag & ECHO))) {
         if ((c < 32 && c != '\n' && c != '\t') || c == 127) {
-            char control_char[2];
-            control_char[0] = '^';
-            control_char[1] = (c == 127) ? '?' : (c ^ 0x40);
-            internal_write(control_char, 2);
+            char control_char[2] = { '^', (c == 127) ? '?' : (c ^ 0x40) };
+            internal_write(control_char, sizeof(control_char));
         } else {
-            if (c == '\n' && (termios.c_oflag & ONLCR)) {
+            if (c == '\n' && (termios.c_lflag & ECHONL)) {
                 internal_write(crnl, sizeof(crnl));
             } else {
-                internal_write(&c, sizeof(c));
+                internal_write(&c, 1);
             }
         }
     }
@@ -328,8 +352,8 @@ void tty_init(void) {
 
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = OPOST | ONLCR;
-    termios.c_cflag = CREAD | CS8;
-    termios.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
+    termios.c_cflag = B38400 | CREAD | CS8;
+    termios.c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON;
 
     termios.c_cc[VEOF] = CTRL('D');
     termios.c_cc[VERASE] = '\b';
@@ -340,7 +364,7 @@ void tty_init(void) {
     termios.c_cc[VSTART] = CTRL('Q');
     termios.c_cc[VSTOP] = CTRL('S');
     termios.c_cc[VSUSP] = CTRL('Z');
-
+    termios.c_cc[VTIME] = 0;
 
     size_t cols, rows;
     flanterm_get_dimensions(fb_context, &cols, &rows);

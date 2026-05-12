@@ -363,6 +363,8 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_ALL, "");
+
     if (isatty(STDOUT_FILENO)) {
         output = output_columns;
         colors = true;
@@ -411,8 +413,6 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
-
-    setlocale(LC_ALL, "");
 
     int ret = EXIT_SUCCESS;
 

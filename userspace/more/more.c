@@ -216,14 +216,14 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
+    setlocale(LC_ALL, "");
+
     while (getopt(argc, argv, "") != -1) {
         usage();
     }
 
     argc -= optind;
     argv += optind;
-
-    setlocale(LC_ALL, "");
 
     if (isatty(STDIN_FILENO)) {
         tty_fd = STDIN_FILENO;

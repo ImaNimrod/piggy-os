@@ -51,7 +51,9 @@ static int num_width(long long val) {
 
 static void print_timestamp(const char* type, const struct timespec* ts) {
     struct tm tm;
-    localtime_r(&ts->tv_sec, &tm);
+    if (localtime_r(&ts->tv_sec, &tm) == NULL) {
+        err(EXIT_FAILURE, "localtime_r");
+    }
 
     char buf[64];
     strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);

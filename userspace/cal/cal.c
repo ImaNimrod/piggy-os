@@ -60,7 +60,10 @@ static void print_calendars(const struct tm* today, struct tm* target, int count
 
     for (int i = 0; i < count; i++) {
         target_time = mktime(target);
-        localtime_r(&target_time, &actual[i]);
+        if (localtime_r(&target_time, &actual[i]) == NULL) {
+            err(EXIT_FAILURE, "localtime_r");
+        }
+
         timeinfo[i] = &actual[i];
         next_month(target);
     }
