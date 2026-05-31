@@ -130,6 +130,7 @@ kernel_sources = files(
   'src/sys/syscalls/sys_fork.c',
   'src/sys/syscalls/sys_futex.c',
   'src/sys/syscalls/sys_getclock.c',
+  'src/sys/syscalls/sys_getclockres.c',
   'src/sys/syscalls/sys_getdents.c',
   'src/sys/syscalls/sys_getpid.c',
   'src/sys/syscalls/sys_getppid.c',

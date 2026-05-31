@@ -2,36 +2,34 @@
 #include <cpu/smp.h>
 #include <errno.h> 
 #include <sys/process.h>
+#include <sys/scheduler.h>
 #include <sys/timer.h> 
 #include <utils/usercopy.h>
 
-void sys_getclock(struct registers* r) {
+void sys_getclockres(struct registers* r) {
     clockid_t clockid = r->rdi;
     struct timespec* tp = (struct timespec*) r->rsi;
 
-    struct thread* current_thread = this_cpu()->scheduler.current_thread;
-    struct process* current_process = current_thread->process;
-
-    struct timespec source;
+    struct timespec resolution;
 
     switch (clockid) {
         case CLOCK_REALTIME:
-            source = time_realtime;
-            break;
         case CLOCK_MONOTONIC:
         case CLOCK_BOOTTIME:
-            source = timer_time_from_boot();
+            uint64_t period_ns = 1000000000ULL / this_cpu()->timer_info->hz;
+
+            resolution.tv_sec = period_ns / 1000000000ULL;
+            resolution.tv_nsec = period_ns % 1000000000ULL;
             break;
         case CLOCK_PROCESS_CPUTIME_ID:
-            source = current_process->time_used;
-            break;
         case CLOCK_THREAD_CPUTIME_ID:
-            source = current_thread->time_used;
+            resolution.tv_sec = 0;
+            resolution.tv_nsec = SCHEDULER_TIME_QUANTA_MS * 1000000ULL;
             break;
         default:
             r->rax = -EINVAL;
             return;
     }
 
-    r->rax = user_memcpy_to_user(tp, &source, sizeof(source));
+    r->rax = user_memcpy_to_user(tp, &resolution, sizeof(resolution));
 }

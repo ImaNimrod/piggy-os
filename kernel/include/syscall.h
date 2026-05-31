@@ -39,10 +39,11 @@
 #define SYS_PIPE        35
 #define SYS_SLEEP       36
 #define SYS_GETCLOCK    37
-#define SYS_SETCLOCK    38
-#define SYS_UNAME       39
-#define SYS_FUTEX       40
-#define SYS_POWEROFF    41
-#define SYS_ARCHCTL     42
+#define SYS_GETCLOCKRES 38
+#define SYS_SETCLOCK    39
+#define SYS_UNAME       40
+#define SYS_FUTEX       41
+#define SYS_POWEROFF    42
+#define SYS_ARCHCTL     43
 
 #endif /* _KERNEL_SYSCALL_H */

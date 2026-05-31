@@ -1,6 +1,9 @@
 SYSROOT_DIR:=$(PWD)/sysroot
 TOOLCHAIN_DIR:=$(PWD)/toolchain
 
+EDK2_OVMF_URL:=https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
+LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.3.2/limine-binary.tar.xz
+
 EMU:=$(TOOLCHAIN_DIR)/local/bin/qemu-system-x86_64
 
 EMUOPTS := -machine q35 \
@@ -106,13 +109,13 @@ piggy.iso: limine-binary/limine kernel libc userspace initrd
 	rm -rf iso_root
 
 edk2-ovmf:
-	curl -L https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz | tar -xzf -
+	curl -L $(EDK2_OVMF_URL) | tar -xzf -
 
 limine-binary/limine: limine-binary
 	$(MAKE) -C limine-binary CC="cc" CFLAGS="-O2 -pipe"
 
 limine-binary:
-	curl -L https://github.com/Limine-Bootloader/Limine/releases/download/v12.2.0/limine-binary.tar.xz | tar -xJf -
+	curl -L $(LIMINE_BINARY_URL) | tar -xJf -
 
 .PHONY: clean
 clean:
