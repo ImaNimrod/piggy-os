@@ -11,6 +11,7 @@
 #include <utils/mutex.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
+#include <utils/wait_queue.h>
 
 #define KERNEL_STACK_SIZE   0x8000
 #define USER_STACK_SIZE     0x40000
@@ -82,6 +83,8 @@ struct process {
 
     struct file_descriptor fds[PROCESS_FD_COUNT];
     mutex_t fd_mutex;
+
+    struct wait_queue child_wait;
 
     struct vmm_context* vmm_context;
     uintptr_t thread_stack_top;

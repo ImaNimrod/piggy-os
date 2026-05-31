@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <sys/timer.h>
 #include <types.h>
-#include <utils/spinlock.h>
 
 #define PATH_MAX_LENGTH 512
 
@@ -24,6 +23,13 @@
 #define S_IFLNK     0x09000
 #define S_IFIFO     0x0b000
 #define S_IFSOCK    0x0d000
+
+#define POLLIN      0x01
+#define POLLOUT     0x02
+#define POLLPRI     0x04
+#define POLLHUP     0x08
+#define POLLERR     0x10
+#define POLLNVAL    0x20
 
 #define VFS_FLAG_ROOT (1 << 0)
 #define VFS_FLAG_MMAP (1 << 1)
@@ -50,6 +56,8 @@ typedef enum {
 struct vfs_filesystem;
 struct vfs_node;
 
+struct poll_table;
+
 struct vfs_ops {
     int (*mount)(struct vfs_node*, struct vfs_node*, struct vfs_filesystem**);
     int (*unmount)(struct vfs_filesystem*);
@@ -66,7 +74,7 @@ struct vfs_node_ops {
     ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t, int);
     int (*ioctl)(struct vfs_node*, int, void*);
     int (*truncate)(struct vfs_node*, off_t);
-    short (*poll)(struct vfs_node*, short);
+    short (*poll)(struct vfs_node*, short, struct poll_table*);
     int (*sync)(struct vfs_node*);
     int (*mmap)(struct vfs_node*, void*, off_t, int, uint64_t);
     int (*munmap)(struct vfs_node*, void*, off_t);

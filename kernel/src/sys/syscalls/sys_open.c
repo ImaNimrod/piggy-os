@@ -49,9 +49,13 @@ retry:
     struct file* file = NULL;
 
     ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
-    if (ret == 0 && (flags & O_CREAT) && (flags & O_EXCL)) {
-        ret = -EEXIST;
-        goto end;
+    if (ret == 0) {
+        if ((flags & O_CREAT) && (flags & O_EXCL)) {
+            ret = -EEXIST;
+            goto end;
+        } else {
+            node->ops->unlock(node);
+        }
     } else if (ret == -ENOENT && (flags & O_CREAT)) {
         ret = vfs_create(dirnode, kpath, VFS_TYPE_REGULAR, &node);
         if (ret == -EEXIST && !(flags & O_EXCL)) {
@@ -71,7 +75,11 @@ retry:
     }
 
     if (node->type == VFS_TYPE_REGULAR && (flags & O_TRUNC)) {
-        if ((ret = node->ops->truncate(node, 0)) < 0) {
+        node->ops->lock(node);
+        ret = node->ops->truncate(node, 0);
+        node->ops->unlock(node);
+
+        if (ret < 0) {
             goto end;
         }
     }
@@ -90,7 +98,12 @@ retry:
 
     if (flags & O_APPEND) {
         struct stat st;
-        if ((ret = node->ops->getstat(node, &st)) < 0) {
+
+        node->ops->lock(node);
+        ret = node->ops->getstat(node, &st);
+        node->ops->unlock(node);
+
+        if (ret < 0) {
             goto end;
         }
 
@@ -107,7 +120,6 @@ end:
     }
 
     if (node != NULL) {
-        node->ops->unlock(node);
         if (ret < 0) {
             VFS_NODE_UNREF(node);
         }

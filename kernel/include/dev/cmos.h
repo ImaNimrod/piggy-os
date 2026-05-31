@@ -19,5 +19,6 @@ struct rtc_time {
 
 time_t cmos_get_rtc_timestamp(void);
 void cmos_init(void);
+void cmos_init_rtc_dev(void);
 
 #endif /* _KERNEL_DEV_CMOS_H */

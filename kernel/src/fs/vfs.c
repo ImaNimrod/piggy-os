@@ -7,8 +7,6 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
-// TODO: Fix .. directory entries
-
 struct vfs_node* vfs_root;
 
 static hashmap_t* vfs_filesystems;
@@ -23,6 +21,24 @@ static struct vfs_node_ops root_node_ops = {
 static int nop(struct vfs_node* node) {
     (void) node;
     return 0;
+}
+
+static struct vfs_node* mount_bottom(struct vfs_node* node) {
+    while (node->flags & VFS_FLAG_ROOT) {
+        node = node->filesystem->node;
+    }
+
+    return node;
+}
+
+static int mount_top(struct vfs_node* node, struct vfs_node** result) {
+    int ret = 0;
+    while (ret == 0 && node->mounted != NULL) {
+        ret = node->mounted->ops->root(node->mounted, &node);
+    }
+
+    *result = node;
+    return ret;
 }
 
 int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const char* target_path, const char* fs_name) {
@@ -137,10 +153,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
 
     struct vfs_node* current = reference;
 
-    int error = 0;
-    while (error == 0 && current->mounted != NULL) {
-        error = current->mounted->ops->root(current->mounted, &current);
-    }
+    int error = mount_top(reference, &current);
     if (error < 0) {
         return error;
     }
@@ -190,13 +203,8 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
 
         bool is_dotdot = strcmp(component, "..") == 0;
         if (is_dotdot) {
-            struct vfs_node* root = vfs_root;
-            while (error == 0 && root->mounted != NULL) {
-                error = vfs_root->mounted->ops->root(root->mounted, &root);
-            }
-            if (error < 0) {
-                break;
-            }
+            struct vfs_node* root = NULL;
+            mount_top(vfs_root, &root);
 
             if (root == current) {
                 i += comp_len;
@@ -204,15 +212,12 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
             }
 
             if (current->flags & VFS_FLAG_ROOT) {
-                struct vfs_node* low = current;
-                while (low->flags & VFS_FLAG_ROOT) {
-                    low = low->filesystem->node;
-                }
-
+                struct vfs_node* low = mount_bottom(current);
                 if (low != current) {
                     VFS_NODE_REF(low);
                     current->ops->unlock(current);
                     VFS_NODE_UNREF(current);
+
                     current = low;
                     current->ops->lock(current);
                 }
@@ -229,10 +234,8 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
         }
 
         struct vfs_node* r = next;
-        while (error == 0 && r->mounted != NULL) {
-            error = r->mounted->ops->root(r->mounted, &r);
-        }
 
+        error = mount_top(next, &r);
         if (error < 0) {
             if (current != next) {
                 next->ops->unlock(next);
@@ -245,11 +248,12 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
             VFS_NODE_REF(r);
             next->ops->unlock(next);
             VFS_NODE_UNREF(next);
+
             next = r;
             next->ops->lock(next);
         }
 
-        current->ops->unlock(current);
+        VFS_NODE_UNREF(current);
         current = next;
         i += comp_len;
     }
@@ -263,7 +267,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent,
 
     kfree(comp_buffer);
     return error;
-} 
+}
 
 int vfs_rename(struct vfs_node* src_reference, const char* src_path, struct vfs_node* dest_reference, const char* dest_path) {
     char* src_component = kmalloc(strlen(src_path) + 1);

@@ -24,6 +24,7 @@
 #define ENOTSUP         95
 #define ENOTTY          25
 #define EOVERFLOW       75
+#define EROFS           30
 #define ESPIPE          29
 #define EXDEV           18
 

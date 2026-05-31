@@ -34,6 +34,7 @@ struct process* process_create(struct process* parent) {
     }
 
     mutex_init(&new_process->fd_mutex);
+    wait_queue_init(&new_process->child_wait);
 
     if (parent != NULL) {
         spinlock_acquire(&parent->lock);
@@ -219,6 +220,8 @@ void process_exit(struct process* process, int status) {
 
     process->state = PROCESS_ZOMBIE;
     process->exit_status = status;
+
+    wait_queue_wake_all(&process->parent->child_wait);
 
     spinlock_release(&process->lock);
 }

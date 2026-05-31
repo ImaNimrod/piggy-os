@@ -286,7 +286,7 @@ void tty_add_char(char c) {
     if (!(termios.c_lflag & ICANON)) {
         should_flush = true;
     } else {
-        if (c == termios.c_cc[VERASE] && (termios.c_lflag & ECHOE)) {
+        if ((c == '\b' || c == termios.c_cc[VERASE]) && (termios.c_lflag & ECHOE)) {
             do_backspace();
             goto end;
         }
@@ -356,7 +356,7 @@ void tty_init(void) {
     termios.c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON;
 
     termios.c_cc[VEOF] = CTRL('D');
-    termios.c_cc[VERASE] = '\b';
+    termios.c_cc[VERASE] = CTRL('?');
     termios.c_cc[VINTR] = CTRL('C');
     termios.c_cc[VKILL] = CTRL('U');
     termios.c_cc[VMIN] = 1;

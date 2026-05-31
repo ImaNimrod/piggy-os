@@ -1,4 +1,7 @@
-include ./config.mk
+SYSROOT_DIR:=$(PWD)/sysroot
+TOOLCHAIN_DIR:=$(PWD)/toolchain
+
+EMU:=$(TOOLCHAIN_DIR)/local/bin/qemu-system-x86_64
 
 EMUOPTS := -machine q35 \
 		   -m 4G \

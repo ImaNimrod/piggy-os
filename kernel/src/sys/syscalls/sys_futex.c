@@ -6,16 +6,16 @@
 #include <stdint.h> 
 #include <sys/process.h>
 #include <utils/hashmap.h>
-#include <utils/event.h>
 #include <utils/macros.h>
 #include <utils/mutex.h>
 #include <utils/usercopy.h>
+#include <utils/wait_queue.h>
 
 #define FUTEX_WAIT 0
 #define FUTEX_WAKE 1
 
 struct futex {
-    struct event event;
+    struct wait_queue wq;
     int waiters;
 };
 
@@ -43,9 +43,10 @@ static int futex_wait(struct futex* futex, uintptr_t paddr, uint32_t* addr, uint
             goto end;
         }
 
-        event_init(&futex->event);
+        wait_queue_init(&futex->wq);
 
         if (!hashmap_set(futex_map, &paddr, sizeof(uintptr_t), futex)) {
+            kfree(futex);
             ret = -ENOMEM;
             goto end;
         }
@@ -55,7 +56,7 @@ static int futex_wait(struct futex* futex, uintptr_t paddr, uint32_t* addr, uint
     futex->waiters++;
     mutex_release(&futex_map_mutex);
 
-    event_wait(&futex->event, true);
+    wait_queue_wait(&futex->wq);
 
     mutex_acquire(&futex_map_mutex);
     futex->waiters--;
@@ -71,17 +72,12 @@ end:
 }
 
 static int futex_wake(struct futex* futex) {
-    mutex_acquire(&futex_map_mutex);
-
     if (futex == NULL) {
-        goto end;
+        return 0;
     }
 
-    event_trigger(&futex->event);
-
-end:
-    mutex_release(&futex_map_mutex);
-    return 0;
+    wait_queue_wake_one(&futex->wq);
+    return 1;
 }
 
 void sys_futex(struct registers* r) {

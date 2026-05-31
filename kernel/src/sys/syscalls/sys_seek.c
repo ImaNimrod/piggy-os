@@ -9,6 +9,8 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#include <utils/log.h>
+
 void sys_seek(struct registers* r) {
     int fd = r->rdi;
     off_t offset = r->rsi;
@@ -43,11 +45,6 @@ void sys_seek(struct registers* r) {
 
     ret = node->ops->getstat(node, &stat);
     if (ret < 0) {
-        goto end;
-    }
-
-    if (node->type == VFS_TYPE_BLOCKDEV && (offset % stat.st_blksize) != 0) {
-        ret = -EINVAL;
         goto end;
     }
 

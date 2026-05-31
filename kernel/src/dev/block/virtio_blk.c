@@ -15,7 +15,6 @@
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/semaphore.h>
-#include <utils/spinlock.h>
 
 #include "../../utils/printf/printf.h"
 
@@ -82,6 +81,10 @@ static int virtio_blk_rw(struct virtio_blk_device* device, uint64_t lba, size_t 
     uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
     uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
     uint16_t desc2 = virtio_queue_alloc_descriptor(queue);
+    if (desc0 == VIRTIO_INVALID_QUEUE_DESCRIPTOR || desc1 == VIRTIO_INVALID_QUEUE_DESCRIPTOR || desc2 == VIRTIO_INVALID_QUEUE_DESCRIPTOR) {
+        spinlock_release(&queue->lock);
+        return -ENOMEM;
+    }
 
     uintptr_t request_paddr = pmm_alloc(1);
 
@@ -131,6 +134,10 @@ static int virtio_blk_flush(struct virtio_blk_device* device) {
 
     uint16_t desc0 = virtio_queue_alloc_descriptor(queue);
     uint16_t desc1 = virtio_queue_alloc_descriptor(queue);
+    if (desc0 == VIRTIO_INVALID_QUEUE_DESCRIPTOR || desc1 == VIRTIO_INVALID_QUEUE_DESCRIPTOR) {
+        spinlock_release(&queue->lock);
+        return -ENOMEM;
+    }
 
     uintptr_t request_paddr = pmm_alloc(1);
 

@@ -28,12 +28,15 @@ static struct vfs_ops devfs_ops = {
     .root = devfs_root,
 };
 
+static int devfs_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result);
 static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
+static int devfs_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name);
+static int devfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
 static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
-static ssize_t devfs_write(struct vfs_node* node, const void*, size_t count, off_t offset, int flags);
+static ssize_t devfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int devfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int devfs_truncate(struct vfs_node* node, off_t length);
-static short devfs_poll(struct vfs_node* node, short events);
+static short devfs_poll(struct vfs_node* node, short events, struct poll_table* pt);
 static int devfs_sync(struct vfs_node* node);
 static int devfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags);
 static int devfs_munmap(struct vfs_node* node, void* addr, off_t offset);
@@ -45,7 +48,10 @@ static int devfs_unlock(struct vfs_node* node);
 static void devfs_inactive(struct vfs_node* node);
 
 static struct vfs_node_ops devfs_node_ops = {
+    .create = devfs_create,
     .lookup = devfs_lookup,
+    .rename = devfs_rename,
+    .unlink = devfs_unlink,
     .read = devfs_read,
     .write = devfs_write,
     .ioctl = devfs_ioctl,
@@ -84,6 +90,14 @@ static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** resul
     return 0;
 }
 
+static int devfs_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result) {
+    (void) parent;
+    (void) name;
+    (void) type;
+    (void) result;
+    return -ENOTSUP;
+}
+
 static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** result) {
     if (parent != (struct vfs_node*) devfs_root_node) {
         return -ENODEV;
@@ -106,6 +120,22 @@ static int devfs_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
 
     *result = (struct vfs_node*) child;
     return 0;
+}
+
+static int devfs_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name) {
+    (void) src_dir;
+    (void) src;
+    (void) old_name;
+    (void) target_dir;
+    (void) new_name;
+    return -ENOTSUP;
+}
+
+static int devfs_unlink(struct vfs_node* parent, char* name, struct vfs_node** result) {
+    (void) parent;
+    (void) name;
+    (void) result;
+    return -ENOTSUP;
 }
 
 static ssize_t devfs_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
@@ -152,13 +182,13 @@ static int devfs_truncate(struct vfs_node* node, off_t length) {
     return -EINVAL;
 }
 
-static short devfs_poll(struct vfs_node* node, short events) {
+static short devfs_poll(struct vfs_node* node, short events, struct poll_table* pt) {
     struct devfs_node* dnode = (struct devfs_node*) node;
     if (dnode->devops->poll == NULL) {
         return -ENODEV;
     }
 
-    return dnode->devops->poll(dnode->stat.st_rdev, events);
+    return dnode->devops->poll(dnode->stat.st_rdev, events, pt);
 }
 
 static int devfs_sync(struct vfs_node* node) {

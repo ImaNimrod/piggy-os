@@ -38,7 +38,7 @@ void sys_wait(struct registers* r) {
                 return;
             }
 
-            scheduler_yield(true);
+            wait_queue_wait(&current_process->child_wait);
         }
     } else if (pid > 0) {
         struct process* iter;
@@ -60,7 +60,7 @@ void sys_wait(struct registers* r) {
         }
 
         while (child->state != PROCESS_ZOMBIE) {
-            scheduler_yield(true);
+            wait_queue_wait(&current_process->child_wait);
         }
     } else {
         r->rax = -EINVAL;

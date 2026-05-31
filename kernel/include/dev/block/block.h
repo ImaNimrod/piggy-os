@@ -20,7 +20,9 @@ typedef ssize_t (*block_cmd_handler_t)(struct block_device*, block_cmd_t, uint64
 
 struct block_device {
     block_cmd_handler_t cmd_handler;
+
     void* private;
+
     size_t block_count;
     size_t block_size;
     size_t lba_offset;

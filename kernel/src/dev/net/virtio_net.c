@@ -167,7 +167,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
 
     isr_register_handler(vector, virtio_net_rx_irq_handler, device);
 
-    // Setup pakcet buffers in receieve queue
+    // Setup packet buffers in receieve queue
     struct virtio_queue* rx_queue = &vio_dev->queues[0];
 
     uintptr_t packet_buffer = pmm_alloc(DIV_CEIL(netif->mtu * rx_queue->size, PAGE_SIZE_4KB));
@@ -192,8 +192,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     semaphore_init(&device->tx_semaphore, vio_dev->queues[1].size);
 
     isr_register_handler(vector, virtio_net_tx_irq_handler, device);
+    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 
     klog("[virtio_net] initialized VirtIO network device (mac: " MAC_ADDRESS_FORMAT ")\n", MAC_ADDRESS_PRINT(netif->mac));
-
-    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
 }

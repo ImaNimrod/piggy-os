@@ -6,7 +6,7 @@ typedef long time_t;
 
 struct timespec {
     time_t tv_sec;
-    time_t tv_nsec;
+    long tv_nsec;
 };
 
 typedef long off_t;

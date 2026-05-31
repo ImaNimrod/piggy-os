@@ -11,7 +11,7 @@
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
 #include <utils/vector.h>
@@ -23,12 +23,15 @@ struct tmpfs_filesystem {
 
 struct tmpfs_node {
     struct vfs_node;
+
     struct stat stat;
+
     union {
         vector_t* pages;
         hashmap_t* children;
     };
-    spinlock_t lock;
+
+    mutex_t mutex;
 };
 
 static struct slab_cache* tmpfs_node_cache;
@@ -49,6 +52,7 @@ static ssize_t tmpfs_read(struct vfs_node* node, void* buf, size_t count, off_t 
 static ssize_t tmpfs_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int tmpfs_ioctl(struct vfs_node* node, int request, void* argp);
 static int tmpfs_truncate(struct vfs_node* node, off_t length);
+static short tmpfs_poll(struct vfs_node* node, short events, struct poll_table* pt);
 static int tmpfs_sync(struct vfs_node* node);
 static int tmpfs_mmap(struct vfs_node* node, void* addr, off_t offset, int flags, uint64_t pte_flags);
 static int tmpfs_munmap(struct vfs_node* node, void* addr, off_t offset);
@@ -68,6 +72,7 @@ static struct vfs_node_ops tmpfs_node_ops = {
     .write = tmpfs_write,
     .ioctl = tmpfs_ioctl,
     .truncate = tmpfs_truncate,
+    .poll = tmpfs_poll,
     .sync = tmpfs_sync,
     .mmap = tmpfs_mmap,
     .munmap = tmpfs_munmap,
@@ -117,6 +122,8 @@ static struct tmpfs_node* create_node(struct vfs_filesystem* filesystem, vfs_typ
     node->stat.st_nlink = type == VFS_TYPE_DIRECTORY ? 2 : 1;
     node->stat.st_blksize = PAGE_SIZE_4KB;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
+
+    mutex_init(&node->mutex);
 
     return node;
 }
@@ -471,6 +478,23 @@ static int tmpfs_truncate(struct vfs_node* node, off_t length) {
     return 0;
 }
 
+static short tmpfs_poll(struct vfs_node* node, short events, struct poll_table* pt) {
+    (void) node;
+    (void) pt;
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        revents |=  POLLIN;
+    }
+
+    if (events & POLLOUT) {
+        revents |=  POLLOUT;
+    }
+
+    return revents;
+}
+
 static int tmpfs_sync(struct vfs_node* node) {
     (void) node;
     return 0;
@@ -575,12 +599,12 @@ static int tmpfs_setstat(struct vfs_node* node, const struct stat* stat, int fla
 }
 
 static int tmpfs_lock(struct vfs_node* node) {
-    spinlock_acquire(&((struct tmpfs_node*) node)->lock);
+    mutex_acquire(&((struct tmpfs_node*) node)->mutex);
     return 0;
 }
 
 static int tmpfs_unlock(struct vfs_node* node) {
-    spinlock_release(&((struct tmpfs_node*) node)->lock);
+    mutex_release(&((struct tmpfs_node*) node)->mutex);
     return 0;
 }
 

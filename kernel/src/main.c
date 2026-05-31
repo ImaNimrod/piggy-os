@@ -13,6 +13,7 @@
 #include <dev/ps2.h>
 #include <dev/serial.h>
 #include <fs/devfs.h>
+#include <fs/fat32.h>
 #include <fs/file.h>
 #include <fs/initrd.h>
 #include <fs/tmpfs.h>
@@ -85,8 +86,11 @@ NORETURN void __stack_chk_fail(void) {
 }
 
 NORETURN static void kernel_main(void) {
+    cmos_init();
+
     devfs_init();
     tmpfs_init();
+    fat32_init();
     file_init();
 
     pseudo_dev_init();
@@ -94,7 +98,7 @@ NORETURN static void kernel_main(void) {
     block_init();
     net_init();
 
-    cmos_init();
+    cmos_init_rtc_dev();
     fb_dev_init();
 
     pci_init();

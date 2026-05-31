@@ -50,21 +50,21 @@ void sys_poll(struct registers* r) {
 
     for (nfds_t i = 0; i < nfds; i++) {
         struct pollfd* pollfd = &kfds[i];
-
         pollfd->revents = 0;
+
         if (pollfd->fd < 0) {
             continue;
         }
 
         struct file* file = file_get(current_process, pollfd->fd);
-        if (file == NULL) {
+        if (!file) {
             pollfd->revents = POLLNVAL;
             event_count++;
             continue;
         }
 
         if (!vector_push(files, &file)) {
-            r->rax = -ENOMEM;
+            ret = -ENOMEM;
             goto end;
         }
     }

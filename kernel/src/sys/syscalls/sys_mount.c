@@ -70,6 +70,10 @@ void sys_mount(struct registers* r) {
             goto end;
         }
 
+        if ((ret = user_memcpy_from_user(ksource, source, source_len)) < 0) {
+            goto end;
+        }
+
         struct vfs_node* source_reference = ksource[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
         ret = vfs_lookup(source_reference, ksource, false, NULL, &backing_node);
         VFS_NODE_UNREF(source_reference);
@@ -88,10 +92,6 @@ void sys_mount(struct registers* r) {
 end:
     if (backing_node != NULL) {
         VFS_NODE_UNREF(backing_node);
-        kfree(ksource);
-    }
-
-    if (ksource != NULL) {
         kfree(ksource);
     }
     if (kfs_name != NULL) {

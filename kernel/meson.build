@@ -101,6 +101,7 @@ kernel_sources = files(
   'src/dev/virtio.c',
 
   'src/fs/devfs.c',
+  'src/fs/fat32.c',
   'src/fs/file.c',
   'src/fs/initrd.c',
   'src/fs/pipe.c',
@@ -184,6 +185,7 @@ kernel_sources = files(
   'src/utils/string.c',
   'src/utils/usercopy.c',
   'src/utils/vector.c',
+  'src/utils/wait_queue.c',
 )
 
 kernel_includes = [include_directories('include')]

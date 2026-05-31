@@ -8,7 +8,9 @@ struct thread;
 typedef struct {
     spinlock_t lock;
     struct thread* owner;
-    struct thread* waiters;
+
+    struct thread* waiters_head;
+    struct thread* waiters_tail;
 } mutex_t; 
 
 void mutex_init(mutex_t* m);

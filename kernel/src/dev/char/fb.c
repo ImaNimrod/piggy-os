@@ -199,7 +199,7 @@ void fb_dev_init(void) {
         framebuffer->address = (uintptr_t) limine_framebuffer->address - HIGH_VMA;
 
         struct fb_fix_screeninfo* fix_info = &framebuffer->fix_info;
-        strncpy(fix_info->id, "LIMINE FB", sizeof(fix_info->id) - 1);
+        strncpy(fix_info->id, "LIMINE FB", sizeof(fix_info->id));
         fix_info->smem_len = limine_framebuffer->pitch * limine_framebuffer->height;
         fix_info->type = 0;
         fix_info->visual = 2;

@@ -251,10 +251,6 @@ void cmos_init(void) {
         bcd_mode = true;
     }
 
-    if (unlikely(devfs_register("rtc", VFS_TYPE_CHARDEV, &rtc_ops, makedev(RTC_DEV_MAJOR, 0)) < 0)) {
-        kpanic(NULL, false, "failed to create RTC device");
-    }
-
     time_t timestamp = cmos_get_rtc_timestamp();
 
     time_realtime.tv_sec = timestamp;
@@ -262,4 +258,10 @@ void cmos_init(void) {
     timespec_add(&time_realtime, &ts);
 
     klog("[cmos] initialized RTC (timestamp: %lu)\n", timestamp);
+}
+
+void cmos_init_rtc_dev(void) {
+    if (unlikely(devfs_register("rtc", VFS_TYPE_CHARDEV, &rtc_ops, makedev(RTC_DEV_MAJOR, 0)) < 0)) {
+        kpanic(NULL, false, "failed to create RTC device");
+    }
 }
