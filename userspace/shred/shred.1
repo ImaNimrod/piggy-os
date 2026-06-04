@@ -1,0 +1,45 @@
+.TH SHRED "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+shred \- securely overwrite a file
+
+.SH SYNOPSIS
+.B shred
+[\fI\,OPTION\/\fR]... \fI\,FILE\/\fR...
+
+.SH DESCRIPTION
+
+.PP
+Overwrite the specified FILE(s) repeatedly, in order to make it harder to recover their data.
+
+.SH OPTIONS
+
+.TP
+.B \-n N
+overwrite FILE(s) N times instead of the default (3)
+
+.TP
+.B \-s RNG_SRC
+get random bytes from RNG_SRC instead of /dev/random
+
+.TP
+.B \-u
+deallocate and remove file after overwriting
+
+.TP
+.B \-v
+show details of data and metadata operations performed
+
+.TP
+.B \-z
+add a final overwrite with zeros to hide shredding
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

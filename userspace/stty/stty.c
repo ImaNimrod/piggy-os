@@ -1,7 +1,10 @@
 #include <sys/ioctl.h>
 
+#include <ctype.h>
 #include <err.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,11 +76,11 @@ static const struct terminal_flag control_characters[] = {
     { "erase",  .character = VERASE },
     { "intr",   .character = VINTR },
     { "kill",   .character = VKILL },
-    { "min",    .character = VMIN },
     { "quit",   .character = VQUIT },
     { "start",  .character = VSTART },
     { "stop",   .character = VSTOP },
     { "susp",   .character = VSUSP },
+    { "min",    .character = VMIN },
     { "time",   .character = VTIME },
 };
 
@@ -86,7 +89,7 @@ static bool print_all = false;
 static const struct termios sane_termios = {
     .c_iflag = BRKINT | ICRNL | IXANY | IXON,
     .c_oflag = OPOST | ONLCR,
-    .c_cflag = CREAD | CS8,
+    .c_cflag = B38400 | CREAD | CS8,
     .c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON | IEXTEN | ISIG,
     .c_cc[VEOF] = CTRL('D'),
     .c_cc[VEOL] = '\0',
@@ -136,6 +139,38 @@ static const char* get_speed_name(speed_t speed) {
         case B4000000: return "4000000";
         default: return "unknown";
     }
+}
+
+static cc_t parse_mintime(const char* string) {
+    if (!isdigit((unsigned char) string[0])) {
+        errx(EXIT_FAILURE, "invalid mintime quantity: %s", string);
+    }
+
+    char* end_ptr;
+
+    errno = 0;
+    uintmax_t value = strtoumax(string, &end_ptr, 10);
+    if (errno != 0 || end_ptr == string || *end_ptr || value != (cc_t) value) {
+        errx(EXIT_FAILURE, "invalid mintime quantity: %s", string);
+    }
+
+	return (cc_t) value;
+}
+
+static unsigned short parse_winsize(const char* string) {
+    if (!isdigit((unsigned char) string[0])) {
+        errx(EXIT_FAILURE, "invalid window size: %s", string);
+    }
+
+    char* end_ptr;
+
+    errno = 0;
+    uintmax_t value = strtoumax(string, &end_ptr, 10);
+    if (errno != 0 || end_ptr == string || *end_ptr || value != (unsigned short) value) {
+        errx(EXIT_FAILURE, "invalid window size: %s", string);
+    }
+
+    return (unsigned short) value;
 }
 
 static void print_flags(const char* type, tcflag_t value, tcflag_t default_value, const struct terminal_flag* flags, size_t flags_len) {
@@ -274,7 +309,145 @@ int main(int argc, char* argv[]) {
         print_flags("lflags", termios.c_lflag, sane_termios.c_lflag, lflags, SIZEOF_ARRAY(lflags));
     }
 
-    // TODO: support setting terminal arguments
+    bool set_winsize = false;
+
+    for (int i = 0; i < argc; i++) {
+        char* arg = argv[i];
+
+        if (!strcmp(arg, "cs5")) {
+            termios.c_cflag = (termios.c_cflag & ~CSIZE) | CS5;
+        } else if (!strcmp(arg, "cs6")) {
+            termios.c_cflag = (termios.c_cflag & ~CSIZE) | CS6;
+        } else if (!strcmp(arg, "cs7")) {
+            termios.c_cflag = (termios.c_cflag & ~CSIZE) | CS7;
+        } else if (!strcmp(arg, "cs8")) {
+            termios.c_cflag = (termios.c_cflag & ~CSIZE) | CS8;
+        } else if (!strcmp(arg, "nl")) {
+            termios.c_iflag = (termios.c_iflag & ~ICRNL);
+        } else if (!strcmp(arg, "-nl")) {
+            termios.c_iflag = (termios.c_iflag & ~(INLCR | IGNCR)) | ICRNL;
+        } else if (!strcmp(arg, "ek") ) {
+            termios.c_cc[VERASE] = sane_termios.c_cc[VERASE];
+            termios.c_cc[VKILL] = sane_termios.c_cc[VKILL];
+        } else if (!strcmp(arg, "evenp") || !strcmp(arg, "parity")) {
+            termios.c_cflag = (termios.c_cflag & ~(CSIZE | PARODD)) | PARENB | CS7;
+        } else if (!strcmp(arg, "oddp")) {
+            termios.c_cflag = (termios.c_cflag & ~CSIZE) | PARENB | PARODD | CS7;
+        } else if (!strcmp(arg, "-parity") || !strcmp(arg, "-evenp") || !strcmp(arg, "-oddp")) {
+            termios.c_cflag = (termios.c_cflag & ~(CSIZE | PARENB)) | CS8;
+        } else if (!strcmp(arg, "cols") || !strcmp(arg, "columns")) {
+            if (i + 1 == argc) {
+                errx(EXIT_FAILURE, "missing argument to %s", arg);
+            }
+
+            winsz.ws_col = parse_winsize(argv[++i]);
+            set_winsize = true;
+        } else if (!strcmp(arg, "rows")) {
+            if (i + 1 == argc) {
+                errx(EXIT_FAILURE, "missing argument to %s", arg);
+            }
+
+            winsz.ws_row = parse_winsize(argv[++i]);
+            set_winsize = true;
+        } else if (!strcmp(arg, "min")) {
+            if (i + 1 == argc) {
+                errx(EXIT_FAILURE, "missing argument to %s", arg);
+            }
+
+            termios.c_cc[VMIN] = parse_mintime(argv[++i]);
+        } else if (!strcmp(arg, "time")) {
+            if (i + 1 == argc) {
+                errx(EXIT_FAILURE, "missing argument to %s", arg);
+            }
+
+            termios.c_cc[VTIME] = parse_mintime(argv[++i]);
+        } else if (!strcmp(arg, "raw") || !strcmp(arg, "-cooked")) {
+            termios.c_iflag &= ~(BRKINT | ICRNL | IGNBRK | IGNCR | INLCR | ISTRIP | IXON | PARMRK);
+            termios.c_oflag &= ~OPOST;
+            termios.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+            termios.c_cflag |= CS8;
+            termios.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN | ISIG);
+            termios.c_cc[VMIN] = 1;
+            termios.c_cc[VTIME] = 0;
+        } else if (!strcmp(arg, "sane") || !strcmp(arg, "cooked") || !strcmp(arg, "-raw")) {
+            termios.c_iflag = sane_termios.c_iflag;
+            termios.c_oflag = sane_termios.c_oflag;
+            termios.c_cflag = sane_termios.c_cflag;
+            termios.c_lflag = sane_termios.c_lflag;
+            memcpy(&termios.c_cc, &sane_termios.c_cc, sizeof(termios.c_cc));
+        } else {
+            bool negated = false;
+            if (arg[0] == '-') {
+                arg++;
+                negated = true;
+            }
+
+            for (size_t j = 0; j < SIZEOF_ARRAY(iflags); j++) {
+                if (!strcmp(arg, iflags[j].name)) {
+                    termios.c_iflag = (termios.c_iflag & ~iflags[j].bit) | (negated ? 0 : iflags[j].bit);
+                    goto found;
+                }
+            }
+
+            for (size_t j = 0; j < SIZEOF_ARRAY(oflags); j++) {
+                if (!strcmp(arg, oflags[j].name)) {
+                    termios.c_oflag = (termios.c_oflag & ~oflags[j].bit) | (negated ? 0 : oflags[j].bit);
+                    goto found;
+                }
+            }
+
+            for (size_t j = 0; j < SIZEOF_ARRAY(cflags); j++) {
+                if (!strcmp(arg, cflags[j].name)) {
+                    termios.c_cflag = (termios.c_cflag & ~cflags[j].bit) | (negated ? 0 : cflags[j].bit);
+                    goto found;
+                }
+            }
+
+            for (size_t j = 0; j < SIZEOF_ARRAY(lflags); j++) {
+                if (!strcmp(arg, lflags[j].name)) {
+                    termios.c_lflag = (termios.c_lflag & ~lflags[j].bit) | (negated ? 0 : lflags[j].bit);
+                    goto found;
+                }
+            }
+
+            for (size_t j = 0; j < SIZEOF_ARRAY(control_characters); j++) {
+                if (strcmp(arg, control_characters[j].name) != 0) {
+                    continue;
+                }
+
+                if (i + 1 == argc) {
+                    errx(EXIT_FAILURE, "missing argument to %s", arg);
+                }
+
+                const char* parameter = argv[++i];
+                if (!parameter[0] || !parameter[1]) {
+                    termios.c_cc[control_characters[j].character] = parameter[0];
+                } else if (!strcmp(parameter, "undef") || !strcmp(parameter, "^-")) {
+                    termios.c_cc[control_characters[j].character] = _POSIX_VDISABLE;
+                } else if (parameter[0] == '^' && (('@' <= parameter[1] && parameter[1] <= '_') || ('a' <= parameter[1] && parameter[1] <= 'z') || parameter[1] == '?') && !parameter[2]) {
+                    termios.c_cc[control_characters[j].character] = CTRL(parameter[1]);
+                } else if (isdigit((unsigned char) parameter[0]) && isdigit((unsigned char) parameter[1]) && (!parameter[2] || (isdigit((unsigned char) parameter[2]) && !parameter[3]))) {
+                    int value = atoi(parameter);
+                    if (value <= 255) {
+                        termios.c_cc[control_characters[j].character] = value;
+                    }
+                } else {
+                    errx(EXIT_FAILURE, "invalid control character: %s", parameter);
+                }
+            }
+
+            errx(EXIT_FAILURE, "unknown terminal setting: %s", arg);
+found:
+        }
+    }
+
+    if (tcsetattr(tty_fd, TCSANOW, &termios) < 0) {
+        err(EXIT_FAILURE, "tcsetattr(%s)", tty_filename);
+    }
+
+    if (set_winsize && ioctl(tty_fd, TIOCSWINSZ, &winsz) < 0) {
+        err(EXIT_FAILURE, "ioctl(%s, TIOCSWINSZ)", tty_filename);
+    }
 
     return EXIT_SUCCESS;
 }
