@@ -3,15 +3,17 @@
 #include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <mem/paging.h>
+#include <mem/pmm.h>
 #include <sys/scheduler.h>
 #include <utils/log.h>
 #include <utils/string.h>
 
-extern void context_switch(struct registers* r);
 extern void context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
+extern void context_switch(struct registers* r);
 
 static void internal_dequeue_unlocked(struct scheduler* sched, struct thread* thread);
 static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* thread);
+NORETURN static void reschedule(struct registers* r, void* arg);
 
 static struct thread* get_next_thread(void) {
     spinlock_acquire(&this_cpu()->scheduler.run_queue_lock);
@@ -54,6 +56,13 @@ static struct thread* get_next_thread(void) {
     return next ? next : this_cpu()->scheduler.idle_thread;
 }
 
+static void idle(void) {
+    sti();
+    for (;;) {
+        hlt();
+    }
+}
+
 static void internal_dequeue_unlocked(struct scheduler* sched, struct thread* thread) {
     if (thread->prev != NULL) {
         thread->prev->next = thread->next;
@@ -83,6 +92,53 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     sched->run_queue_tail = thread;
 }
 
+NORETURN static void internal_thread_exit(struct registers* r, void* arg) {
+    (void) arg;
+
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    vector_remove_by_value(current_thread->process->threads, &current_thread);
+    thread_destroy(current_thread);
+
+    this_cpu()->scheduler.current_thread = NULL;
+    reschedule(r, NULL);
+    __builtin_unreachable();
+}
+
+NORETURN static void internal_yield(struct registers* r, void* arg) {
+    (void) arg;
+
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    spinlock_acquire(&current_thread->state_lock);
+
+    bool waiting = current_thread->state == THREAD_STATE_WAITING;
+    bool interrupted = false;
+
+    if (waiting && (current_thread->flags & THREAD_FLAG_INTERRUPTABLE)) {
+        spinlock_acquire(&current_thread->signal_lock);
+
+        if ((current_thread->pending_signals & ~current_thread->signal_mask) != 0) {
+            current_thread->state = THREAD_STATE_READY;
+            current_thread->flags &= ~THREAD_FLAG_INTERRUPTABLE;
+            current_thread->wakeup_reason = THREAD_WAKEUP_REASON_INTERRUPTED;
+            interrupted = true;
+        }
+
+        spinlock_release(&current_thread->signal_lock);
+    }
+
+    spinlock_release(&current_thread->state_lock);
+
+    if (!waiting || interrupted) {
+        context_switch(r);
+    } else {
+        reschedule(r, NULL);
+    }
+
+    __builtin_unreachable();
+}
+
 NORETURN static void reschedule(struct registers* r, void* arg)  {
     (void) arg;
 
@@ -96,11 +152,9 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
 
     // Save the current thread's context
     if (current_thread != this_cpu()->scheduler.idle_thread && current_thread != NULL) {
-        spinlock_release(&current_thread->yield_lock);
-
         memcpy64((void*) &current_thread->registers, (const void*) r, sizeof(struct registers) >> 3);
 
-        if (current_thread->is_user) {
+        if (current_thread->flags & THREAD_FLAG_USER) {
             this_cpu()->fpu_save(current_thread->fpu_context);
             current_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
             current_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
@@ -113,10 +167,8 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
         timespec_add(&current_thread->time_used, &quanta_used);
         timespec_add(&current_thread->process->time_used, &quanta_used);
 
-        spinlock_release(&current_thread->run_lock);
-
         spinlock_acquire(&current_thread->state_lock);
-        bool requeue = current_thread->state == THREAD_RUNNING;
+        bool requeue = current_thread->state == THREAD_STATE_RUNNING;
         spinlock_release(&current_thread->state_lock);
 
         if (requeue) {
@@ -128,65 +180,46 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     struct thread* next_thread = get_next_thread();
 
     spinlock_acquire(&next_thread->state_lock);
-    next_thread->state = THREAD_RUNNING;
+    next_thread->state = THREAD_STATE_RUNNING;
     spinlock_release(&next_thread->state_lock);
 
     this_cpu()->scheduler.current_thread = next_thread;
 
-    this_cpu()->tss.rsp0 = next_thread->kernel_stack;
-
     lapic_eoi();
     lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);
 
-    if (next_thread->is_user) {
-        this_cpu()->fpu_restore(next_thread->fpu_context);
-        wrmsr(MSR_IA32_FS_BASE, next_thread->fs_base);
-        wrmsr(MSR_IA32_KERNEL_GS_BASE, next_thread->gs_base);
-    }
-
     if (next_thread != this_cpu()->scheduler.idle_thread && (current_thread == NULL || current_thread->process != next_thread->process)) {
-        if (next_thread->is_user) {
+        if (next_thread->flags & THREAD_FLAG_USER) {
             pagemap_load(next_thread->process->vmm_context->pagemap);
         } else {
             pagemap_load(kernel_pagemap);
         }
     }
 
-    if (next_thread->registers.cs & 0x03) {
-        swapgs();
+    if (next_thread->flags & THREAD_FLAG_USER) {
+        this_cpu()->fpu_restore(next_thread->fpu_context);
+        wrmsr(MSR_IA32_FS_BASE, next_thread->fs_base);
+        wrmsr(MSR_IA32_KERNEL_GS_BASE, next_thread->gs_base);
     }
 
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_handle_pending(r);
+    }
+
+    this_cpu()->tss.rsp0 = next_thread->kernel_stack;
     context_switch(&next_thread->registers);
     __builtin_unreachable();
 }
 
-NORETURN static void thread_exit_internal(struct registers* r, void* arg) {
-    struct thread* current_thread = this_cpu()->scheduler.current_thread;
-
-    vector_remove_by_value(current_thread->process->threads, &current_thread);
-    thread_destroy(current_thread);
-
+NORETURN void scheduler_await(void) {
     this_cpu()->scheduler.current_thread = NULL;
-    reschedule(r, arg);
-    __builtin_unreachable();
-}
 
-void scheduler_block(struct thread* thread) {
-    spinlock_acquire(&thread->state_lock);
-    thread->state = THREAD_BLOCKED;
-    spinlock_release(&thread->state_lock);
+    lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
+    sti();
 
-    scheduler_yield(true);
-}
-
-void scheduler_block_and_release(struct thread* thread, spinlock_t* lock, bool int_state) {
-    spinlock_acquire(&thread->state_lock);
-    thread->state = THREAD_BLOCKED;
-    spinlock_release(&thread->state_lock);
-
-    spinlock_release_irqsave(lock, int_state);
-
-    scheduler_yield(true);
+    for (;;) {
+        hlt();
+    }
 }
 
 void scheduler_dequeue(struct scheduler* sched, struct thread* thread) {
@@ -198,11 +231,11 @@ void scheduler_dequeue(struct scheduler* sched, struct thread* thread) {
 void scheduler_enqueue(struct scheduler* sched, struct thread* thread) {
     spinlock_acquire(&thread->state_lock);
 
-    if (thread->state == THREAD_READY) {
+    if (thread->state == THREAD_STATE_READY) {
         kpanic(NULL, true, "double thread enqueue");
     }
 
-    thread->state = THREAD_READY;
+    thread->state = THREAD_STATE_READY;
 
     spinlock_acquire(&sched->run_queue_lock);
     internal_enqueue_unlocked(sched, thread);
@@ -211,48 +244,99 @@ void scheduler_enqueue(struct scheduler* sched, struct thread* thread) {
     spinlock_release(&thread->state_lock);
 }
 
+void scheduler_prepare_wait(struct thread* thread, bool interruptable) {
+    spinlock_acquire(&thread->state_lock);
+
+    thread->state = THREAD_STATE_WAITING;
+    thread->flags |= (interruptable ? THREAD_FLAG_INTERRUPTABLE : 0);
+    thread->wakeup_reason = THREAD_WAKEUP_REASON_NORMAL;
+
+    spinlock_release(&thread->state_lock);
+}
+
 void scheduler_sleep(struct thread* thread, const struct timespec* duration) {
     timer_sleep_thread(thread, duration);
-    scheduler_block(thread);
+    scheduler_prepare_wait(thread, true);
+    scheduler_yield();
 }
 
 NORETURN void scheduler_thread_exit(void) {
     cli();
-    context_call_and_switch(thread_exit_internal, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
+    context_call_and_switch(internal_thread_exit, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
     __builtin_unreachable();
 }
 
-void scheduler_unblock(struct thread* thread) {
-    scheduler_enqueue(&thread->cpu->scheduler, thread);
+bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reason) {
+    spinlock_acquire(&thread->state_lock);
+
+    if (thread->state != THREAD_STATE_WAITING) {
+        spinlock_release(&thread->state_lock);
+        return false;
+    }
+
+    if (wakeup_reason == THREAD_WAKEUP_REASON_INTERRUPTED && !(thread->flags & THREAD_FLAG_INTERRUPTABLE)) {
+        spinlock_release(&thread->state_lock);
+        return false;
+    }
+
+    thread->state = THREAD_STATE_READY;
+    thread->flags &= ~THREAD_FLAG_INTERRUPTABLE;
+    thread->wakeup_reason = wakeup_reason;
+
+    struct scheduler* sched = &thread->cpu->scheduler;
+    spinlock_acquire(&sched->run_queue_lock);
+    internal_enqueue_unlocked(sched, thread);
+    spinlock_release(&sched->run_queue_lock);
+
+    spinlock_release(&thread->state_lock);
 
     if (thread->cpu != this_cpu() && thread->cpu->scheduler.current_thread != thread->cpu->scheduler.idle_thread) {
         lapic_send_ipi(thread->cpu->lapic_id, SCHEDULER_IRQ_VECTOR);
     }
+    return true;
 }
 
-void scheduler_yield(bool save) {
-    struct thread* thread = this_cpu()->scheduler.current_thread;
+thread_wakeup_reason_t scheduler_yield(void) {
+    bool int_state = get_interrupt_state();
 
-    if (save) {
-        spinlock_acquire(&thread->yield_lock);
-    } else {
-        this_cpu()->scheduler.current_thread = NULL;
+    cli();
+
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    spinlock_acquire(&current_thread->state_lock);
+    bool waiting = current_thread->state == THREAD_STATE_WAITING;
+    spinlock_release(&current_thread->state_lock);
+
+    context_call_and_switch(internal_yield, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
+
+    thread_wakeup_reason_t ret = THREAD_WAKEUP_REASON_NORMAL;
+    if (waiting) {
+        spinlock_acquire(&current_thread->state_lock);
+        ret = current_thread->wakeup_reason;
+        spinlock_release(&current_thread->state_lock);
     }
 
-    lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
-    sti();
-
-    if (save) {
-        spinlock_acquire(&thread->yield_lock);
-        spinlock_release(&thread->yield_lock);
-    } else {
-        for (;;) {
-            hlt();
-        }
+    if (int_state) {
+        sti();
     }
+
+    return ret;
 }
 
 void scheduler_init(void) {
     isr_register_handler(SCHEDULER_IRQ_VECTOR, reschedule, NULL);
     klog("[scheduler] initialized scheduler\n");
+}
+
+void scheduler_percpu_init(void) {
+    this_cpu()->scheduler_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA;
+    this_cpu()->tss.ist1 = this_cpu()->scheduler_stack + KERNEL_STACK_SIZE;
+
+    struct thread* idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
+    if (unlikely(idle_thread == NULL)) {
+        kpanic(NULL, false, "failed to create idle thread");
+    }
+
+    this_cpu()->scheduler.idle_thread = idle_thread;
+    this_cpu()->scheduler.current_thread = idle_thread;
 }

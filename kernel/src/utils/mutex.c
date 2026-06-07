@@ -33,7 +33,11 @@ void mutex_acquire(mutex_t* m) {
             m->waiters_tail = current_thread;
         }
 
-        scheduler_block_and_release(current_thread, &m->lock, int_state);
+        scheduler_prepare_wait(current_thread, false);
+
+        spinlock_release_irqsave(&m->lock, int_state);
+
+        scheduler_yield();
     }
 }
 
@@ -64,6 +68,6 @@ void mutex_release(mutex_t* m) {
     spinlock_release_irqsave(&m->lock, int_state);
 
     if (waiter != NULL) {
-        scheduler_unblock(waiter);
+        scheduler_wakeup(waiter, THREAD_WAKEUP_REASON_NORMAL);
     }
 }

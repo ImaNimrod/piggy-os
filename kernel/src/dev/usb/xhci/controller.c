@@ -125,7 +125,7 @@ static void xhci_irq_handler(struct registers* r, void* arg) {
 
             if (found_waiter) {
                 memcpy(waiter.completion_trb, trb, sizeof(struct trb));
-                scheduler_unblock(waiter.thread);
+                scheduler_wakeup(waiter.thread, THREAD_WAKEUP_REASON_NORMAL);
             }
 
             spinlock_release_irqsave(&ring->lock, int_save);

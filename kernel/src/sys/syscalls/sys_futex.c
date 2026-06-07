@@ -56,7 +56,9 @@ static int futex_wait(struct futex* futex, uintptr_t paddr, uint32_t* addr, uint
     futex->waiters++;
     mutex_release(&futex_map_mutex);
 
-    wait_queue_wait(&futex->wq);
+    if ((ret = wait_queue_wait(&futex->wq)) < 0) {
+        return ret;
+    }
 
     mutex_acquire(&futex_map_mutex);
     futex->waiters--;

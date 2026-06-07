@@ -16,14 +16,14 @@ extern volatile struct limine_hhdm_request hhdm_request;
 
 #define HIGH_VMA (hhdm_request.response->offset)
 
-#define PTE_PRESENT         (1ul << 0)
-#define PTE_WRITABLE        (1ul << 1)
-#define PTE_USER            (1ul << 2)
-#define PTE_CACHE_DISABLE   (1ul << 4)
-#define PTE_SIZE            (1ul << 7)
-#define PTE_GLOBAL          (1ul << 8)
-#define PTE_NX              (1ul << 63)
-#define PTE_WRITE_COMBINE   ((1ul << 3) | (1ul << 12))
+#define PTE_PRESENT         (1ULL << 0)
+#define PTE_WRITABLE        (1ULL << 1)
+#define PTE_USER            (1ULL << 2)
+#define PTE_CACHE_DISABLE   (1ULL << 4)
+#define PTE_SIZE            (1ULL << 7)
+#define PTE_GLOBAL          (1ULL << 8)
+#define PTE_NX              (1ULL << 63)
+#define PTE_WRITE_COMBINE   ((1ULL << 3) | (1ULL << 12))
 #define PTE_FLAG_MASK       (0x8000000000000ffful)
 
 typedef enum {

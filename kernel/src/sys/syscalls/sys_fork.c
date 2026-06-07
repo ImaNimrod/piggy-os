@@ -15,7 +15,7 @@ void sys_fork(struct registers* r) {
         return;
     }
 
-    struct thread* new_thread = thread_fork(new_process, r);
+    struct thread* new_thread = thread_fork(new_process, current_thread, r);
     if (new_thread == NULL) {
         vmm_context_destroy(new_process->vmm_context);
         process_destroy(new_process);

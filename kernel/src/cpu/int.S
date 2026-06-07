@@ -23,6 +23,11 @@ _isr\i:
 
 .type isr_entry, @function
 isr_entry:
+    cmpq $0x08, 24(%rsp)
+    je 1f
+    swapgs
+    1:
+
     push %rax
     push %rbx
     push %rcx
@@ -61,5 +66,9 @@ isr_entry:
     pop %rax
     addq $16, %rsp
 
+    cmpq $0x08, 8(%rsp)
+    je 2f
+    swapgs
+    2:
     iretq
 .size isr_entry, . - isr_entry

@@ -7,9 +7,11 @@
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <sys/process.h>
+#include <sys/signal.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
+#include <utils/usercopy.h>
 
 #define MASKED_FLAGS ~(PTE_SIZE | PTE_GLOBAL | PTE_NX)
 
@@ -74,8 +76,11 @@ static void page_fault_handler(struct registers* r, void* arg) {
             current_thread->usercopy_registers = NULL;
             r->rax = -EFAULT;
         } else {
-            kpanic(r, true, "fatal pagefault in pid: %d, tid: %d, address 0x%16lx",
-                    current_thread->process->pid, current_thread->tid, fault_addr);
+            if (IS_USER_ADDRESS((void*) fault_addr)) {
+                signal_send_thread(current_thread, SIGSEGV);
+            } else {
+                kpanic(r, true, "fatal kernel pagefault at address: 0x%016lx\n", fault_addr);
+            }
         }
     }
 }

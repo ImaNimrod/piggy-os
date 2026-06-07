@@ -19,15 +19,16 @@ struct scheduler {
     spinlock_t run_queue_lock;
 };
 
-void scheduler_block(struct thread* thread);
-void scheduler_block_and_release(struct thread* thread, spinlock_t* lock, bool int_state);
+NORETURN void scheduler_await(void);
 void scheduler_dequeue(struct scheduler* sched, struct thread* thread);
 void scheduler_enqueue(struct scheduler* sched, struct thread* thread);
+void scheduler_prepare_wait(struct thread* thread, bool interruptable);
 void scheduler_sleep(struct thread* thread, const struct timespec* duration);
 NORETURN void scheduler_thread_exit(void);
-void scheduler_unblock(struct thread* thread);
-void scheduler_yield(bool save);
+bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reason);
+thread_wakeup_reason_t scheduler_yield(void);
 
 void scheduler_init(void);
+void scheduler_percpu_init(void);
 
 #endif /* _KERNEL_SYS_SCHEDULER_H */ 

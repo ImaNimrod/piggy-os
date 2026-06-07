@@ -30,7 +30,7 @@ void semaphore_signal(semaphore_t* s) {
     spinlock_release_irqsave(&s->lock, int_state);
 
     if (waiter != NULL) {
-        scheduler_unblock(waiter);
+        scheduler_wakeup(waiter, THREAD_WAKEUP_REASON_NORMAL);
     }
 }
 
@@ -56,5 +56,9 @@ void semaphore_wait(semaphore_t* s) {
         iter->next_waiter = current;
     }
 
-    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &s->lock, int_state);
+    scheduler_prepare_wait(current, false);
+
+    spinlock_release_irqsave(&s->lock, int_state);
+
+    scheduler_yield();
 }

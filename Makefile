@@ -11,9 +11,9 @@ EMUOPTS := -machine q35 \
 		   -cpu host \
 		   -enable-kvm \
 		   -smp 2 \
-		   -no-reboot \
 		   -serial stdio \
 		   -rtc base=utc \
+		   -no-reboot \
 		   -bios edk2-ovmf/ovmf-code-x86_64.fd
 
 NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))

@@ -10,6 +10,7 @@
 #include <sys/elf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
+#include <sys/signal.h>
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
@@ -186,7 +187,16 @@ void sys_exec(struct registers* r) {
     }
 
     current_process->vmm_context = new_vmm_context;
-    current_process->thread_stack_top = PROCESS_STACK_TOP;
+
+    spinlock_acquire(&current_process->signal_actions_lock);
+
+    for (int i = 0; i < NSIG; i++) {
+        if (current_process->signal_actions[i].sa_handler != SIG_IGN) {
+            current_process->signal_actions[i].sa_handler = SIG_DFL;
+        }
+    }
+
+    spinlock_release(&current_process->signal_actions_lock);
 
     struct thread* t;
     for (size_t i = 0; i < vector_size(current_process->threads); i++) {
@@ -216,6 +226,11 @@ void sys_exec(struct registers* r) {
         ret = -ENOMEM;
         goto end;
     }
+
+    spinlock_acquire(&current_thread->signal_lock);
+    new_thread->pending_signals = current_thread->pending_signals;
+    new_thread->signal_mask = current_thread->signal_mask;
+    spinlock_release(&current_thread->signal_lock);
 
 end:
     kfree(kpath);

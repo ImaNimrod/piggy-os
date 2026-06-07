@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
         seconds += parse_interval(*argv++);
     }
 
-    if (seconds > INT_MAX) {
+    if (seconds > LONG_MAX) {
         usage();
     }
 
@@ -74,9 +74,5 @@ int main(int argc, char* argv[]) {
         .tv_nsec = 1e9 * (seconds - ((time_t) seconds)),
     };
 
-    if (nanosleep(&ts, NULL) < 0) {
-        err(EXIT_FAILURE, "nanosleep");
-    }
-
-    return EXIT_SUCCESS;
+    return (nanosleep(&ts, NULL) < 0) ? EXIT_FAILURE : EXIT_SUCCESS;
 }

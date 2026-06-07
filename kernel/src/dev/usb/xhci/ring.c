@@ -82,7 +82,10 @@ bool ring_submit_and_wait(struct xhci_ring* ring, struct trb* submission_trb, st
     vector_push(ring->completion_waiters, &waiter);
     internal_ring_submit(ring, submission_trb);
 
-    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &ring->lock, int_state);
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
+    spinlock_release_irqsave(&ring->lock, int_state);
+
+    scheduler_yield();
     return ((completion_trb->status >> 24) & 0xff) == TRB_STATUS_SUCCESS;
 }

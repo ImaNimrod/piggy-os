@@ -170,6 +170,6 @@ NORETURN void kernel_entry(void) {
         kpanic(NULL, false, "failed to create kernel main thread");
     }
 
-    scheduler_yield(false);
+    scheduler_await();
     __builtin_unreachable();
 }

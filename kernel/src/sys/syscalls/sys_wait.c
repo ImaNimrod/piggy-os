@@ -6,7 +6,9 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
-#define WNOHANG 0x01
+#define WNOHANG (1 << 0)
+
+#define VALID_FLAGS (WNOHANG)
 
 void sys_wait(struct registers* r) {
     pid_t pid = r->rdi;
@@ -15,6 +17,11 @@ void sys_wait(struct registers* r) {
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
+
+    if (flags & ~VALID_FLAGS) {
+        r->rax = -EINVAL;
+        return;
+    }
 
     struct process* child = NULL;
 
@@ -27,7 +34,7 @@ void sys_wait(struct registers* r) {
 
             struct process* iter;
             SLIST_FOREACH(current_process->children, iter) {
-                if (iter->state == PROCESS_ZOMBIE) {
+                if (iter->state == PROCESS_STATE_ZOMBIE) {
                     child = iter;
                     goto end;
                 }
@@ -38,7 +45,11 @@ void sys_wait(struct registers* r) {
                 return;
             }
 
-            wait_queue_wait(&current_process->child_wait);
+            int ret = wait_queue_wait(&current_process->child_wait);
+            if (ret < 0) {
+                r->rax = ret;
+                return;
+            }
         }
     } else if (pid > 0) {
         struct process* iter;
@@ -54,13 +65,18 @@ void sys_wait(struct registers* r) {
             return;
         }
 
-        if (child->state != PROCESS_ZOMBIE && (flags & WNOHANG)) {
+        if (child->state != PROCESS_STATE_ZOMBIE && (flags & WNOHANG)) {
             r->rax = -EAGAIN;
             return;
         }
 
-        while (child->state != PROCESS_ZOMBIE) {
-            wait_queue_wait(&current_process->child_wait);
+        int ret = 0;
+
+        while (child->state != PROCESS_STATE_ZOMBIE) {
+            if ((ret = wait_queue_wait(&current_process->child_wait)) < 0) {
+                r->rax = ret;
+                return;
+            }
         }
     } else {
         r->rax = -EINVAL;

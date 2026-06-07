@@ -1,17 +1,21 @@
+#include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <errno.h>
 #include <syscall.h>
+#include <sys/signal.h>
 #include <utils/macros.h>
 
 extern void sys_exit(struct registers* r);
 extern void sys_fork(struct registers* r);
 extern void sys_exec(struct registers* r);
 extern void sys_wait(struct registers* r);
+extern void sys_kill(struct registers* r);
 extern void sys_getpid(struct registers* r);
 extern void sys_getppid(struct registers* r);
 extern void sys_threadnew(struct registers* r);
 extern void sys_threadexit(struct registers* r);
 extern void sys_gettid(struct registers* r);
+extern void sys_yield(struct registers* r);
 extern void sys_open(struct registers* r);
 extern void sys_mkdir(struct registers* r);
 extern void sys_rename(struct registers* r);
@@ -43,6 +47,12 @@ extern void sys_sleep(struct registers* r);
 extern void sys_getclock(struct registers* r);
 extern void sys_getclockres(struct registers* r);
 extern void sys_setclock(struct registers* r);
+extern void sys_sigaction(struct registers* r);
+extern void sys_sigaltstack(struct registers* r);
+extern void sys_sigpending(struct registers* r);
+extern void sys_sigprocmask(struct registers* r);
+extern void sys_sigreturn(struct registers* r);
+extern void sys_sigsuspend(struct registers* r);
 extern void sys_uname(struct registers* r);
 extern void sys_futex(struct registers* r);
 extern void sys_poweroff(struct registers* r);
@@ -55,6 +65,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_FORK]          = sys_fork,
     [SYS_EXEC]          = sys_exec,
     [SYS_WAIT]          = sys_wait,
+    [SYS_KILL]          = sys_kill,
     [SYS_GETPID]        = sys_getpid,
     [SYS_GETPPID]       = sys_getppid,
     [SYS_THREADNEW]     = sys_threadnew,
@@ -91,6 +102,12 @@ static syscall_handler_t syscall_table[] = {
     [SYS_GETCLOCK]      = sys_getclock,
     [SYS_GETCLOCKRES]   = sys_getclockres,
     [SYS_SETCLOCK]      = sys_setclock,
+    [SYS_SIGACTION]     = sys_sigaction,
+    [SYS_SIGALTSTACK]   = sys_sigaltstack,
+    [SYS_SIGPENDING]    = sys_sigpending,
+    [SYS_SIGPROCMASK]   = sys_sigprocmask,
+    [SYS_SIGRETURN]     = sys_sigreturn,
+    [SYS_SIGSUSPEND]    = sys_sigsuspend,
     [SYS_UNAME]         = sys_uname,
     [SYS_FUTEX]         = sys_futex,
     [SYS_POWEROFF]      = sys_poweroff,
@@ -100,8 +117,11 @@ static syscall_handler_t syscall_table[] = {
 void syscall_handler(struct registers* r) {
     if (r->rax >= SIZEOF_ARRAY(syscall_table)) {
         r->rax = -ENOSYS;
-        return;
+    } else {
+        syscall_table[r->rax](r);
     }
 
-    syscall_table[r->rax](r);
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_handle_pending(r);
+    }
 }

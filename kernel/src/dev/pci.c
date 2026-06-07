@@ -52,10 +52,10 @@ static vector_t* pci_devices;
 static struct pci_driver* pci_drivers[] = {
     /*
     &ahci_driver,
-    &nvme_driver,
     &xhci_driver,
     */
     &e1000_driver,
+    &nvme_driver,
     &virtio_driver,
 };
 

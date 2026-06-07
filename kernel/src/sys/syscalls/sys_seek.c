@@ -9,8 +9,6 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-#include <utils/log.h>
-
 void sys_seek(struct registers* r) {
     int fd = r->rdi;
     off_t offset = r->rsi;

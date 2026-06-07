@@ -129,7 +129,7 @@ static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, i
     } else {
         to_copy = count;
         while ((ssize_t) scancode_buf_index != to_copy) {
-            scheduler_yield(true);
+            scheduler_yield();
         }
     }
 

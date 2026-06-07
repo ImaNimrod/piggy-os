@@ -118,7 +118,11 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
 
     mmio_write32(queue_pair->submission.doorbell, queue_pair->submission.index);
 
-    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &queue_pair->lock, int_state);
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
+
+    spinlock_release_irqsave(&queue_pair->lock, int_state);
+
+    scheduler_yield();
     return entry_pair->completion.status == 0;
 }
 
@@ -183,7 +187,7 @@ static void nvme_irq_handler(struct registers* r, void* arg) {
         int subid = queue[queue_pair->completion.index].cid;
         queue_pair->entries[subid]->completion = queue[queue_pair->completion.index];
 
-        scheduler_unblock(queue_pair->entries[subid]->thread);
+        scheduler_wakeup(queue_pair->entries[subid]->thread, THREAD_WAKEUP_REASON_NORMAL);
         queue_pair->entries[subid] = NULL;
         semaphore_signal(&queue_pair->entry_semaphore);
 

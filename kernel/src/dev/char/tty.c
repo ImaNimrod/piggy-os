@@ -1,3 +1,4 @@
+#include <cpu/smp.h>
 #include <dev/char/fb.h>
 #include <dev/char/tty.h>
 #include <errno.h>
@@ -5,6 +6,7 @@
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>
+#include <sys/signal.h>
 #include <types.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -162,7 +164,7 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     (void) flags;
 
     while (!input_buf_flushed) {
-        scheduler_yield(true);
+        scheduler_yield();
     }
 
     if (input_buf_index == 0) {
@@ -170,7 +172,8 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
             input_buf_flushed = false;
             return 0;
         }
-        scheduler_yield(true);
+
+        scheduler_yield();
     }
 
     spinlock_acquire(&read_lock);
@@ -353,7 +356,7 @@ void tty_init(void) {
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = OPOST | ONLCR;
     termios.c_cflag = B38400 | CREAD | CS8;
-    termios.c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON;
+    termios.c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON | IEXTEN | ISIG;
 
     termios.c_cc[VEOF] = CTRL('D');
     termios.c_cc[VERASE] = CTRL('?');

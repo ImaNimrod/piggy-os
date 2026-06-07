@@ -12,15 +12,35 @@
 #include <utils/log.h>
 #include <utils/string.h>
 
-#define DEFAULT_FCW     0x33f
-#define DEFAULT_MXCSR   0x1f80
-
 struct process* kernel_process;
-static struct process* init_process;
+struct process* init_process;
 
 static struct slab_cache* process_cache;
 static struct slab_cache* thread_cache;
 static pid_t next_pid;
+
+struct process* find_process(struct process* base, pid_t pid) {
+    if (unlikely(base == NULL)) {
+        return NULL;
+    }
+
+    if (base->pid == pid) {
+        return base;
+    }
+
+    struct process* child = base->children;
+
+    while (child != NULL) {
+        struct process* result = find_process(child, pid);
+        if (result != NULL) {
+            return result;
+        }
+
+        child = child->next;
+    }
+
+    return NULL;
+}
 
 struct process* process_create(struct process* parent) {
     struct process* new_process = slab_cache_alloc(process_cache);
@@ -28,21 +48,27 @@ struct process* process_create(struct process* parent) {
         return NULL;
     }
 
+    spinlock_init(&new_process->thread_list_lock);
+
     new_process->threads = vector_create(sizeof(struct thread*));
     if (unlikely(new_process->threads == NULL)) {
         goto error;
     }
 
+    spinlock_init(&new_process->node_lock);
     mutex_init(&new_process->fd_mutex);
     wait_queue_init(&new_process->child_wait);
+    spinlock_init(&new_process->signal_actions_lock);
 
-    if (parent != NULL) {
-        spinlock_acquire(&parent->lock);
+    if (likely(parent != NULL)) {
+        spinlock_acquire(&parent->node_lock);
 
         new_process->cwd = parent->cwd;
         VFS_NODE_REF(new_process->cwd);
         new_process->root = parent->root;
         VFS_NODE_REF(new_process->root);
+
+        spinlock_release(&parent->node_lock);
 
         file_fork(parent, new_process);
 
@@ -50,12 +76,13 @@ struct process* process_create(struct process* parent) {
         if (unlikely(new_process->vmm_context == NULL)) {
             goto error;
         }
-        new_process->thread_stack_top = parent->thread_stack_top;
+
+        spinlock_acquire(&parent->signal_actions_lock);
+        memcpy(new_process->signal_actions, parent->signal_actions, sizeof(parent->signal_actions));
+        spinlock_release(&parent->signal_actions_lock);
 
         new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process);
-
-        spinlock_release(&parent->lock);
     } else {
         new_process->cwd = vfs_root;
         VFS_NODE_REF(vfs_root);
@@ -66,13 +93,11 @@ struct process* process_create(struct process* parent) {
         if (unlikely(new_process->vmm_context == NULL)) {
             goto error;
         }
-        new_process->thread_stack_top = PROCESS_STACK_TOP;
     }
 
-    new_process->pid = __atomic_load_n(&next_pid, __ATOMIC_SEQ_CST);
-    __atomic_add_fetch(&next_pid, 1, __ATOMIC_SEQ_CST);
+    new_process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
 
-    new_process->state = PROCESS_RUNNING;
+    new_process->state = PROCESS_STATE_RUNNING;
     return new_process;
 
 error:
@@ -171,8 +196,6 @@ void process_create_init(void) {
 }
 
 void process_destroy(struct process* process) {
-    spinlock_acquire(&process->lock);
-
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         thread_destroy((struct thread*) *vector_get(process->threads, i));
     }
@@ -181,7 +204,8 @@ void process_destroy(struct process* process) {
     slab_cache_free(process_cache, process);
 }
 
-// TODO: Fix some of the potential race/double free issues that could occur when processes actually have multiple threads
+// TODO: finish locking process children list and restructring process / thread exit
+
 void process_exit(struct process* process, int status) {
     if (unlikely(process->pid == 1)) {
         kpanic(NULL, false, "attempted to exit init process with status = %d", status);
@@ -191,17 +215,12 @@ void process_exit(struct process* process, int status) {
         file_close(process, i);
     }
 
-    spinlock_acquire(&process->lock);
-
     VFS_NODE_UNREF(process->cwd);
     VFS_NODE_UNREF(process->root);
 
-    spinlock_acquire(&process->parent->lock);
     SLIST_REMOVE(process->parent->children, process);
-    spinlock_release(&process->parent->lock);
 
     // Reparent dying process' children to init
-    spinlock_acquire(&init_process->lock);
 
     struct process* child = process->children;
     while (child != NULL) {
@@ -214,54 +233,56 @@ void process_exit(struct process* process, int status) {
         child = next;
     }
 
-    spinlock_release(&init_process->lock);
+    signal_send_process(init_process, SIGCHLD);
 
     vmm_context_destroy(process->vmm_context);
 
-    process->state = PROCESS_ZOMBIE;
+    process->state = PROCESS_STATE_ZOMBIE;
     process->exit_status = status;
 
     wait_queue_wake_all(&process->parent->child_wait);
+}
 
-    spinlock_release(&process->lock);
+struct process* process_find_by_pid(pid_t pid) {
+    return find_process(init_process, pid);
 }
 
 struct vfs_node* process_get_cwd(struct process* process) {
-    spinlock_acquire(&process->lock);
+    spinlock_acquire(&process->node_lock);
     struct vfs_node* cwd = process->cwd;
     VFS_NODE_REF(cwd);
-    spinlock_release(&process->lock);
+    spinlock_release(&process->node_lock);
     return cwd;
 }
 
 struct vfs_node* process_get_root(struct process* process) {
-    spinlock_acquire(&process->lock);
+    spinlock_acquire(&process->node_lock);
     struct vfs_node* root = process->root;
     VFS_NODE_REF(root);
-    spinlock_release(&process->lock);
+    spinlock_release(&process->node_lock);
     return root;
 }
 
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd) {
-    spinlock_acquire(&process->lock);
+    spinlock_acquire(&process->node_lock);
     struct vfs_node* old_cwd = process->cwd;
 
     VFS_NODE_REF(new_cwd);
     process->cwd = new_cwd;
 
     VFS_NODE_UNREF(old_cwd);
-    spinlock_release(&process->lock);
+    spinlock_release(&process->node_lock);
 }
 
 void process_set_root(struct process* process, struct vfs_node* new_root) {
-    spinlock_acquire(&process->lock);
+    spinlock_acquire(&process->node_lock);
     struct vfs_node* old_root = process->root;
 
     process->root = new_root;
     VFS_NODE_REF(new_root);
 
     VFS_NODE_UNREF(old_root);
-    spinlock_release(&process->lock);
+    spinlock_release(&process->node_lock);
 }
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
@@ -270,29 +291,33 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
         return NULL;
     }
 
+    // Basic state
     thread->cpu = this_cpu();
-    thread->is_user = false;
     thread->process = kernel_process;
+
+    spinlock_init(&thread->state_lock);
+
+    thread->state = THREAD_STATE_INIT;
+    thread->flags = 0;
 
     thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
     thread->kernel_stack = thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
+    // CPU context
     thread->registers.rdi = (uint64_t) arg;
     thread->registers.rip = entry;
-    thread->registers.cs = 0x08;
+    thread->registers.cs = KERNEL_CODE_SEGMENT;
     thread->registers.rflags = 0x202;
-    thread->registers.ss = 0x10;
+    thread->registers.ss = KERNEL_DATA_SEGMENT;
     thread->registers.rsp = thread->kernel_stack;
 
-    spinlock_init(&thread->run_lock);
-    spinlock_init(&thread->yield_lock);
-
-    spinlock_acquire(&kernel_process->lock);
+    // Insert into process' thread list
+    spinlock_acquire(&kernel_process->thread_list_lock);
 
     thread->tid = vector_size(kernel_process->threads);
     vector_push(kernel_process->threads, &thread);
 
-    spinlock_release(&kernel_process->lock);
+    spinlock_release(&kernel_process->thread_list_lock);
 
     scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
@@ -304,22 +329,24 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
         return NULL;
     }
 
+    // Basic state
     thread->cpu = this_cpu();
-    thread->is_user = true;
     thread->process = process;
+
+    spinlock_init(&thread->state_lock);
+
+    thread->state = THREAD_STATE_INIT;
+    thread->flags = THREAD_FLAG_USER;
 
     thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
     thread->kernel_stack = thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
-    spinlock_acquire(&process->lock);
-
+    // CPU context
     thread->registers.rip = entry;
-    thread->registers.cs = 0x23;
+    thread->registers.cs = USER_CODE_SEGMENT;
     thread->registers.rflags = 0x202;
-    thread->registers.ss = 0x1b;
+    thread->registers.ss = USER_DATA_SEGMENT;
     thread->registers.rsp = stack;
-
-    process->thread_stack_top -= USER_STACK_SIZE - PAGE_SIZE_4KB; // This leaves an unmapped "guard" page between stacks
 
     thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     ((uint16_t*) thread->fpu_context)[0] = DEFAULT_FCW;
@@ -328,20 +355,24 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
     thread->fs_base = 0;
     thread->gs_base = 0;
 
-    spinlock_init(&thread->run_lock);
-    spinlock_init(&thread->yield_lock);
+    // Signals
+    spinlock_init(&thread->signal_lock);
+    thread->signal_stack.ss_flags = SS_DISABLE;
+
+    // Insert into process' thread list
+    spinlock_acquire(&process->thread_list_lock);
 
     thread->tid = vector_size(process->threads);
     vector_push(process->threads, &thread);
 
-    spinlock_release(&process->lock);
+    spinlock_release(&process->thread_list_lock);
 
     scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
 }
 
 void thread_destroy(struct thread* thread) {
-    if (thread->is_user) {
+    if (thread->flags & THREAD_FLAG_USER) {
         pmm_free((uintptr_t) thread->fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
         // User stack physical pages are already freed during vmm_context_destroy called in process_exit
     }
@@ -351,34 +382,52 @@ void thread_destroy(struct thread* thread) {
     slab_cache_free(thread_cache, thread);
 }
 
-struct thread* thread_fork(struct process* process, struct registers* context) {
+struct thread* thread_fork(struct process* process, struct thread* old_thread, struct registers* context) {
     struct thread* new_thread = slab_cache_alloc(thread_cache);
     if (unlikely(new_thread == NULL)) {
         return NULL;
     }
 
+    // Basic state
     new_thread->cpu = this_cpu();
-    new_thread->is_user = true;
     new_thread->process = process;
+
+    spinlock_init(&new_thread->state_lock);
+
+    new_thread->state = THREAD_STATE_INIT;
+    new_thread->flags = old_thread->flags;
 
     new_thread->kernel_stack_paddr = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB);
     new_thread->kernel_stack = new_thread->kernel_stack_paddr + HIGH_VMA + KERNEL_STACK_SIZE;
 
+    // CPU context
     memcpy64((uint64_t*) &new_thread->registers, (const uint64_t*) context, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;
 
     new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
-    this_cpu()->fpu_restore(new_thread->fpu_context);
+    memcpy(new_thread->fpu_context, old_thread->fpu_context, this_cpu()->fpu_context_size);
 
     new_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
     new_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
 
-    spinlock_acquire(&process->lock);
+    // Signals
+    spinlock_init(&new_thread->signal_lock);
+
+    spinlock_acquire(&old_thread->signal_lock);
+
+    new_thread->signal_mask = old_thread->signal_mask;
+    new_thread->signal_stack = old_thread->signal_stack;
+    new_thread->signal_stack.ss_flags &= ~SS_ONSTACK;
+
+    spinlock_release(&old_thread->signal_lock);
+
+    // Insert into process' thread list
+    spinlock_acquire(&process->thread_list_lock);
 
     new_thread->tid = vector_size(process->threads);
     vector_push(process->threads, &new_thread);
 
-    spinlock_release(&process->lock);
+    spinlock_release(&process->thread_list_lock);
 
     scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
     return new_thread;
@@ -406,7 +455,7 @@ void process_init(void) {
     }
 
     kernel_process->pid = next_pid++;
-    kernel_process->state = PROCESS_RUNNING;
+    kernel_process->state = PROCESS_STATE_RUNNING;
 
     klog("[process] initialized kernel process\n");
 }

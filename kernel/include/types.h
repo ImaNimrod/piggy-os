@@ -1,6 +1,8 @@
 #ifndef _KERNEL_TYPES_H
 #define _KERNEL_TYPES_H
 
+#include <stddef.h>
+
 typedef int clockid_t;
 typedef long time_t;
 
@@ -56,6 +58,24 @@ struct stat {
 
 typedef int pid_t;
 typedef int tid_t;
+
+typedef unsigned long sigset_t;
+
+struct sigaction {
+    union {
+        void (*sa_handler)(int);
+        void (*sa_sigaction)(int);
+    };
+    int sa_flags;
+    void (*sa_restorer)(void);
+    sigset_t sa_mask;
+};
+
+typedef struct {
+    void* ss_sp;
+    size_t ss_size;
+    int ss_flags;
+} stack_t;
 
 typedef unsigned char cc_t;
 typedef unsigned int tcflag_t;

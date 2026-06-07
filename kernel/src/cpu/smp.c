@@ -1,10 +1,12 @@
 #include <cpu/asm.h>
 #include <cpu/idt.h>
+#include <cpu/isr.h>
 #include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
+#include <sys/signal.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 
@@ -25,17 +27,61 @@ static volatile bool sync_ready;
 
 extern void syscall_entry(void);
 
-static void idle(void) {
-    for (;;) {
-        hlt();
-    }
-}
-
 static void hang(struct limine_mp_info* mp_info) {
     (void) mp_info;
     cli();
     for (;;) {
         hlt();
+    }
+}
+
+static void sigbus_handler(struct registers* r, void* arg) {
+    (void) arg;
+
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_send_thread(this_cpu()->scheduler.current_thread, SIGBUS);
+    } else {
+        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+    }
+}
+
+static void sigfpe_handler(struct registers* r, void* arg) {
+    (void) arg;
+
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_send_thread(this_cpu()->scheduler.current_thread, SIGFPE);
+    } else {
+        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+    }
+}
+
+static void sigill_handler(struct registers* r, void* arg) {
+    (void) arg;
+
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_send_thread(this_cpu()->scheduler.current_thread, SIGILL);
+    } else {
+        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+    }
+}
+
+static void sigsegv_handler(struct registers* r, void* arg) {
+    (void) arg;
+
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_send_thread(this_cpu()->scheduler.current_thread, SIGSEGV);
+    } else {
+        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+    }
+}
+
+static void sigtrap_handler(struct registers* r, void* arg) {
+    (void) arg;
+
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_send_thread(this_cpu()->scheduler.current_thread, SIGTRAP);
+    } else {
+        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -46,9 +92,6 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     cpu_local->lapic_id = mp_info->lapic_id;
 
     wrmsr(MSR_IA32_GS_BASE, (uint64_t) cpu_local);
-
-    cpu_local->scheduler_stack = pmm_alloc(KERNEL_STACK_SIZE / PAGE_SIZE_4KB) + HIGH_VMA;
-    cpu_local->tss.ist1 = cpu_local->scheduler_stack + KERNEL_STACK_SIZE;
 
     gdt_reload();
     idt_reload();
@@ -143,15 +186,14 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     wrmsr(MSR_IA32_LSTAR, (uint64_t) syscall_entry);
     wrmsr(MSR_IA32_SFMASK, (uint64_t) 0x700);
 
-    cpu_local->scheduler.idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
-    cpu_local->scheduler.current_thread = cpu_local->scheduler.idle_thread;
-
     // Use the same lapic base address mapping for all cpus
     if (cpu_local->lapic_id != bsp_lapic_id) {
         wrmsr(MSR_IA32_APIC_BASE, bsp_lapic_addr | (rdmsr(MSR_IA32_APIC_BASE) & 0xfff));
     }
 
     lapic_percpu_init();
+
+    scheduler_percpu_init();
     timer_percpu_init();
 
     klog("[smp] CPU #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
@@ -170,8 +212,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
         __atomic_add_fetch(&synced_cpus, 1, __ATOMIC_SEQ_CST);
 
-        sti();
-        scheduler_yield(false);
+        scheduler_await();
     }
 }
 
@@ -203,6 +244,22 @@ void smp_init(void) {
         if (mp_info->lapic_id == mp_response->bsp_lapic_id) {
             idt_init();
             idt_set_ist(SCHEDULER_IRQ_VECTOR, 1);
+
+            isr_register_handler(17, sigbus_handler, NULL);
+
+            isr_register_handler(0, sigfpe_handler, NULL);
+            isr_register_handler(16, sigfpe_handler, NULL);
+            isr_register_handler(19, sigfpe_handler, NULL);
+
+            isr_register_handler(6, sigill_handler, NULL);
+
+            isr_register_handler(10, sigsegv_handler, NULL);
+            isr_register_handler(11, sigsegv_handler, NULL);
+            isr_register_handler(12, sigsegv_handler, NULL);
+            isr_register_handler(13, sigsegv_handler, NULL);
+
+            isr_register_handler(1, sigtrap_handler, NULL);
+            isr_register_handler(3, sigtrap_handler, NULL);
 
             if (!use_x2apic) {
                 bsp_lapic_addr = rdmsr(MSR_IA32_APIC_BASE) & ~(0xffful);

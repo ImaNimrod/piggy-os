@@ -114,10 +114,12 @@ static int virtio_blk_rw(struct virtio_blk_device* device, uint64_t lba, size_t 
     device->queue_waiters[desc0] = this_cpu()->scheduler.current_thread;
     virtio_queue_insert(queue, desc0);
 
-    spinlock_release(&queue->lock);
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
+    spinlock_release(&queue->lock);
     virtio_queue_notify(queue);
-    scheduler_block(this_cpu()->scheduler.current_thread);
+
+    scheduler_yield();
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + sizeof(struct virtio_blk_request));
 
@@ -159,10 +161,12 @@ static int virtio_blk_flush(struct virtio_blk_device* device) {
     device->queue_waiters[desc0] = this_cpu()->scheduler.current_thread;
     virtio_queue_insert(queue, desc0);
 
-    spinlock_release(&queue->lock);
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
+    spinlock_release(&queue->lock);
     virtio_queue_notify(queue);
-    scheduler_block(this_cpu()->scheduler.current_thread);
+
+    scheduler_yield();
 
     uint8_t status = *(uint8_t*) (request_paddr + HIGH_VMA + sizeof(struct virtio_blk_request));
 
@@ -216,7 +220,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
         uint16_t index = queue->last_used++ % queue->size;
         uint16_t desc0 = queue->used->ring[index].id;
 
-        scheduler_unblock(device->queue_waiters[desc0]);
+        scheduler_wakeup(device->queue_waiters[desc0], THREAD_WAKEUP_REASON_NORMAL);
         device->queue_waiters[desc0] = NULL;
         semaphore_signal(&device->queue_semaphore);
 

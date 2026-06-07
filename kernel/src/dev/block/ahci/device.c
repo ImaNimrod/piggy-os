@@ -233,9 +233,12 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
     device->old_ci |= (1 << slot);
     mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
+
     spinlock_release(&device->lock);
 
-    scheduler_block(this_cpu()->scheduler.current_thread);
+    scheduler_yield();
+
     return (device->queue_waiters[slot].result == AHCI_COMMAND_RESULT_OK) ? (ssize_t) block_count : -EIO;
 }
 
@@ -251,7 +254,7 @@ void ahci_device_irq_handler(struct ahci_device* device) {
     if (completed_slots != 0) {
         for (uint8_t i = 0; i < device->controller->slot_count; i++) {
             if (completed_slots & (1 << i)) {
-                scheduler_unblock(device->queue_waiters[i].thread);
+                scheduler_wakeup(device->queue_waiters[i].thread, THREAD_WAKEUP_REASON_NORMAL);
 
                 device->queue_waiters[i].result = (is & HBA_PxIE_ERROR_MASK) ? AHCI_COMMAND_RESULT_ERROR : AHCI_COMMAND_RESULT_OK;
                 device->queue_waiters[i].thread = NULL;

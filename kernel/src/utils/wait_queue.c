@@ -1,4 +1,5 @@
 #include <cpu/smp.h>
+#include <errno.h>
 #include <mem/slab.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
@@ -49,7 +50,7 @@ void wait_queue_remove(struct wait_queue* wq, struct wait_node* node) {
     spinlock_release_irqsave(&wq->lock, int_state);
 }
 
-void wait_queue_wait(struct wait_queue* wq) {
+int wait_queue_wait(struct wait_queue* wq) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
     struct wait_node* node = kmalloc(sizeof(struct wait_node));
@@ -69,7 +70,11 @@ void wait_queue_wait(struct wait_queue* wq) {
 
     wq->tail = node;
 
-    scheduler_block_and_release(current_thread, &wq->lock, int_state);
+    scheduler_prepare_wait(current_thread, false);
+
+    spinlock_release_irqsave(&wq->lock, int_state);
+
+    return (scheduler_yield() == THREAD_WAKEUP_REASON_INTERRUPTED) ? EINTR : 0;
 }
 
 void wait_queue_wake_all(struct wait_queue* wq) {
@@ -82,7 +87,7 @@ void wait_queue_wake_all(struct wait_queue* wq) {
 
     while (node != NULL) {
         struct wait_node* next = node->next;
-        scheduler_unblock(node->thread);
+        scheduler_wakeup(node->thread, THREAD_WAKEUP_REASON_NORMAL);
         node = next;
     }
 }
@@ -102,5 +107,5 @@ void wait_queue_wake_one(struct wait_queue* wq) {
     }
 
     spinlock_release_irqsave(&wq->lock, int_state);
-    scheduler_unblock(node->thread);
+    scheduler_wakeup(node->thread, THREAD_WAKEUP_REASON_NORMAL);
 }

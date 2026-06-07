@@ -95,7 +95,7 @@ void timer_update_timers(void) {
             struct thread* thread = iter->thread;
             SLIST_REMOVE(sleep_event_list, iter);
             kfree(iter);
-            scheduler_unblock(thread);
+            scheduler_wakeup(thread, THREAD_WAKEUP_REASON_NORMAL);
         }
     }
 

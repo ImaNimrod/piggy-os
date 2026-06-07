@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define EXCEPTION_NUM   32
+
 #define ISA_IRQ_BASE    32
 #define ISA_IRQ_NUM     16
 #define ISR_NUM         256
@@ -36,6 +38,8 @@ struct registers {
 } __attribute__((packed));
 
 typedef void (*isr_handler_t)(struct registers*, void*);
+
+extern const char* EXCEPTION_MESSAGES[EXCEPTION_NUM];
 
 bool isr_allocate_vector(uint8_t* vector);
 void isr_register_handler(uint8_t vector, isr_handler_t handler, void* arg);

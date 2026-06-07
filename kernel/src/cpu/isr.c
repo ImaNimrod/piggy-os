@@ -1,18 +1,16 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
 #include <cpu/lapic.h>
-#include <stddef.h>
+#include <cpu/smp.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-
-#define EXCEPTION_NUM 32
 
 struct isr_table_entry {
     isr_handler_t handler;
     void* arg;
 };
 
-static const char* exception_messages[EXCEPTION_NUM] = {
+const char* EXCEPTION_MESSAGES[EXCEPTION_NUM] = {
     "Divide by Zero",
     "Debug",
     "NMI",
@@ -76,10 +74,6 @@ void isr_unregister_handler(uint8_t vector) {
 }
 
 void isr_handler(struct registers* r) {
-    if (r->cs & 0x03) {
-        swapgs();
-    }
-
     uint8_t int_number = r->int_number & 0xff;
     if (int_number == PANIC_IPI_VECTOR) {
         cli();
@@ -92,7 +86,7 @@ void isr_handler(struct registers* r) {
 
     if (int_number < EXCEPTION_NUM - 1) {
         if (entry->handler == NULL) {
-            kpanic(r, false, "unhandled exception: %s", exception_messages[int_number]);
+            kpanic(r, false, "unhandled exception: %s", EXCEPTION_MESSAGES[int_number]);
         }
 
         entry->handler(r, entry->arg);
@@ -102,9 +96,5 @@ void isr_handler(struct registers* r) {
         }
 
         lapic_eoi();
-    }
-
-    if (r->cs & 0x03) {
-        swapgs();
     }
 } 

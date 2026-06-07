@@ -21,7 +21,13 @@ context_switch:
     pop %rbx
     pop %rax
     addq $16, %rsp
+
+    cmpq $0x08, 8(%rsp)
+    je 1f
+    swapgs
+    1:
     iretq
+
 .size context_switch, . - context_switch
 
 .global context_call_and_switch

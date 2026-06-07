@@ -5,6 +5,19 @@
 #include <stdint.h>
 #include <utils/macros.h>
 
+#define KERNEL_CODE_SEGMENT 0x08
+#define KERNEL_DATA_SEGMENT 0x10
+#define USER_CODE_SEGMENT   0x23
+#define USER_DATA_SEGMENT   0x1b
+
+#define RFLAGS_TF (1ULL << 8)
+#define RFLAGS_IF (1ULL << 9)
+#define RFLAGS_DF (1ULL << 10)
+#define RFLAGS_RF (1ULL << 16)
+
+#define DEFAULT_FCW     0x33f
+#define DEFAULT_MXCSR   0x1f80
+
 #define MSR_IA32_APIC_BASE      0x1b
 #define MSR_IA32_PAT            0x277
 #define MSR_KVM_SYSTEM_TIME_NEW 0x4b564d01
@@ -36,7 +49,7 @@ static ALWAYS_INLINE void sti(void) {
 static ALWAYS_INLINE bool get_interrupt_state(void) {
     uint64_t rflags;
     asm volatile("pushfq; pop %0" : "=r"(rflags));
-    return rflags & (1UL << 9);
+    return rflags & RFLAGS_IF;
 }
 
 static ALWAYS_INLINE void clac(void) {

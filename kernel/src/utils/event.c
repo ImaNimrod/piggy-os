@@ -22,10 +22,16 @@ ssize_t event_wait(struct event* event, bool block) {
         return -1;
     }
 
-    this_cpu()->scheduler.current_thread->next_waiter = event->waiters;
-    event->waiters = this_cpu()->scheduler.current_thread;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
-    scheduler_block_and_release(this_cpu()->scheduler.current_thread, &event->lock, int_state);
+    current_thread->next_waiter = event->waiters;
+    event->waiters = current_thread;
+
+    scheduler_prepare_wait(current_thread, true);
+
+    spinlock_release_irqsave(&event->lock, int_state);
+
+    scheduler_yield();
     return 0;
 }
 
@@ -47,7 +53,7 @@ size_t event_trigger(struct event* event) {
         struct thread* next = waiter->next_waiter;
         waiter->next_waiter = NULL;
 
-        scheduler_unblock(waiter);
+        scheduler_wakeup(waiter, THREAD_WAKEUP_REASON_NORMAL);
         woken++;
 
         waiter = next;
