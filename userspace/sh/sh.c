@@ -1,10 +1,12 @@
 #include <sys/wait.h>
 
 #include <err.h>
+#include <errno.h>
 #include <limits.h>
 #include <stdbool.h> 
 #include <stdio.h> 
 #include <stdlib.h> 
+#include <signal.h> 
 #include <string.h> 
 #include <unistd.h> 
 
@@ -12,30 +14,12 @@
 #include "history.h"
 #include "sh.h"
 
-#define LINE_LENGTH 256
-
 char cwd[PATH_MAX];
 int last_status;
 
-static char line_buf[LINE_LENGTH];
-
-static void read_line(char* buf) {
-    int position = 0;
-
-    int c;
-    for (;;) {
-        c = getchar();
-
-        if (c == EOF || c == '\n') {
-            buf[position] = '\0';
-            return;
-        } else {
-            buf[position] = c;
-        }
-
-        position++;
-    }
-}
+static FILE* input;
+static bool is_interactive;
+static pid_t shell_pgid;
 
 static int run_program(char** argv) {
     pid_t pid = fork();
@@ -45,13 +29,49 @@ static int run_program(char** argv) {
     }
 
     if (pid == 0) {
+        setpgid(0, 0);
+
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
+        signal(SIGTTOU, SIG_DFL);
+
         execvp(argv[0], argv);
         err(EXIT_FAILURE, "execvp");
     }
 
+    setpgid(pid, pid);
+
+    if (is_interactive) {
+        tcsetpgrp(STDIN_FILENO, pid);
+    }
+
     int status;
-    if (waitpid(pid, &status, 0) < 0) {
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno == EINTR) {
+            continue;
+        }
+
         warn("waitpid");
+        break;
+    }
+
+    if (is_interactive) {
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+    }
+
+    if (WIFSIGNALED(status)) {
+        int signal = WTERMSIG(status);
+        if (is_interactive) {
+            if (signal == SIGINT) {
+                fputc('\n', stdout);
+            } else {
+                fprintf(stderr, "%s\n", strsignal(signal));
+            }
+        }
+
+        return 128 + signal;
     }
 
     return WEXITSTATUS(status);
@@ -151,35 +171,49 @@ int main(int argc, char* argv[]) {
         return ret;
     }
 
+    input = stdin;
     if (argc > 1) {
-        FILE* fp = fopen(argv[1], "r");
-        if (fp == NULL) {
+        input = fopen(argv[1], "r");
+        if (input == NULL) {
             err(EXIT_FAILURE, argv[1]);
         }
-
-        char* line = NULL;
-        size_t len = 0;
-
-        int ret = EXIT_SUCCESS;
-
-        while (getline(&line, &len, fp) != -1) {
-            char** argv;
-            int argc = split_args(line, &argv);
-
-            ret = execute(argc, argv);
-
-            free(argv);
-        }
-
-        free(line);
-        fclose(fp);
-        return ret;
     }
 
-    for (;;) {
-        fprintf(stderr, "\033[94msh\033[0m:\033[32m%s\033[0m> ", cwd);
+    is_interactive = isatty(STDIN_FILENO);
 
-        read_line(line_buf);
+    if (is_interactive) {
+        shell_pgid = getpid();
+        setpgid(shell_pgid, shell_pgid);
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+
+        struct sigaction sa;
+        sa.sa_handler = SIG_IGN;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+
+        sigaction(SIGINT, &sa, NULL);
+        sigaction(SIGTSTP, &sa, NULL);
+        sigaction(SIGQUIT, &sa, NULL);
+    }
+
+    char* line_buf = NULL;
+    size_t line_cap = 0;
+    ssize_t nread;
+
+    for (;;) {
+        if (is_interactive) {
+            fprintf(stderr, "\033[94msh\033[0m:\033[32m%s\033[0m> ", cwd);
+        }
+
+        nread = getline(&line_buf, &line_cap, input);
+        if (nread == -1) {
+            break;
+        }
+
+        if (nread > 0 && line_buf[nread - 1] == '\n') {
+            line_buf[nread - 1] = '\0';
+        }
+
         if (line_buf[0] != '\0') {
             history_push(line_buf);
         }
@@ -191,4 +225,10 @@ int main(int argc, char* argv[]) {
 
         free(argv);
     }
+
+    if (input != stdin) {
+        fclose(input);
+    }
+
+    return EXIT_SUCCESS;
 }

@@ -72,27 +72,39 @@ int main(void) {
     setenv("PATH", _PATH_DEFPATH, 1);
     setenv("TERM", "linux", 1);
 
+    pid_t pid = fork();
+    if (pid < 0) {
+        err(EXIT_FAILURE, "fork failed");
+    } else if (pid == 0) {
+        if (switch_terminal("/dev/tty") < 0) {
+            err(EXIT_FAILURE, "failed to setup tty for shell");
+        }
+
+        chdir("/home");
+
+        char* argv[] = {
+            "/usr/bin/sh",
+            NULL,
+        };
+
+        execv(argv[0], argv);
+        err(EXIT_FAILURE, "execve");
+    }
+
     for (;;) {
-        pid_t pid = fork();
-        if (pid < 0) {
-            err(EXIT_FAILURE, "fork failed");
-        } else if (pid == 0) {
-            if (switch_terminal("/dev/tty") < 0) {
-                err(EXIT_FAILURE, "failed to setup tty for shell");
+        pid_t pid;
+        int status;
+
+        while ((pid = waitpid(-1, &status, 0)) >= 0) {
+            continue;
+        }
+
+        if (pid == -1) {
+            if (errno == EINTR) {
+                continue;
+            } else if (errno = ECHILD) {
+                pause();
             }
-
-            chdir("/home");
-
-            char* argv[] = {
-                "/usr/bin/sh",
-                NULL,
-            };
-
-            execv(argv[0], argv);
-            err(EXIT_FAILURE, "execve");
-        } else {
-            int status = 0;
-            waitpid(pid, &status, 0);
         }
     }
 

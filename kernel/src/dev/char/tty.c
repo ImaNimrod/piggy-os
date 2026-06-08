@@ -120,6 +120,7 @@ static struct device_ops tty_ops = {
     .ioctl = tty_ioctl,
 };
 
+static pid_t foreground_pgid;
 static struct termios termios;
 static struct winsize winsize;
 
@@ -129,6 +130,7 @@ static size_t input_buf_index;
 
 static spinlock_t read_lock;
 static spinlock_t write_lock;
+static spinlock_t tty_lock;
 
 static const char crnl[2] = { '\r', '\n' };
 
@@ -241,6 +243,8 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
 
     int ret = 0;
 
+    spinlock_acquire(&tty_lock);
+
     switch (request) {
         case TCGETS:
             ret = user_memcpy_to_user(argp, (const void*) &termios, sizeof(struct termios));
@@ -249,6 +253,26 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
         case TCSETSW:
         case TCSETSF:
             ret = user_memcpy_from_user((void*) &termios, argp, sizeof(struct termios));
+            break;
+        case TIOCGPGRP:
+            ret = user_memcpy_to_user(argp, (const void*) &foreground_pgid, sizeof(pid_t));
+            break;
+        case TIOCSPGRP:
+            pid_t new_foreground_pgid;
+            if ((ret = user_memcpy_from_user((void*) &new_foreground_pgid, argp, sizeof(pid_t))) < 0) {
+                break;
+            }
+
+            if (new_foreground_pgid <= 0) {
+                ret = -EINVAL;
+                break;
+            }
+
+            if (process_group_find_by_pgid(new_foreground_pgid) == NULL) {
+                ret = -ESRCH;
+            } else {
+                foreground_pgid = new_foreground_pgid;
+            }
             break;
         case TIOCGWINSZ:
             ret = user_memcpy_to_user(argp, (const void*) &winsize, sizeof(struct winsize));
@@ -260,6 +284,7 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
             break;
     }
 
+    spinlock_release(&tty_lock);
     return ret;
 }
 
@@ -280,6 +305,35 @@ void tty_add_char(char c) {
 
     if ((termios.c_iflag & INLCR) && c == '\n') {
         c = '\r';
+    }
+
+    if (termios.c_lflag & ISIG) {
+        if (c == termios.c_cc[VINTR]) {
+            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            if (group != NULL) {
+                signal_send_process_group(group, SIGINT);
+            }
+
+            goto end;
+        }
+
+        if (c == termios.c_cc[VQUIT]) {
+            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            if (group != NULL) {
+                signal_send_process_group(group, SIGQUIT);
+            }
+
+            goto end;
+        }
+
+        if (c == termios.c_cc[VSUSP]) {
+            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            if (group != NULL) {
+                signal_send_process_group(group, SIGTSTP);
+            }
+
+            goto end;
+        }
     }
 
     bool force_echo = false;
@@ -352,6 +406,10 @@ void tty_init(void) {
     if (unlikely(input_buf == NULL)) {
         kpanic(NULL, false, "failed to create tty input buffer");
     }
+
+    spinlock_init(&read_lock);
+    spinlock_init(&write_lock);
+    spinlock_init(&tty_lock);
 
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = OPOST | ONLCR;

@@ -1,0 +1,39 @@
+.TH KILL "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+kill \- terminate a process
+
+.SH SYNOPSIS
+.B kill
+[-s \fI\,SIGNAL\/\fR] \fI\,PID\/\fR...
+
+.B kill
+-l
+
+.SH DESCRIPTION
+
+.PP
+Sends a specified signal to specified processes.
+
+.PP
+If no signal is specified, the TERM signal is sent.
+
+.SH OPTIONS
+
+.TP
+.B \-l
+print a list of all available signals
+
+.TP
+.B \-s SIGNAL
+send signal SIGNAL, specified as either a name or a number
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

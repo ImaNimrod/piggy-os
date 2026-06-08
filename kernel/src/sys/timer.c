@@ -69,7 +69,7 @@ void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
     timespec_add(&event->ts, &boottime);
 
     spinlock_acquire(&sleep_event_list_lock);
-    SLIST_PUSH_BACK(sleep_event_list, event);
+    SLIST_PUSH_FRONT(sleep_event_list, event, next);
     spinlock_release(&sleep_event_list_lock);
 }
 
@@ -90,10 +90,10 @@ void timer_update_timers(void) {
     struct timespec boottime = timer_time_from_boot();
 
     struct sleep_event* iter;
-    SLIST_FOREACH(sleep_event_list, iter) {
+    SLIST_FOREACH(sleep_event_list, iter, next) {
         if (timespec_greater(&boottime, &iter->ts)) {
             struct thread* thread = iter->thread;
-            SLIST_REMOVE(sleep_event_list, iter);
+            SLIST_REMOVE(sleep_event_list, iter, next);
             kfree(iter);
             scheduler_wakeup(thread, THREAD_WAKEUP_REASON_NORMAL);
         }

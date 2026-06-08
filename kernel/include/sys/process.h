@@ -4,7 +4,6 @@
 #include <cpu/isr.h>
 #include <fs/file.h>
 #include <mem/vmm.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <sys/elf.h>
 #include <sys/signal.h>
@@ -12,7 +11,6 @@
 #include <utils/mutex.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
-#include <utils/wait_queue.h>
 
 #define KERNEL_STACK_SIZE   0x8000
 #define USER_STACK_SIZE     0x40000
@@ -87,6 +85,14 @@ struct thread {
 
 struct vfs_node;
 
+struct process_group {
+    pid_t pgid;
+
+    struct process* head;
+    struct process* tail;
+    mutex_t mutex;
+};
+
 struct process {
     pid_t pid;
     process_state_t state;
@@ -103,8 +109,6 @@ struct process {
     struct file_descriptor fds[PROCESS_FD_COUNT];
     mutex_t fd_mutex;
 
-    struct wait_queue child_wait;
-
     struct vmm_context* vmm_context;
 
     struct sigaction signal_actions[NSIG];
@@ -115,7 +119,11 @@ struct process {
     struct process* parent;
 
     struct process* children;
-    struct process* next;
+    struct process* sibling_next;
+
+    struct process_group* group;
+    struct process* group_prev;
+    struct process* group_next;
 };
 
 extern struct process* kernel_process;
@@ -130,6 +138,12 @@ struct vfs_node* process_get_cwd(struct process* process);
 struct vfs_node* process_get_root(struct process* process);
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
 void process_set_root(struct process* process, struct vfs_node* new_root);
+
+struct process_group* process_group_create(struct process* leader);
+void process_group_add(struct process_group* group, struct process* process);
+struct process_group* process_group_find_by_pgid(pid_t pgid);
+void process_group_move(struct process_group* new_group, struct process* process);
+void process_group_remove(struct process_group* group, struct process* process);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry, uintptr_t stack);

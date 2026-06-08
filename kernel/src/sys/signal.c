@@ -4,7 +4,7 @@
 #include <mem/pmm.h>
 #include <sys/process.h>
 #include <sys/signal.h>
-#include <utils/log.h>
+#include <utils/list.h>
 #include <utils/usercopy.h>
 #include <utils/vector.h>
 
@@ -81,6 +81,7 @@ void signal_handle_pending(struct registers* r) {
         if (action.sa_handler == SIG_DFL) {
             if (default_action(signal) == DEFAULT_ACTION_TERMINATION) {
                 process_exit(current_process, PROCESS_EXITCODE(0, signal));
+                return;
             } else {
                 continue;
             }
@@ -207,6 +208,31 @@ int signal_send_process(struct process* process, int signal) {
 
     // TODO: implement and correctly handle per process pending signal
     return -EAGAIN;
+}
+
+int signal_send_process_group(struct process_group* group, int signal) {
+    int delivered = 0;
+    int last_error = -ESRCH;
+
+    mutex_acquire(&group->mutex);
+
+    struct process* iter;
+    DLIST_FOREACH(group->head, iter, group_next) {
+        int ret = signal_send_process(iter, signal);
+        if (ret < 0) {
+            last_error = ret;
+        } else {
+            delivered++;
+        }
+    }
+
+    mutex_release(&group->mutex);
+
+    if (delivered > 0) {
+        return 0;
+    }
+
+    return last_error;
 }
 
 int signal_send_thread(struct thread* thread, int signal) {

@@ -6,7 +6,7 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
-#define WNOHANG (1 << 0)
+#define WNOHANG 0x01
 
 #define VALID_FLAGS (WNOHANG)
 
@@ -33,7 +33,7 @@ void sys_wait(struct registers* r) {
             }
 
             struct process* iter;
-            SLIST_FOREACH(current_process->children, iter) {
+            SLIST_FOREACH(current_process->children, iter, sibling_next) {
                 if (iter->state == PROCESS_STATE_ZOMBIE) {
                     child = iter;
                     goto end;
@@ -45,15 +45,11 @@ void sys_wait(struct registers* r) {
                 return;
             }
 
-            int ret = wait_queue_wait(&current_process->child_wait);
-            if (ret < 0) {
-                r->rax = ret;
-                return;
-            }
+            scheduler_yield();
         }
     } else if (pid > 0) {
         struct process* iter;
-        SLIST_FOREACH(current_process->children, iter) {
+        SLIST_FOREACH(current_process->children, iter, sibling_next) {
             if (iter->pid == pid) {
                 child = iter;
                 break;
@@ -70,13 +66,8 @@ void sys_wait(struct registers* r) {
             return;
         }
 
-        int ret = 0;
-
         while (child->state != PROCESS_STATE_ZOMBIE) {
-            if ((ret = wait_queue_wait(&current_process->child_wait)) < 0) {
-                r->rax = ret;
-                return;
-            }
+            scheduler_yield();
         }
     } else {
         r->rax = -EINVAL;

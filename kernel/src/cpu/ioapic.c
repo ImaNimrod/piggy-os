@@ -90,7 +90,7 @@ static inline void ioapic_write64(uintptr_t base, uint32_t reg, uint64_t value) 
 
 static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
     struct ioapic* iter;
-    SLIST_FOREACH(ioapic_list, iter) {
+    SLIST_FOREACH(ioapic_list, iter, next) {
         if (irq >= iter->gsi_base && irq < iter->gsi_base + iter->max_rentry) {
             return iter;
         }
@@ -192,7 +192,7 @@ void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
         ioapic_write64(vaddr, IOAPIC_REG_RENTRY_BASE + (i * 2), rentry.raw);
     }
 
-    SLIST_PUSH_BACK(ioapic_list, ioapic);
+    SLIST_PUSH_FRONT(ioapic_list, ioapic, next);
 
     klog("[ioapic] initialized IOAPIC (id: %02u, address: 0x%lx, GSI base: %u)\n", id, paddr, gsi_base);
 }

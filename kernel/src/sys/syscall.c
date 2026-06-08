@@ -12,6 +12,8 @@ extern void sys_wait(struct registers* r);
 extern void sys_kill(struct registers* r);
 extern void sys_getpid(struct registers* r);
 extern void sys_getppid(struct registers* r);
+extern void sys_setpgid(struct registers* r);
+extern void sys_getpgid(struct registers* r);
 extern void sys_threadnew(struct registers* r);
 extern void sys_threadexit(struct registers* r);
 extern void sys_gettid(struct registers* r);
@@ -68,6 +70,8 @@ static syscall_handler_t syscall_table[] = {
     [SYS_KILL]          = sys_kill,
     [SYS_GETPID]        = sys_getpid,
     [SYS_GETPPID]       = sys_getppid,
+    [SYS_GETPGID]       = sys_getpgid,
+    [SYS_SETPGID]       = sys_setpgid,
     [SYS_THREADNEW]     = sys_threadnew,
     [SYS_THREADEXIT]    = sys_threadexit,
     [SYS_GETTID]        = sys_gettid,
