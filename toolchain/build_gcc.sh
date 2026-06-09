@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -euo pipefail
 
@@ -63,11 +63,6 @@ mkdir -p "$DIR/build_gcc"
 pushd "$DIR/build_gcc"
     echo "configuring ${GCC_NAME}..."
 
-    EXTRA_ARGS=""
-    if [ ${UNAME} == "Darwin" ]; then
-        EXTRA_ARGS="--with-mpc=/opt/homebrew --with-gmp=/opt/homebrew --with-mpfr=/opt/homebrew"
-    fi
-
     pushd "$DIR"/tarballs/"$GCC_NAME"/libstdc++-v3
         "$PREFIX"/bin/autoconf
     popd
@@ -87,16 +82,15 @@ pushd "$DIR/build_gcc"
         --with-pic \
         --with-sysroot="$SYSROOT" \
         --with-system-zlib \
-        --without-docdir \
-        $EXTRA_ARGS || exit 1
+        --without-docdir || exit 1
 
     echo "building ${GCC_NAME}..."
 
     make all-gcc all-target-libgcc -j "$NPROC" || exit 1
     make install-gcc install-target-libgcc || exit 1
 
-    make all-target-libstdc++-v3 -j "$NPROC" || exit 1
-    make install-target-libstdc++-v3 || exit 1
+    # make all-target-libstdc++-v3 -j "$NPROC" || exit 1
+    # make install-target-libstdc++-v3 || exit 1
 popd
 
 rm -rf "$DIR/build_gcc"

@@ -64,23 +64,24 @@ todolist:
 
 .PHONY: kernel
 kernel: kernel/build
-	cd kernel; meson compile --jobs $(NPROC) -C build
+	meson compile --jobs $(NPROC) -C kernel/build
 
 kernel/build:
 	cd kernel; meson setup --cross-file=../toolchain/meson-crossfile.txt build
 
 .PHONY: libc
 libc: libc/build
-	cd libc; meson compile --jobs $(NPROC) -C build
-	cd libc; meson install -C build
+	meson configure libc/build -Dheaders_only=false
+	meson compile --jobs $(NPROC) -C libc/build
+	meson install -C libc/build
 
 libc/build:
 	cd libc; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../toolchain/meson-crossfile.txt -Dheaders_only=false build
 
 .PHONY: userspace
 userspace: userspace/build
-	cd userspace; meson compile --jobs $(NPROC) -C build
-	cd userspace; meson install -C build
+	meson compile --jobs $(NPROC) -C userspace/build
+	meson install -C userspace/build
 
 userspace/build:
 	cd userspace; meson setup --prefix=$(SYSROOT_DIR)/usr --cross-file=../toolchain/meson-crossfile.txt build
@@ -121,7 +122,6 @@ limine-binary:
 clean:
 	$(RM) -r iso_root kernel/build libc/build userspace/build
 	$(RM) piggy.iso initrd.tar
-	$(MAKE) -C userspace clean
 
 .PHONY: distclean
 distclean:
