@@ -87,13 +87,13 @@ userspace/build:
 
 .PHONY: initrd
 initrd:
-	cd $(SYSROOT_DIR); tar -cf ../initrd.tar *
+	cd $(SYSROOT_DIR); tar -czf ../initrd.tar.gz *
 
 .NOTPARALLEL:
 piggy.iso: limine-binary/limine kernel libc userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
-	cp -v kernel/build/kernel.elf initrd.tar iso_root/boot/
+	cp -v kernel/build/kernel.elf initrd.tar.gz iso_root/boot/
 	mkdir -p iso_root/boot/limine
 	cp -v meta/limine.conf iso_root/boot/limine/
 	mkdir -p iso_root/EFI/BOOT

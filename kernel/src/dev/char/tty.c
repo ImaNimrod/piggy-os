@@ -2,6 +2,7 @@
 #include <dev/char/fb.h>
 #include <dev/char/tty.h>
 #include <errno.h>
+#include <flanterm.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
@@ -13,8 +14,6 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 
-
-#include "../../utils/flanterm/src/flanterm.h"
 
 #define CTRL(c) ((c) & 0x1f)
 

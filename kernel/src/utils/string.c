@@ -163,3 +163,11 @@ char* strncpy(char* dest, const char* src, size_t n) {
 
     return dest;
 }
+
+size_t strnlen(const char* str, size_t len) {
+    size_t i = 0;
+    while (i < len && str[i] != '\0') {
+        i++;
+    }
+    return i;
+}

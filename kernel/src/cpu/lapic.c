@@ -4,12 +4,10 @@
 #include <cpu/smp.h>
 #include <dev/hpet.h>
 #include <mem/paging.h>
-#include <utils/log.h>
-#include <utils/macros.h>
-
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
-#include <uacpi/uacpi.h>
+#include <utils/log.h>
+#include <utils/macros.h>
 
 #define LAPIC_REG_ID            0x020
 #define LAPIC_REG_TPR           0x080
@@ -33,11 +31,6 @@
 #define LAPIC_LVT_DELIVERY_NMI  (4 << 8)
 #define LAPIC_LVT_MASK          (1 << 16)
 
-#define PIC1_COMMAND_PORT       0x20
-#define PIC1_DATA_PORT          0x21
-#define PIC2_COMMAND_PORT       0xa0
-#define PIC2_DATA_PORT          0xa1
-
 static inline uint32_t lapic_read(uint32_t reg) {
     if (use_x2apic) {
         return rdmsr(0x800 + (reg >> 4));
@@ -56,26 +49,6 @@ static inline void lapic_write(uint32_t reg, uint32_t value) {
     mfence();
 }
 
-static void lapic_setup_nmi(struct acpi_madt_lapic_nmi* nmi) {
-    if (nmi->uid != this_cpu()->lapic_id && nmi->uid != 0xff) {
-        return;
-    }
-
-    uint32_t lvt_entry = LAPIC_LVT_DELIVERY_NMI | 2;
-
-    uint8_t polarity_flags = nmi->flags & ACPI_MADT_POLARITY_MASK;
-    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
-        lvt_entry |= (1 << 13);
-    }
-
-    uint8_t trigger_mode_flags = nmi->flags & ACPI_MADT_TRIGGERING_MASK;
-    if (trigger_mode_flags == ACPI_MADT_TRIGGERING_LEVEL) {
-        lvt_entry |= (1 << 15);
-    }
-
-    lapic_write(LAPIC_REG_LVT_LINT0 + (nmi->lint * 0x10), lvt_entry);
-}
-
 static void lapic_timer_calibrate(void) {
     lapic_write(LAPIC_REG_TIMER_DIV, 3);
     lapic_write(LAPIC_REG_TIMER_INITCNT, 0xffffffff);
@@ -87,20 +60,30 @@ static void lapic_timer_calibrate(void) {
     this_cpu()->lapic_ticks_per_ms = 0xffffffff - count;
 }
 
-static void legacy_pic_disable(void) {
-    // Mask all PIC interrupts
-    outb(PIC1_DATA_PORT, 0xff);
-    outb(PIC2_DATA_PORT, 0xff);
+static uacpi_iteration_decision parse_madt(void* user, struct acpi_entry_hdr* entry) {
+    (void) user;
 
-    // Remap PIC interrupts to 0x20 - 0x30 to avoid conflicts with builtin CPU exceptions
-    outb(PIC1_COMMAND_PORT, 0x11);
-    outb(PIC2_COMMAND_PORT, 0x11);
-    outb(PIC1_DATA_PORT, 0x20);
-    outb(PIC2_DATA_PORT, 0x28);
-    outb(PIC1_DATA_PORT, 0x04);
-    outb(PIC2_DATA_PORT, 0x02);
-    outb(PIC1_DATA_PORT, 0x01);
-    outb(PIC2_DATA_PORT, 0x01);
+    if (entry->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
+        struct acpi_madt_lapic_nmi* nmi_entry = (struct acpi_madt_lapic_nmi*) entry;
+
+        if (nmi_entry->uid == this_cpu()->lapic_id || nmi_entry->uid == 0xff) {
+            uint32_t lvt_entry = 2 | LAPIC_LVT_DELIVERY_NMI;
+
+            uint8_t polarity_flags = nmi_entry->flags & ACPI_MADT_POLARITY_MASK;
+            if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
+                lvt_entry |= (1 << 13);
+            }
+
+            uint8_t trigger_mode_flags = nmi_entry->flags & ACPI_MADT_TRIGGERING_MASK;
+            if (trigger_mode_flags == ACPI_MADT_TRIGGERING_LEVEL) {
+                lvt_entry |= (1 << 15);
+            }
+
+            lapic_write(LAPIC_REG_LVT_LINT0 + (nmi_entry->lint * 0x10), lvt_entry);
+        }
+    }
+
+    return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
 void lapic_eoi(void) {
@@ -157,46 +140,6 @@ uint32_t lapic_timer_stop(void) {
     return count;
 }
 
-void lapic_madt_parse(void) {
-    struct uacpi_table table;
-    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &table);
-    if (uacpi_unlikely_error(ret)) {
-        kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
-    }
-
-    struct acpi_madt* madt_table = table.ptr;
-    if (likely(madt_table->flags & ACPI_PCAT_COMPAT)) {
-        legacy_pic_disable();
-        klog("[lapic] disabled legacy 8259 PIC\n");
-    }
-
-    struct acpi_madt_ioapic* ioapic;
-    struct acpi_madt_interrupt_source_override* iso;
-
-    uint8_t* current_ptr = (uint8_t*) madt_table->entries;
-    uint8_t* end_ptr = (uint8_t*) madt_table->entries + madt_table->hdr.length;
-    while (current_ptr < end_ptr) {
-        struct acpi_entry_hdr* entry = (struct acpi_entry_hdr*) current_ptr;
-        switch (entry->type) {
-            case ACPI_MADT_ENTRY_TYPE_IOAPIC:
-                ioapic = (struct acpi_madt_ioapic*) entry;
-                ioapic_init(ioapic->id, ioapic->address, ioapic->gsi_base);
-                break;
-            case ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE:
-                iso = (struct acpi_madt_interrupt_source_override*) entry;
-                if (iso->bus != 0) {
-                    break;
-                }
-                ioapic_set_isa_iso(iso->source, iso->gsi, iso->flags);
-                break;
-        }
-
-        current_ptr += entry->length;
-    }
-
-    uacpi_table_unref(&table);
-}
-
 void lapic_percpu_init(void) {
     lapic_write(LAPIC_REG_SIVR, lapic_read(LAPIC_REG_SIVR) | (1 << 8));
 
@@ -218,19 +161,7 @@ void lapic_percpu_init(void) {
         kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
     }
 
-    struct acpi_madt* madt_table = table.ptr;
-
-    uint8_t* current_ptr = (uint8_t*) madt_table->entries;
-    uint8_t* end_ptr = (uint8_t*) madt_table->entries + madt_table->hdr.length;
-    while (current_ptr < end_ptr) {
-        struct acpi_entry_hdr* entry = (struct acpi_entry_hdr*) current_ptr;
-        if (entry->type == ACPI_MADT_ENTRY_TYPE_LAPIC_NMI) {
-            lapic_setup_nmi((struct acpi_madt_lapic_nmi*) entry);
-        }
-
-        current_ptr += entry->length;
-    }
-
+    uacpi_for_each_subtable(table.hdr, sizeof(struct acpi_madt), parse_madt, NULL);
     uacpi_table_unref(&table);
 
     lapic_timer_calibrate();

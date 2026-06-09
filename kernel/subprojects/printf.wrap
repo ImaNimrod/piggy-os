@@ -1,0 +1,4 @@
+[wrap-git]
+url = https://github.com/mpaland/printf.git
+revision = master
+patch_directory = printf

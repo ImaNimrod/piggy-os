@@ -3,13 +3,12 @@
 #include <cpu/smp.h>
 #include <dev/char/fb.h>
 #include <dev/serial.h>
+#include <flanterm.h>
 #include <mem/paging.h>
+#include <printf.h>
 #include <stdarg.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
-
-#include "flanterm/src/flanterm.h"
-#include "printf/printf.h"
 
 static spinlock_t panic_lock;
 static spinlock_t print_lock;

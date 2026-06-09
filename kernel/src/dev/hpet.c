@@ -3,14 +3,12 @@
 #include <cpu/isr.h>
 #include <dev/hpet.h>
 #include <mem/paging.h>
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/spinlock.h>
-
-#include <uacpi/acpi.h>
-#include <uacpi/tables.h>
-#include <uacpi/uacpi.h>
 
 #define HPET_REG_ID                     0x000
 #define HPET_REG_CONFIG                 0x010
@@ -74,6 +72,8 @@ static bool hpet_check(void) {
         return false;
     }
 
+    spinlock_acquire(&hpet_init_lock);
+
     struct uacpi_table table;
     uacpi_status ret = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
     if (uacpi_unlikely_error(ret)) {
@@ -91,11 +91,12 @@ static bool hpet_check(void) {
 
 end:
     uacpi_table_unref(&table);
+    spinlock_release(&hpet_init_lock);
     return usable;
 }
 
 static struct timer_info* hpet_init(void) {
-    bool int_state = spinlock_acquire_irqsave(&hpet_init_lock);
+    spinlock_acquire(&hpet_init_lock);
 
     if (hpet_timer_info.private != NULL) {
         goto end;
@@ -154,7 +155,7 @@ static struct timer_info* hpet_init(void) {
     uacpi_table_unref(&table);
 
 end:
-    spinlock_release_irqsave(&hpet_init_lock, int_state);
+    spinlock_release(&hpet_init_lock);
     return &hpet_timer_info;
 }
 

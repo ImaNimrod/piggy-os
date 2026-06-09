@@ -1,5 +1,6 @@
 #include <dev/char/console.h>
 #include <dev/char/fb.h>
+#include <flanterm.h>
 #include <fs/devfs.h>
 #include <fs/vfs.h>
 #include <utils/log.h>
@@ -7,8 +8,6 @@
 #include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 
-
-#include "../../utils/flanterm/src/flanterm.h"
 
 static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 

@@ -3,11 +3,11 @@
 #include <cpu/isr.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-
-#include <uacpi/acpi.h>
 
 #define IOREGSEL 0x00
 #define IOREGWIN 0x10
@@ -22,6 +22,11 @@
 
 #define IOAPIC_TRIGGER_MODE_EDGE    0
 #define IOAPIC_TRIGGER_MODE_LEVEL   1
+
+#define PIC1_COMMAND_PORT       0x20
+#define PIC1_DATA_PORT          0x21
+#define PIC2_COMMAND_PORT       0xa0
+#define PIC2_DATA_PORT          0xa1
 
 struct ioapic {
     uint8_t id;
@@ -98,6 +103,99 @@ static struct ioapic* get_ioapic_for_irq(uint8_t irq) {
     return NULL;
 }
 
+static void legacy_pic_disable(void) {
+    // Mask all PIC interrupts
+    outb(PIC1_DATA_PORT, 0xff);
+    outb(PIC2_DATA_PORT, 0xff);
+
+    // Remap PIC interrupts to 0x20 - 0x30 to avoid conflicts with builtin CPU exceptions
+    outb(PIC1_COMMAND_PORT, 0x11);
+    outb(PIC2_COMMAND_PORT, 0x11);
+    outb(PIC1_DATA_PORT, 0x20);
+    outb(PIC2_DATA_PORT, 0x28);
+    outb(PIC1_DATA_PORT, 0x04);
+    outb(PIC2_DATA_PORT, 0x02);
+    outb(PIC1_DATA_PORT, 0x01);
+    outb(PIC2_DATA_PORT, 0x01);
+}
+
+static void parse_ioapic_entry(struct acpi_madt_ioapic* ioapic_entry) {
+    uintptr_t vaddr = ioapic_entry->address + HIGH_VMA;
+
+    pagemap_map(kernel_pagemap, vaddr, ioapic_entry->address,
+            PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
+
+    struct ioapic* ioapic = kmalloc(sizeof(struct ioapic));
+    if (unlikely(ioapic == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for ioapic");
+    }
+    ioapic->base = vaddr;
+    ioapic->gsi_base = ioapic_entry->gsi_base;
+    ioapic->max_rentry = (ioapic_read(vaddr, IOAPIC_REG_VERSION) >> 16) & 0xff;
+
+    for (uint8_t i = 0; i < ioapic->max_rentry; i++) {
+        union ioapic_rentry rentry = { .raw = ioapic_read64(vaddr, IOAPIC_REG_RENTRY_BASE + (i * 2)) };
+        rentry.mask = true;
+        ioapic_write64(vaddr, IOAPIC_REG_RENTRY_BASE + (i * 2), rentry.raw);
+    }
+
+    SLIST_PUSH_FRONT(ioapic_list, ioapic, next);
+
+    klog("[ioapic] initialized IOAPIC (id: %02u, address: 0x%lx, GSI base: %u)\n",
+            ioapic_entry->id, ioapic_entry->address, ioapic_entry->gsi_base);
+}
+
+static void parse_iso_entry(struct acpi_madt_interrupt_source_override* iso_entry) {
+    if (iso_entry->bus != 0) {
+        return;
+    }
+
+    if (iso_entry->source >= ISA_IRQ_NUM || iso_entry->gsi >= ISA_IRQ_NUM) {
+        return;
+    }
+
+    int polarity;
+    int trigger_mode;
+
+    uint8_t polarity_flags = iso_entry->flags & ACPI_MADT_POLARITY_MASK;
+    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_HIGH) {
+        polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
+    } else if (polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
+        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
+    } else {
+        kpanic(NULL, false, "invalid polarity flags in interrupt source override");
+    }
+
+    uint8_t trigger_mode_flags = iso_entry->flags & ACPI_MADT_TRIGGERING_MASK;
+    if (trigger_mode_flags == ACPI_MADT_TRIGGERING_CONFORMING || trigger_mode_flags == ACPI_MADT_TRIGGERING_EDGE) {
+        trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
+    } else if (trigger_mode_flags == ACPI_MADT_TRIGGERING_LEVEL) {
+        trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
+    } else {
+        kpanic(NULL, false, "invalid trigger mode flags in interrupt source override");
+    }
+
+    isa_isos[iso_entry->source] = (struct isa_iso) { true, iso_entry->gsi, polarity, trigger_mode };
+
+    klog("[ioapic] setup interrupt source override (ISA %-2u -> GSI %u)\n",
+            iso_entry->source, iso_entry->gsi);
+}
+
+static uacpi_iteration_decision parse_madt(void* user, struct acpi_entry_hdr* entry) {
+    (void) user;
+
+    switch (entry->type) {
+        case ACPI_MADT_ENTRY_TYPE_IOAPIC:
+            parse_ioapic_entry((struct acpi_madt_ioapic*) entry);
+            break;
+        case ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE:
+            parse_iso_entry((struct acpi_madt_interrupt_source_override*) entry);
+            break;
+    }
+
+    return UACPI_ITERATION_DECISION_CONTINUE;
+}
+
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     uint32_t gsi = irq; 
     int polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
@@ -143,56 +241,19 @@ bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     return true;
 }
 
-void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags) {
-    if (irq >= ISA_IRQ_NUM || gsi >= ISA_IRQ_NUM) {
-        return;
+void ioapic_init(void) {
+    struct uacpi_table table;
+    uacpi_status ret = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &table);
+    if (uacpi_unlikely_error(ret)) {
+        kpanic(NULL, false, "unable to find MADT table: %s", uacpi_status_to_string(ret));
     }
 
-    int polarity;
-    int trigger_mode;
-
-    uint8_t polarity_flags = flags & ACPI_MADT_POLARITY_MASK;
-    if (polarity_flags == ACPI_MADT_POLARITY_CONFORMING || polarity_flags == ACPI_MADT_POLARITY_ACTIVE_HIGH) {
-        polarity = IOAPIC_POLARITY_ACTIVE_HIGH;
-    } else if (polarity_flags == ACPI_MADT_POLARITY_ACTIVE_LOW) {
-        polarity = IOAPIC_POLARITY_ACTIVE_LOW;
-    } else {
-        kpanic(NULL, false, "invalid polarity flags in interrupt source override");
+    struct acpi_madt* madt_table = table.ptr;
+    if (likely(madt_table->flags & ACPI_PCAT_COMPAT)) {
+        legacy_pic_disable();
+        klog("[ioapic] disabled legacy 8259 PIC\n");
     }
 
-    uint8_t trigger_mode_flags = flags & ACPI_MADT_TRIGGERING_MASK;
-    if (trigger_mode_flags == ACPI_MADT_TRIGGERING_CONFORMING || trigger_mode_flags == ACPI_MADT_TRIGGERING_EDGE) {
-        trigger_mode = IOAPIC_TRIGGER_MODE_EDGE;
-    } else if (trigger_mode_flags == ACPI_MADT_TRIGGERING_LEVEL) {
-        trigger_mode = IOAPIC_TRIGGER_MODE_LEVEL;
-    } else {
-        kpanic(NULL, false, "invalid trigger mode flags in interrupt source override");
-    }
-
-    isa_isos[irq] = (struct isa_iso) { true, gsi, polarity, trigger_mode };
-}
-
-void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base) {
-    uintptr_t vaddr = paddr + HIGH_VMA;
-
-    pagemap_map(kernel_pagemap, vaddr, paddr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
-
-    struct ioapic* ioapic = kmalloc(sizeof(struct ioapic));
-    if (unlikely(ioapic == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for ioapic");
-    }
-
-    ioapic->base = vaddr;
-    ioapic->gsi_base = gsi_base;
-    ioapic->max_rentry = (ioapic_read(vaddr, IOAPIC_REG_VERSION) >> 16) & 0xff;
-
-    for (uint8_t i = 0; i < ioapic->max_rentry; i++) {
-        union ioapic_rentry rentry = { .raw = ioapic_read64(vaddr, IOAPIC_REG_RENTRY_BASE + (i * 2)) };
-        rentry.mask = true;
-        ioapic_write64(vaddr, IOAPIC_REG_RENTRY_BASE + (i * 2), rentry.raw);
-    }
-
-    SLIST_PUSH_FRONT(ioapic_list, ioapic, next);
-
-    klog("[ioapic] initialized IOAPIC (id: %02u, address: 0x%lx, GSI base: %u)\n", id, paddr, gsi_base);
+    uacpi_for_each_subtable(table.hdr, sizeof(struct acpi_madt), parse_madt, NULL);
+    uacpi_table_unref(&table);
 }

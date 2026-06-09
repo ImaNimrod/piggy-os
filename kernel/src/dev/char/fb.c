@@ -1,19 +1,19 @@
 #include <cpu/smp.h>
 #include <dev/char/fb.h>
 #include <errno.h>
+#include <flanterm.h>
+#include <flanterm_backends/fb.h>
 #include <fs/devfs.h>
 #include <limine.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <mem/vmm.h>
+#include <printf.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
-
-#include "../../utils/flanterm/src/flanterm_backends/fb.h"
-#include "../../utils/printf/printf.h"
 
 struct fb_bitfield {
     uint32_t offset;

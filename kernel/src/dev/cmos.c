@@ -5,13 +5,11 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/timer.h>
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/usercopy.h>
-
-#include <uacpi/acpi.h>
-#include <uacpi/tables.h>
-#include <uacpi/uacpi.h>
 
 #define CMOS_ADDRESS_PORT   0x70
 #define CMOS_DATA_PORT      0x71

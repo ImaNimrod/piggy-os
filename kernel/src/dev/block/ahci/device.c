@@ -6,14 +6,13 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <stdbool.h>
+#include <printf.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
 #include "definitions.h"
-#include "../../../utils/printf/printf.h"
 
 static dev_t ahci_device_minor;
 
@@ -49,11 +48,11 @@ static int find_command_slot(struct ahci_device* device) {
 }
 
 static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr) {
-    spinlock_acquire(&device->lock);
+    bool int_state = spinlock_acquire_irqsave(&device->lock);
 
     int slot = find_command_slot(device);
     if (slot == -1) {
-        spinlock_release(&device->lock);
+        spinlock_release_irqsave(&device->lock, int_state);
         return false;
     }
 
@@ -89,12 +88,13 @@ static bool identify(struct ahci_device* device, uintptr_t identify_buffer_paddr
 
     mmio_write32(&hba_port->ci, mmio_read32(&hba_port->ci) | (1 << slot));
 
-    spinlock_release(&device->lock);
+    spinlock_release_irqsave(&device->lock, int_state);
 
     while (mmio_read32(&hba_port->ci) & (1 << slot)) {
         if (mmio_read32(&hba_port->is) & HBA_PxIE_ERROR_MASK) {
             return false;
         }
+
         timer_wait_ns(MS_TO_NS(1));
     }
 
@@ -143,7 +143,7 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
 
     semaphore_wait(&device->queue_semaphore);
 
-    spinlock_acquire(&device->lock);
+    bool int_state = spinlock_acquire_irqsave(&device->lock);
 
     int slot = find_command_slot(device);
     if (slot == -1) {
@@ -173,7 +173,7 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
     } else {
         size_t prdt_count = (uint16_t) ((block_count - 1) >> 4) + 1;
         if (prdt_count > PRDT_PER_COMMAND) {
-            spinlock_release(&device->lock);
+            spinlock_release_irqsave(&device->lock, int_state);
             return -EIO;
         }
 
@@ -235,7 +235,7 @@ static ssize_t ahci_device_cmd_handler(struct block_device* block_device, block_
 
     scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
-    spinlock_release(&device->lock);
+    spinlock_release_irqsave(&device->lock, int_state);
 
     scheduler_yield();
 

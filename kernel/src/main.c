@@ -1,5 +1,5 @@
 #include <cpu/asm.h>
-#include <cpu/lapic.h>
+#include <cpu/ioapic.h>
 #include <cpu/smp.h>
 #include <dev/acpi.h>
 #include <dev/block/block.h>
@@ -117,7 +117,7 @@ NORETURN static void kernel_main(void) {
 
     struct limine_file* initrd_module = NULL;
     for (uint64_t i = 0; i < module_response->module_count; i++) {
-        if (strcmp(module_response->modules[i]->path, "/boot/initrd.tar") == 0) {
+        if (strcmp(module_response->modules[i]->path, "/boot/initrd.tar.gz") == 0) {
             initrd_module = module_response->modules[i];
             break;
         }
@@ -153,7 +153,7 @@ NORETURN void kernel_entry(void) {
     fb_dev_early_init();
 
     acpi_early_init();
-    lapic_madt_parse();
+    ioapic_init();
 
     vfs_init();
 
@@ -171,5 +171,4 @@ NORETURN void kernel_entry(void) {
     }
 
     scheduler_await();
-    __builtin_unreachable();
 }

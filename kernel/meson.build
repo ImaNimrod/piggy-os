@@ -34,8 +34,8 @@ add_global_arguments([
 
   '-DGIT_COMMIT="@0@"'.format(git_commit),
   '-DLIMINE_API_REVISION=3',
-  '-DPRINTF_DISABLE_SUPPORT_EXPONENTIAL',
   '-DPRINTF_DISABLE_SUPPORT_FLOAT',
+  '-DPRINTF_DISABLE_SUPPORT_EXPONENTIAL',
   '-DFLANTERM_FB_DISABLE_BUMP_ALLOC',
   '-DUACPI_KERNEL_INITIALIZATION',
   '-DUACPI_NATIVE_ALLOC_ZEROED',
@@ -181,11 +181,6 @@ kernel_sources = files(
   'src/sys/syscall.c',
   'src/sys/timer.c',
 
-  'src/utils/flanterm/src/flanterm_backends/fb.c',
-  'src/utils/flanterm/src/flanterm.c',
-
-  'src/utils/printf/printf.c',
-
   'src/utils/cmdline.c',
   'src/utils/event.c',
   'src/utils/hashmap.c',
@@ -202,13 +197,20 @@ kernel_sources = files(
 
 kernel_includes = [include_directories('include')]
 
+flanterm = subproject('flanterm')
+pdgzip = subproject('pdgzip')
+printf = subproject('printf')
 uacpi = subproject('uacpi')
 
-uacpi_sources = uacpi.get_variable('sources')
-kernel_sources += uacpi_sources
+kernel_sources += flanterm.get_variable('sources')
+kernel_sources += pdgzip.get_variable('sources')
+kernel_sources += printf.get_variable('sources')
+kernel_sources += uacpi.get_variable('sources')
 
-uacpi_includes = uacpi.get_variable('includes')
-kernel_includes += uacpi_includes
+kernel_includes += flanterm.get_variable('includes')
+kernel_includes += pdgzip.get_variable('includes')
+kernel_includes += printf.get_variable('includes')
+kernel_includes += uacpi.get_variable('includes')
 
 executable(
   'kernel.elf',

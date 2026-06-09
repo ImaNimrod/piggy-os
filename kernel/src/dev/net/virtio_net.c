@@ -71,9 +71,11 @@ static void virtio_net_tx_irq_handler(struct registers* r, void* ctx) {
     struct virtio_net_device* device = ctx;
     struct virtio_queue* tx_queue = &device->vio_dev->queues[1];
 
-    spinlock_acquire(&tx_queue->lock);
+    bool int_state = spinlock_acquire_irqsave(&tx_queue->lock);
 
     for (uint16_t i = tx_queue->last_used; i != tx_queue->used->index; i = (i + 1) % tx_queue->size) {
+        pmm_free(tx_queue->descriptors[i].address, 1);
+
         tx_queue->descriptors[i].address = 0;
         device->netif->tx_count++;
         semaphore_signal(&device->tx_semaphore);
@@ -81,7 +83,7 @@ static void virtio_net_tx_irq_handler(struct registers* r, void* ctx) {
 
     tx_queue->last_used = tx_queue->used->index;
 
-    spinlock_release(&tx_queue->lock);
+    spinlock_release_irqsave(&tx_queue->lock, int_state);
 }
 
 static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
@@ -91,15 +93,15 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
 
     struct virtio_queue* tx_queue = &device->vio_dev->queues[1];
 
-    spinlock_acquire(&tx_queue->lock);
+    bool int_state = spinlock_acquire_irqsave(&tx_queue->lock);
 
     uint16_t desc = virtio_queue_alloc_descriptor(tx_queue);
     if (desc == VIRTIO_INVALID_QUEUE_DESCRIPTOR) {
-        spinlock_release(&tx_queue->lock);
+        spinlock_release_irqsave(&tx_queue->lock, int_state);
         return false;
     }
 
-    volatile struct virtio_queue_descriptor* descriptor = &tx_queue->descriptors[desc];
+    struct virtio_queue_descriptor* descriptor = &tx_queue->descriptors[desc];
     descriptor->address = pmm_alloc_zero(1);
     descriptor->length = packet->length + sizeof(struct virtio_net_header);
     descriptor->flags = 0;
@@ -109,7 +111,7 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet) {
 
     virtio_queue_insert(tx_queue, desc);
 
-    spinlock_release(&tx_queue->lock);
+    spinlock_release_irqsave(&tx_queue->lock, int_state);
     return true;
 }
 

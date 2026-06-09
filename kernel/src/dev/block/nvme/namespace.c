@@ -4,11 +4,11 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <printf.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 
 #include "definitions.h"
-#include "../../../utils/printf/printf.h"
 
 struct namespace_identify {
     uint64_t lbasize;

@@ -1,0 +1,4 @@
+[wrap-git]
+url = https://github.com/iczelia/pdgzip.git
+revision = main
+patch_directory = pdgzip

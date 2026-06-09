@@ -7,16 +7,13 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <printf.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <utils/list.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/semaphore.h>
-
-#include "../../utils/printf/printf.h"
 
 #define VIRTIO_BLK_F_SIZE_MAX       (1 << 1)
 #define VIRTIO_BLK_F_SEGMENT_MAX    (1 << 2)

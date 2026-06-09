@@ -12,7 +12,6 @@ void lapic_send_ipi(uint32_t lapic_id, uint8_t vector);
 void lapic_timer_periodic(uint8_t vector, uint64_t ms);
 void lapic_timer_oneshot(uint8_t vector, uint64_t ms);
 uint32_t lapic_timer_stop(void);
-void lapic_madt_parse(void);
 void lapic_percpu_init(void);
 
 #endif /* _KERNEL_CPU_LAPIC_H */

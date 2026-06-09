@@ -1,6 +1,7 @@
 *.iso
 *.img
 *.tar
+*.gz
 
 edk2-ovmf/
 limine-binary/

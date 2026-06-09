@@ -6,7 +6,6 @@
 
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector);
 bool ioapic_set_irq_mask(uint8_t irq, bool mask);
-void ioapic_set_isa_iso(uint8_t irq, uint32_t gsi, uint16_t flags);
-void ioapic_init(uint8_t id, uintptr_t paddr, uint32_t gsi_base);
+void ioapic_init(void);
 
 #endif /* _KERNEL_CPU_IOAPIC_H */

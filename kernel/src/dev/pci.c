@@ -8,14 +8,12 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
 #include <utils/vector.h>
-
-#include <uacpi/acpi.h>
-#include <uacpi/tables.h>
-#include <uacpi/uacpi.h>
 
 #define PCI_CONFIG_ADDRESS_PORT 0xcf8
 #define PCI_CONFIG_DATA_PORT    0xcfc

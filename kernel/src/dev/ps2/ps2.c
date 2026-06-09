@@ -1,10 +1,9 @@
 #include <dev/ps2.h>
+#include <uacpi/resources.h>
+#include <uacpi/utilities.h>
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-
-#include <uacpi/resources.h>
-#include <uacpi/utilities.h>
 
 #include "definitions.h"
 

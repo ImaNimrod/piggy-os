@@ -45,6 +45,11 @@ void sys_pwrite(struct registers* r) {
 
     struct vfs_node* node = file->node;
 
+    if (node->type == VFS_TYPE_CHARDEV || node->type == VFS_TYPE_FIFO) {
+        ret = -ESPIPE;
+        goto end;
+    }
+
     node->ops->lock(node);
     ret = node->ops->write(node, buf, count, offset, file->flags);
     node->ops->unlock(node);

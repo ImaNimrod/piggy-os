@@ -13,6 +13,7 @@ static void ps2_mouse_irq_handler(struct registers* r, void* arg) {
 
 void mouse_init(uint8_t irq) {
     isr_register_handler(irq + ISA_IRQ_BASE, ps2_mouse_irq_handler, NULL);
+
     ioapic_redirect_irq(irq, irq + ISA_IRQ_BASE);
     ioapic_set_irq_mask(irq, false);
 

@@ -4,14 +4,13 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <printf.h>
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h>
-
-#include "../../utils/printf/printf.h"
 
 #define GPT_ATTRIBUTE_IMPORTANT (1 << 0)
 #define GPT_ATTRIBUTE_DONTMOUNT (1 << 1)
@@ -185,7 +184,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
     size_t name_len = strlen(device_name) + 6;
     char name[name_len];
 
-    size_t partition_number = 0;
+    size_t partition_number = 1;
 
     size_t page_count = DIV_CEIL(2 * device->block_size, PAGE_SIZE_4KB);
     uintptr_t paddr = pmm_alloc(page_count);
@@ -196,7 +195,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
 
     uint8_t* buf = (uint8_t*) (paddr + HIGH_VMA);
 
-    struct gpt_header* gpt_header = (void*) ((uintptr_t) buf + 512);
+    struct gpt_header* gpt_header = (void*) ((uintptr_t) buf + device->block_size);
 
     if (!strncmp(gpt_header->signature, "EFI PART", sizeof(gpt_header->signature))) {
         if (gpt_header->length < sizeof(struct gpt_header)) {
@@ -234,17 +233,15 @@ static void detect_partitions(struct block_device* device, const char* device_na
             struct block_device block_device = {
                 .cmd_handler = device->cmd_handler,
                 .private = device->private,
-                .block_count = entry->end_lba - entry->start_lba,
+                .block_count = entry->end_lba - entry->start_lba + 1,
                 .block_size = device->block_size,
                 .lba_offset = entry->start_lba,
             };
 
-            block_register(name, makedev(PARTITION_DEV_MAJOR, partition_device_minor), &block_device, false);
+            block_register(name, makedev(PARTITION_DEV_MAJOR, __atomic_fetch_add(&partition_device_minor, 1, __ATOMIC_SEQ_CST)), &block_device, false);
 
             klog("[block] found GPT partition %s\n", name);
-
             partition_number++;
-            partition_device_minor++;
         }
 
         pmm_free(table_paddr, table_page_count);
@@ -267,12 +264,10 @@ static void detect_partitions(struct block_device* device, const char* device_na
                 .lba_offset = entry->start_sector,
             };
 
-            block_register(name, makedev(PARTITION_DEV_MAJOR, partition_device_minor), &block_device, false);
+            block_register(name, makedev(PARTITION_DEV_MAJOR, __atomic_fetch_add(&partition_device_minor, 1, __ATOMIC_SEQ_CST)), &block_device, false);
 
             klog("[block] found MBR partition %s\n", name);
-
             partition_number++;
-            partition_device_minor++;
         }
     }
 
