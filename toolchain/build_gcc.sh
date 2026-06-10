@@ -13,25 +13,9 @@ popd
 
 mkdir -p "$DIR/tarballs"
 pushd "$DIR/tarballs"
-    download_and_extract AUTOCONF
     download_and_extract BINUTILS
     download_and_extract GCC
 popd
-
-mkdir -p "$DIR/build_autoconf"
-pushd "$DIR/build_autoconf"
-    echo "configuring ${AUTOCONF_NAME}..."
-
-    "$DIR"/tarballs/"$AUTOCONF_NAME"/configure \
-        --prefix="$PREFIX"
-
-    echo "building ${AUTOCONF_NAME}..."
-
-    make -j "$NPROC" || exit 1
-    make install || exit 1
-popd
-
-rm -rf "$DIR/build_autoconf"
 
 mkdir -p "$DIR/build_binutils"
 pushd "$DIR/build_binutils"

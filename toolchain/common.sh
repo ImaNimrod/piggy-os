@@ -17,27 +17,26 @@ export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
 export PATH="$PATH:$PREFIX/bin"
 
 function download_and_extract() {
-    declare -n BASE=${1^^}_BASE
     declare -n NAME=${1^^}_NAME
     declare -n PKG=${1^^}_PKG
-    declare -n MD5SUM=${1^^}_MD5SUM
     declare -n BASE_URL=${1^^}_BASE_URL
+    declare -n SHA256SUM=${1^^}_SHA256SUM
 
     if [ ! -d ${NAME} ]; then
-        local md5=""
+        local sha256=""
 
         if [ -e ${PKG} ]; then
-            md5="$(md5sum ${PKG} | cut -f1 -d ' ')"
+            sha256="$(sha256sum ${PKG} | cut -f1 -d ' ')"
         fi
 
-        if [ "$md5" != ${MD5SUM} ] ; then
+        if [ "$sha256" != ${SHA256SUM} ] ; then
             rm -f ${PKG}
             echo "downloading ${PKG}..."
             curl -LO ${BASE_URL}/${PKG}
 
-            md5="$(md5sum ${PKG} | cut -f1 -d ' ')"
-            if [ "$md5" != ${MD5SUM} ] ; then
-                echo "md5sum comparision failed for ${PKG}"
+            sha256="$(sha256sum ${PKG} | cut -f1 -d ' ')"
+            if [ "$sha256" != ${SHA256SUM} ] ; then
+                echo "sha256sum comparision failed for ${PKG}"
                 exit 1
             fi
         else
@@ -47,10 +46,10 @@ function download_and_extract() {
         echo "extracting ${NAME}..."
         tar -xf ${PKG}
 
-        if [ -d "${DIR}/patches/${BASE}" ]; then
+        if [ -d "${DIR}/patches/${NAME}" ]; then
             echo "patching ${NAME}..."
             pushd "${DIR}/tarballs/${NAME}"
-                for file in ${DIR}/patches/${BASE}/*.patch; do
+                for file in ${DIR}/patches/${NAME}/*.patch; do
                     patch -p1 < $file
                 done
             popd

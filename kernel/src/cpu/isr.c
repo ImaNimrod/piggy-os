@@ -90,11 +90,12 @@ void isr_handler(struct registers* r) {
         }
 
         entry->handler(r, entry->arg);
-    } else {
-        if (likely(entry->handler != NULL)) {
-            entry->handler(r, entry->arg);
-        }
-
-        lapic_eoi();
+        return;
     }
+
+    if (likely(entry->handler != NULL)) {
+        entry->handler(r, entry->arg);
+    }
+
+    lapic_eoi();
 } 

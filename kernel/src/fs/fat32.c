@@ -245,8 +245,6 @@ static int directory_lookup(struct fat32_filesystem* fatfs, struct fat32_node* d
     uint32_t cluster_size = fatfs->cluster_size;
     uint32_t entries_per_cluster = cluster_size / sizeof(struct fat32_dirent);
 
-    uint32_t cluster_index = 0;
-
     while (cluster < FAT32_CLUSTER_END) {
         size_t cluster_buf_pages = DIV_CEIL(fatfs->cluster_size, PAGE_SIZE_4KB);
         uintptr_t cluster_buf_paddr = pmm_alloc(cluster_buf_pages);
@@ -299,8 +297,6 @@ static int directory_lookup(struct fat32_filesystem* fatfs, struct fat32_node* d
         if (ret < 0) {
             return ret;
         }
-
-        cluster_index++;
     }
 
     return -ENOENT;

@@ -54,7 +54,9 @@ run-virtio: edk2-ovmf
 
 .PHONY: toolchain
 toolchain:
+	./toolchain/build_autotools.sh
 	./toolchain/build_gcc.sh
+	./toolchain/build_libtool.sh
 	./toolchain/build_qemu.sh
 
 .PHONY: todolist
