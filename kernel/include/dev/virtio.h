@@ -2,7 +2,6 @@
 #define _KERNEL_DEV_VIRTIO_H
 
 #include <dev/pci.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils/spinlock.h>

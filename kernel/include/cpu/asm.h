@@ -1,7 +1,6 @@
 #ifndef _KERNEL_CPU_ASM_H
 #define _KERNEL_CPU_ASM_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <utils/macros.h>
 
@@ -261,46 +260,6 @@ static ALWAYS_INLINE bool rdseed(uint64_t* val) {
     }
 
     return false;
-}
-
-static USED void fxsave(void* ctx) {
-    asm volatile("fxsave (%0)" :: "r"(ctx) : "memory");
-}
-
-static USED void fxrstor(void* ctx) {
-    asm volatile("fxrstor (%0)" :: "r"(ctx) : "memory");
-}
-
-static USED void xsave(void* ctx) {
-    asm volatile("xsave (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
-}
-
-static USED void xsaveopt(void* ctx) {
-    asm volatile("xsaveopt (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
-}
-
-static USED void xrstor(void* ctx) {
-    asm volatile("xrstor (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
-}
-
-static USED uint64_t rdfsbase(void) {
-    uint64_t fs;
-    asm volatile("rdfsbase %0" : "=r"(fs) :: "memory");
-    return fs;
-}
-
-static USED void wrfsbase(uint64_t fs) {
-    asm volatile("wrfsbase %0" :: "r"(fs) : "memory");
-}
-
-static USED uint64_t rdgsbase(void) {
-    uint64_t gs;
-    asm volatile("rdgsbase %0" : "=r"(gs) :: "memory");
-    return gs;
-}
-
-static USED void wrgsbase(uint64_t gs) {
-    asm volatile("wrgsbase %0" :: "r"(gs) : "memory");
 }
 
 #endif /* _KERNEL_CPU_ASM_H */

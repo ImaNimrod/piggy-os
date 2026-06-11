@@ -1,6 +1,5 @@
 #include <cpu/asm.h>
 #include <cpu/isr.h>
-#include <dev/pci.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
 #include <sys/timer.h>

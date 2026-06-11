@@ -90,12 +90,15 @@ void isr_handler(struct registers* r) {
         }
 
         entry->handler(r, entry->arg);
-        return;
+    } else {
+        if (likely(entry->handler != NULL)) {
+            entry->handler(r, entry->arg);
+        }
+
+        lapic_eoi();
     }
 
-    if (likely(entry->handler != NULL)) {
-        entry->handler(r, entry->arg);
+    if (r->cs == USER_CODE_SEGMENT) {
+        signal_handle_pending(r);
     }
-
-    lapic_eoi();
-} 
+}

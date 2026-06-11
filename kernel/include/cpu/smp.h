@@ -2,7 +2,6 @@
 #define _KERNEL_CPU_SMP_H
 
 #include <cpu/gdt.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/scheduler.h>

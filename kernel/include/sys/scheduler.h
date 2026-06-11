@@ -1,10 +1,7 @@
 #ifndef _KERNEL_SYS_SCHEDULER_H
 #define _KERNEL_SYS_SCHEDULER_H
 
-#include <stdbool.h>
 #include <sys/process.h>
-#include <sys/timer.h>
-#include <utils/macros.h>
 #include <utils/spinlock.h>
 
 #define SCHEDULER_IRQ_VECTOR 48
@@ -19,12 +16,12 @@ struct scheduler {
     spinlock_t run_queue_lock;
 };
 
-NORETURN void scheduler_await(void);
+[[noreturn]] void scheduler_await(void);
 void scheduler_dequeue(struct scheduler* sched, struct thread* thread);
 void scheduler_enqueue(struct scheduler* sched, struct thread* thread);
 void scheduler_prepare_wait(struct thread* thread, bool interruptable);
 void scheduler_sleep(struct thread* thread, const struct timespec* duration);
-NORETURN void scheduler_thread_exit(void);
+[[noreturn]] void scheduler_thread_exit(void);
 bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reason);
 thread_wakeup_reason_t scheduler_yield(void);
 

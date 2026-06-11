@@ -1,8 +1,7 @@
 #ifndef _KERNEL_FS_VFS_H
 #define _KERNEL_FS_VFS_H
 
-#include <stdbool.h>
-#include <stddef.h>
+#include <stdint.h>
 #include <sys/timer.h>
 #include <types.h>
 

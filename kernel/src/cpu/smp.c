@@ -27,6 +27,26 @@ static volatile bool sync_ready;
 
 extern void syscall_entry(void);
 
+static void fxsave(void* ctx) {
+    asm volatile("fxsave (%0)" :: "r"(ctx) : "memory");
+}
+
+static void fxrstor(void* ctx) {
+    asm volatile("fxrstor (%0)" :: "r"(ctx) : "memory");
+}
+
+static void xsave(void* ctx) {
+    asm volatile("xsave (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
+}
+
+static void xsaveopt(void* ctx) {
+    asm volatile("xsaveopt (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
+}
+
+static void xrstor(void* ctx) {
+    asm volatile("xrstor (%0)" :: "r"(ctx), "a"(0xffffffff), "d"(0xffffffff) : "memory");
+}
+
 static void hang(struct limine_mp_info* mp_info) {
     (void) mp_info;
     cli();
@@ -116,11 +136,6 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     cpuid(7, 0, &unused, &ebx, &ecx, &unused);
 
-    // If FSGSBASE is supported, enable it
-    if (ebx & (1 << 0)) {
-        cr4 |= (1 << 16);
-    }
-
     // If SMEP is supported, enable it
     if (ebx & (1 << 7)) {
         cr4 |= (1 << 20);
@@ -203,9 +218,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
         uint64_t hz = cpu_local->timer_info->hz;
         uint64_t mhz = hz / 1000000;
 
-        while (!sync_ready) {
-            asm volatile("");
-        }
+        while (!sync_ready) {}
 
         cpu_local->timer_base_ticks = cpu_local->timer_driver->ticks(cpu_local->timer_info);
         cpu_local->timer_tick_offset = (sync_sec * hz) + (sync_usec * mhz);

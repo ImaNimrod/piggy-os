@@ -2,6 +2,7 @@
 #define _KERNEL_FS_DEVFS_H
 
 #include <fs/vfs.h>
+#include <stdint.h>
 
 struct device_ops {
     ssize_t (*read)(dev_t, void*, size_t, off_t, int);

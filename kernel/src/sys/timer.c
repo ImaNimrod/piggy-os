@@ -5,7 +5,6 @@
 #include <dev/hpet.h>
 #include <dev/pvclock.h>
 #include <mem/slab.h>
-#include <stdbool.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/list.h>

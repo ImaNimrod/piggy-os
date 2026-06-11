@@ -1,9 +1,7 @@
 #ifndef _AHCI_DEFINITIONS_H
 #define _AHCI_DEFINITIONS_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <dev/block/ahci.h>
 #include <sys/process.h>
 #include <utils/semaphore.h>
 #include <utils/spinlock.h>

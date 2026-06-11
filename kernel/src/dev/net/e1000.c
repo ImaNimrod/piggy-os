@@ -1,13 +1,12 @@
 #include <cpu/asm.h>
 #include <cpu/ioapic.h>
 #include <cpu/isr.h>
-#include <dev/pci.h>
+#include <dev/net/e1000.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <net/netif.h>
 #include <net/packet.h>
-#include <stdint.h>
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>

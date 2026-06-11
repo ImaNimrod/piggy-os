@@ -12,6 +12,8 @@
 #include <utils/string.h>
 #include <utils/usercopy.h>
 
+#define BDEV_NAME_MAX_LEN 32
+
 #define GPT_ATTRIBUTE_IMPORTANT (1 << 0)
 #define GPT_ATTRIBUTE_DONTMOUNT (1 << 1)
 #define GPT_ATTRIBUTE_LEGACY    (1 << 2)
@@ -181,8 +183,7 @@ static int block_sync(dev_t dev) {
 }
 
 static void detect_partitions(struct block_device* device, const char* device_name) {
-    size_t name_len = strlen(device_name) + 6;
-    char name[name_len];
+    char name[BDEV_NAME_MAX_LEN];
 
     size_t partition_number = 1;
 
@@ -228,7 +229,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
                 continue;
             }
 
-            snprintf(name, name_len - 1, "%sp%u", device_name, partition_number);
+            snprintf(name, BDEV_NAME_MAX_LEN - 1, "%sp%u", device_name, partition_number);
 
             struct block_device block_device = {
                 .cmd_handler = device->cmd_handler,
@@ -254,7 +255,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
                 continue;
             }
 
-            snprintf(name, name_len - 1, "%sp%u", device_name, partition_number);
+            snprintf(name, BDEV_NAME_MAX_LEN - 1, "%sp%u", device_name, partition_number);
 
             struct block_device block_device = {
                 .cmd_handler = device->cmd_handler,
@@ -288,7 +289,7 @@ int block_register(const char* name, dev_t dev, struct block_device* block_devic
     if (unlikely(device == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for struct block_device");
     }
-    memcpy(device, block_device, sizeof(struct block_device));
+    *device = *block_device;
 
     bool ret = hashmap_set(block_devices, &dev, sizeof(dev), device);
 
@@ -307,7 +308,7 @@ int block_register(const char* name, dev_t dev, struct block_device* block_devic
 }
 
 void block_init(void) {
-    block_devices = hashmap_create(20);
+    block_devices = hashmap_create(16);
     if (unlikely(block_devices == NULL)) {
         kpanic(NULL, false, "failed to create block device map");
     }

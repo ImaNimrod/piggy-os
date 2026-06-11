@@ -1,7 +1,6 @@
 #ifndef _XHCI_DEFINITIONS_H
 #define _XHCI_DEFINITIONS_H
 
-#include <stdbool.h>
 #include <stdint.h>
 #include <sys/process.h>
 #include <utils/spinlock.h>

@@ -1,7 +1,7 @@
 project(
   'kernel',
   'c',
-  default_options: ['c_std=gnu99', 'debug=true', 'optimization=2', 'warning_level=2'],
+  default_options: ['c_std=gnu23', 'debug=true', 'optimization=2', 'warning_level=2'],
 )
 
 git_commit = run_command('git', 'describe', '--always', '--tags', check: true).stdout().strip()
@@ -11,16 +11,20 @@ add_global_arguments([
   '-ffreestanding',
   '-ffunction-sections',
   '-fms-extensions',
-  '-fstack-protector-strong',
-  '-fno-stack-check',
+  '-fno-builtin',
   '-fno-omit-frame-pointer',
   '-fno-pic',
+  '-fno-stack-check',
+  '-fno-strict-aliasing',
+  '-fstack-protector-strong',
 
-  '-Winline',
+  '-Wdeprecated-non-prototype',
   '-Wnested-externs',
+  '-Wold-style-definition',
   '-Wredundant-decls',
   '-Wshadow',
   '-Wstrict-prototypes',
+  '-Wvla',
 
   '-m64',
   '-march=x86-64',
@@ -47,7 +51,8 @@ add_global_arguments([
 add_global_link_arguments([
   '-nostdlib',
   '-static',
-  '-T' + meson.current_source_dir() / 'linker.ld',
+  '-Wl,-T,' + meson.current_source_dir() / 'linker.ld',
+  '-Wl,--gc-sections',
 ], language: ['c'])
 
 kernel_sources = files(

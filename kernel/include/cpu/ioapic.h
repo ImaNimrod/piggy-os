@@ -1,7 +1,6 @@
 #ifndef _KERNEL_CPU_IOAPIC_H
 #define _KERNEL_CPU_IOAPIC_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 bool ioapic_redirect_irq(uint8_t irq, uint8_t vector);

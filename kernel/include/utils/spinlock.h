@@ -1,7 +1,6 @@
 #ifndef _KERNEL_UTILS_SPINLOCK_H
 #define _KERNEL_UTILS_SPINLOCK_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 typedef uint32_t spinlock_t;

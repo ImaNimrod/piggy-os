@@ -2,7 +2,6 @@
 #include <dev/pvclock.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
-#include <stddef.h> 
 #include <utils/cmdline.h>
 #include <utils/log.h>
 #include <utils/macros.h>

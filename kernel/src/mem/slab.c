@@ -8,8 +8,8 @@
 
 #define BIG_ALLOC_HEADER_MAGIC 0xfafeceedabcdeffe
 
-#define CACHE_NAME_MAX_LEN 64 
-#define OBJECTS_PER_SLAB 256
+#define CACHE_NAME_MAX_LEN  64
+#define OBJECTS_PER_SLAB    256
 
 struct slab {
     size_t available_objects;

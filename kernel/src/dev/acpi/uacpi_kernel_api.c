@@ -9,15 +9,14 @@
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
+#include <uacpi/kernel_api.h>
+#include <uacpi/status.h>
+#include <uacpi/types.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/mutex.h>
 #include <utils/semaphore.h>
 #include <utils/spinlock.h>
-
-#include <uacpi/kernel_api.h>
-#include <uacpi/status.h>
-#include <uacpi/types.h>
 
 struct uacpi_irq_context {
     uacpi_interrupt_handler handler;

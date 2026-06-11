@@ -1,7 +1,6 @@
 #ifndef _KERNEL_UTILS_EVENT_H
 #define _KERNEL_UTILS_EVENT_H
 
-#include <stdbool.h>
 #include <sys/process.h>
 #include <utils/spinlock.h> 
 

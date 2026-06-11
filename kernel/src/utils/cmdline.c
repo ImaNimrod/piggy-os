@@ -1,6 +1,5 @@
 #include <limine.h>
 #include <mem/slab.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <utils/cmdline.h>
 #include <utils/hashmap.h>

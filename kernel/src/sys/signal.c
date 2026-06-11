@@ -23,7 +23,7 @@ struct signal_frame {
     uint64_t signal;
 };
 
-extern void context_switch(struct registers* r);
+[[noreturn]] extern void context_switch(struct registers* r);
 
 // TODO: handle process stop / continue 
 static int default_action(int signal) {
@@ -42,6 +42,8 @@ static int default_action(int signal) {
             return DEFAULT_ACTION_TERMINATION;
     }
 }
+
+#include <utils/log.h>
 
 void signal_handle_pending(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
@@ -81,7 +83,7 @@ void signal_handle_pending(struct registers* r) {
         if (action.sa_handler == SIG_DFL) {
             if (default_action(signal) == DEFAULT_ACTION_TERMINATION) {
                 process_exit(current_process, PROCESS_EXITCODE(0, signal));
-                return;
+                scheduler_thread_exit();
             } else {
                 continue;
             }
@@ -161,7 +163,7 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
     return sp >= start && sp < end;
 }
 
-NORETURN void signal_restore_signal_frame(struct registers* r) {
+[[noreturn]] void signal_restore_signal_frame(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
     struct signal_frame frame;

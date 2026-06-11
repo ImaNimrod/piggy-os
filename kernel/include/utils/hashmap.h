@@ -1,7 +1,6 @@
 #ifndef _KERNEL_UTILS_HASHMAP_H
 #define _KERNEL_UTILS_HASHMAP_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 struct hashmap_entry {

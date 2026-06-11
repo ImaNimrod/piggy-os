@@ -12,6 +12,7 @@
 #define EINTR           4
 #define EINVAL          22
 #define EISDIR          21
+#define ELOOP           40
 #define EMFILE          24
 #define ENAMETOOLONG    36
 #define ENODEV          19

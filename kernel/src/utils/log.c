@@ -64,7 +64,7 @@ void klog(const char* fmt, ...) {
     spinlock_release_irqsave(&print_lock, int_state);
 }
 
-NORETURN void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...) {
+[[noreturn]] void kpanic(struct registers* r, bool stack_trace, const char* fmt, ...) {
     cli();
     spinlock_acquire(&panic_lock);
 

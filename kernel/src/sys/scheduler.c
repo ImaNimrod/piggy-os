@@ -9,11 +9,11 @@
 #include <utils/string.h>
 
 extern void context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
-extern void context_switch(struct registers* r);
+[[noreturn]] extern void context_switch(struct registers* r);
 
 static void internal_dequeue_unlocked(struct scheduler* sched, struct thread* thread);
 static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* thread);
-NORETURN static void reschedule(struct registers* r, void* arg);
+[[noreturn]] static void reschedule(struct registers* r, void* arg);
 
 static struct thread* get_next_thread(void) {
     spinlock_acquire(&this_cpu()->scheduler.run_queue_lock);
@@ -92,12 +92,16 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     sched->run_queue_tail = thread;
 }
 
-NORETURN static void internal_thread_exit(struct registers* r, void* arg) {
+[[noreturn]] static void internal_thread_exit(struct registers* r, void* arg) {
     (void) arg;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
+    struct process* current_process = current_thread->process;
 
-    vector_remove_by_value(current_thread->process->threads, &current_thread);
+    spinlock_acquire(&current_process->thread_list_lock);
+    vector_remove_by_value(current_process->threads, &current_thread);
+    spinlock_release(&current_process->thread_list_lock);
+
     thread_destroy(current_thread);
 
     this_cpu()->scheduler.current_thread = NULL;
@@ -105,7 +109,7 @@ NORETURN static void internal_thread_exit(struct registers* r, void* arg) {
     __builtin_unreachable();
 }
 
-NORETURN static void internal_yield(struct registers* r, void* arg) {
+[[noreturn]] static void internal_yield(struct registers* r, void* arg) {
     (void) arg;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
@@ -139,7 +143,7 @@ NORETURN static void internal_yield(struct registers* r, void* arg) {
     __builtin_unreachable();
 }
 
-NORETURN static void reschedule(struct registers* r, void* arg)  {
+[[noreturn]] static void reschedule(struct registers* r, void* arg)  {
     (void) arg;
 
     uint32_t remaining_ticks = lapic_timer_stop();
@@ -211,7 +215,7 @@ NORETURN static void reschedule(struct registers* r, void* arg)  {
     __builtin_unreachable();
 }
 
-NORETURN void scheduler_await(void) {
+[[noreturn]] void scheduler_await(void) {
     this_cpu()->scheduler.current_thread = NULL;
 
     lapic_send_ipi(LAPIC_IPI_SELF, SCHEDULER_IRQ_VECTOR);
@@ -260,7 +264,7 @@ void scheduler_sleep(struct thread* thread, const struct timespec* duration) {
     scheduler_yield();
 }
 
-NORETURN void scheduler_thread_exit(void) {
+[[noreturn]] void scheduler_thread_exit(void) {
     cli();
     context_call_and_switch(internal_thread_exit, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
     __builtin_unreachable();

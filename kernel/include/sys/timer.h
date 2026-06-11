@@ -1,8 +1,6 @@
 #ifndef _KERNEL_SYS_TIMER_H
 #define _KERNEL_SYS_TIMER_H
 
-#include <stdbool.h>
-#include <stdint.h>
 #include <types.h>
 
 #define CLOCK_REALTIME              0

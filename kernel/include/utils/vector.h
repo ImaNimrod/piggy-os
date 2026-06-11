@@ -1,7 +1,6 @@
 #ifndef _KERNEL_UTILS_VECTOR_H
 #define _KERNEL_UTILS_VECTOR_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 typedef struct {

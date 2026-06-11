@@ -2,8 +2,6 @@
 #include <dev/cmos.h>
 #include <errno.h>
 #include <fs/devfs.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <sys/timer.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>

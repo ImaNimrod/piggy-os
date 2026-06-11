@@ -2,7 +2,6 @@
 #define _KERNEL_NET_NETIF_H
 
 #include <net/packet.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <utils/spinlock.h>

@@ -125,7 +125,5 @@ void syscall_handler(struct registers* r) {
         syscall_table[r->rax](r);
     }
 
-    if (r->cs == USER_CODE_SEGMENT) {
-        signal_handle_pending(r);
-    }
+    signal_handle_pending(r);
 }

@@ -2,7 +2,6 @@
 #define _KERNEL_FS_FILE_H
 
 #include <fs/vfs.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 #define AT_FDCWD -100

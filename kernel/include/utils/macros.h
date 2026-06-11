@@ -35,9 +35,6 @@
 #define US_TO_NS(us)    ((uint64_t) (us) * 1000ul)
 
 #define ALWAYS_INLINE __attribute__((always_inline)) inline
-#define LIMINE_REQUEST __attribute__((used, section(".limine_requests")))
-#define NORETURN __attribute__((noreturn))
-#define USED __attribute__((used))
 
 #define MAC_ADDRESS_FORMAT          "%02x:%02x:%02x:%02x:%02x:%02x"
 #define MAC_ADDRESS_PRINT(mac)      (mac)[0], (mac)[1], (mac)[2], (mac)[3], (mac)[4], (mac)[5]

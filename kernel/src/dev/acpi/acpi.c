@@ -4,16 +4,14 @@
 #include <errno.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
-#include <utils/cmdline.h>
-#include <utils/log.h>
-
 #include <uacpi/event.h>
 #include <uacpi/kernel_api.h>
 #include <uacpi/sleep.h>
 #include <uacpi/status.h>
 #include <uacpi/types.h>
-#include <uacpi/uacpi.h>
 #include <uacpi/utilities.h>
+#include <utils/cmdline.h>
+#include <utils/log.h>
 
 #define EARLY_BUFFER_SIZE (PAGE_SIZE_4KB * 4)
 

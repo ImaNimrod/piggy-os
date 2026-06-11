@@ -2,8 +2,6 @@
 #define _NVME_DEFINITIONS_H
 
 #include <dev/block/nvme.h>
-#include <stdbool.h>
-#include <stdint.h>
 #include <sys/process.h>
 #include <utils/semaphore.h>
 #include <utils/spinlock.h>

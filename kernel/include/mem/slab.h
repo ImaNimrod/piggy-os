@@ -1,7 +1,6 @@
 #ifndef _KERNEL_MEM_SLAB_H
 #define _KERNEL_MEM_SLAB_H
 
-#include <stdbool.h>
 #include <stddef.h>
 
 struct slab_cache;

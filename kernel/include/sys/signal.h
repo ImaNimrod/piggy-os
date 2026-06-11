@@ -2,8 +2,6 @@
 #define _KERNEL_SYS_SIGNAL_H 
 
 #include <cpu/isr.h>
-#include <stdbool.h>
-#include <utils/macros.h>
 
 typedef void (*sig_handler_t)(int);
 
@@ -68,7 +66,7 @@ struct thread;
 
 void signal_handle_pending(struct registers* r);
 bool signal_on_altstack(struct thread* thread, uintptr_t sp);
-NORETURN void signal_restore_signal_frame(struct registers* r);
+[[noreturn]] void signal_restore_signal_frame(struct registers* r);
 int signal_send_process(struct process* process, int signal);
 int signal_send_process_group(struct process_group* group, int signal);
 int signal_send_thread(struct thread* thread, int signal);

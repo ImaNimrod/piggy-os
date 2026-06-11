@@ -2,7 +2,6 @@
 #define _PS2_DEFINITIONS_H
 
 #include <cpu/asm.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #define PS2_DATA_PORT       0x60

@@ -76,7 +76,7 @@ void sys_exec(struct registers* r) {
         }
         if (arg == NULL) {
             break;
-        }
+}
     }
 
     for (;;) {

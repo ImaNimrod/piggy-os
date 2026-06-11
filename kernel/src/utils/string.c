@@ -83,12 +83,12 @@ void* memmove(void* dest, const void* src, size_t n) {
 }
 
 uint8_t* memset8(uint8_t* dest, uint8_t c, size_t n) {
-    asm volatile("rep stosb" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
+    asm volatile("rep stosb" : "+D"(dest), "+c"(n) : "a"(c) : "memory");
     return dest;
 }
 
 uint64_t* memset64(uint64_t* dest, uint64_t c, size_t n) {
-    asm volatile("rep stosq" : "=c"((int){0}) : "D"(dest), "a"(c), "c"(n) : "flags", "memory");
+    asm volatile("rep stosq" : "+D"(dest), "+c"(n) : "a"(c) : "memory");
     return dest;
 }
 

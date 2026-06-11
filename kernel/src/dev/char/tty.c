@@ -8,7 +8,6 @@
 #include <mem/slab.h>
 #include <sys/scheduler.h>
 #include <sys/signal.h>
-#include <types.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/spinlock.h>
