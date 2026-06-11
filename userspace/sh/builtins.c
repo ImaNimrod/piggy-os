@@ -1,7 +1,6 @@
 #include <ctype.h>
 #include <err.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -88,20 +87,18 @@ static int builtin_cd(int argc, char* argv[]) {
 }
 
 static int builtin_echo(int argc, char* argv[]) {
-    (void) argc;
-
     bool trailing_newline = true;
 
-    if (*argv++ != NULL && strcmp(*argv, "-n") == 0) {
+    int i = 1;
+    if (i < argc && strcmp(argv[i], "-n") == 0) {
         trailing_newline = false;
-        argv++;
+        i++;
     }
 
-    while (*argv != NULL) {
-        fputs(*argv, stdout);
+    for (; i < argc; i++) {
+        fputs(argv[i], stdout);
 
-        argv++;
-        if (*argv != NULL) {
+        if (i + 1 < argc) {
             putchar(' ');
         }
     }

@@ -1,7 +1,7 @@
 project(
   'userspace',
   'c',
-  default_options: ['c_std=gnu99', 'optimization=2', 'warning_level=2'],
+  default_options: ['c_std=gnu23', 'optimization=2', 'warning_level=2'],
 )
 
 subdir('shared')
@@ -23,6 +23,7 @@ subdir('factor')
 subdir('false')
 subdir('head')
 subdir('hexdump')
+subdir('hog')
 subdir('hwclock')
 subdir('init')
 subdir('kill')

@@ -1,7 +1,6 @@
 #include <ctype.h>
 #include <err.h>
 #include <fcntl.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

@@ -2,7 +2,6 @@
 #include <locale.h>
 #include <limits.h>
 #include <paths.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

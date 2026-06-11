@@ -3,7 +3,6 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <paths.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -69,7 +68,7 @@ int main(void) {
     fflush(stdout);
 
     setenv("HOME", "/home", 1);
-    setenv("PATH", _PATH_DEFPATH, 1);
+    setenv("PATH", "/usr/bin:/usr/sbin", 1);
     setenv("TERM", "linux", 1);
 
     pid_t pid = fork();

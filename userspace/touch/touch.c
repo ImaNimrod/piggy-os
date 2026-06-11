@@ -3,7 +3,6 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>

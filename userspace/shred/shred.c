@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h> 
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +75,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < argc; i++) {
         char* filename = argv[i];
 
-        int fd = open(filename, O_WRONLY);
+        int fd = open(filename, O_RDWR);
         if (fd < 0) {
             warn("%s", filename);
             ret = EXIT_FAILURE;
@@ -91,6 +90,13 @@ int main(int argc, char* argv[]) {
             continue;
         }
 
+        if (!S_ISREG(st.st_mode)) {
+            warnx("%s: not a regular file", filename);
+            ret = EXIT_FAILURE;
+            close(fd);
+            continue;
+        }
+
         off_t file_size = st.st_size;
         if (file_size == 0) {
             close(fd);
@@ -100,6 +106,7 @@ int main(int argc, char* argv[]) {
         char buf[BUF_SIZE];
 
         for (uintmax_t j = 0; j < iterations; j++) {
+            bool failed= false;
             bool is_zero_pass = zero && j == iterations - 1;
 
             if (verbose) {
@@ -110,7 +117,7 @@ int main(int argc, char* argv[]) {
                 memset(buf, 0, sizeof(buf));
 
                 off_t total_written = 0;
-                while (total_written < file_size) {
+                while (!failed && total_written < file_size) {
                     size_t bytes_left = file_size - total_written;
                     size_t chunk_size = (bytes_left < sizeof(buf)) ? bytes_left : sizeof(buf);
 
@@ -119,6 +126,8 @@ int main(int argc, char* argv[]) {
                     while (to_write > 0) {
                         ssize_t nwritten = write(fd, p, to_write);
                         if (nwritten <= 0) {
+                            failed = true;
+                            ret = EXIT_FAILURE;
                             warn("%s", filename);
                             break;
                         }
@@ -135,21 +144,18 @@ int main(int argc, char* argv[]) {
                     size_t chunk_size = (bytes_left < sizeof(buf)) ? bytes_left : sizeof(buf);
 
                     ssize_t nread = read(rng_fd, buf, chunk_size);
-                    if (nread < 0) {
-                        warn("read(%s)", random_path);
-                        ret = EXIT_FAILURE;
-                        break;
-                    } else if (nread == 0) {
+                    if (nread <= 0) {
                         ret = EXIT_FAILURE;
                         break;
                     }
 
                     ssize_t to_write = nread;
                     char* p = buf;
-                    while (to_write > 0) {
+                    while (!failed && to_write > 0) {
                         ssize_t nwritten = write(fd, p, to_write);
                         if (nwritten <= 0) {
                             warn("%s", filename);
+                            failed = true;
                             ret = EXIT_FAILURE;
                             break;
                         }
@@ -159,6 +165,10 @@ int main(int argc, char* argv[]) {
                         total_written += nwritten;
                     }
                 }
+            }
+
+            if (failed) {
+                break;
             }
 
             if (lseek(fd, 0, SEEK_SET) < 0) {
@@ -197,5 +207,6 @@ int main(int argc, char* argv[]) {
         close(fd);
     }
 
+    close(rng_fd);
     return ret;
 }

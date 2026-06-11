@@ -1,18 +1,15 @@
 #include <sys/utsname.h>
 
 #include <err.h> 
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-enum {
-    PRINT_SYSNAME   = 0x01,
-    PRINT_NODENAME  = 0x02,
-    PRINT_RELEASE   = 0x04,
-    PRINT_VERSION   = 0x08,
-    PRINT_MACHINE   = 0x10,
-};
+#define PRINT_SYSNAME   (1 << 0)
+#define PRINT_NODENAME  (1 << 1)
+#define PRINT_RELEASE   (1 << 2)
+#define PRINT_VERSION   (1 << 3)
+#define PRINT_MACHINE   (1 << 4)
 
 static void print_info(const char* str) {
     static bool space = false;

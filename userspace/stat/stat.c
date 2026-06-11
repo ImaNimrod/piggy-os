@@ -3,7 +3,6 @@
 #include <sys/sysmacros.h>
 
 #include <err.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

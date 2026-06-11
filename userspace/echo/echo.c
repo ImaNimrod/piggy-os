@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +6,6 @@ int main(int argc, char* argv[]) {
     bool trailing_newline = true;
 
     int i = 1;
-
     if (i < argc && strcmp(argv[i], "-n") == 0) {
         trailing_newline = false;
         i++;
