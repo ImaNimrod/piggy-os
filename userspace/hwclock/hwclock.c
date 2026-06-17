@@ -37,7 +37,7 @@ static int hardware_to_system(void) {
 
     close(rtc);
     
-    struct tm tm_time = {0};
+    struct tm tm_time = {};
     tm_time.tm_sec = rtc_time.second;
     tm_time.tm_min = rtc_time.minute;
     tm_time.tm_hour = rtc_time.hour;
@@ -84,7 +84,7 @@ static int print_hardware_timestamp(void) {
 
     close(rtc);
 
-    struct tm tm_time = {0};
+    struct tm tm_time = {};
     tm_time.tm_sec = rtc_time.second;
     tm_time.tm_min = rtc_time.minute;
     tm_time.tm_hour = rtc_time.hour;

@@ -45,6 +45,8 @@ popd
 
 rm -rf "$DIR/build_pkgconf"
 
+mkdir -p ${PREFIX}/share/pkgconfig/personality.d
+
 cat > ${PREFIX}/share/pkgconfig/personality.d/x86_64-piggy.personality << EOF
 Triplet: x86_64-piggy
 SysrootDir: ${SYSROOT}

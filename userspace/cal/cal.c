@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
     struct tm today;
     localtime_r(&now, &today);
 
-    struct tm target = {0};
+    struct tm target = {};
     target.tm_year = today.tm_year;
     target.tm_mon = today.tm_mon;
     target.tm_mday = 3;

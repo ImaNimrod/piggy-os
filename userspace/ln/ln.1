@@ -1,0 +1,44 @@
+.TH LN "1" "April 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+ln \- create links between files 
+
+.SH SYNOPSIS
+.B ln
+[\fI\,OPTION\/\fR]... \fI\,TARGET\/\fR \fI\,LINKNAME\/\fR
+
+.B ln
+[\fI\,OPTION\/\fR]... \fI\,TARGET...\/\fR \fI\,DIRECTORY\/\fR
+
+.SH DESCRIPTION
+
+.PP
+Create a link to TARGET with the name LINK, or create a link to TARGET in the current directory.
+
+.SH OPTIONS
+
+.TP
+.B \-f
+remove existing destination files
+
+.TP
+.B \-i
+prompt before overwriting files
+
+.TP
+.B \-s
+create symbolic links instead of hard links
+
+.TP
+.B \-v
+print the name of the linked file
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.

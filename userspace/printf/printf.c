@@ -212,7 +212,8 @@ int main(int argc, char* argv[]) {
     argv += optind;
 
     if (argc < 1) {
-        errx(EXIT_FAILURE, "missing format operand");
+        warnx("missing format operand");
+        usage();
     }
 
     int arg_index = 1;

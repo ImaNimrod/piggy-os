@@ -124,28 +124,18 @@ static int do_copy(int src_dirfd, const char* src_filename, const char* src_path
                 return EXIT_SUCCESS;
             }
 
-            dest_fd = openat(dest_dirfd, dest_filename, O_WRONLY | O_TRUNC);
-            if (dest_fd < 0) {
-                if (force) {
-                    if (unlinkat(dest_dirfd, dest_filename, 0) < 0) {
-                        warn("unlinkat(%s)", dest_path);
-                        return EXIT_FAILURE;
-                    }
-
-                    dest_exists = false;
-                } else {
-                    warn("open(%s)", dest_path);
+            if (force) {
+                if (unlinkat(dest_dirfd, dest_filename, 0) < 0) {
+                    warn("unlinkat(%s)", dest_path);
                     return EXIT_FAILURE;
                 }
             }
         }
 
-        if (!dest_exists) {
-            dest_fd = openat(dest_dirfd, dest_filename, O_WRONLY | O_CREAT, 0);
-            if (dest_fd < 0) {
-                warn("open(%s)", dest_path);
-                return EXIT_FAILURE;
-            }
+        dest_fd = openat(dest_dirfd, dest_filename, O_WRONLY | O_CREAT | O_TRUNC);
+        if (dest_fd < 0) {
+            warn("open(%s)", dest_path);
+            return EXIT_FAILURE;
         }
 
         int src_fd = openat(src_dirfd, src_filename, O_RDONLY);
@@ -216,10 +206,9 @@ int main(int argc, char* argv[]) {
     argc -= optind;
     argv += optind;
 
-    if (argc < 1) {
-        errx(EXIT_FAILURE, "missing source file operand");
-    } else if (argc < 2) {
-        errx(EXIT_FAILURE, "missing destination file operand");
+    if (argc < 2) {
+        warnx("missing operand");
+        usage();
     }
 
     const char* destination_path = argv[argc - 1];

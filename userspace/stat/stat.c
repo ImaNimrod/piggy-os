@@ -3,6 +3,7 @@
 #include <sys/sysmacros.h>
 
 #include <err.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,16 +20,18 @@ static const char* L24 = "Device type:";
 
 static inline const char* mode_to_type(mode_t mode) {
     switch (mode & S_IFMT) {
+        case S_IFREG:
+            return "Regular file";
+        case S_IFDIR:
+            return "Directory";
         case S_IFBLK:
             return "Block special file";
         case S_IFCHR:
             return "Character special file";
-        case S_IFDIR:
-            return "Directory";
-        case S_IFREG:
-            return "Regular file";
+        case S_IFLNK:
+            return "Symbolic link";
         default:
-            return "Unknown file Type";
+            __builtin_unreachable();
     }
 }
 
@@ -66,11 +69,15 @@ static void usage(void) {
 }
 
 int main(int argc, char* argv[]) {
+    bool deref_links = false;
     bool terse = false;
 
     int c;
-    while ((c = getopt(argc, argv, "t")) != -1) {
+    while ((c = getopt(argc, argv, "Lt")) != -1) {
         switch (c) {
+            case 'L':
+                deref_links = true;
+                break;
             case 't':
                 terse = true;
                 break;
@@ -91,9 +98,9 @@ int main(int argc, char* argv[]) {
 
     for (int i = 0; i < argc; i++) {
         struct stat st;
-        if (stat(argv[i], &st) < 0) {
-            ret = EXIT_FAILURE;
+        if (fstatat(AT_FDCWD, argv[i], &st, deref_links ? 0 : AT_SYMLINK_NOFOLLOW) < 0) {
             warn("failed to stat '%s'", argv[i]);
+            ret = EXIT_FAILURE;
             continue;
         }
 
@@ -120,7 +127,24 @@ int main(int argc, char* argv[]) {
             int col3_value_width = MAX(num_width(st.st_blksize), num_width(st.st_nlink));
             int col4_value_width = rdev_str_len;
 
-            printf("  File: %s\n", argv[i]);
+            printf("  File: %s", argv[i]);
+
+            if (S_ISLNK(st.st_mode)) {
+                char link[st.st_size + 1];
+
+                ssize_t nread = readlinkat(AT_FDCWD, argv[i], link, st.st_size);
+                if (nread < 0) {
+                    warn("readlink: '%s'", argv[i]);
+                    ret = EXIT_FAILURE;
+                    continue;
+                }
+
+                link[nread] = '\0';
+
+                printf(" -> %s", link);
+            }
+
+            putchar('\n');
 
             printf("%*s %*ld  %-*s %*ld  %-*s %*ld  %s\n",
                     col1_text_width, L11, col1_value_width, st.st_size,

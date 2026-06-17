@@ -262,7 +262,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    struct page_buffer buf = {0};
+    struct page_buffer buf = {};
     buf.filename = filename;
     buf.fp = fp;
 

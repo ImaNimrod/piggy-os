@@ -260,7 +260,7 @@ static void print_footer(struct roff_context* ctx) {
 }
 
 static int parse_roff(const char* filename, FILE* fp) {
-    struct roff_context ctx = {0};
+    struct roff_context ctx = {};
 
     char* line = NULL;
     size_t n = 0;

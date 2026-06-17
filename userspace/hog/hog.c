@@ -5,8 +5,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <json-c/json_util.h>
+//#include <json-c/json_util.h>
 
+/*
 static int install_package(const char* package) {
     (void) package;
     printf("installing packages from remote repository not implemented\n");
@@ -79,3 +80,6 @@ int main(int argc, char* argv[]) {
 
     return ret;
 }
+*/
+
+int main() {}

@@ -20,6 +20,7 @@
 
 struct directory_entry {
     char* name;
+    char* link_target;
     struct stat stat;
 };
 
@@ -27,6 +28,12 @@ struct directory_listing {
     size_t capacity;
     size_t entry_count;
     struct directory_entry** entries;
+};
+
+enum {
+    LINK_DEREF_MODE_NONE,
+    LINK_DEREF_MODE_CLI,
+    LINK_DEREF_MODE_ALL,
 };
 
 static bool filter_all(const char* name);
@@ -44,22 +51,26 @@ static int sort_time(struct directory_entry** entry1, struct directory_entry** e
 static bool (*filter)(const char*) = filter_default;
 static void (*output)(struct directory_listing*) = output_oneline;
 static int (*sort)(struct directory_entry**, struct directory_entry**) = sort_name;
+
 static bool colors = false;
+static int deref_mode = LINK_DEREF_MODE_NONE;
 static bool print_mode_suffix = false;
 static bool unsorted = false;
 
 static inline char get_mode_indicator(mode_t mode) {
     switch (mode & S_IFMT) {
+        case S_IFREG:
+            return '-';
+        case S_IFDIR:
+            return 'd';
         case S_IFBLK:
             return 'b';
         case S_IFCHR:
             return 'c';
-        case S_IFDIR:
-            return 'd';
-        case S_IFREG:
-            return '-';
+        case S_IFLNK:
+            return 'l';
         default:
-            return '?';
+            __builtin_unreachable();
     }
 }
 
@@ -67,8 +78,8 @@ static inline char get_mode_suffix(mode_t mode) {
     return (S_ISDIR(mode) && print_mode_suffix) ? '/' : '\0';
 }
 
-static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name) {
-    struct directory_entry* entry = malloc(sizeof(struct directory_entry));
+static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name, bool deref_link) {
+    struct directory_entry* entry = calloc(1, sizeof(struct directory_entry));
     if (entry == NULL) {
         err(EXIT_FAILURE, "malloc");
     }
@@ -78,11 +89,33 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
         err(EXIT_FAILURE, "strdup");
     }
 
-    if (fstatat(dirfd, entry->name, &entry->stat, 0) < 0) {
+    if (fstatat(dirfd, entry->name, &entry->stat, deref_link ? 0 : AT_SYMLINK_NOFOLLOW) < 0) {
         warn("failed to stat '%s'", entry->name);
         free(entry->name);
         free(entry);
         return;
+    }
+
+    if (S_ISLNK(entry->stat.st_mode) && output == output_long) {
+        entry->link_target = malloc(entry->stat.st_size + 1);
+        if (entry->link_target == NULL) {
+            err(EXIT_FAILURE, "malloc");
+        }
+
+        ssize_t nread = readlinkat(dirfd, entry->name, entry->link_target, entry->stat.st_size);
+        if (nread < 0 || nread > entry->stat.st_size) {
+            if (nread > entry->stat.st_size) {
+                errno = EIO;
+            }
+
+            warn("readlink: '%s'", entry_name);
+            free(entry->name);
+            free(entry->link_target);
+            free(entry);
+            return;
+        }
+
+        entry->link_target[nread] = '\0';
     }
 
     if (listing->entry_count >= listing->capacity) {
@@ -112,12 +145,15 @@ static void get_color(mode_t mode, char** pre, char** post) {
     *post = "\033[0m";
 
     switch (mode & S_IFMT) {
+        case S_IFDIR:
+            *pre = "\033[1;34m";
+            break;
         case S_IFBLK:
         case S_IFCHR:
             *pre = "\033[1;33m";
             break;
-        case S_IFDIR:
-            *pre = "\033[1;34m";
+        case S_IFLNK:
+            *pre = "\033[1;36m";
             break;
         default:
             *pre = "";
@@ -142,6 +178,11 @@ static bool filter_default(const char* name) {
 static void free_listing(struct directory_listing* listing) {
     for (size_t i = 0; i < listing->entry_count; i++) {
         free(listing->entries[i]->name);
+
+        if (listing->entries[i]->link_target != NULL) {
+            free(listing->entries[i]->link_target);
+        }
+
         free(listing->entries[i]);
     }
 
@@ -231,25 +272,7 @@ static void output_long(struct directory_listing* listing) {
     for (size_t i = 0; i < listing->entry_count; i++) {
         entry = listing->entries[i];
 
-        char mode_indicator;
-        switch (entry->stat.st_mode & S_IFMT) {
-            case S_IFBLK:
-                mode_indicator = 'b';
-                break;
-            case S_IFCHR:
-                mode_indicator = 'c';
-                break;
-            case S_IFDIR:
-                mode_indicator = 'd';
-                break;
-            case S_IFREG:
-                mode_indicator = '-';
-                break;
-            default:
-                mode_indicator = '?';
-                break;
-        }
-        putchar(mode_indicator);
+        putchar(get_mode_indicator(entry->stat.st_mode));
 
         printf(" %*lu ", size_field_length, entry->stat.st_size);
 
@@ -267,7 +290,13 @@ static void output_long(struct directory_listing* listing) {
         char* post;
         get_color(entry->stat.st_mode, &pre, &post);
 
-        printf("%s%s%s%c\n", pre, entry->name, post, get_mode_suffix(entry->stat.st_mode));
+        printf("%s%s%s%c", pre, entry->name, post, get_mode_suffix(entry->stat.st_mode));
+
+        if (entry->link_target) {
+            printf(" -> %s", entry->link_target);
+        }
+
+        putchar('\n');
     }
 }
 
@@ -314,7 +343,7 @@ static int read_entries(const char* path, struct directory_listing* listing) {
             continue;
         }
 
-        add_entry(listing, fd, entry->d_name);
+        add_entry(listing, fd, entry->d_name, deref_mode == LINK_DEREF_MODE_ALL);
         errno = 0;
     }
 
@@ -357,7 +386,7 @@ static int sort_time(struct directory_entry** entry1, struct directory_entry** e
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: ls [-1ACFSUaflt] [FILE]...\n");
+    fprintf(stderr, "usage: ls [-1ACFHLSUaflt] [FILE]...\n");
     exit(EXIT_FAILURE);
 }
 
@@ -370,7 +399,7 @@ int main(int argc, char* argv[]) {
     }
 
     int c;
-    while ((c = getopt(argc, argv, "1ACFSUaflt")) != -1) {
+    while ((c = getopt(argc, argv, "1ACFHLSUaflt")) != -1) {
         switch (c) {
             case '1':
                 output = output_oneline;
@@ -385,6 +414,12 @@ int main(int argc, char* argv[]) {
                 break;
             case 'F':
                 print_mode_suffix = true;
+                break;
+            case 'H':
+                deref_mode = LINK_DEREF_MODE_CLI;
+                break;
+            case 'L':
+                deref_mode = LINK_DEREF_MODE_ALL;
                 break;
             case 'S':
                 sort = sort_size;
@@ -423,12 +458,34 @@ int main(int argc, char* argv[]) {
         return ret;
     }
 
-    struct directory_listing listing;
+    struct directory_listing listing = {};
+
+    for (int i = 0; i < argc; i++) {
+        struct stat st;
+        if (stat(argv[i], &st) < 0 || !S_ISDIR(st.st_mode)) {
+            add_entry(&listing, AT_FDCWD, argv[i], deref_mode != LINK_DEREF_MODE_NONE);
+            argv[i] = NULL;
+        }
+    }
+
+    print_listing(&listing);
+    bool print_newline = listing.entry_count > 0;
+
+    free_listing(&listing);
 
     bool multiple = (argc >= 2);
     for (int i = 0; i < argc; i++) {
+        if (!argv[i]) {
+            continue;
+        }
+
         if (multiple) {
-            printf("%c%s:\n", (i >= 1) ? '\n' : '\0', argv[i]);
+            if (print_newline) {
+                putchar('\n');
+            }
+
+            printf("%s:\n", argv[i]);
+            print_newline = true;
         }
 
         ret |= read_entries(argv[i], &listing);
