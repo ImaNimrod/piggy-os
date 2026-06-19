@@ -122,10 +122,14 @@ static struct vfs_ops fat32_ops = {
     .root = fat32_root,
 };
 
-static int fat32_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result);
-static int fat32_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
-static int fat32_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name);
-static int fat32_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
+static int fat32_parent(struct vfs_node* node, struct vfs_node** result);
+static int fat32_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result);
+static int fat32_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result);
+static int fat32_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name);
+static int fat32_link(struct vfs_node* dir, const char* name, struct vfs_node* node);
+static int fat32_symlink(struct vfs_node* dir, const char* name, const char* target);
+static ssize_t fat32_readlink(struct vfs_node* node, char* buf, size_t length);
+static int fat32_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name);
 static ssize_t fat32_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
 static ssize_t fat32_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int fat32_ioctl(struct vfs_node* node, int request, void* argp);
@@ -142,9 +146,13 @@ static int fat32_unlock(struct vfs_node* node);
 static void fat32_inactive(struct vfs_node* node);
 
 static struct vfs_node_ops fat32_node_ops = {
+    .parent = fat32_parent,
     .create = fat32_create,
     .lookup = fat32_lookup,
     .rename = fat32_rename,
+    .link = fat32_link,
+    .symlink = fat32_symlink,
+    .readlink = fat32_readlink,
     .unlink = fat32_unlink,
     .read = fat32_read,
     .write = fat32_write,
@@ -240,7 +248,7 @@ static time_t days_before_year(int year) {
     return (365 * (year - 1970)) + ((y / 4) - (1969 / 4)) - ((y / 100) - (1969 / 100)) + ((y / 400) - (1969 / 400));
 }
 
-static int directory_lookup(struct fat32_filesystem* fatfs, struct fat32_node* directory, char* name, struct fat32_dirent* dirent, size_t* dirent_disk_offset) {
+static int directory_lookup(struct fat32_filesystem* fatfs, struct fat32_node* directory, const char* name, struct fat32_dirent* dirent, size_t* dirent_disk_offset) {
     uint32_t cluster = directory->cluster;
     uint32_t cluster_size = fatfs->cluster_size;
     uint32_t entries_per_cluster = cluster_size / sizeof(struct fat32_dirent);
@@ -456,7 +464,7 @@ static int fat32_mount(struct vfs_node* backing, struct vfs_node* target, struct
         return -EINVAL;
     }
 
-    struct fat32_filesystem* fatfs = kmalloc(sizeof(struct fat32_filesystem));
+    struct fat32_filesystem* fatfs = kmallocz(sizeof(struct fat32_filesystem));
     if (unlikely(fatfs == NULL)) {
         return -ENOMEM;
     }
@@ -501,7 +509,7 @@ static int fat32_root(struct vfs_filesystem* filesystem, struct vfs_node** resul
         ret = -ENOMEM;
         goto end;
     }
-    root->flags |= VFS_FLAG_ROOT;
+    root->flags |= VFS_NODE_FLAG_ROOT;
 
     root->cluster = fatfs->root_cluster;
     
@@ -523,7 +531,17 @@ end:
     return ret;
 }
 
-static int fat32_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result) {
+static int fat32_parent(struct vfs_node* node, struct vfs_node** result) {
+    struct fat32_node* fnode = (struct fat32_node*) node;
+
+    struct vfs_node* parent = (struct vfs_node*) fnode->parent_dir;
+    VFS_NODE_REF(parent);
+
+    *result = parent;
+    return 0;
+}
+
+static int fat32_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result) {
     (void) parent;
     (void) name;
     (void) type;
@@ -531,7 +549,7 @@ static int fat32_create(struct vfs_node* parent, char* name, vfs_type_t type, st
     return -EROFS;
 }
 
-static int fat32_lookup(struct vfs_node* parent, char* name, struct vfs_node** result) {
+static int fat32_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result) {
     struct fat32_node* fparent = (struct fat32_node*) parent;
     struct fat32_filesystem* fatfs = (struct fat32_filesystem*) parent->filesystem;
 
@@ -614,7 +632,7 @@ static int fat32_lookup(struct vfs_node* parent, char* name, struct vfs_node** r
     return 0;
 }
 
-static int fat32_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name) {
+static int fat32_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name) {
     (void) src_dir;
     (void) src;
     (void) old_name;
@@ -623,10 +641,31 @@ static int fat32_rename(struct vfs_node* src_dir, struct vfs_node* src, char* ol
     return -EROFS;
 }
 
-static int fat32_unlink(struct vfs_node* parent, char* name, struct vfs_node** result) {
-    (void) parent;
+static int fat32_link(struct vfs_node* dir, const char* name, struct vfs_node* node) {
+    (void) dir;
     (void) name;
-    (void) result;
+    (void) node;
+    return -ENOTSUP;
+}
+
+static int fat32_symlink(struct vfs_node* dir, const char* name, const char* target) {
+    (void) dir;
+    (void) name;
+    (void) target;
+    return -ENOTSUP;
+}
+
+static ssize_t fat32_readlink(struct vfs_node* node, char* buf, size_t length) {
+    (void) node;
+    (void) buf;
+    (void) length;
+    return -ENOTSUP;
+}
+
+static int fat32_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name) {
+    (void) parent;
+    (void) child;
+    (void) name;
     return -EROFS;
 }
 
@@ -794,8 +833,8 @@ static ssize_t fat32_getdents(struct vfs_node* node, struct dirent* buf, size_t 
         return -ENOTDIR;
     }
 
-    if (count == 0) {
-        return 0;
+    if (offset < 0) {
+        return -EINVAL;
     }
 
     struct fat32_node* fnode = (struct fat32_node*) node;
@@ -809,9 +848,8 @@ static ssize_t fat32_getdents(struct vfs_node* node, struct dirent* buf, size_t 
             .d_off = 1,
             .d_reclen = sizeof(struct dirent),
             .d_type = DT_DIR,
+            .d_name = ".",
         };
-
-        strncpy(ent.d_name, ".", 2);
 
         int ret = USER_MEMCPY_MAYBE_TO_USER(&buf[entries_written], &ent, sizeof(ent));
         if (ret < 0) {
@@ -823,13 +861,12 @@ static ssize_t fat32_getdents(struct vfs_node* node, struct dirent* buf, size_t 
 
     if (offset <= 1 && entries_written < count) {
         struct dirent ent = {
-            .d_ino = (fnode->parent_dir != NULL) ? ((struct fat32_node*) fnode->parent_dir)->dirent_disk_offset : fnode->dirent_disk_offset,
+            .d_ino = fnode->parent_dir ? ((struct fat32_node*) fnode->parent_dir)->dirent_disk_offset : fnode->dirent_disk_offset,
             .d_off = 2,
             .d_reclen = sizeof(struct dirent),
             .d_type = DT_DIR,
+            .d_name = "..",
         };
-
-        strncpy(ent.d_name, "..", 3);
 
         int ret = USER_MEMCPY_MAYBE_TO_USER(&buf[entries_written], &ent, sizeof(ent));
         if (ret < 0) {
@@ -949,6 +986,7 @@ static int fat32_getstat(struct vfs_node* node, struct stat* stat) {
         .st_ino = fnode->dirent_disk_offset,
         .st_mode = vfs_type_to_mode(node->type),
         .st_nlink = (fnode->parent_dir != NULL) ? 1 : 0,
+        .st_rdev = 0,
         .st_size = fnode->size,
         .st_blksize = fatfs->cluster_size,
         .st_blocks = DIV_CEIL(fnode->size, fatfs->cluster_size),
@@ -979,7 +1017,6 @@ static int fat32_unlock(struct vfs_node* node) {
 }
 
 static void fat32_inactive(struct vfs_node* node) {
-    klog("fat32_inactive %p\n", node);
     slab_cache_free(fat32_node_cache, (void*) node);
 }
 

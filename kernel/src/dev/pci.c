@@ -181,6 +181,8 @@ static void enumerate_function(uint16_t segment, uint8_t bus, uint8_t slot, uint
     dev->prog_if = (uint8_t) (class >> 8);
     dev->revision_id = (uint8_t) class;
 
+    dev->msi_supported = dev->msix_supported = dev->is_pcie = false;
+
     uint16_t status = pci_read(dev, PCI_CONFIG_STATUS, 2);
     if (status & (1 << 4)) {
         uint8_t next_offset = pci_read(dev, PCI_CONFIG_CAPABILITIES, 1);

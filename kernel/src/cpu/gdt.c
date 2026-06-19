@@ -8,7 +8,7 @@ struct gdt_ptr {
 } __attribute__((packed));
 
 static struct gdt template = {
-    .null = {0},
+    .null = {},
     .kernel_code64 = {
         .access = 0x9a,
         .granularity = 0x20,
@@ -23,7 +23,7 @@ static struct gdt template = {
         .access = 0xfa,
         .granularity = 0x20,
     },
-    .tss = {0},
+    .tss = {},
 };
 
 void gdt_reload(void) {

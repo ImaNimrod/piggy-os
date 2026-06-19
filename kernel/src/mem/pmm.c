@@ -9,7 +9,7 @@
 
 extern struct limine_memmap_request memmap_request;
 
-static uint8_t* pmm_bitmap;
+static uint64_t* pmm_bitmap;
 static spinlock_t pmm_lock;
 static size_t reserved_pages;
 static size_t usable_pages;
@@ -150,8 +150,8 @@ void pmm_init(void) {
             continue;
         }
 
-        pmm_bitmap = (uint8_t*) (entry->base + HIGH_VMA);
-        memset8(pmm_bitmap, 0xff, pmm_bitmap_size);
+        pmm_bitmap = (uint64_t*) (entry->base + HIGH_VMA);
+        memset64(pmm_bitmap, 0xffffffffffffffff, pmm_bitmap_size >> 3);
         break;
     }
 

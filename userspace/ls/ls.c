@@ -5,6 +5,7 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <locale.h>
 #include <stdio.h> 
 #include <stdlib.h> 
@@ -97,17 +98,13 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
     }
 
     if (S_ISLNK(entry->stat.st_mode) && output == output_long) {
-        entry->link_target = malloc(entry->stat.st_size + 1);
+        entry->link_target = malloc(PATH_MAX);
         if (entry->link_target == NULL) {
             err(EXIT_FAILURE, "malloc");
         }
 
-        ssize_t nread = readlinkat(dirfd, entry->name, entry->link_target, entry->stat.st_size);
-        if (nread < 0 || nread > entry->stat.st_size) {
-            if (nread > entry->stat.st_size) {
-                errno = EIO;
-            }
-
+        ssize_t nread = readlinkat(dirfd, entry->name, entry->link_target, PATH_MAX);
+        if (nread < 0) {
             warn("readlink: '%s'", entry_name);
             free(entry->name);
             free(entry->link_target);

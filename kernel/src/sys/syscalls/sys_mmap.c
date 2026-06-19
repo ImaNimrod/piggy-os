@@ -50,7 +50,7 @@ void sys_mmap(struct registers* r) {
             return;
         }
 
-        if (!(file->node->flags & VFS_FLAG_MMAP)) {
+        if (!(file->node->flags & VFS_NODE_FLAG_MMAP)) {
             r->rax = -ENODEV;
             goto end;
         }

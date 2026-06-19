@@ -34,6 +34,7 @@ void sys_mount(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    ktarget[target_len] = '\0';
 
     if ((ret = user_memcpy_from_user(ktarget, target, target_len)) < 0) {
         kfree(ktarget);
@@ -47,6 +48,7 @@ void sys_mount(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    kfs_name[fs_name_len] = '\0';
 
     if ((ret = user_memcpy_from_user(kfs_name, fs_name, fs_name_len)) < 0) {
         kfree(ktarget);
@@ -69,13 +71,14 @@ void sys_mount(struct registers* r) {
             ret = -ENOMEM;
             goto end;
         }
+        ksource[source_len] = '\0';
 
         if ((ret = user_memcpy_from_user(ksource, source, source_len)) < 0) {
             goto end;
         }
 
         struct vfs_node* source_reference = ksource[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
-        ret = vfs_lookup(source_reference, ksource, false, NULL, &backing_node);
+        ret = vfs_lookup(source_reference, ksource, 0, NULL, &backing_node);
         VFS_NODE_UNREF(source_reference);
 
         if (ret < 0) {

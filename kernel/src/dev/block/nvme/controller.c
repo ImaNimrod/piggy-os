@@ -87,7 +87,7 @@ struct controller_identify {
 static int controller_id = 0;
 
 bool identify(struct nvme_controller* controller, uint32_t namespace, int subject, uintptr_t buffer_paddr) {
-    struct entry_pair entry_pair = {0};
+    struct entry_pair entry_pair = {};
     entry_pair.submission.opcode = NVME_ADMIN_OP_IDENTIFY;
     entry_pair.submission.nsid = namespace;
     entry_pair.submission.prp[0] = buffer_paddr;
@@ -132,7 +132,7 @@ static bool setup_io_queue_pair(struct nvme_controller* controller, uint16_t id)
     size_t cq_page_count = DIV_CEIL(QUEUE_ENTRY_COUNT * sizeof(struct completion_entry), PAGE_SIZE_4KB);
     uintptr_t cq_paddr = pmm_alloc_zero(cq_page_count);
 
-    struct entry_pair entry_pair = {0};
+    struct entry_pair entry_pair = {};
     entry_pair.submission.opcode = NVME_ADMIN_OP_COMPLETION_QUEUE;
     entry_pair.submission.prp[0] = cq_paddr;
     entry_pair.submission.command[0] = id | ((QUEUE_ENTRY_COUNT - 1) << 16);
@@ -369,7 +369,7 @@ static void nvme_init(struct pci_device* pci_dev) {
     // Allocate I/O queues
     size_t io_queue_min = MIN(pci_dev->msix_irq_count, cpu_count) - 1;
 
-    struct entry_pair entry_pair = {0};
+    struct entry_pair entry_pair = {};
     entry_pair.submission.opcode = NVME_ADMIN_OP_SET_FEATURES;
     entry_pair.submission.command[0] = 0x07;
     entry_pair.submission.command[1] = (io_queue_min << 16) | io_queue_min;

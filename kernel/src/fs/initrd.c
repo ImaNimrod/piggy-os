@@ -56,12 +56,12 @@ static inline uint64_t oct2int(const char* str, size_t len) {
     return value;
 }
 
-static size_t gzip_read(void* user, void* buf, size_t len) {
+static size_t gzip_read(void* user, void* buf, size_t count) {
     struct gzip_source* src = user;
 
     size_t remaining = src->size - src->offset;
-    if (remaining > len) {
-        remaining = len;
+    if (remaining > count) {
+        remaining = count;
     }
 
     memcpy(buf, src->data + src->offset, remaining);
@@ -70,34 +70,32 @@ static size_t gzip_read(void* user, void* buf, size_t len) {
     return remaining;
 }
 
-static int gz_read_exact(pdgzip_t* gz, void* buf, size_t len) {
+static int gz_read_exact(pdgzip_t* gz, void* buf, size_t count) {
     uint8_t* ptr = buf;
 
-    while (len > 0) {
-        int64_t ret = pdgzip_read(gz, ptr, len);
-
+    while (count > 0) {
+        int64_t ret = pdgzip_read(gz, ptr, count);
         if (ret <= 0) {
             return -EIO;
         }
 
         ptr += ret;
-        len -= ret;
+        count -= ret;
     }
 
     return 0;
 }
 
-static int gz_skip(pdgzip_t* gz, size_t len) {
+static int gz_skip(pdgzip_t* gz, size_t count) {
     char buffer[TAR_BLOCK_SIZE];
 
-    while (len > 0) {
-        size_t chunk = MIN(len, sizeof(buffer));
-
+    while (count > 0) {
+        size_t chunk = MIN(count, sizeof(buffer));
         if (gz_read_exact(gz, buffer, chunk) < 0) {
             return -EIO;
         }
 
-        len -= chunk;
+        count -= chunk;
     }
 
     return 0;
@@ -125,7 +123,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
     };
 
     pdgzip_t* gz = pdgzip_init((void*) (gzip_state_paddr + HIGH_VMA), &cfg);
-    if (gz == NULL) {
+    if (unlikely(!gz)) {
         kpanic(NULL, false, "failed to initialize pdgzip");
     }
 
@@ -203,6 +201,12 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 }
 
                 break;
+            case TAR_FILE_TYPE_HARD_LINK:
+                error = vfs_link(vfs_root, header.linkname, vfs_root, name);
+                break;
+            case TAR_FILE_TYPE_SYMLINK:
+                error = vfs_symlink(vfs_root, name, header.linkname);
+                break;
             case TAR_FILE_TYPE_DIRECTORY:
                 error = vfs_create(vfs_root, name, VFS_TYPE_DIRECTORY, &node);
                 break;
@@ -213,7 +217,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 }
 
                 long_name = kmalloc(size + 1);
-                if (unlikely(long_name == NULL)) {
+                if (unlikely(!long_name)) {
                     kpanic(NULL, false, "failed to allocate memory for TAR long filename");
                 }
 

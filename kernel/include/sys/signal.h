@@ -47,7 +47,7 @@ typedef void (*sig_handler_t)(int);
 #define SIGRTMAX    64
 
 #define NSIG SIGRTMAX + 1
-#define UNBLOCKABLE_SIGNALS ((1ul << (SIGKILL - 1)) | (1ul << (SIGSTOP - 1)))
+#define UNBLOCKABLE_SIGNALS ((1ULL << (SIGKILL - 1)) | (1ULL << (SIGSTOP - 1)))
 
 #define SA_NODEFER      (1 << 0)
 #define SA_ONSTACK      (1 << 1)

@@ -80,9 +80,12 @@ void sys_utime(struct registers* r) {
             r->rax = -ENOMEM;
             return;
         }
+        kpath[path_len] = '\0';
 
         if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
-            goto end;
+            kfree(kpath);
+            r->rax = ret;
+            return;
         }
 
         struct file* dirfile = NULL;
@@ -92,10 +95,12 @@ void sys_utime(struct registers* r) {
         }
 
         struct vfs_node* node;
-        if ((ret = vfs_lookup(dirnode, kpath, false, NULL, &node)) == 0) {
+        if ((ret = vfs_lookup(dirnode, kpath, (flags & AT_SYMLINK_NOFOLLOW) ? VFS_LOOKUP_FLAG_NOFOLLOW : 0, NULL, &node)) == 0) {
             ret = node->ops->setstat(node, &stat, setstat_flags);
 
             node->ops->unlock(node);
+            VFS_NODE_UNREF(node);
+
             file_cleanup_dirfd(dirfile, dirnode);
         }
 

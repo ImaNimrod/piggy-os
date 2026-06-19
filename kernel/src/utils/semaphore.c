@@ -43,20 +43,20 @@ void semaphore_wait(semaphore_t* s) {
         return;
     }
 
-    struct thread* current = this_cpu()->scheduler.current_thread;
-    current->next_waiter = NULL;
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+    current_thread->next_waiter = NULL;
 
     struct thread* iter = s->waiters;
     if (iter == NULL) {
-        s->waiters = current;
+        s->waiters = current_thread;
     } else {
         while (iter->next_waiter != NULL) {
             iter = iter->next_waiter;
         }
-        iter->next_waiter = current;
+        iter->next_waiter = current_thread;
     }
 
-    scheduler_prepare_wait(current, false);
+    scheduler_prepare_wait(current_thread, false);
 
     spinlock_release_irqsave(&s->lock, int_state);
 

@@ -6,9 +6,5 @@ void sys_getppid(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
-    if (unlikely(current_process->parent == NULL)) {
-        r->rax = -1;
-    } else {
-        r->rax = current_process->parent->pid;
-    }
+    r->rax = current_process->parent ? current_process->parent->pid : 0;
 }

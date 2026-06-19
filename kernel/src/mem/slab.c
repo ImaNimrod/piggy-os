@@ -8,14 +8,16 @@
 
 #define BIG_ALLOC_HEADER_MAGIC 0xfafeceedabcdeffe
 
-#define CACHE_NAME_MAX_LEN  64
+#define CACHE_NAME_MAX_LEN  32
 #define OBJECTS_PER_SLAB    256
+
+static_assert((OBJECTS_PER_SLAB % 64) == 0, "OBJECTS_PER_SLAB must be divisible by 64 bits");
 
 struct slab {
     size_t available_objects;
     size_t total_objects;
 
-    uint8_t* bitmap;
+    uint64_t bitmap[OBJECTS_PER_SLAB / 64];
     void* buffer;
 
     struct slab* prev;
@@ -24,7 +26,7 @@ struct slab {
 };
 
 struct slab_cache {
-    char name[CACHE_NAME_MAX_LEN + 1];
+    char name[CACHE_NAME_MAX_LEN];
     size_t object_size;
     size_t pages_per_slab;
 
@@ -50,8 +52,9 @@ static struct slab* alloc_slab(struct slab_cache* cache) {
     new_slab->available_objects = OBJECTS_PER_SLAB;
     new_slab->total_objects = OBJECTS_PER_SLAB;
 
-    new_slab->bitmap = (uint8_t*) ((uintptr_t) new_slab + sizeof(struct slab));
-    new_slab->buffer = (void*) (ALIGN_UP((uintptr_t) new_slab->bitmap + OBJECTS_PER_SLAB - HIGH_VMA, 16) + HIGH_VMA);
+    memset(new_slab->bitmap, 0, sizeof(new_slab->bitmap));
+
+    new_slab->buffer = (void*) (ALIGN_UP((uintptr_t) new_slab + sizeof(struct slab) + OBJECTS_PER_SLAB - HIGH_VMA, 8) + HIGH_VMA);
     new_slab->cache = cache;
 
     if (cache->empty_slabs) {
@@ -70,28 +73,23 @@ static bool move_slab(struct slab** dest_head, struct slab** src_head, struct sl
         return false; 
     }
 
-    if (s->next) {
-        s->next->prev = s->prev;
-    }
-    if (s->prev) {
+    if (s->prev != NULL) {
         s->prev->next = s->next;
-    }
-    if (*src_head == s) {
+    } else {
         *src_head = s->next;
     }
-    if (!*dest_head) {
-        s->prev = NULL;
-        s->next = NULL;
-        *dest_head = s; 
-        return true;
+
+    if (s->next != NULL) {
+        s->next->prev = s->prev;
     }
 
-    s->next = *dest_head;
     s->prev = NULL;
+    s->next = *dest_head;
 
-    if (*dest_head) {
+    if (*dest_head != NULL) {
         (*dest_head)->prev = s;
     }
+
     *dest_head = s;
 
     return true;
@@ -107,34 +105,57 @@ static bool slab_free_object(struct slab* slab, void* object) {
     bool ret = false;
 
     struct slab* root = slab;
+
     while (slab) {
-        if ((uintptr_t) slab->buffer <= (uintptr_t) object && ((uintptr_t) slab->buffer + slab->cache->object_size * slab->total_objects) > (uintptr_t) object) {
-            size_t index = ((uintptr_t) object - (uintptr_t) slab->buffer) / slab->cache->object_size;
-            if (BITMAP_TEST(slab->bitmap, index)) {
-                BITMAP_CLEAR(slab->bitmap, index);
+        uintptr_t start = (uintptr_t)slab->buffer;
+        uintptr_t end = start + slab->cache->object_size * slab->total_objects;
+
+        if ((uintptr_t)object >= start && (uintptr_t)object < end) {
+            size_t index = ((uintptr_t) object - start) / slab->cache->object_size;
+
+            size_t word = index / 64;
+            size_t bit = index % 64;
+
+            uint64_t mask = 1ULL << bit;
+
+            if (slab->bitmap[word] & mask) {
+                size_t old_available = slab->available_objects;
+
+                slab->bitmap[word] &= ~mask;
                 slab->available_objects++;
+
+                if (old_available == 0) {
+                    move_slab(&slab->cache->partial_slabs, &slab->cache->full_slabs, slab);
+                } else if (slab->available_objects == slab->total_objects) {
+                    move_slab(&slab->cache->empty_slabs, &slab->cache->partial_slabs, slab);
+                }
+
                 ret = true;
-                goto end;
             }
+
+            break;
         }
 
         slab = slab->next;
     }
 
-end:
     spinlock_release(&root->cache->lock);
     return ret;
 }
 
 struct slab_cache* slab_cache_create(const char* name, size_t object_size) {
     struct slab_cache* new_cache = slab_cache_alloc(&cache_cache);
-    if (new_cache == NULL) {
+    if (unlikely(new_cache == NULL)) {
         return NULL;
     }
 
-    strncpy(new_cache->name, name, CACHE_NAME_MAX_LEN);
+    strncpy(new_cache->name, name, CACHE_NAME_MAX_LEN - 1);
     new_cache->object_size = object_size;
     new_cache->pages_per_slab = DIV_CEIL(object_size * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE_4KB);
+
+    new_cache->empty_slabs = new_cache->partial_slabs = new_cache->full_slabs = NULL;
+
+    spinlock_init(&new_cache->lock);
 
     return new_cache;
 }
@@ -142,18 +163,22 @@ struct slab_cache* slab_cache_create(const char* name, size_t object_size) {
 void slab_cache_destroy(struct slab_cache* cache) {
     spinlock_acquire(&cache->lock);
 
-    struct slab* iter;
+    struct slab* iter = cache->partial_slabs;
+    while (iter != NULL) {
+        struct slab* next = iter->next;
 
-    iter = cache->partial_slabs;
-    while (iter) {
         pmm_free((uintptr_t) iter - HIGH_VMA, cache->pages_per_slab);
-        iter = iter->next;
+
+        iter = next;
     }
 
     iter = cache->full_slabs;
-    while (iter) {
+    while (iter != NULL) {
+        struct slab* next = iter->next;
+
         pmm_free((uintptr_t) iter - HIGH_VMA, cache->pages_per_slab);
-        iter = iter->next;
+
+        iter = next;
     }
 
     spinlock_release(&cache->lock);
@@ -175,15 +200,21 @@ void* slab_cache_alloc(struct slab_cache* cache) {
 
     void* object = NULL;
 
-    for (size_t i = 0; i < slab->total_objects; i++) {
-        if (!BITMAP_TEST(slab->bitmap, i)) {
-            BITMAP_SET(slab->bitmap, i);
-            slab->available_objects--;
+    for (size_t i = 0; i < SIZEOF_ARRAY(slab->bitmap); i++) {
+        uint64_t free_bits = ~slab->bitmap[i];
 
-            object = (void*) (((uintptr_t) slab->buffer) + (i * slab->cache->object_size));
-            memset8(object, 0, slab->cache->object_size);
-            break;
+        if (free_bits == 0) {
+            continue;
         }
+
+        size_t bit = __builtin_ctzll(free_bits);
+        size_t index = (i * 64) + bit;
+
+        slab->bitmap[i] |= (1ULL << bit);
+        slab->available_objects--;
+
+        object = (void*) ((uintptr_t) slab->buffer + index * cache->object_size);
+        break;
     }
 
     if (slab->available_objects == 0) {
@@ -206,7 +237,7 @@ bool slab_cache_free(struct slab_cache* cache, void* object) {
 }
 
 void slab_init(void) {
-    strncpy(cache_cache.name, "struct slab_cache cache", CACHE_NAME_MAX_LEN);
+    strncpy(cache_cache.name, "struct slab_cache cache", CACHE_NAME_MAX_LEN - 1);
     cache_cache.object_size = sizeof(struct slab_cache);
     cache_cache.pages_per_slab = DIV_CEIL(sizeof(struct slab_cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE_4KB);
 
@@ -238,7 +269,7 @@ void* kmalloc(size_t size) {
     }
 
     size_t page_count = DIV_CEIL(size, PAGE_SIZE_4KB);
-    uintptr_t ret = pmm_alloc_zero(page_count + 1) + HIGH_VMA;
+    uintptr_t ret = pmm_alloc(page_count + 1) + HIGH_VMA;
 
     struct big_alloc_header* header = (struct big_alloc_header*) ret;
     header->magic = BIG_ALLOC_HEADER_MAGIC;
@@ -248,27 +279,37 @@ void* kmalloc(size_t size) {
     return (void*) (ret + PAGE_SIZE_4KB);
 }
 
+void* kmallocz(size_t size) {
+    void* ptr = kmalloc(size);
+    if (likely(ptr != NULL)) {
+        memset(ptr, 0, size);
+    }
+    return ptr;
+}
+
 void* krealloc(void* ptr, size_t size) {
-    if (ptr == NULL) {
+    if (unlikely(ptr == NULL)) {
         return kmalloc(size);
     }
 
     if (!((uintptr_t) ptr & 0xfff)) {
         struct big_alloc_header* header = (struct big_alloc_header*) ((uintptr_t) ptr - PAGE_SIZE_4KB);
-        if (DIV_CEIL(header->size, PAGE_SIZE_4KB) == DIV_CEIL(size, PAGE_SIZE_4KB)) {
-            header->size = size;
-            return ptr;
+        if (header->magic == BIG_ALLOC_HEADER_MAGIC) {
+            if (DIV_CEIL(header->size, PAGE_SIZE_4KB) == DIV_CEIL(size, PAGE_SIZE_4KB)) {
+                header->size = size;
+                return ptr;
+            }
+
+            void* new_ptr = kmalloc(size);
+            if (unlikely(new_ptr == NULL)) {
+                return NULL;
+            }
+
+            memcpy(new_ptr, ptr, MIN(size, header->size));
+
+            kfree(ptr);
+            return new_ptr;
         }
-
-        void* new_ptr = kmalloc(size);
-        if (unlikely(new_ptr == NULL)) {
-            return NULL;
-        }
-
-        memcpy(new_ptr, ptr, MIN(size, header->size));
-
-        kfree(ptr);
-        return new_ptr;
     }
 
     for (size_t i = 0; i < SIZEOF_ARRAY(kmalloc_caches); i++) {
@@ -322,8 +363,10 @@ void kfree(void* ptr) {
 
     if (!((uintptr_t) ptr & 0xfff)) {
         struct big_alloc_header* header = (struct big_alloc_header*) ((uintptr_t) ptr - PAGE_SIZE_4KB);
-        pmm_free((uintptr_t) header - HIGH_VMA, header->page_count + 1);
-        return;
+        if (header->magic == BIG_ALLOC_HEADER_MAGIC) {
+            pmm_free((uintptr_t) header - HIGH_VMA, header->page_count + 1);
+            return;
+        }
     }
 
     kpanic(NULL, true, "kfree failed to find slab cache for object 0x%lx", ptr);

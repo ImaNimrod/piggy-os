@@ -42,5 +42,6 @@ void spinlock_release_irqsave(spinlock_t* lock, bool int_state) {
 }
 
 bool spinlock_test_and_acquire(spinlock_t* lock) {
-    return __atomic_exchange_n(lock, 1, __ATOMIC_ACQUIRE) == 0;
+    spinlock_t expected = 0;
+    return __atomic_compare_exchange_n(lock, &expected, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
 }

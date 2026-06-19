@@ -9,16 +9,16 @@
 static struct slab_cache* file_cache;
 
 static int get_free_fd(struct process* process, int start_fd) {
-    int fd = -EMFILE;
+    int ret = -EMFILE;
 
     for (int i = start_fd; i < PROCESS_FD_COUNT; i++) {
-        if (process->fds[i].file == NULL) {
-            fd = i;
+        if (!process->fds[i].file) {
+            ret = i;
             break;
         }
     }
 
-    return fd;
+    return ret;
 }
 
 int file_close(struct process* process, int fd) {
@@ -29,13 +29,13 @@ int file_close(struct process* process, int fd) {
     mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[fd].file;
-    if (file != NULL) {
+    if (likely(file)) {
         process->fds[fd].file = NULL;
     }
 
     mutex_release(&process->fd_mutex);
 
-    if (file != NULL) {
+    if (likely(file)) {
         file_release(file);
     } else {
         return -EBADF;
@@ -46,12 +46,13 @@ int file_close(struct process* process, int fd) {
 
 struct file* file_create(struct vfs_node* node, int flags) {
     struct file* file = slab_cache_alloc(file_cache);
-    if (unlikely(file == NULL)) {
+    if (unlikely(!file)) {
         return NULL;
     }
 
     file->node = node;
     file->flags = flags;
+    file->offset = 0;
     file->refcount = 1;
 
     return file;
@@ -72,7 +73,7 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
     mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[old_fd].file;
-    if (file == NULL) {
+    if (!file) {
         mutex_release(&process->fd_mutex);
         return -EBADF;
     }
@@ -81,7 +82,7 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
 
     if (exact) {
         struct file_descriptor* descriptor = &process->fds[new_fd];
-        if (descriptor->file != NULL) {
+        if (descriptor->file) {
             file_release(descriptor->file);
         }
 
@@ -110,7 +111,7 @@ void file_fork(struct process* old_process, struct process* new_process) {
     mutex_acquire(&old_process->fd_mutex);
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
-        if (old_process->fds[i].file == NULL) {
+        if (!old_process->fds[i].file) {
             continue;
         }
 
@@ -129,7 +130,7 @@ struct file* file_get(struct process* process, int fd) {
     mutex_acquire(&process->fd_mutex);
 
     struct file* file = process->fds[fd].file;
-    if (file != NULL) {
+    if (file) {
         __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
     }
 
@@ -157,9 +158,9 @@ void file_release(struct file* file) {
 }
 
 void file_cleanup_dirfd(struct file* dirfile, struct vfs_node* dirnode) {
-    if (dirfile != NULL) {
+    if (dirfile) {
         file_release(dirfile);
-    } else if (dirnode != NULL) {
+    } else if (dirnode) {
         VFS_NODE_UNREF(dirnode);
     }
 }
@@ -171,7 +172,7 @@ int file_resolve_dirfd(struct process* process, int dirfd, const char* path, str
         *dirnode = process_get_cwd(process);
     } else {
         *dirfile = file_get(process, dirfd);
-        if (*dirfile == NULL) {
+        if (!*dirfile) {
             return -EBADF;
         }
 
@@ -187,7 +188,7 @@ int file_resolve_dirfd(struct process* process, int dirfd, const char* path, str
 
 void file_init(void) {
     file_cache = slab_cache_create("struct file cache", sizeof(struct file));
-    if (unlikely(file_cache == NULL)) {
+    if (unlikely(!file_cache)) {
         kpanic(NULL, false, "failed to create object cache for files");
     }
 }

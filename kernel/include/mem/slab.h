@@ -12,8 +12,9 @@ bool slab_cache_free(struct slab_cache* cache, void* object);
 
 void slab_init(void);
 
-void* __attribute__((malloc)) kmalloc(size_t size);
-void* __attribute__((malloc)) krealloc(void* ptr, size_t size);
+__attribute__((malloc)) void* kmalloc(size_t size);
+__attribute__((malloc)) void* kmallocz(size_t size);
+__attribute__((malloc)) void* krealloc(void* ptr, size_t size);
 void kfree(void* ptr);
 
 #endif /* _KERNEL_MEM_SLAB_H */

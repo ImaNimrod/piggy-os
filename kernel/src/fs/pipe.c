@@ -9,7 +9,7 @@
 #include <utils/usercopy.h>
 #include <utils/wait_queue.h>
 
-#define PIPE_DATA_LEN 16384
+#define PIPE_DATA_LEN 8192
 
 struct pipe_node {
     struct vfs_node;
@@ -23,16 +23,17 @@ struct pipe_node {
 
     struct wait_queue read_wq;
     struct wait_queue write_wq;
-    int readers;
-    int writers;
 
     mutex_t mutex;
 };
 
-static int _pipe_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result);
-static int pipe_lookup(struct vfs_node* parent, char* name, struct vfs_node** result);
-static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name);
-static int pipe_unlink(struct vfs_node* parent, char* name, struct vfs_node** result);
+static int _pipe_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result);
+static int pipe_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result);
+static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name);
+static int pipe_link(struct vfs_node* dir, const char* name, struct vfs_node* node);
+static int pipe_symlink(struct vfs_node* dir, const char* name, const char* target);
+static ssize_t pipe_readlink(struct vfs_node* node, char* buf, size_t length);
+static int pipe_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name);
 static ssize_t pipe_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
 static ssize_t pipe_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int pipe_ioctl(struct vfs_node* node, int request, void* argp);
@@ -48,6 +49,9 @@ static struct vfs_node_ops pipe_node_ops = {
     .create = _pipe_create,
     .lookup = pipe_lookup,
     .rename = pipe_rename,
+    .link = pipe_link,
+    .symlink = pipe_symlink,
+    .readlink = pipe_readlink,
     .unlink = pipe_unlink,
     .read = pipe_read,
     .write = pipe_write,
@@ -71,7 +75,7 @@ static inline size_t pipe_free(struct pipe_node* p) {
     return p->data_length - pipe_used(p);
 }
 
-static int _pipe_create(struct vfs_node* parent, char* name, vfs_type_t type, struct vfs_node** result) {
+static int _pipe_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result) {
     (void) parent;
     (void) name;
     (void) type;
@@ -79,14 +83,14 @@ static int _pipe_create(struct vfs_node* parent, char* name, vfs_type_t type, st
     return -ENOTSUP;
 }
 
-static int pipe_lookup(struct vfs_node* parent, char* name, struct vfs_node** result) {
+static int pipe_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result) {
     (void) parent;
     (void) name;
     (void) result;
     return -ENOTSUP;
 }
 
-static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old_name, struct vfs_node* target_dir, char* new_name) {
+static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name) {
     (void) src_dir;
     (void) src;
     (void) old_name;
@@ -95,10 +99,31 @@ static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, char* old
     return -ENOTSUP;
 }
 
-static int pipe_unlink(struct vfs_node* parent, char* name, struct vfs_node** result) {
-    (void) parent;
+static int pipe_link(struct vfs_node* dir, const char* name, struct vfs_node* node) {
+    (void) dir;
     (void) name;
-    (void) result;
+    (void) node;
+    return -ENOTSUP;
+}
+
+static int pipe_symlink(struct vfs_node* dir, const char* name, const char* target) {
+    (void) dir;
+    (void) name;
+    (void) target;
+    return -ENOTSUP;
+}
+
+static ssize_t pipe_readlink(struct vfs_node* node, char* buf, size_t length) {
+    (void) node;
+    (void) buf;
+    (void) length;
+    return -ENOTSUP;
+}
+
+static int pipe_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name) {
+    (void) parent;
+    (void) child;
+    (void) name;
     return -ENOTSUP;
 }
 
@@ -169,7 +194,7 @@ static int pipe_ioctl(struct vfs_node* node, int request, void* argp) {
 static int pipe_truncate(struct vfs_node* node, off_t length) {
     (void) node;
     (void) length;
-    return -EINVAL;
+    return -EPERM;
 }
 
 static int pipe_sync(struct vfs_node* node) {
@@ -206,7 +231,7 @@ static void pipe_inactive(struct vfs_node* node) {
 
 int pipe_create(struct vfs_node** ret) {
     struct pipe_node* node = kmalloc(sizeof(struct pipe_node));
-    if (unlikely(node == NULL)) {
+    if (unlikely(!node)) {
         return -ENOMEM;
     }
 
@@ -214,10 +239,17 @@ int pipe_create(struct vfs_node** ret) {
     node->ops = &pipe_node_ops;
     node->refcount = 1;
 
+    node->stat.st_dev = 0;
     node->stat.st_ino = __atomic_add_fetch(&pipe_inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(node->type);
+    node->stat.st_nlink = 1;
+    node->stat.st_rdev = 0;
+    node->stat.st_size = 0;
     node->stat.st_blksize = PAGE_SIZE_4KB;
+    node->stat.st_blocks = 0;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
+
+    node->read_index = node->write_index;
 
     node->data = (uint8_t*) (pmm_alloc_zero(DIV_CEIL(PIPE_DATA_LEN, PAGE_SIZE_4KB)) + HIGH_VMA);
     node->data_length = PIPE_DATA_LEN;

@@ -12,44 +12,6 @@ void wait_queue_init(struct wait_queue* wq) {
     spinlock_init(&wq->lock);
 }
 
-void wait_queue_add(struct wait_queue* wq, struct wait_node* node) {
-    node->prev = node->next = NULL;
-
-    bool int_state = spinlock_acquire_irqsave(&wq->lock);
-
-    node->prev = wq->tail;
-
-    if (wq->tail != NULL) {
-        wq->tail->next = node;
-    } else {
-        wq->head = node;
-    }
-
-    wq->tail = node;
-
-    spinlock_release_irqsave(&wq->lock, int_state);
-}
-
-void wait_queue_remove(struct wait_queue* wq, struct wait_node* node) {
-    bool int_state = spinlock_acquire_irqsave(&wq->lock);
-
-    if (node->prev != NULL) {
-        node->prev->next = node->next;
-    } else {
-        wq->head = node->next;
-    }
-
-    if (node->next != NULL) {
-        node->next->prev = node->prev;
-    } else {
-        wq->tail = node->prev;
-    }
-
-    node->prev = node->next = NULL;
-
-    spinlock_release_irqsave(&wq->lock, int_state);
-}
-
 int wait_queue_wait(struct wait_queue* wq) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 

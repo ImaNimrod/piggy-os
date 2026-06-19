@@ -8,6 +8,7 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
+#include <utils/log.h>
 void sys_open(struct registers* r) {
     int dirfd = r->rdi;
     const char* path = (const char*) r->rsi;
@@ -29,6 +30,7 @@ void sys_open(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    kpath[path_len] = '\0';
 
     if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
         kfree(kpath);
@@ -48,7 +50,7 @@ retry:
     struct vfs_node* node = NULL;
     struct file* file = NULL;
 
-    ret = vfs_lookup(dirnode, kpath, false, NULL, &node);
+    ret = vfs_lookup(dirnode, kpath, 0, NULL, &node);
     if (ret == 0) {
         if ((flags & O_CREAT) && (flags & O_EXCL)) {
             ret = -EEXIST;

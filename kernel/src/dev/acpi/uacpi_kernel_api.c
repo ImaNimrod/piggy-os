@@ -288,13 +288,11 @@ void* uacpi_kernel_alloc(uacpi_size size) {
 }
 
 void* uacpi_kernel_alloc_zeroed(uacpi_size size) {
-    return kmalloc(size);
+    return kmallocz(size);
 }
 
 void uacpi_kernel_free(void* ptr) {
-    if (ptr != NULL) {
-        kfree(ptr);
-    }
+    kfree(ptr);
 }
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void) {
@@ -316,7 +314,11 @@ void uacpi_kernel_sleep(uacpi_u64 msec) {
 }
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
-    return (uacpi_handle) kmalloc(sizeof(mutex_t));
+    mutex_t* mutex = kmalloc(sizeof(mutex_t));
+    if (likely(mutex != NULL)) {
+        mutex_init(mutex);
+    }
+    return (uacpi_handle) mutex;
 }
 
 void uacpi_kernel_free_mutex(uacpi_handle mutex) {
@@ -422,7 +424,9 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_handle uacpi_kernel_create_spinlock(void) {
     spinlock_t* lock = kmalloc(sizeof(spinlock_t));
-    spinlock_init(lock);
+    if (likely(lock != NULL)) {
+        spinlock_init(lock);
+    }
     return (uacpi_handle) lock;
 }
 

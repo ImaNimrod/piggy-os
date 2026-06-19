@@ -1,12 +1,12 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
 #include <fs/devfs.h> 
+#include <fs/procfs.h> 
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
-#include <utils/hashmap.h>
 #include <utils/cmdline.h>
 #include <utils/macros.h>
 #include <utils/list.h>
@@ -16,17 +16,53 @@
 struct process* kernel_process;
 struct process* init_process;
 
+hashmap_t* processes;
+mutex_t processes_mutex;
+
 static struct slab_cache* process_cache;
 static struct slab_cache* process_group_cache;
 static struct slab_cache* thread_cache;
-
-static hashmap_t* processes;
-static mutex_t processes_mutex;
 
 static hashmap_t* process_groups;
 static mutex_t process_groups_mutex;
 
 static pid_t next_pid;
+
+static char** dup_array(char** argv) {
+    int argc = 0;
+    while (argv[argc] != NULL) {
+        argc++;
+    }
+
+    char** new_argv = kmalloc((argc + 1) * sizeof(char*));
+    if (unlikely(new_argv == NULL)) {
+        return NULL;
+    }
+
+    for (int i = 0; i < argc; i++) {
+        new_argv[i] = strdup(argv[i]);
+
+        if (unlikely(new_argv[i] == NULL)) {
+            while (i > 0) {
+                kfree(new_argv[--i]);
+            }
+
+            kfree(new_argv);
+            return NULL;
+        }
+    }
+
+    new_argv[argc] = NULL;
+    return new_argv;
+}
+
+static void free_array(char** argv) {
+    for (size_t i = 0; argv[i] != NULL; i++) {
+        kfree(argv[i]);
+    }
+
+    kfree(argv);
+}
 
 static void group_destroy(struct process_group* group) {
     mutex_acquire(&group->mutex);
@@ -59,6 +95,16 @@ struct process* process_create(struct process* parent) {
     spinlock_init(&new_process->signal_actions_lock);
 
     if (likely(parent != NULL)) {
+        new_process->cmdline = dup_array(parent->cmdline);
+        if (unlikely(new_process->cmdline == NULL)) {
+            goto error;
+        }
+
+        new_process->environ = dup_array(parent->environ);
+        if (unlikely(new_process->environ == NULL)) {
+            goto error;
+        }
+
         spinlock_acquire(&parent->node_lock);
 
         new_process->cwd = parent->cwd;
@@ -106,6 +152,13 @@ struct process* process_create(struct process* parent) {
     return new_process;
 
 error:
+    if (new_process->cmdline != NULL) {
+        free_array(new_process->cmdline);
+    }
+    if (new_process->environ != NULL) {
+        free_array(new_process->environ);
+    }
+
     if (new_process->vmm_context != NULL) {
         vmm_context_destroy(new_process->vmm_context);
     }
@@ -127,7 +180,7 @@ void process_create_init(void) {
     klog("[process] starting init process %s\n", init_path);
 
     struct vfs_node* init_node;
-    if (vfs_lookup(vfs_root, init_path, false, NULL, &init_node) < 0) {
+    if (vfs_lookup(vfs_root, init_path, 0, NULL, &init_node) < 0) {
         kpanic(NULL, false, "failed to find %s", init_path);
     }
     init_node->ops->unlock(init_node);
@@ -164,6 +217,19 @@ void process_create_init(void) {
 
     char* ld_path = NULL;
 
+    init_process->cmdline = kmalloc(2 * sizeof(char*));
+    if (unlikely(init_process->cmdline == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for init process command line");
+    }
+    init_process->cmdline[0] = strdup(init_path);
+    init_process->cmdline[1] = NULL;
+
+    init_process->environ = kmalloc(1 * sizeof(char*));
+    if (unlikely(init_process->environ == NULL)) {
+        kpanic(NULL, false, "failed to allocate memory for init process environment");
+    }
+    init_process->environ[0] = NULL;
+
     struct auxvals auxvals;
     if (elf_load(init_process->vmm_context, 0, init_node, &auxvals, &ld_path) < 0) {
         kpanic(NULL, false, "failed to load ELF for init process");
@@ -173,7 +239,7 @@ void process_create_init(void) {
 
     if (ld_path != NULL) {
         struct vfs_node* ld_node;
-        if (vfs_lookup(vfs_root, ld_path, false, NULL, &ld_node) < 0) {
+        if (vfs_lookup(vfs_root, ld_path, 0, NULL, &ld_node) < 0) {
             kpanic(NULL, false, "failed to find interpreter %s", ld_node);
         }
         ld_node->ops->unlock(ld_node);
@@ -208,6 +274,11 @@ void process_destroy(struct process* process) {
     mutex_acquire(&processes_mutex);
     hashmap_remove(processes, &process->pid, sizeof(pid_t));
     mutex_release(&processes_mutex);
+
+    procfs_delete_nodes(process->pid);
+
+    free_array(process->cmdline);
+    free_array(process->environ);
 
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         thread_destroy((struct thread*) *vector_get(process->threads, i));
@@ -461,6 +532,7 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
 
     // Signals
     spinlock_init(&thread->signal_lock);
+    thread->pending_signals = thread->signal_mask = 0;
     thread->signal_stack.ss_flags = SS_DISABLE;
 
     // Insert into process' thread list
@@ -508,7 +580,7 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
     memcpy64((uint64_t*) &new_thread->registers, (const uint64_t*) context, sizeof(struct registers) >> 3);
     new_thread->registers.rax = 0;
 
-    new_thread->fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
+    new_thread->fpu_context = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     memcpy(new_thread->fpu_context, old_thread->fpu_context, this_cpu()->fpu_context_size);
 
     new_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
@@ -519,6 +591,7 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
 
     spinlock_acquire(&old_thread->signal_lock);
 
+    new_thread->pending_signals =  0;
     new_thread->signal_mask = old_thread->signal_mask;
     new_thread->signal_stack = old_thread->signal_stack;
     new_thread->signal_stack.ss_flags &= ~SS_ONSTACK;

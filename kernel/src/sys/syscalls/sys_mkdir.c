@@ -28,6 +28,7 @@ void sys_mkdir(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    kpath[path_len] = '\0';
 
     if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
         kfree(kpath);

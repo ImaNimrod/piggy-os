@@ -13,6 +13,7 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 
+#include <utils/wait_queue.h> 
 
 #define CTRL(c) ((c) & 0x1f)
 
@@ -123,9 +124,10 @@ static struct termios termios;
 static struct winsize winsize;
 
 static char* input_buf;
-static bool input_buf_flushed;
 static size_t input_buf_index;
+static bool input_buf_flushed;
 
+static struct wait_queue read_wq;
 static spinlock_t read_lock;
 static spinlock_t write_lock;
 static spinlock_t tty_lock;
@@ -163,20 +165,18 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     (void) offset;
     (void) flags;
 
-    while (!input_buf_flushed) {
-        scheduler_yield();
-    }
+    spinlock_acquire(&read_lock);
 
-    if (input_buf_index == 0) {
-        if (termios.c_lflag & ICANON) {
-            input_buf_flushed = false;
-            return 0;
+    while (input_buf_index == 0) {
+        spinlock_release(&read_lock);
+
+        int r = wait_queue_wait(&read_wq);
+        if (r == EINTR) {
+            return -EINTR;
         }
 
-        scheduler_yield();
+        spinlock_acquire(&read_lock);
     }
-
-    spinlock_acquire(&read_lock);
 
     size_t max_to_copy = MIN(count, input_buf_index);
     size_t to_copy = max_to_copy;
@@ -197,9 +197,6 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
 
     memmove(input_buf, input_buf + to_copy, input_buf_index - to_copy);
     input_buf_index -= to_copy;
-    if (input_buf_index == 0) {
-        input_buf_flushed = false;
-    }
 
     spinlock_release(&read_lock);
     return to_copy;
@@ -287,14 +284,12 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
 }
 
 void tty_add_char(char c) {
-    spinlock_acquire(&read_lock);
-
     if (termios.c_iflag & ISTRIP) {
         c &= 0x7f;
     }
 
     if ((termios.c_iflag & IGNCR) && c == '\r') {
-        goto end;
+        return;
     }
 
     if ((termios.c_iflag & ICRNL) && c == '\r') {
@@ -304,6 +299,12 @@ void tty_add_char(char c) {
     if ((termios.c_iflag & INLCR) && c == '\n') {
         c = '\r';
     }
+
+    spinlock_acquire(&read_lock);
+
+    bool force_echo = false;
+    bool should_wake = false;
+    bool should_append = true;
 
     if (termios.c_lflag & ISIG) {
         if (c == termios.c_cc[VINTR]) {
@@ -334,14 +335,8 @@ void tty_add_char(char c) {
         }
     }
 
-    bool force_echo = false;
-    bool should_append = true;
-    bool should_flush = false;
-
-    if (!(termios.c_lflag & ICANON)) {
-        should_flush = true;
-    } else {
-        if ((c == '\b' || c == termios.c_cc[VERASE]) && (termios.c_lflag & ECHOE)) {
+    if (termios.c_lflag & ICANON) {
+        if ((c == '\b' || c == 127 || c == termios.c_cc[VERASE]) && (termios.c_lflag & ECHOE)) {
             do_backspace();
             goto end;
         }
@@ -350,20 +345,27 @@ void tty_add_char(char c) {
             while (input_buf_index > 0 && input_buf[input_buf_index - 1] != '\n') {
                 do_backspace();
             }
+
             goto end;
         }
 
         if (c == termios.c_cc[VEOF]) {
             should_append = false;
-            should_flush = true;
+            input_buf_flushed = true;
+            should_wake = true;
         }
 
         if (c == '\n' || c == '\r' || c == termios.c_cc[VEOL]) {
-            should_flush = true;
+            input_buf_flushed = true;
+            should_wake = true;
+
             if (c == '\n') {
                 force_echo = (termios.c_lflag & ECHONL);
             }
         }
+    } else {
+        input_buf_flushed = true;
+        should_wake = true;
     }
 
     if (should_append) {
@@ -387,12 +389,12 @@ void tty_add_char(char c) {
         }
     }
 
-    if (should_flush) {
-        input_buf_flushed = true;
-    }
-
 end:
     spinlock_release(&read_lock);
+
+    if (should_wake) {
+        wait_queue_wake_all(&read_wq);
+    }
 }
 
 void tty_init(void) {
@@ -405,6 +407,7 @@ void tty_init(void) {
         kpanic(NULL, false, "failed to create tty input buffer");
     }
 
+    wait_queue_init(&read_wq);
     spinlock_init(&read_lock);
     spinlock_init(&write_lock);
     spinlock_init(&tty_lock);

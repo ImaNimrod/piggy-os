@@ -353,6 +353,8 @@ struct vmm_context* vmm_context_create(void) {
         return NULL;
     }
 
+    context->ranges = NULL;
+
     mutex_init(&context->mutex);
 
     return context;

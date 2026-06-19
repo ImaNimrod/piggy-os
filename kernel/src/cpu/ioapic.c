@@ -29,7 +29,6 @@
 #define PIC2_DATA_PORT          0xa1
 
 struct ioapic {
-    uint8_t id;
     uintptr_t base;
     uint32_t gsi_base;
     uint8_t max_rentry;
@@ -177,7 +176,7 @@ static void parse_iso_entry(struct acpi_madt_interrupt_source_override* iso_entr
 
     isa_isos[iso_entry->source] = (struct isa_iso) { true, iso_entry->gsi, polarity, trigger_mode };
 
-    klog("[ioapic] setup interrupt source override (ISA %-2u -> GSI %u)\n",
+    klog("[ioapic] mapping ISA IRQ %-2u -> GSI %u\n",
             iso_entry->source, iso_entry->gsi);
 }
 

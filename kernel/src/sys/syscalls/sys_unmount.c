@@ -26,6 +26,13 @@ void sys_unmount(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    ktarget[target_len] = '\0';
+
+    if ((ret = user_memcpy_from_user(ktarget, target, target_len)) < 0) {
+        kfree(ktarget);
+        r->rax = ret;
+        return;
+    }
 
     struct vfs_node* reference = ktarget[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
     r->rax = vfs_unmount(reference, ktarget);

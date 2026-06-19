@@ -23,7 +23,6 @@ vector_t* vector_create(size_t item_size) {
     v->capacity = VECTOR_INITIAL_CAPACITY;
     v->size = 0;
     v->item_size = item_size;
-
     return v;
 }
 

@@ -24,6 +24,7 @@ void sys_chroot(struct registers* r) {
         r->rax = -ENOMEM;
         return;
     }
+    kpath[path_len] = '\0';
 
     if ((ret = user_memcpy_from_user(kpath, path, path_len)) < 0) {
         kfree(kpath);
@@ -34,7 +35,7 @@ void sys_chroot(struct registers* r) {
     struct vfs_node* reference = kpath[0] == '/' ? process_get_root(current_process) : process_get_cwd(current_process);
 
     struct vfs_node* new_root = NULL;
-    if ((ret = vfs_lookup(reference, kpath, false, NULL, &new_root)) < 0) {
+    if ((ret = vfs_lookup(reference, kpath, 0, NULL, &new_root)) < 0) {
         goto end;
     }
     new_root->ops->unlock(new_root);

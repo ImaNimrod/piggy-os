@@ -38,13 +38,14 @@ hashmap_t* hashmap_create(size_t capacity) {
         return NULL;
     }
 
-    hm->entries = kmalloc(sizeof(struct hashmap_entry*) * capacity);
+    hm->entries = kmallocz(sizeof(struct hashmap_entry*) * capacity);
     if (unlikely(hm->entries == NULL)) {
         kfree(hm);
         return NULL;
     }
 
     hm->capacity = capacity;
+    hm->size = 0;
     return hm;
 }
 

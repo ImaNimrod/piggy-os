@@ -13,6 +13,7 @@
 #define DT_DIR      4
 #define DT_BLK      6
 #define DT_REG      8
+#define DT_LNK      10
 
 #define S_IFMT      0x0f000
 #define S_IFREG     0x01000
@@ -30,8 +31,11 @@
 #define POLLERR     0x10
 #define POLLNVAL    0x20
 
-#define VFS_FLAG_ROOT (1 << 0)
-#define VFS_FLAG_MMAP (1 << 1)
+#define VFS_LOOKUP_FLAG_PARENT      (1 << 0)
+#define VFS_LOOKUP_FLAG_NOFOLLOW    (1 << 1)
+
+#define VFS_NODE_FLAG_ROOT (1 << 0)
+#define VFS_NODE_FLAG_MMAP (1 << 1)
 
 #define VFS_STAT_ST_DEV     (1 << 0)
 #define VFS_STAT_ST_INO     (1 << 1)
@@ -49,6 +53,7 @@ typedef enum {
     VFS_TYPE_DIRECTORY,
     VFS_TYPE_BLOCKDEV,
     VFS_TYPE_CHARDEV,
+    VFS_TYPE_SYMLINK,
     VFS_TYPE_FIFO,
 } vfs_type_t;
 
@@ -64,10 +69,14 @@ struct vfs_ops {
 };
 
 struct vfs_node_ops {
-    int (*create)(struct vfs_node*, char*, vfs_type_t, struct vfs_node**);
-    int (*lookup)(struct vfs_node*, char*, struct vfs_node**);
-    int (*rename)(struct vfs_node*, struct vfs_node*, char*, struct vfs_node*, char*);
-    int (*unlink)(struct vfs_node*, char*, struct vfs_node**);
+    int (*parent)(struct vfs_node*, struct vfs_node**);
+    int (*create)(struct vfs_node*, const char*, vfs_type_t, struct vfs_node**);
+    int (*lookup)(struct vfs_node*, const char*, struct vfs_node**);
+    int (*rename)(struct vfs_node*, struct vfs_node*, const char*, struct vfs_node*, const char*);
+    int (*link)(struct vfs_node*, const char*, struct vfs_node*);
+    int (*symlink)(struct vfs_node*, const char*, const char*);
+    ssize_t (*readlink)(struct vfs_node*, char*, size_t);
+    int (*unlink)(struct vfs_node*, struct vfs_node*, const char*);
 
     ssize_t (*read)(struct vfs_node*, void*, size_t, off_t, int);
     ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t, int);
@@ -126,8 +135,8 @@ static inline unsigned char vfs_type_to_dirent(vfs_type_t type) {
             return DT_BLK;
         case VFS_TYPE_CHARDEV:
             return DT_CHR;
-        case VFS_TYPE_FIFO:
-            return DT_FIFO;
+        case VFS_TYPE_SYMLINK:
+            return DT_LNK;
         default:
             return DT_UNKNOWN;
     }
@@ -149,9 +158,14 @@ static inline mode_t vfs_type_to_mode(vfs_type_t type) {
         case VFS_TYPE_CHARDEV:
             mode |= S_IFCHR;
             break;
+        case VFS_TYPE_SYMLINK:
+            mode |= S_IFLNK;
+            break;
         case VFS_TYPE_FIFO:
             mode |= S_IFIFO;
             break;
+        default:
+            __builtin_unreachable();
     }
 
     return mode;
@@ -161,8 +175,10 @@ int vfs_mount(struct vfs_node* source, struct vfs_node* target_reference, const 
 int vfs_unmount(struct vfs_node* target_reference, const char* target_path);
 int vfs_create(struct vfs_node* reference, const char* path, vfs_type_t type, struct vfs_node** result);
 int vfs_rename(struct vfs_node* src, const char* src_path, struct vfs_node* dest, const char* dest_path);
+int vfs_link(struct vfs_node* dest_reference, const char* dest_path, struct vfs_node* link_reference, const char* link_path);
+int vfs_symlink(struct vfs_node* link_reference, const char* link_path, const char* dest_path);
 int vfs_unlink(struct vfs_node* reference, const char* path);
-int vfs_lookup(struct vfs_node* reference, const char* path, bool lookup_parent, char* last_component, struct vfs_node** result);
+int vfs_lookup(struct vfs_node* reference, const char* path, int flags, char* last_component, struct vfs_node** result);
 bool vfs_register_fs(const char* name, struct vfs_ops* ops);
 bool vfs_unregister_fs(const char* name);
 void vfs_init(void);

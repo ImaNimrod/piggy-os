@@ -71,7 +71,7 @@ static ssize_t nvme_namespace_cmd_handler(struct block_device* block_device, blo
 
     struct queue_pair* queue_pair = &controller->io_queues[io_queue_index];
 
-    struct entry_pair entry_pair = {0};
+    struct entry_pair entry_pair = {};
     entry_pair.submission.nsid = namespace->id;
 
     if (cmd == CMD_FLUSH) {

@@ -19,9 +19,10 @@
 #define ALIGN_DOWN(x, align) ((x) & ~((align) - 1))
 #define IS_ALIGNED(x, align) (!((x) & ((align) - 1)))
 
-#define BITMAP_SET(bitmap, i) ((bitmap)[(i) / 8] |=  (1 << ((i) % 8)))
-#define BITMAP_CLEAR(bitmap, i) ((bitmap)[(i) / 8] &= ~(1 << ((i) % 8)))
-#define BITMAP_TEST(bitmap, i) ((bitmap)[(i) / 8] & (1 << ((i) % 8)))
+#define BITMAP_SET(bitmap, i) ((bitmap)[(i) / 64] |= (1ULL << ((i) & 63)))
+#define BITMAP_CLEAR(bitmap, i) ((bitmap)[(i) / 64] &= ~(1ULL << ((i) & 63)))
+#define BITMAP_TEST(bitmap, i) ((bitmap)[(i) / 64] & (1ULL << ((i) & 63)))
+
 
 #define LOG2(x) (8 * 8 - __builtin_clzll((x)) - 1)
 

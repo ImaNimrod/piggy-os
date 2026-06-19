@@ -4,11 +4,9 @@
 #include <utils/mutex.h>
 
 void mutex_init(mutex_t* m) {
-    spinlock_init(&m->lock);
     m->owner = NULL;
-
-    m->waiters_head = NULL;
-    m->waiters_tail = NULL;
+    m->waiters_head = m->waiters_tail = NULL;
+    spinlock_init(&m->lock);
 }
 
 void mutex_acquire(mutex_t* m) {
@@ -46,7 +44,9 @@ void mutex_release(mutex_t* m) {
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
-    if (m->owner != current_thread) {
+    if (m->owner == NULL) {
+        kpanic(NULL, true, "mutex was double unlocked");
+    } else if (m->owner != current_thread) {
         kpanic(NULL, true, "mutex unlocked by thread that does not own it");
     }
 

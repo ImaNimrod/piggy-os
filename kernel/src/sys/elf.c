@@ -18,17 +18,9 @@
 #define EI_OSABI    7
 #define EI_PAD      8
 
-#define ELFCLASSNONE    0
-#define ELFCLASS32      1
 #define ELFCLASS64      2
-#define ELFCLASSNUM     3
-
-#define ELFDATANONE 0
-#define ELFDATA2LSB 1
-#define ELFDATA2MSB 2
-
+#define ELFDATA2LSB     1
 #define ELFOSABI_NONE   0
-#define ELFOSABI_LINUX  3
 
 #define ET_EXEC     2
 #define ET_DYN      3

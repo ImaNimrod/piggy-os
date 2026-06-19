@@ -21,6 +21,9 @@ extern void sys_yield(struct registers* r);
 extern void sys_open(struct registers* r);
 extern void sys_mkdir(struct registers* r);
 extern void sys_rename(struct registers* r);
+extern void sys_link(struct registers* r);
+extern void sys_symlink(struct registers* r);
+extern void sys_readlink(struct registers* r);
 extern void sys_unlink(struct registers* r);
 extern void sys_mount(struct registers* r);
 extern void sys_unmount(struct registers* r);
@@ -78,6 +81,9 @@ static syscall_handler_t syscall_table[] = {
     [SYS_OPEN]          = sys_open,
     [SYS_MKDIR]         = sys_mkdir,
     [SYS_RENAME]        = sys_rename,
+    [SYS_LINK]          = sys_link,
+    [SYS_SYMLINK]       = sys_symlink,
+    [SYS_READLINK]      = sys_readlink,
     [SYS_UNLINK]        = sys_unlink,
     [SYS_MOUNT]         = sys_mount,
     [SYS_UNMOUNT]       = sys_unmount,

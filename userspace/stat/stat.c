@@ -4,6 +4,7 @@
 
 #include <err.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -130,9 +131,9 @@ int main(int argc, char* argv[]) {
             printf("  File: %s", argv[i]);
 
             if (S_ISLNK(st.st_mode)) {
-                char link[st.st_size + 1];
+                char link[PATH_MAX];
 
-                ssize_t nread = readlinkat(AT_FDCWD, argv[i], link, st.st_size);
+                ssize_t nread = readlinkat(AT_FDCWD, argv[i], link, sizeof(link));
                 if (nread < 0) {
                     warn("readlink: '%s'", argv[i]);
                     ret = EXIT_FAILURE;

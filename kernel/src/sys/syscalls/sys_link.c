@@ -8,7 +8,7 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
-void sys_rename(struct registers* r) {
+void sys_link(struct registers* r) {
     int old_dirfd = r->rdi;
     const char* old_path = (const char*) r->rsi;
     int new_dirfd = r->rdx;
@@ -61,7 +61,7 @@ void sys_rename(struct registers* r) {
         goto end;
     }
 
-    ret = vfs_rename(old_dirnode, kold_path, new_dirnode, knew_path);
+    ret = vfs_link(old_dirnode, kold_path, new_dirnode, knew_path);
 
 end:
     file_cleanup_dirfd(old_dirfile, old_dirnode);

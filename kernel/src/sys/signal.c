@@ -43,8 +43,6 @@ static int default_action(int signal) {
     }
 }
 
-#include <utils/log.h>
-
 void signal_handle_pending(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;

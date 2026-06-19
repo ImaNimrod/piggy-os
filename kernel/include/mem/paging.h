@@ -33,7 +33,6 @@ typedef enum {
 
 struct pagemap {
     uint64_t* top_level;
-    struct vma* vma_list;
     spinlock_t lock;
 };
 

@@ -8,12 +8,13 @@
 #include <sys/elf.h>
 #include <sys/signal.h>
 #include <types.h>
+#include <utils/hashmap.h>
 #include <utils/mutex.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
 
-#define KERNEL_STACK_SIZE   0x8000
-#define USER_STACK_SIZE     0x40000
+#define KERNEL_STACK_SIZE   0x4000
+#define USER_STACK_SIZE     0x20000
 
 #define INTERPRETER_LOAD_BASE 0x40000000
 
@@ -102,6 +103,9 @@ struct process {
 
     int exit_status;
 
+    char** cmdline;
+    char** environ;
+
     struct vfs_node* cwd;
     struct vfs_node* root;
     spinlock_t node_lock;
@@ -111,7 +115,7 @@ struct process {
 
     struct vmm_context* vmm_context;
 
-    struct sigaction signal_actions[NSIG];
+    struct sigaction signal_actions[NSIG - 1];
     spinlock_t signal_actions_lock;
 
     struct timespec time_used;
@@ -128,6 +132,9 @@ struct process {
 
 extern struct process* kernel_process;
 extern struct process* init_process;
+
+extern hashmap_t* processes;
+extern mutex_t processes_mutex;
 
 struct process* process_create(struct process* parent);
 void process_create_init(void);

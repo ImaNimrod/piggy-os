@@ -61,7 +61,7 @@ static void sigbus_handler(struct registers* r, void* arg) {
     if (r->cs == USER_CODE_SEGMENT) {
         signal_send_thread(this_cpu()->scheduler.current_thread, SIGBUS);
     } else {
-        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+        kpanic(r, true, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -71,7 +71,7 @@ static void sigfpe_handler(struct registers* r, void* arg) {
     if (r->cs == USER_CODE_SEGMENT) {
         signal_send_thread(this_cpu()->scheduler.current_thread, SIGFPE);
     } else {
-        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+        kpanic(r, true, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -81,7 +81,7 @@ static void sigill_handler(struct registers* r, void* arg) {
     if (r->cs == USER_CODE_SEGMENT) {
         signal_send_thread(this_cpu()->scheduler.current_thread, SIGILL);
     } else {
-        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+        kpanic(r, true, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -91,7 +91,7 @@ static void sigsegv_handler(struct registers* r, void* arg) {
     if (r->cs == USER_CODE_SEGMENT) {
         signal_send_thread(this_cpu()->scheduler.current_thread, SIGSEGV);
     } else {
-        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+        kpanic(r, true, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -101,7 +101,7 @@ static void sigtrap_handler(struct registers* r, void* arg) {
     if (r->cs == USER_CODE_SEGMENT) {
         signal_send_thread(this_cpu()->scheduler.current_thread, SIGTRAP);
     } else {
-        kpanic(r, false, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
+        kpanic(r, true, "exception: %s", EXCEPTION_MESSAGES[r->int_number]);
     }
 }
 
@@ -307,8 +307,6 @@ void smp_init(void) {
             pause();
         }
     }
-
-    sti();
 
     cpu_count = initialized_cpus;
     klog("[smp] initialized %zu processor%c\n", initialized_cpus, (initialized_cpus == 1 ? '\0' : 's'));

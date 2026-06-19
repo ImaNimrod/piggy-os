@@ -8,21 +8,31 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
-void sys_stat(struct registers* r) {
+#include <utils/log.h>
+
+void sys_readlink(struct registers* r) {
     int dirfd = r->rdi;
     const char* path = (const char*) r->rsi;
-    struct stat* stat = (struct stat*) r->rdx;
-    int flags = r->r10;
+    char* buf = (char*) r->rdx;
+    size_t length = r->r10;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
-    if (!IS_USER_ADDRESS(stat)) {
+    if (!IS_USER_ADDRESS(buf)) {
         r->rax = -EFAULT;
         return;
     }
 
-    if (flags & AT_EMPTY_PATH) {
+    int ret;
+
+    size_t path_len;
+    if ((ret = user_strlen(path, &path_len)) < 0) {
+        r->rax = ret;
+        return;
+    }
+
+    if (path_len == 0) {
         struct file* file = file_get(current_process, dirfd);
         if (file == NULL) {
             r->rax = -EBADF;
@@ -32,19 +42,11 @@ void sys_stat(struct registers* r) {
         struct vfs_node* node = file->node;
 
         node->ops->lock(node);
-        r->rax = node->ops->getstat(node, stat);
+        r->rax = node->ops->readlink(node, buf, length);
         node->ops->unlock(node);
 
         file_release(file);
     } else {
-        int ret;
-
-        size_t path_len;
-        if ((ret = user_strlen(path, &path_len)) < 0) {
-            r->rax = ret;
-            return;
-        }
-
         char* kpath = kmalloc(path_len + 1);
         if (unlikely(kpath == NULL)) {
             r->rax = -ENOMEM;
@@ -65,8 +67,8 @@ void sys_stat(struct registers* r) {
         }
 
         struct vfs_node* node;
-        if ((ret = vfs_lookup(dirnode, kpath, (flags & AT_SYMLINK_NOFOLLOW) ? VFS_LOOKUP_FLAG_NOFOLLOW : 0, NULL, &node)) == 0) {
-            ret = node->ops->getstat(node, stat);
+        if ((ret = vfs_lookup(dirnode, kpath, VFS_LOOKUP_FLAG_NOFOLLOW, NULL, &node)) == 0) {
+            ret = node->ops->readlink(node, buf, length);
 
             node->ops->unlock(node);
             VFS_NODE_UNREF(node);

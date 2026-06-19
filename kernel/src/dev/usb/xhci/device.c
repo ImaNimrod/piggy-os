@@ -7,7 +7,7 @@
 #include "definitions.h"
 
 void device_try_init(struct xhci_controller* controller, uint8_t port) {
-    struct trb enable_slot = {0};
+    struct trb enable_slot = {};
     enable_slot.trb_type = TRB_TYPE_ENABLE_SLOT;
 
     struct trb result;

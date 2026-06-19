@@ -6,7 +6,8 @@
 
 #define AT_FDCWD -100
 
-#define AT_EMPTY_PATH (1 << 0)
+#define AT_EMPTY_PATH       (1 << 0)
+#define AT_SYMLINK_NOFOLLOW (1 << 1)
 
 #define O_PATH      01000
 
