@@ -54,7 +54,7 @@ static int do_shuf_file(const char* filename, FILE* fp) {
     size_t line_count = 0;
 
     char** lines = malloc(line_capacity * sizeof(char*));
-    if (lines == NULL) {
+    if (!lines) {
         err(EXIT_FAILURE, "malloc");
     }
 
@@ -67,8 +67,8 @@ static int do_shuf_file(const char* filename, FILE* fp) {
             line_capacity *= 2;
 
             lines = reallocarray(lines, line_capacity, sizeof(char*));
-            if (lines == NULL) {
-                err(EXIT_FAILURE, "reallocarray");
+            if (!lines) {
+                errx(EXIT_FAILURE, "reallocarray");
             }
         }
 
@@ -205,13 +205,13 @@ int main(int argc, char* argv[]) {
     char* filename;
     FILE* fp;
 
-    if (argv[0] == NULL || strcmp(argv[0], "-") == 0) {
+    if (!argv[0] || strcmp(argv[0], "-") == 0) {
         filename = "stdin";
         fp = stdin;
     } else {
         filename = argv[0];
         fp = fopen(filename, "r");
-        if (fp == NULL) {
+        if (!fp) {
             err(EXIT_FAILURE, filename);
         }
     }

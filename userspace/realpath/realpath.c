@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
     char* path;
 
     for (int i = 0; i < argc; i++) {
-        if ((path = realpath(argv[i], NULL)) == NULL) {
+        if (!(path = realpath(argv[i], NULL))) {
             if (!quiet) {
                 warn("%s", argv[i]);
             }

@@ -87,7 +87,7 @@ int execute(int argc, char* argv[]) {
     }
 
     size_t i = 0;
-    while (BUILTINS[i].name != NULL) {
+    while (BUILTINS[i].name) {
         if (strcmp(argv[0], BUILTINS[i].name) == 0) {
             return (*BUILTINS[i].func)(argc, argv);
         }
@@ -102,12 +102,12 @@ int split_args(char* line, char*** argv) {
     int count = 0;
 
     char** tokens = malloc(64 * sizeof(char*));
-    if (tokens == NULL) {
+    if (!tokens) {
         err(EXIT_FAILURE, "malloc");
     }
 
     char* token = strtok(line, " \t\n\a");
-    while (token != NULL) {
+    while (token) {
         tokens[count] = token;
         count++;
         token = strtok(NULL, " \t\n\a");

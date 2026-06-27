@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
     } else {
         in_filename = argv[0];
         in_fp = fopen(in_filename, "r");
-        if (in_fp == NULL) {
+        if (!in_fp) {
             err(EXIT_FAILURE, in_filename);
         }
     }
@@ -88,7 +88,7 @@ int main(int argc, char* argv[]) {
         out_fp = stdout;
     } else {
         out_fp = fopen(argv[1], "w");
-        if (out_fp == NULL) {
+        if (!out_fp) {
             if (in_fp != stdin) {
                 fclose(in_fp);
             }
@@ -108,11 +108,11 @@ int main(int argc, char* argv[]) {
 
     ssize_t nread;
     while ((nread = getdelim(&line, &n, delimiter, in_fp)) != -1) {
-        if (prev == NULL) {
+        if (!prev) {
             if (prev_cap < (size_t) nread) {
                 char* tmp = realloc(prev, nread);
-                if (tmp == NULL) {
-                    err(EXIT_FAILURE, "realloc");
+                if (!tmp) {
+                    errx(EXIT_FAILURE, "realloc");
                 }
 
                 prev = tmp;
@@ -132,8 +132,8 @@ int main(int argc, char* argv[]) {
 
             if (prev_cap < (size_t) nread) {
                 char* tmp = realloc(prev, nread);
-                if (tmp == NULL) {
-                    err(EXIT_FAILURE, "realloc");
+                if (!tmp) {
+                    errx(EXIT_FAILURE, "realloc");
                 }
 
                 prev = tmp;
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
         err(EXIT_FAILURE, "getdelim(%s)", in_filename);
     }
 
-    if (prev != NULL) {
+    if (prev) {
         emit(prev, prev_len, count, out_fp);
     }
 

@@ -301,7 +301,7 @@ uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void) {
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec) {
-    (void) usec;
+    timer_wait_ns(usec * 1000);
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec) {

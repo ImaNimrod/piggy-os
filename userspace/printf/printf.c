@@ -160,7 +160,7 @@ static const char* parse_format(const char* fmt, struct format* format) {
 }
 
 static void print_arg(const struct format* format, const char* arg) {
-    if (arg == NULL) {
+    if (!arg) {
         arg = "";
     }
 

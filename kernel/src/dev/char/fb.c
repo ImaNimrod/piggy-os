@@ -1,5 +1,7 @@
 #include <cpu/smp.h>
 #include <dev/char/fb.h>
+#include <dev/char/tty.h>
+#include <dev/pit.h>
 #include <errno.h>
 #include <flanterm.h>
 #include <flanterm_backends/fb.h>
@@ -10,6 +12,7 @@
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <printf.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
 #include <utils/string.h>
@@ -80,6 +83,7 @@ struct framebuffer_info {
 extern struct limine_framebuffer_request framebuffer_request;
 
 struct flanterm_context* fb_context;
+bool flanterm_console_decckm;
 
 static int fb_ioctl(dev_t dev, int request, void* argp);
 static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_flags);
@@ -176,6 +180,38 @@ static int fb_munmap(dev_t dev, void* addr, off_t offset) {
     return 0;
 }
 
+static void flanterm_callback(struct flanterm_context* ctx, uint64_t type, uint64_t a, uint64_t b, uint64_t c) {
+    (void) ctx;
+    (void) a;
+
+    switch (type) {
+        case FLANTERM_CB_DEC:
+            uint32_t* esc_values = (uint32_t*) b;
+            if (esc_values[0] == 1) {
+                if ((char) c == 'h') {
+                    flanterm_console_decckm = true;
+                } else if ((char) c == 'l') {
+                    flanterm_console_decckm = false;
+                }
+            }
+
+            break;
+        case FLANTERM_CB_BELL:
+            pit_sound_on(524);
+            timer_wait_ns(MS_TO_NS(80));
+            pit_sound_off();
+            break;
+        case FLANTERM_CB_POS_REPORT:
+            uint64_t x = a;
+            uint64_t y = b;
+
+            char buf[20];
+            int length = snprintf(buf, sizeof(buf), "\033[%lu;%luR", x, y);
+            tty_add_buf(buf, length);
+            break;
+    }
+}
+
 void fb_dev_init(void) {
     struct limine_framebuffer_response* framebuffer_response = framebuffer_request.response;
     if (unlikely(framebuffer_response->framebuffer_count == 0)) {
@@ -257,4 +293,7 @@ void fb_dev_early_init(void) {
         0, 0,
         0, 0
     );
+
+    flanterm_set_autoflush(fb_context, true);
+    flanterm_set_callback(fb_context, flanterm_callback);
 }

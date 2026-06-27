@@ -2,11 +2,13 @@
 #include <cpu/lapic.h>
 #include <cpu/smp.h>
 #include <dev/char/fb.h>
+#include <dev/pit.h>
 #include <dev/serial.h>
 #include <flanterm.h>
 #include <mem/paging.h>
 #include <printf.h>
 #include <stdarg.h>
+#include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/spinlock.h>
 
@@ -36,13 +38,13 @@ static void print_stack_trace(uintptr_t* rbp) {
 
 void _putchar(char c) {
     if (c == '\n') {
-        static const char newline[2] = { '\r', '\n' };
+        static const char crnl[2] = { '\r', '\n' };
 
-        serial_putc(COM1_PORT, newline[0]);
-        serial_putc(COM1_PORT, newline[1]);
+        serial_putc(COM1_PORT, crnl[0]);
+        serial_putc(COM1_PORT, crnl[1]);
 
         if (likely(fb_context != NULL)) {
-            flanterm_write(fb_context, newline, sizeof(newline));
+            flanterm_write(fb_context, crnl, sizeof(crnl));
         }
     } else {
         serial_putc(COM1_PORT, c);
@@ -102,7 +104,13 @@ void klog(const char* fmt, ...) {
         print_stack_trace(rbp);
     }
 
-    printf("\n===============================================================================================\n");
+    printf("\n===============================================================================================");
+
+    pit_sound_on(330);
+    timer_wait_ns(MS_TO_NS(900));
+    pit_sound_on(233);
+    timer_wait_ns(MS_TO_NS(900));
+    pit_sound_off();
 
     for (;;) {
         hlt();

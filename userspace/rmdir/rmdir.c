@@ -13,7 +13,7 @@ static bool rmdir_parents(const char* path, bool verbose) {
     *p = '\0';
 
     *++p = '\0';
-    while ((p = strrchr(path, '/')) != NULL) {
+    while ((p = strrchr(path, '/'))) {
         while (p > path && p[-1] == '/') {
             p--;
         }

@@ -35,7 +35,7 @@ static inline bool check_file(const char* path) {
 }
 
 static char* find_page(const char* section, const char* page) {
-    if (section != NULL) {
+    if (section) {
         char* path = build_path(section, page);
         if (check_file(path)) {
             return path;
@@ -59,12 +59,12 @@ static char* find_page(const char* section, const char* page) {
 
 static const char* get_pager(void) {
     const char* pager = getenv("MANPAGER");
-    if (pager != NULL && *pager) {
+    if (pager && *pager) {
         return pager;
     }
 
     pager = getenv("PAGER");
-    if (pager != NULL && *pager) {
+    if (pager  && *pager) {
         return pager;
     }
 
@@ -177,7 +177,7 @@ int main(int argc, char* argv[]) {
         }
 
         path = strdup(argv[0]);
-        if (path == NULL) {
+        if (!path) {
             err(EXIT_FAILURE, "strdup");
         }
     } else {
@@ -192,7 +192,7 @@ int main(int argc, char* argv[]) {
         }
 
         path = find_page(section, page);
-        if (path == NULL) {
+        if (!path) {
             if (section != NULL) {
                 warnx("no manual entry for %s in section %s", page, section);
             } else {
@@ -202,7 +202,6 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
     }
-
 
     int ret = run_pipeline(path);
 

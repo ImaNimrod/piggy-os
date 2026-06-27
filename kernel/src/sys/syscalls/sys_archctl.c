@@ -20,16 +20,14 @@ void sys_archctl(struct registers* r) {
     int ret = 0;
 
     switch (op) {
-        case ARCHCTL_GET_FS_BASE: {
+        case ARCHCTL_GET_FS_BASE:
             uint64_t fs = rdmsr(MSR_IA32_FS_BASE);
-            ret = user_memcpy_to_user(arg, &fs, sizeof(uint64_t));
+            ret = user_memcpy_to_user(arg, &fs, sizeof(fs));
             break;
-        }
-        case ARCHCTL_GET_GS_BASE: {
+        case ARCHCTL_GET_GS_BASE:
             uint64_t gs = rdmsr(MSR_IA32_KERNEL_GS_BASE);
-            ret = user_memcpy_to_user(arg, &gs, sizeof(uint64_t));
+            ret = user_memcpy_to_user(arg, &gs, sizeof(gs));
             break;
-        }
         case ARCHCTL_SET_FS_BASE:
             wrmsr(MSR_IA32_FS_BASE, (uint64_t) arg);
             break;
@@ -37,8 +35,8 @@ void sys_archctl(struct registers* r) {
             wrmsr(MSR_IA32_KERNEL_GS_BASE, (uint64_t) arg);
             break;
         default: 
-            r->rax = -EINVAL;
-            return;
+            ret = -EINVAL;
+            break;
     }
 
     r->rax = ret;

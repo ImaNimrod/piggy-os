@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
 
     const char* format_string;
 
-    if (*argv != NULL && *argv[0] == '+') {
+    if (argv[0] && *argv[0] == '+') {
         if (format != FORMAT_DEFAULT) {
             multiple_formats();
         }

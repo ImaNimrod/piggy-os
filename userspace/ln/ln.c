@@ -107,7 +107,7 @@ int main(int argc, char* argv[]) {
         const char* source = argv[i];
 
         char* source_copy = strdup(source);
-        if (source_copy == NULL) {
+        if (!source_copy) {
             err(EXIT_FAILURE, "strdup");
         }
 

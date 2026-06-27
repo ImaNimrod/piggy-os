@@ -101,6 +101,7 @@ kernel_sources = files(
   'src/dev/cmos.c',
   'src/dev/hpet.c',
   'src/dev/pci.c',
+  'src/dev/pit.c',
   'src/dev/pvclock.c',
   'src/dev/serial.c',
   'src/dev/virtio.c',

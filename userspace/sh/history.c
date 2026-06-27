@@ -27,8 +27,8 @@ void history_print(size_t count) {
 
 void history_push(const char* line) {
     history[history_end_index] = realloc(history[history_end_index], strlen(line) + 1);
-    if (history[history_end_index] == NULL) {
-        err(EXIT_FAILURE, "realloc");
+    if (!history[history_end_index]) {
+        errx(EXIT_FAILURE, "realloc");
     }
 
     strcpy(history[history_end_index], line);

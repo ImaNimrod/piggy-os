@@ -69,7 +69,7 @@ static inline void print_integer(intmax_t value, char** ret) {
 
 static inline char* xstrdup(const char* str) {
     char* ret = strdup(str);
-    if (ret == NULL) {
+    if (!ret) {
         errx(EXIT_OTHER_ERROR, "strdup");
     }
     return ret;
@@ -210,7 +210,7 @@ static char* evaluate_match(const char* left, const char* right, const char* op)
         size_t len = regerror(status, &regex, NULL, 0);
         char* errmsg = malloc(len);
 
-        if (errmsg != NULL) {
+        if (errmsg) {
             regerror(status, &regex, errmsg, len);
             errx(EXIT_SYNTAX_ERROR, "compiling regular expression: %s", errmsg);
         } else {
@@ -226,7 +226,7 @@ static char* evaluate_match(const char* left, const char* right, const char* op)
     if (matched == 0 && rm[0].rm_so == 0) {
         if (regex.re_nsub >= 1 && rm[1].rm_so != -1) {
             result = strndup(left + rm[1].rm_so, rm[1].rm_eo - rm[1].rm_so);
-            if (result == NULL) {
+            if (!result) {
                 err(EXIT_OTHER_ERROR, "strndup");
             }
         } else {

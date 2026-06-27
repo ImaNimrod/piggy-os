@@ -1,7 +1,6 @@
 #include <ctype.h>
 #include <err.h> 
 #include <errno.h>
-#include <locale.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +34,7 @@ static double get_double(const char* token) {
 
 static int decimal_places(const char* s) {
     const char* dot = strchr(s, '.');
-    if (dot == NULL) {
+    if (!dot) {
         return 0;
     }
 
@@ -206,11 +205,6 @@ static void usage(void) {
 
 int main(int argc, char* argv[]) {
     char* separator = "\n";
-
-    struct lconv* locale = localeconv();
-    if (locale != NULL && locale->decimal_point != NULL && locale->decimal_point[0] != '\0') {
-        decimal_point = locale->decimal_point;
-    }
 
     int c;
     while ((c = getopt(argc, argv, "s:")) != -1 && !is_numeric(argv[optind])) {

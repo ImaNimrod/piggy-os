@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
                 (intmax_t) realtime.tv_sec, (intmax_t) uptime.tv_sec, uptime.tv_nsec);
     } else {
         struct tm realtime_tm;
-        if (localtime_r(&realtime.tv_sec, &realtime_tm) == NULL) {
+        if (!localtime_r(&realtime.tv_sec, &realtime_tm)) {
             err(EXIT_FAILURE, "localtime_r");
         }
 

@@ -9,6 +9,7 @@
 #define FBIOBLANK           0x4611
 
 extern struct flanterm_context* fb_context;
+extern bool flanterm_console_decckm;
 
 void fb_dev_init(void);
 void fb_dev_early_init(void);

@@ -283,17 +283,25 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
     return ret;
 }
 
+void tty_add_buf(char* buf, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        tty_add_char(buf[i]);
+    }
+}
+
 void tty_add_char(char c) {
     if (termios.c_iflag & ISTRIP) {
         c &= 0x7f;
     }
 
-    if ((termios.c_iflag & IGNCR) && c == '\r') {
-        return;
-    }
+    if (c == '\r') {
+        if (termios.c_iflag & IGNCR) {
+            return;
+        }
 
-    if ((termios.c_iflag & ICRNL) && c == '\r') {
-        c = '\n';
+        if (termios.c_iflag & ICRNL) {
+            c = '\n';
+        }
     }
 
     if ((termios.c_iflag & INLCR) && c == '\n') {
@@ -349,17 +357,13 @@ void tty_add_char(char c) {
             goto end;
         }
 
-        if (c == termios.c_cc[VEOF]) {
-            should_append = false;
-            input_buf_flushed = true;
-            should_wake = true;
-        }
-
-        if (c == '\n' || c == '\r' || c == termios.c_cc[VEOL]) {
-            input_buf_flushed = true;
+        if (c == '\n' || c == termios.c_cc[VEOL] || c == termios.c_cc[VEOF]) {
             should_wake = true;
 
-            if (c == '\n') {
+            if (c == termios.c_cc[VEOF]) {
+                should_append = false;
+            } else {
+                input_buf_flushed = true;
                 force_echo = (termios.c_lflag & ECHONL);
             }
         }
@@ -369,11 +373,9 @@ void tty_add_char(char c) {
     }
 
     if (should_append) {
-        if (input_buf_index >= INPUT_BUF_SIZE) {
-            goto end;
+        if (input_buf_index < INPUT_BUF_SIZE) {
+            input_buf[input_buf_index++] = c;
         }
-
-        input_buf[input_buf_index++] = c;
     }
 
     if (should_append && (force_echo || (termios.c_lflag & ECHO))) {
@@ -381,7 +383,7 @@ void tty_add_char(char c) {
             char control_char[2] = { '^', (c == 127) ? '?' : (c ^ 0x40) };
             internal_write(control_char, sizeof(control_char));
         } else {
-            if (c == '\n' && (termios.c_lflag & ECHONL)) {
+            if ((termios.c_lflag & ICANON) && c == '\n') {
                 internal_write(crnl, sizeof(crnl));
             } else {
                 internal_write(&c, 1);
@@ -418,7 +420,8 @@ void tty_init(void) {
     termios.c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON | IEXTEN | ISIG;
 
     termios.c_cc[VEOF] = CTRL('D');
-    termios.c_cc[VERASE] = CTRL('?');
+    termios.c_cc[VEOL] = '\0';
+    termios.c_cc[VERASE] = 127;
     termios.c_cc[VINTR] = CTRL('C');
     termios.c_cc[VKILL] = CTRL('U');
     termios.c_cc[VMIN] = 1;

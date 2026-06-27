@@ -1,6 +1,8 @@
 #ifndef _KERNEL_DEV_TTY_H
 #define _KERNEL_DEV_TTY_H
 
+#include <stddef.h>
+
 #define TTY_DEV_MAJOR 3
 
 #define TCGETS      0x5401
@@ -14,6 +16,7 @@
 
 extern bool tty_is_ready; 
 
+void tty_add_buf(char* buf, size_t length);
 void tty_add_char(char c);
 void tty_init(void);
 

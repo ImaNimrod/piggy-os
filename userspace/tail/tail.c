@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
         line_count = 10;
     }
 
-    if ((buf = malloc(BUFSIZE)) == NULL) {
+    if (!(buf = malloc(BUFSIZE))) {
         err(EXIT_FAILURE, "malloc");
     }
 
@@ -154,8 +154,8 @@ int main(int argc, char* argv[]) {
     int fd;
 
     int i = 0;
-    while (argv[i] != NULL || i == 0) {
-        if (argv[i] == NULL || strcmp(argv[i], "-") == 0) {
+    while (argv[i] || i == 0) {
+        if (!argv[i] || strcmp(argv[i], "-") == 0) {
             filename = "stdin";
             fd = STDIN_FILENO;
         } else {
@@ -185,7 +185,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        if (argv[i] == NULL) {
+        if (!argv[i]) {
             break;
         }
 

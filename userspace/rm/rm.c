@@ -63,7 +63,7 @@ static int remove_recursive(const char* path) {
         DIR* dir = opendir(path);
 
         struct dirent* dirent;
-        while ((dirent = readdir(dir)) != NULL) {
+        while ((dirent = readdir(dir))) {
             if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0) {
                 continue;
             }

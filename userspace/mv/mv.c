@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _POSIX_C_SOURCE 202405L
 
 #include <sys/stat.h>
 
@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
         const char* src_path = argv[i];
 
         char* src_copy = strdup(src_path);
-        if (src_copy == NULL) {
+        if (!src_copy) {
             err(EXIT_FAILURE, "strdup");
         }
 

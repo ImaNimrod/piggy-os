@@ -36,14 +36,14 @@ int main(int argc, char* argv[]) {
 
     if (!physical) {
         char* pwd_env = getenv("PWD");
-        if (pwd_env != NULL && pwd_env[0] == '/') {
+        if (pwd_env && pwd_env[0] == '/') {
             puts(pwd_env);
             return EXIT_SUCCESS;
         }
     }
 
     char buf[PATH_MAX];
-    if (getcwd(buf, sizeof(buf)) == NULL) {
+    if (!getcwd(buf, sizeof(buf))) {
         err(EXIT_FAILURE, "getcwd");
     }
 

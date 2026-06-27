@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
     ts[0].tv_nsec = UTIME_NOW;
     ts[1].tv_nsec = UTIME_NOW;
 
-    if (reference_file != NULL) {
+    if (reference_file) {
         struct stat st;
         if (stat(reference_file, &st) < 0) {
             err(EXIT_FAILURE, "%s", reference_file);

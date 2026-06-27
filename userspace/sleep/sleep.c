@@ -19,13 +19,12 @@ static double parse_interval(const char* arg) {
         switch (unit) {
             case 'd':
                 num *= 24;
-                /* FALLTHROUGH */
+                [[fallthrough]];
             case 'h':
-                num *= 60;
-                /* FALLTHROUGH */
+                [[fallthrough]];
             case 'm':
                 num *= 60;
-                /* FALLTHROUGH */
+                [[fallthrough]];
             case 's':
                 if (!isnan(num)) {
                     return (num);

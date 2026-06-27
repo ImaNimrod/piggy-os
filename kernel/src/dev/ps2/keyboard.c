@@ -1,5 +1,6 @@
 #include <cpu/ioapic.h>
 #include <cpu/isr.h>
+#include <dev/char/fb.h>
 #include <dev/char/tty.h>
 #include <fs/devfs.h>
 #include <mem/slab.h>
@@ -16,29 +17,29 @@
 #define SCANCODE_BUF_SIZE 128
 
 static const char keymap_normal[] = {
-    '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', '\t',
-    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', '\0', 'a', 's',
+    '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\x7f', '\t',
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\r', '\0', 'a', 's',
     'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', '\0', '\\', 'z', 'x', 'c', 'v',
     'b', 'n', 'm', ',', '.', '/', '\0', '\0', '\0', ' ',
 };
 
 static const char keymap_shift[] = {
-    '\0', '\033', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b', '\t',
-    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', '\0', 'A', 'S',
+    '\0', '\033', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\x7f', '\t',
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\r', '\0', 'A', 'S',
     'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', '\0', '|', 'Z', 'X', 'C', 'V',
     'B', 'N', 'M', '<', '>', '?', '\0', '\0', '\0', ' ',
 };
 
 static const char keymap_capslock[] = {
-    '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', '\t',
-    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\n', '\0', 'A', 'S',
+    '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\x7f', '\t',
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\r', '\0', 'A', 'S',
     'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '\'', '`', '\0', '\\', 'Z', 'X', 'C', 'V',
     'B', 'N', 'M', ',', '.', '/', '\0', '\0', '\0', ' ',
 };
 
 static const char keymap_shift_capslock[] = {
-    '\0', '\033', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b', '\t',
-    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}', '\n', '\0', 'a', 's',
+    '\0', '\033', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\x7f', '\t',
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '{', '}', '\r', '\0', 'a', 's',
     'd', 'f', 'g', 'h', 'j', 'k', 'l', ':', '"', '~', '\0', '|', 'z', 'x', 'c', 'v',
     'b', 'n', 'm', '<', '>', '?', '\0', '\0', '\0', ' ',
 };
@@ -152,7 +153,10 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
     (void) r;
     (void) arg;
 
+    bool extra_scancodes = false;
+
     for (;;) {
+again:
         uint8_t status = inb(PS2_STATUS_PORT);
         if (!(status & (1 << 0))) {
             break;
@@ -166,6 +170,73 @@ static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
         spinlock_acquire(&scancode_buf_lock);
         scancode_buf[scancode_buf_index++] = scancode;
         spinlock_release(&scancode_buf_lock);
+
+        if (scancode == 0xe0) {
+            extra_scancodes = true;
+            continue;
+        }
+
+        if (extra_scancodes) {
+            extra_scancodes = false;
+
+            switch (scancode) {
+                case 0x1d: // Control
+                    ctrl_active = true;
+                    goto again;
+                case 0x9d: // Control release
+                    ctrl_active = false;
+                    goto again;
+                case 0x1c:
+                    tty_add_char('\n');
+                    goto again;
+                case 0x35:
+                    tty_add_char('/');
+                    goto again;
+                case 0x48: // Up arrow
+                    if (!flanterm_console_decckm) {
+                        tty_add_buf("\033[A", 3);
+                    } else {
+                        tty_add_buf("\033OA", 3);
+                    }
+                    goto again;
+                case 0x4b: // Left arrow
+                    if (!flanterm_console_decckm) {
+                        tty_add_buf("\033[D", 3);
+                    } else {
+                        tty_add_buf("\033OD", 3);
+                    }
+                    goto again;
+                case 0x4d: // Right arrow
+                    if (!flanterm_console_decckm) {
+                        tty_add_buf("\033[C", 3);
+                    } else {
+                        tty_add_buf("\033OC", 3);
+                    }
+                    goto again;
+                case 0x50: // Down arrow
+                    if (!flanterm_console_decckm) {
+                        tty_add_buf("\033[B", 3);
+                    } else {
+                        tty_add_buf("\033OB", 3);
+                    }
+                    goto again;
+                case 0x47: // Home
+                    tty_add_buf("\033[1~", 4);
+                    goto again;
+                case 0x4f: // End
+                    tty_add_buf("\033[4~", 4);
+                    goto again;
+                case 0x53: // Delete
+                    tty_add_buf("\033[3~", 4);
+                    goto again;
+                case 0x49: // Page Up
+                    tty_add_buf("\033[5~", 4);
+                    goto again;
+                case 0x51: // Page Down
+                    tty_add_buf("\033[6~", 4);
+                    goto again;
+            }
+        }
 
         char c = translate_scancode(scancode);
 

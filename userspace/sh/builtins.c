@@ -36,7 +36,7 @@ const struct shell_builtin BUILTINS[] = {
 };
 
 static inline bool is_valid_variable(char* s) {
-    if (s == NULL || (!isalpha(*s) && *s != '_')) {
+    if (!s || (!isalpha(*s) && *s != '_')) {
         return false;
     }
 
@@ -57,11 +57,11 @@ static int builtin_cd(int argc, char* argv[]) {
 
     char buf[PATH_MAX];
 
-    if (arg == NULL) {
+    if (!arg) {
         path = getenv("HOME");
     } else if (arg[0] == '~') {
         const char* home = getenv("HOME");
-        if (home == NULL) {
+        if (!home) {
             warnx("$HOME not set");
             return EXIT_FAILURE;
         }
@@ -131,7 +131,7 @@ static int builtin_exit(int argc, char* argv[]) {
 
 static int builtin_export(int argc, char* argv[]) {
     if (argc == 1) {
-        for (char** env = environ; *env != NULL; env++) {
+        for (char** env = environ; *env; env++) {
             puts(*env);
         }
 
@@ -146,7 +146,7 @@ static int builtin_export(int argc, char* argv[]) {
             continue;
         }
 
-        if (eq != NULL) {
+        if (eq) {
             *eq = '\0';
             setenv(argv[i], eq + 1, 1);
             *eq = '=';
@@ -184,11 +184,11 @@ static int builtin_pwd(int argc, char* argv[]) {
     (void) argv;
 
     char* buf = malloc(PATH_MAX);
-    if (buf == NULL) {
+    if (!buf) {
         err(EXIT_FAILURE, "malloc");
     }
 
-    if (getcwd(buf, PATH_MAX) == NULL) {
+    if (!getcwd(buf, PATH_MAX)) {
         warn("getcwd");
         return EXIT_FAILURE;
     }
@@ -206,7 +206,7 @@ static int builtin_source(int argc, char* argv[]) {
     }
 
     FILE* fp = fopen(argv[1], "r");
-    if (fp == NULL) {
+    if (!fp) {
         warn(argv[1]);
         return EXIT_FAILURE;
     }

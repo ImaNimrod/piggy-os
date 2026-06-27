@@ -79,7 +79,7 @@ static int do_copy(int src_dirfd, const char* src_filename, const char* src_path
         }
 
         DIR* dir = fdopendir(src_fd);
-        if (dir == NULL) {
+        if (!dir) {
             warn("fdopendir(%s)", src_path);
             close(src_fd);
             return EXIT_FAILURE;
@@ -92,7 +92,7 @@ static int do_copy(int src_dirfd, const char* src_filename, const char* src_path
         }
 
         struct dirent* entry = NULL;
-        while ((entry = readdir(dir)) != NULL) {
+        while ((entry = readdir(dir))) {
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 entry = readdir(dir);
                 continue;
@@ -101,13 +101,11 @@ static int do_copy(int src_dirfd, const char* src_filename, const char* src_path
             char* new_src_path = NULL;
             char* new_dest_path = NULL;
 
-            asprintf(&new_src_path, "%s/%s", src_path, entry->d_name);
-            if (new_src_path == NULL) {
+            if (asprintf(&new_src_path, "%s/%s", src_path, entry->d_name) < 0) {
                 err(EXIT_FAILURE, "asprintf");
             }
 
-            asprintf(&new_dest_path, "%s/%s", dest_path, entry->d_name);
-            if (new_dest_path == NULL) {
+            if (asprintf(&new_dest_path, "%s/%s", dest_path, entry->d_name) < 0) {
                 err(EXIT_FAILURE, "asprintf");
             }
 
@@ -231,7 +229,7 @@ int main(int argc, char* argv[]) {
         const char* src_path = argv[i];
 
         char* src_copy = strdup(src_path);
-        if (src_copy == NULL) {
+        if (!src_copy) {
             err(EXIT_FAILURE, "strdup");
         }
 

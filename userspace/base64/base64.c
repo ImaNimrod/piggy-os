@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <err.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -44,10 +45,6 @@ static const unsigned char BASE64_DECODE_TABLE[256] = {
 };
 
 __attribute__((nonstring)) static const char BASE64_ENCODE_TABLE[64] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static inline bool is_whitespace(unsigned char c) {
-    return c == '\n' || c == '\r' || c == ' ' || c == '\t';
-}
 
 static ssize_t decode_block(const unsigned char* in, ssize_t in_size, unsigned char* out) {
     ssize_t in_index = 0;
@@ -121,7 +118,7 @@ static int decode_file(const char* filename, int fd) {
     while ((nread = read(fd, in_buf + carry, BUF_SIZE - carry)) > 0) {
         ssize_t j = 0;
         for (ssize_t i = 0; i < carry + nread; i++) {
-            if (!is_whitespace(in_buf[i])) {
+            if (isspace((unsigned char) in_buf[i])) {
                 in_buf[j++] = in_buf[i];
             }
         }

@@ -7,12 +7,10 @@
 
 #define BUFSIZE (1024 * 8)
 
-enum {
-    PRINT_CHARS = 0x01,
-    PRINT_LINES = 0x02, 
-    PRINT_WORDS = 0x04,
-    PRINT_ALL   = PRINT_CHARS | PRINT_LINES | PRINT_WORDS,
-};
+#define PRINT_CHARS (1 << 0)
+#define PRINT_LINES (1 << 1)
+#define PRINT_WORDS (1 << 2)
+#define PRINT_ALL   PRINT_CHARS | PRINT_LINES | PRINT_WORDS
 
 static char* buf;
 static int print_mode;
@@ -99,7 +97,7 @@ int main(int argc, char* argv[]) {
         print_mode = PRINT_ALL;
     }
 
-    if ((buf = malloc(BUFSIZE)) == NULL) {
+    if (!(buf = malloc(BUFSIZE))) {
         err(EXIT_FAILURE, "malloc");
     }
 
@@ -109,8 +107,8 @@ int main(int argc, char* argv[]) {
     int fd;
 
     int i = 0;
-    while (argv[i] != NULL || i == 0) {
-        if (argv[i] == NULL || strcmp(argv[i], "-") == 0) {
+    while (argv[i] || i == 0) {
+        if (!argv[i] || strcmp(argv[i], "-") == 0) {
             filename = "stdin";
             fd = STDIN_FILENO;
         } else {
@@ -129,7 +127,7 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        if (argv[i] == NULL) {
+        if (!argv[i]) {
             break;
         }
 

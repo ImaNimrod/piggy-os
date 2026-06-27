@@ -14,7 +14,7 @@ struct out_file {
 
 static void add_file(struct out_file** head, int fd, const char* filename) {
     struct out_file* node = malloc(sizeof(struct out_file));
-    if (node == NULL) {
+    if (!node) {
         err(EXIT_FAILURE, "malloc");
     }
 
@@ -77,7 +77,7 @@ int main(int argc, char* argv[]) {
     ssize_t nread;
     while ((nread = read(STDIN_FILENO, buf, BUFSIZE)) > 0) {
         iter = file_list;
-        while (iter != NULL) {
+        while (iter) {
             off_t off = 0;
             while (off < nread) {
                 ssize_t nwritten = write(iter->fd, buf + off, nread - off);
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     }
 
     iter = file_list;
-    while (iter != NULL) {
+    while (iter) {
         struct out_file* next = iter->next;
 
         if (iter->fd != STDOUT_FILENO) {

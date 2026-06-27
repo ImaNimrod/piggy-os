@@ -58,28 +58,28 @@ int main(int argc, char* argv[]) {
         i++;
     }
 
-    if (argv[i] != NULL) {
-        if (cwd != NULL) {
+    if (argv[i]) {
+        if (cwd) {
             if (chdir(cwd) < 0) {
                 err(EXIT_FAILURE, "failed to change directory to '%s'", cwd);
             }
         }
 
         char* saved = argv[i];
-        if (argv0 != NULL) {
+        if (argv0) {
             argv[i] = argv0;
         }
 
         execvp(saved, argv + i);
         err(EXIT_FAILURE, "execve");
     } else {
-        if (argv0 != NULL) {
+        if (argv0) {
             warnx("must specify a command with -a");
             usage();
         }
     }
 
-    for (char** env = environ; *env != NULL; env++) {
+    for (char** env = environ; *env; env++) {
         printf("%s%c", *env, seperator);
     }
 

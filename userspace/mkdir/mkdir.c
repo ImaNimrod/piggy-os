@@ -11,7 +11,7 @@ static int mkdir_parents(const char* path) {
     size_t len = strlen(path);
 
     char* tmp = malloc(len + 1);
-    if (tmp == NULL) {
+    if (!tmp) {
         err(EXIT_FAILURE, "malloc");
     }
 

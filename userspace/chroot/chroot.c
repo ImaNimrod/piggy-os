@@ -24,13 +24,13 @@ int main(int argc, char* argv[]) {
         err(EXIT_FAILURE, "failed to chdir to new root directory");
     }
 
-    if (argv[1] != NULL) {
+    if (argv[1]) {
         execvp(argv[1], &argv[1]);
         err(EXIT_FAILURE, "%s", argv[1]);
     }
 
     const char* shell;
-    if ((shell = getenv("SHELL")) == NULL) {
+    if (!(shell = getenv("SHELL"))) {
         shell = "/usr/bin/sh";
     }
 

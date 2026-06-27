@@ -81,12 +81,12 @@ static inline char get_mode_suffix(mode_t mode) {
 
 static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name, bool deref_link) {
     struct directory_entry* entry = calloc(1, sizeof(struct directory_entry));
-    if (entry == NULL) {
-        err(EXIT_FAILURE, "malloc");
+    if (!entry) {
+        err(EXIT_FAILURE, "calloc");
     }
 
     entry->name = strdup(entry_name);
-    if (entry->name == NULL) {
+    if (!entry->name) {
         err(EXIT_FAILURE, "strdup");
     }
 
@@ -99,7 +99,7 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
 
     if (S_ISLNK(entry->stat.st_mode) && output == output_long) {
         entry->link_target = malloc(PATH_MAX);
-        if (entry->link_target == NULL) {
+        if (!entry->link_target) {
             err(EXIT_FAILURE, "malloc");
         }
 
@@ -121,8 +121,8 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
         }
 
         struct directory_entry** new_entries = reallocarray(listing->entries, listing->capacity, 2 * sizeof(struct directory_entry*));
-        if (new_entries == NULL) {
-            err(EXIT_FAILURE, "reallocarray");
+        if (!new_entries) {
+            errx(EXIT_FAILURE, "reallocarray");
         }
 
         listing->entries = new_entries;

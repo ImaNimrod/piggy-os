@@ -54,7 +54,7 @@ static int num_width(long long val) {
 
 static void print_timestamp(const char* type, const struct timespec* ts) {
     struct tm tm;
-    if (localtime_r(&ts->tv_sec, &tm) == NULL) {
+    if (!localtime_r(&ts->tv_sec, &tm)) {
         err(EXIT_FAILURE, "localtime_r");
     }
 

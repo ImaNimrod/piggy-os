@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     int ret = EXIT_SUCCESS;
 
     for (int i = 0; i < argc; i++) {
-        if (strchr(argv[i], '/') != NULL) {
+        if (strchr(argv[i], '/')) {
             if (check_file(argv[i])) {
                 puts(argv[i]);
             } else {
@@ -55,12 +55,12 @@ int main(int argc, char* argv[]) {
             }
         } else {
             char* path = getenv("PATH");
-            if (path == NULL) {
+            if (!path) {
                 path = _PATH_DEFPATH;
             }
 
             path = strdup(path);
-            if (path == NULL) {
+            if (!path) {
                 err(EXIT_FAILURE, "strdup");
             }
 

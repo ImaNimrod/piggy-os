@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
     char* base;
 
     for (int i = 0; i < argc; i++) {
-        if ((base = basename(argv[i])) == NULL) {
+        if (!(base = basename(argv[i]))) {
             err(EXIT_FAILURE, "basename");
         }
 

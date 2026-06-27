@@ -32,7 +32,7 @@ struct roff_context {
     char* footer;
 };
 
-static struct winsize winsz;
+static struct winsize winsize;
 
 static char* next_arg(char* c, char** out);
 
@@ -76,7 +76,7 @@ static void ensure_indent(struct roff_context* ctx) {
 }
 
 static char* interpret_section(char* section) {
-    if (section == NULL) {
+    if (!section) {
         return "Unknown";
     }
 
@@ -144,7 +144,7 @@ static char* next_arg(char* c, char** out) {
         }
     }
 
-    if (value != NULL) {
+    if (value) {
         *out = strdup(value);
     }
 
@@ -156,7 +156,7 @@ static void print_word(struct roff_context* ctx, const char* word) {
     size_t len = strlen(word);
     size_t printed = 0;
 
-    if (ctx->cur_x && ctx->cur_x + 1 + len > ((size_t)winsz.ws_col - MARGIN_SPACE)) {
+    if (ctx->cur_x && ctx->cur_x + 1 + len > ((size_t)winsize.ws_col - MARGIN_SPACE)) {
         newline(ctx, false);
     }
 
@@ -194,15 +194,15 @@ static void print_word(struct roff_context* ctx, const char* word) {
 }
 
 static void print_words(struct roff_context* ctx, char* line) {
-    char* tok = strtok(line, " \t");
-    while (tok != NULL) {
-        print_word(ctx, tok);
-        tok = strtok(NULL, " \t");
+    char* token = strtok(line, " \t");
+    while (token) {
+        print_word(ctx, token);
+        token = strtok(NULL, " \t");
     }
 }
 
 static void print_title_and_section(const char* title, const char* section) {
-    if (title == NULL || section == NULL) {
+    if (!title || !section) {
         printf("??");
         return;
     }
@@ -219,7 +219,7 @@ static void print_header(struct roff_context* ctx) {
     char* section_name = ctx->header ? ctx->header : interpret_section(section);
     size_t section_name_len = strlen(section_name);
 
-    size_t avail = winsz.ws_col - 1;
+    size_t avail = winsize.ws_col - 1;
 
     size_t space_used = (title_len + section_len + 2) * 2 + section_name_len;
     if (avail < space_used) {
@@ -245,7 +245,7 @@ static void print_footer(struct roff_context* ctx) {
     size_t date_len = ctx->date ? strlen(ctx->date) : 0;
     size_t footer_len = ctx->footer ? strlen(ctx->footer) : 0;
 
-    size_t avail = winsz.ws_col - 1;
+    size_t avail = winsize.ws_col - 1;
     size_t space_used = title_len + section_len + 2 + date_len + footer_len;
 
     size_t space_left = (avail - date_len) / 2 - footer_len;
@@ -308,7 +308,7 @@ static int parse_roff(const char* filename, FILE* fp) {
 
                 for (;;) {
                     c = next_arg(c, &arg);
-                    if (arg == NULL) {
+                    if (!arg) {
                         break;
                     }
 
@@ -334,7 +334,7 @@ static int parse_roff(const char* filename, FILE* fp) {
                 char* arg = NULL;
                 c = next_arg(c, &arg);
 
-                if (arg != NULL) {
+                if (arg) {
                     printf("   %s\n", arg);
                     free(arg);
                 }
@@ -363,7 +363,7 @@ static int parse_roff(const char* filename, FILE* fp) {
 
                 for (;;) {
                     c = next_arg(c, &arg);
-                    if (arg == NULL) {
+                    if (!arg) {
                         break;
                     }
 
@@ -377,7 +377,7 @@ static int parse_roff(const char* filename, FILE* fp) {
                 char* arg = NULL;
 
                 while ((c = next_arg(c, &arg))) {
-                    if (arg == NULL) {
+                    if (!arg) {
                         break;
                     }
 
@@ -427,19 +427,19 @@ static int parse_roff(const char* filename, FILE* fp) {
 end:
     free(line);
 
-    if (ctx.title != NULL) {
+    if (ctx.title) {
         free(ctx.title);
     }
-    if (ctx.section != NULL) {
+    if (ctx.section) {
         free(ctx.section);
     }
-    if (ctx.date != NULL) {
+    if (ctx.date) {
         free(ctx.date);
     }
-    if (ctx.header != NULL) {
+    if (ctx.header) {
         free(ctx.header);
     }
-    if (ctx.footer != NULL) {
+    if (ctx.footer) {
         free(ctx.footer);
     }
 
@@ -465,7 +465,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (isatty(STDERR_FILENO)) {
-        if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsz) < 0) {
+        if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0) {
             err(EXIT_FAILURE, "ioctl");
         }
     }
@@ -473,13 +473,13 @@ int main(int argc, char* argv[]) {
     char* filename;
     FILE* fp;
 
-    if (argv[0] == NULL || strcmp(argv[0], "-") == 0) {
+    if (!argv[0] || strcmp(argv[0], "-") == 0) {
         filename = "stdin";
         fp = stdin;
     } else {
         filename = argv[0];
         fp = fopen(filename, "r");
-        if (fp == NULL) {
+        if (!fp) {
             err(EXIT_FAILURE, "%s", filename);
         }
     }

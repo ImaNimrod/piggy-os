@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     bool rooted = false;
 
     char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == NULL || *tmpdir == '\0') {
+    if (!tmpdir || *tmpdir == '\0') {
         tmpdir = _PATH_TMP;
     }
 
@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
         template = join_paths(tmpdir, input_template);
     } else {
         template = strdup(input_template);
-        if (template == NULL) {
+        if (!template) {
             err(EXIT_FAILURE, "strdup");
         }
     }
@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
 
-        if (mkdtemp(template) == NULL) {
+        if (!mkdtemp(template)) {
             if (!quiet) {
                 warn("mkdtemp");
             }

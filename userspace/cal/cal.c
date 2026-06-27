@@ -59,7 +59,7 @@ static void print_calendars(const struct tm* today, struct tm* target, int count
 
     for (int i = 0; i < count; i++) {
         target_time = mktime(target);
-        if (localtime_r(&target_time, &actual[i]) == NULL) {
+        if (!localtime_r(&target_time, &actual[i])) {
             err(EXIT_FAILURE, "localtime_r");
         }
 

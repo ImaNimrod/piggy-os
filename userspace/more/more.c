@@ -30,8 +30,8 @@ static void buffer_add(struct page_buffer* buf, const char* line) {
         buf->capacity = buf->capacity != 0 ? buf->capacity * 2 : 128;
 
         buf->lines = realloc(buf->lines, buf->capacity * sizeof(char*));
-        if (buf->lines == NULL) {
-            err(EXIT_FAILURE, "realloc");
+        if (!buf->lines) {
+            errx(EXIT_FAILURE, "realloc");
         }
     }
 
@@ -233,13 +233,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    struct winsize winsz;
-    if (ioctl(tty_fd, TIOCGWINSZ, &winsz) < 0) {
+    struct winsize winsize;
+    if (ioctl(tty_fd, TIOCGWINSZ, &winsize) < 0) {
         err(EXIT_FAILURE, "ioctl");
     }
 
-    height = winsz.ws_row < 2 ? 2 : winsz.ws_row;
-    width = winsz.ws_col < 1 ? 80 : winsz.ws_col;
+    height = winsize.ws_row < 2 ? 2 : winsize.ws_row;
+    width = winsize.ws_col < 1 ? 80 : winsize.ws_col;
 
     tcgetattr(tty_fd, &old_termios);
     atexit(restore_terminal);
@@ -251,13 +251,13 @@ int main(int argc, char* argv[]) {
     char* filename;
     FILE* fp;
 
-    if (argv[0] == NULL || strcmp(argv[0], "-") == 0) {
+    if (!argv[0] || strcmp(argv[0], "-") == 0) {
         filename = "stdin";
         fp = stdin;
     } else {
         filename = argv[0];
         fp = fopen(filename, "r");
-        if (fp == NULL) {
+        if (!fp) {
             err(EXIT_FAILURE, "cannot open '%s'", filename);
         }
     }

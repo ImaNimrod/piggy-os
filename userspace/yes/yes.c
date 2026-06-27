@@ -27,17 +27,20 @@ int main(int argc, char* argv[]) {
 
         for (int i = 0; i < argc; i++) {
             total += strlen(argv[i]);
-            if (argv[i + 1] != NULL) {
+            if (argv[i + 1]) {
                 total += 1;
             }
         }
 
         char* result = malloc(total);
+        if (!result) {
+            errx(EXIT_FAILURE, "malloc");
+        }
 
         size_t offset = 0;
         for (int i = 0; i < argc; i++) {
             offset += sprintf(result + offset, "%s", argv[i]);
-            if (argv[i + 1] != NULL) {
+            if (argv[i + 1]) {
                 result[offset++] = ' ';
             }
         }

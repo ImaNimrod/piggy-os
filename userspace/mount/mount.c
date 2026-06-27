@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
     }
 
     char* delimiter = strchr(target, ':');
-    if (delimiter == NULL) {
+    if (!delimiter) {
         warnx("missing filesystem type");
         usage();
     }

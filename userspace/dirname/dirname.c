@@ -33,7 +33,7 @@ int main(int argc, char* argv[]) {
     char* dir;
 
     for (int i = 0; i < argc; i++) {
-        if ((dir = dirname(argv[i])) == NULL) {
+        if (!(dir = dirname(argv[i]))) {
             err(EXIT_FAILURE, "dirname");
         }
 

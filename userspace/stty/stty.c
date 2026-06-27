@@ -92,7 +92,7 @@ static const struct termios sane_termios = {
     .c_lflag = ECHO | ECHOE | ECHOK | ECHONL | ICANON | IEXTEN | ISIG,
     .c_cc[VEOF] = CTRL('D'),
     .c_cc[VEOL] = '\0',
-    .c_cc[VERASE] = CTRL('?'),
+    .c_cc[VERASE] = 127,
     .c_cc[VINTR] = CTRL('C'),
     .c_cc[VKILL] = CTRL('U'),
     .c_cc[VMIN] = 1,
@@ -256,8 +256,8 @@ int main(int argc, char* argv[]) {
         err(EXIT_FAILURE, "%s", tty_filename);
     }
 
-    struct winsize winsz;
-    bool have_winsize = ioctl(tty_fd, TIOCGWINSZ, &winsz) == 0;
+    struct winsize winsize;
+    bool have_winsize = ioctl(tty_fd, TIOCGWINSZ, &winsize) == 0;
 
     struct termios termios;
     if (tcgetattr(tty_fd, &termios) < 0) {
@@ -268,7 +268,7 @@ int main(int argc, char* argv[]) {
         printf("speed: %s baud;", get_speed_name(termios.c_cflag & CBAUD));
 
         if (print_all && have_winsize) {
-            printf(" %u rows; %u columns;", winsz.ws_row, winsz.ws_col);
+            printf(" %u rows; %u columns;", winsize.ws_row, winsize.ws_col);
         }
         
         fputs("\ncc:", stdout);
@@ -339,14 +339,14 @@ int main(int argc, char* argv[]) {
                 errx(EXIT_FAILURE, "missing argument to %s", arg);
             }
 
-            winsz.ws_col = parse_winsize(argv[++i]);
+            winsize.ws_col = parse_winsize(argv[++i]);
             set_winsize = true;
         } else if (!strcmp(arg, "rows")) {
             if (i + 1 == argc) {
                 errx(EXIT_FAILURE, "missing argument to %s", arg);
             }
 
-            winsz.ws_row = parse_winsize(argv[++i]);
+            winsize.ws_row = parse_winsize(argv[++i]);
             set_winsize = true;
         } else if (!strcmp(arg, "min")) {
             if (i + 1 == argc) {
@@ -444,7 +444,7 @@ found:
         err(EXIT_FAILURE, "tcsetattr(%s)", tty_filename);
     }
 
-    if (set_winsize && ioctl(tty_fd, TIOCSWINSZ, &winsz) < 0) {
+    if (set_winsize && ioctl(tty_fd, TIOCSWINSZ, &winsize) < 0) {
         err(EXIT_FAILURE, "ioctl(%s, TIOCSWINSZ)", tty_filename);
     }
 
