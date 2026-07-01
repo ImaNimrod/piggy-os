@@ -16,12 +16,12 @@ int memcmp(const void* ptr1, const void* ptr2, size_t n) {
 }
 
 uint8_t* memcpy8(uint8_t* restrict dest, const uint8_t* restrict src, size_t n) {
-    asm volatile("rep movsb" : "=c"((int){0}) : "D"(dest), "S"(src), "c"(n) : "flags", "memory");
+    asm volatile("rep movsb" : "+D"(dest), "+S"(src), "+c"(n) :: "memory");
     return dest;
 }
 
 uint64_t* memcpy64(uint64_t* restrict dest, const uint64_t* restrict src, size_t n) {
-    asm volatile("rep movsq" : "=c"((int){0}) : "D"(dest), "S"(src), "c"(n) : "flags", "memory");
+    asm volatile("rep movsq" : "+D"(dest), "+S"(src), "+c"(n) :: "memory");
     return dest;
 }
 
@@ -117,11 +117,10 @@ char* strdup(const char* str) {
     size_t len = strlen(str) + 1;
 
     char* dup = kmalloc(len);
-    if (unlikely(dup == NULL)) {
-        return NULL;
+    if (likely(dup)) {
+        memcpy8((uint8_t*) dup, (const uint8_t*) str, len);
     }
 
-    memcpy8((uint8_t*) dup, (const uint8_t*) str, len);
     return dup;
 }
 
@@ -130,6 +129,7 @@ size_t strlen(const char* str) {
     while (*s != '\0') {
         s++;
     }
+
     return (size_t) s - (size_t) str;
 }
 
@@ -169,5 +169,6 @@ size_t strnlen(const char* str, size_t len) {
     while (i < len && str[i] != '\0') {
         i++;
     }
+
     return i;
 }

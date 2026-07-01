@@ -1,6 +1,7 @@
 #include <cpu/isr.h>
 #include <cpu/smp.h>
 #include <errno.h> 
+#include <fs/poll.h>
 #include <mem/slab.h>
 #include <sys/process.h> 
 #include <sys/timer.h> 
@@ -13,12 +14,13 @@ void sys_poll(struct registers* r) {
     struct pollfd* fds = (struct pollfd*) r->rdi;
     nfds_t nfds = r->rsi;
     const struct timespec* timeout = (const struct timespec*) r->rdx;
+    const sigset_t* sigmask = (const sigset_t*) r->r10;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
     struct pollfd* kfds = kmalloc(sizeof(struct pollfd) * nfds);
-    if (unlikely(kfds)) {
+    if (unlikely(!kfds)) {
         r->rax = -ENOMEM;
         return;
     }
@@ -39,47 +41,79 @@ void sys_poll(struct registers* r) {
         }
     }
 
-    int event_count = 0;
+    spinlock_acquire(&current_thread->signal_lock);
+    sigset_t old_sigmask = current_thread->signal_mask;
+    spinlock_release(&current_thread->signal_lock);
 
-    vector_t* files = vector_create(sizeof(struct file*));
-    if (unlikely(files == NULL)) {
-        kfree(kfds);
-        r->rax = -ENOMEM;
-        return;
+    if (sigmask != NULL) {
+        sigset_t ksigmask;
+        if ((ret = user_memcpy_from_user(&ksigmask, sigmask, sizeof(sigset_t))) < 0) {
+            kfree(kfds);
+            r->rax = ret;
+            return;
+        }
+
+        spinlock_acquire(&current_thread->signal_lock);
+        current_thread->signal_mask = ksigmask;
+        spinlock_release(&current_thread->signal_lock);
     }
 
-    for (nfds_t i = 0; i < nfds; i++) {
-        struct pollfd* pollfd = &kfds[i];
-        pollfd->revents = 0;
+    struct poll_table pt;
+    if ((ret = poll_table_init(&pt)) < 0) {
+        goto end;
+    }
 
-        if (pollfd->fd < 0) {
-            continue;
+    for (;;) {
+        int ready = 0;
+
+        for (nfds_t i = 0; i < nfds; i++) {
+            struct file* file = file_get(current_process, kfds[i].fd);
+            if (file == NULL) {
+                kfds[i].revents = POLLNVAL;
+                ready++;
+                continue;
+            }
+
+            struct vfs_node* node = file->node;
+
+            node->ops->lock(node);
+            kfds[i].revents = node->ops->poll(node, kfds[i].events, &pt);
+            node->ops->unlock(node);
+
+            if (kfds[i].revents) {
+                ready++;
+            }
         }
 
-        struct file* file = file_get(current_process, pollfd->fd);
-        if (!file) {
-            pollfd->revents = POLLNVAL;
-            event_count++;
-            continue;
+        if (ready > 0) {
+            break;
         }
 
-        if (!vector_push(files, &file)) {
-            ret = -ENOMEM;
+        if ((ret = poll_table_wait(&pt, &ktimeout)) < 0) {
+            if (ret == -ETIMEDOUT) {
+                ret = 0;
+            }
+            goto end;
+        }
+
+        if ((ret = poll_table_reset(&pt)) < 0) {
             goto end;
         }
     }
 
-    // TODO: actually implement the polling
+    ret = user_memcpy_to_user(fds, kfds, sizeof(struct pollfd) * nfds);
 
-    for (size_t i = 0; i < vector_size(files); i++) {
-        struct file* file = *vector_get(files, i);
-        file_release(file);
+end:
+    r->rax = ret;
+
+    poll_table_deinit(&pt);
+
+    if (sigmask != NULL) {
+        spinlock_acquire(&current_thread->signal_lock);
+        current_thread->signal_mask = old_sigmask;
+        spinlock_release(&current_thread->signal_lock);
     }
 
-    ret = event_count;
-end:
-    vector_destroy(files);
     kfree(kfds);
-
-    r->rax = ret;
+    return;
 }

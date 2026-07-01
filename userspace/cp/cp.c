@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "file.h"
 #include "util.h"
 
 static bool force = false;

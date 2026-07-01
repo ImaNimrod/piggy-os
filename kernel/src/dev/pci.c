@@ -57,8 +57,8 @@ static struct pci_driver* pci_drivers[] = {
     &virtio_driver,
 };
 
-static uint32_t (*internal_read)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint8_t) = NULL;
-static void (*internal_write)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint8_t) = NULL;
+static uint32_t (*internal_read)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint8_t);
+static void (*internal_write)(uint16_t, uint8_t, uint8_t, uint8_t, uint16_t, uint32_t, uint8_t);
 
 static void enumerate_bus(uint16_t segment, uint8_t bus);
 
@@ -162,7 +162,7 @@ static void legacy_write(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t fu
 
 static void enumerate_function(uint16_t segment, uint8_t bus, uint8_t slot, uint8_t function) {
     struct pci_device* dev = slab_cache_alloc(pci_device_cache);
-    if (unlikely(dev == NULL)) {
+    if (unlikely(!dev)) {
         kpanic(NULL, false, "failed to allocate memory for PCI device");
     }
 
@@ -431,12 +431,12 @@ void pci_set_command_flags(struct pci_device* dev, uint16_t flags, bool set) {
 
 void pci_init(void) {
     pci_device_cache = slab_cache_create("struct pci_device cache", sizeof(struct pci_device));
-    if (unlikely(pci_device_cache == NULL)) {
+    if (unlikely(!pci_device_cache)) {
         kpanic(NULL, false, "failed to initialize object cache for pci_device structs");
     }
 
     pci_devices = vector_create(sizeof(struct pci_device*));
-    if (unlikely(pci_devices == NULL)) {
+    if (unlikely(!pci_devices)) {
         kpanic(NULL, false, "failed to create PCI device vector");
     }
 
@@ -449,7 +449,7 @@ void pci_init(void) {
 
         mcfg_entry_count = (mcfg_table->hdr.length - sizeof(struct acpi_mcfg)) / sizeof(struct acpi_mcfg_allocation);
         mcfg_entries = kmalloc(sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);
-        if (unlikely(mcfg_entries == NULL)) {
+        if (unlikely(!mcfg_entries)) {
             kpanic(NULL, false, "failed to allocate memory for MCFG entries");
         }
         memcpy(mcfg_entries, mcfg_table->entries, sizeof(struct acpi_mcfg_allocation) * mcfg_entry_count);

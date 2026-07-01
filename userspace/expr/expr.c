@@ -209,13 +209,12 @@ static char* evaluate_match(const char* left, const char* right, const char* op)
     if (status != 0) {
         size_t len = regerror(status, &regex, NULL, 0);
         char* errmsg = malloc(len);
-
-        if (errmsg) {
-            regerror(status, &regex, errmsg, len);
-            errx(EXIT_SYNTAX_ERROR, "compiling regular expression: %s", errmsg);
-        } else {
-            errx(EXIT_SYNTAX_ERROR, "compiling regular expression failed");
+        if (!errmsg) {
+            errx(EXIT_OTHER_ERROR, "malloc");
         }
+
+        regerror(status, &regex, errmsg, len);
+        errx(EXIT_SYNTAX_ERROR, "compiling regular expression: %s", errmsg);
     }
 
     char* result;
@@ -352,6 +351,10 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
+
+    if (argc < 1) {
+        errx(EXIT_SYNTAX_ERROR, "missing operand");
+    }
 
     char* value = interpret(argv, argc);
     puts(value);

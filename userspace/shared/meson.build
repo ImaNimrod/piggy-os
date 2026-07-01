@@ -1,4 +1,7 @@
-shared_src = files('util.c')
+shared_src = files(
+  'file.c',
+  'util.c',
+)
 
 shared_lib = static_library(
   'userspace_shared',

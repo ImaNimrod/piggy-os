@@ -2,6 +2,7 @@
 #include <cpu/isr.h>
 #include <cpu/lapic.h>
 #include <cpu/smp.h>
+#include <errno.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <sys/scheduler.h>
@@ -125,7 +126,7 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
         if ((current_thread->pending_signals & ~current_thread->signal_mask) != 0) {
             current_thread->state = THREAD_STATE_READY;
             current_thread->flags &= ~THREAD_FLAG_INTERRUPTABLE;
-            current_thread->wakeup_reason = THREAD_WAKEUP_REASON_INTERRUPTED;
+            current_thread->wakeup_reason = -EINTR;
             interrupted = true;
         }
 
@@ -215,6 +216,11 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     __builtin_unreachable();
 }
 
+static void timer_callback(void* arg) {
+    struct thread* thread = arg;
+    scheduler_wakeup(thread, 0);
+}
+
 [[noreturn]] void scheduler_await(void) {
     this_cpu()->scheduler.current_thread = NULL;
 
@@ -253,15 +259,19 @@ void scheduler_prepare_wait(struct thread* thread, bool interruptable) {
 
     thread->state = THREAD_STATE_WAITING;
     thread->flags |= (interruptable ? THREAD_FLAG_INTERRUPTABLE : 0);
-    thread->wakeup_reason = THREAD_WAKEUP_REASON_NORMAL;
+    thread->wakeup_reason = 0;
 
     spinlock_release(&thread->state_lock);
 }
 
-void scheduler_sleep(struct thread* thread, const struct timespec* duration) {
-    timer_sleep_thread(thread, duration);
+int scheduler_sleep(struct thread* thread, const struct timespec* duration) {
+    int ret = timer_setup(timer_callback, thread, duration);
+    if (ret < 0) {
+        return ret;
+    }
+
     scheduler_prepare_wait(thread, true);
-    scheduler_yield();
+    return scheduler_yield();
 }
 
 [[noreturn]] void scheduler_thread_exit(void) {
@@ -270,7 +280,7 @@ void scheduler_sleep(struct thread* thread, const struct timespec* duration) {
     __builtin_unreachable();
 }
 
-bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reason) {
+bool scheduler_wakeup(struct thread* thread, int wakeup_reason) {
     spinlock_acquire(&thread->state_lock);
 
     if (thread->state != THREAD_STATE_WAITING) {
@@ -278,7 +288,7 @@ bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reaso
         return false;
     }
 
-    if (wakeup_reason == THREAD_WAKEUP_REASON_INTERRUPTED && !(thread->flags & THREAD_FLAG_INTERRUPTABLE)) {
+    if (wakeup_reason != 0 && !(thread->flags & THREAD_FLAG_INTERRUPTABLE)) {
         spinlock_release(&thread->state_lock);
         return false;
     }
@@ -300,7 +310,7 @@ bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reaso
     return true;
 }
 
-thread_wakeup_reason_t scheduler_yield(void) {
+int scheduler_yield(void) {
     bool int_state = get_interrupt_state();
 
     cli();
@@ -313,7 +323,7 @@ thread_wakeup_reason_t scheduler_yield(void) {
 
     context_call_and_switch(internal_yield, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
 
-    thread_wakeup_reason_t ret = THREAD_WAKEUP_REASON_NORMAL;
+    int ret = 0;
     if (waiting) {
         spinlock_acquire(&current_thread->state_lock);
         ret = current_thread->wakeup_reason;

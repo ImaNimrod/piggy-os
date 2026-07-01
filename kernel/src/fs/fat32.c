@@ -184,7 +184,7 @@ static void sfn_to_cstr(struct fat32_dirent* dirent, char* out);
 
 static struct fat32_node* create_node(struct vfs_filesystem* filesystem, vfs_type_t type) {
     struct fat32_node* node = slab_cache_alloc(fat32_node_cache);
-    if (unlikely(node == NULL)) {
+    if (unlikely(!node)) {
         return NULL;
     }
 
@@ -424,7 +424,7 @@ static void sfn_to_cstr(struct fat32_dirent* dirent, char* out) {
 static int fat32_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result) {
     (void) target;
 
-    if (backing == NULL) {
+    if (!backing) {
         return -EINVAL;
     }
 
@@ -465,7 +465,7 @@ static int fat32_mount(struct vfs_node* backing, struct vfs_node* target, struct
     }
 
     struct fat32_filesystem* fatfs = kmallocz(sizeof(struct fat32_filesystem));
-    if (unlikely(fatfs == NULL)) {
+    if (unlikely(!fatfs)) {
         return -ENOMEM;
     }
     fatfs->ops = &fat32_ops;
@@ -480,7 +480,7 @@ static int fat32_mount(struct vfs_node* backing, struct vfs_node* target, struct
     fatfs->data_offset = fatfs->fat_offset + bpb.fat_count * fatfs->fat_size;
 
     fatfs->node_map = hashmap_create(1024);
-    if (unlikely(fatfs->node_map == NULL)) {
+    if (unlikely(!fatfs->node_map)) {
         kfree(fatfs);
         return -ENOMEM;
     }
@@ -499,13 +499,13 @@ static int fat32_root(struct vfs_filesystem* filesystem, struct vfs_node** resul
 
     int ret = 0;
 
-    if (fatfs->root != NULL) {
+    if (fatfs->root) {
         *result = (struct vfs_node*) fatfs->root;
         goto end;
     }
 
     struct fat32_node* root = create_node(filesystem, VFS_TYPE_DIRECTORY);
-    if (unlikely(root == NULL)) {
+    if (unlikely(!root)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -560,7 +560,7 @@ static int fat32_lookup(struct vfs_node* parent, const char* name, struct vfs_no
     }
 
     if (strcmp(name, "..") == 0) {
-        if (fparent->parent_dir == NULL) {
+        if (!fparent->parent_dir) {
             return -ENOENT;
         }
 
@@ -589,7 +589,7 @@ static int fat32_lookup(struct vfs_node* parent, const char* name, struct vfs_no
         VFS_NODE_REF((struct vfs_node*) fnode);
     } else {
         fnode = create_node((struct vfs_filesystem*) fatfs, (dirent.attributes & FAT32_ATTR_DIRECTORY) ? VFS_TYPE_DIRECTORY : VFS_TYPE_REGULAR);
-        if (unlikely(fnode == NULL)) {
+        if (unlikely(!fnode)) {
             mutex_release(&fatfs->node_map_mutex);
             return -ENOMEM;
         }
@@ -985,7 +985,7 @@ static int fat32_getstat(struct vfs_node* node, struct stat* stat) {
         .st_dev = backing_stat.st_rdev,
         .st_ino = fnode->dirent_disk_offset,
         .st_mode = vfs_type_to_mode(node->type),
-        .st_nlink = (fnode->parent_dir != NULL) ? 1 : 0,
+        .st_nlink = fnode->parent_dir ? 1 : 0,
         .st_rdev = 0,
         .st_size = fnode->size,
         .st_blksize = fatfs->cluster_size,
@@ -1022,7 +1022,7 @@ static void fat32_inactive(struct vfs_node* node) {
 
 void fat32_init(void) {
     fat32_node_cache = slab_cache_create("struct fat32_node cache", sizeof(struct fat32_node));
-    if (unlikely(fat32_node_cache == NULL)) {
+    if (unlikely(!fat32_node_cache)) {
         kpanic(NULL, false, "failed to create object cache for fat32 nodes");
     }
 

@@ -36,9 +36,9 @@ static int futex_wait(struct futex* futex, uintptr_t paddr, uint32_t* addr, uint
 
     mutex_acquire(&futex_map_mutex);
 
-    if (futex == NULL) {
+    if (!futex) {
         futex = kmalloc(sizeof(struct futex));
-        if (futex == NULL) {
+        if (!futex) {
             ret = -ENOMEM;
             goto end;
         }
@@ -74,7 +74,7 @@ end:
 }
 
 static int futex_wake(struct futex* futex) {
-    if (futex == NULL) {
+    if (!futex) {
         return 0;
     }
 
@@ -95,9 +95,9 @@ void sys_futex(struct registers* r) {
         return;
     }
 
-    if (unlikely(futex_map == NULL)) {
+    if (unlikely(!futex_map)) {
         futex_map = hashmap_create(512);
-        if (futex_map == NULL) {
+        if (unlikely(!futex_map)) {
             r->rax = -ENOMEM;
             return;
         }

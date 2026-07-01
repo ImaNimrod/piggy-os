@@ -2,7 +2,9 @@
 #include <cpu/isr.h>
 #include <dev/char/fb.h>
 #include <dev/char/tty.h>
+#include <errno.h>
 #include <fs/devfs.h>
+#include <fs/poll.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>
 #include <utils/log.h>
@@ -14,7 +16,7 @@
 
 #define KEYBOARD_DEV_MAJOR 6
 
-#define SCANCODE_BUF_SIZE 128
+#define SCANCODE_BUF_LEN 256
 
 static const char keymap_normal[] = {
     '\0', '\033', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\x7f', '\t',
@@ -59,11 +61,14 @@ static uint8_t led_state;
 static uint8_t* scancode_buf;
 static size_t scancode_buf_index;
 static spinlock_t scancode_buf_lock;
+static struct wait_queue scancode_wq;
 
 static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
+static short keyboard_poll(dev_t dev, short events, struct poll_table* pt);
 
 static struct device_ops keyboard_ops = {
     .read = keyboard_read,
+    .poll = keyboard_poll,
 };
 
 static char translate_scancode(uint8_t scancode) {
@@ -113,7 +118,7 @@ static char translate_scancode(uint8_t scancode) {
     return c;
 }
 
-static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
+static ssize_t keyboard_read(dev_t dev, void *buf, size_t count, off_t offset, int flags) {
     (void) dev;
     (void) offset;
 
@@ -121,23 +126,28 @@ static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, i
         return 0;
     }
 
-    ssize_t to_copy;
-    if (flags & O_NONBLOCK) {
-        to_copy = MIN(count, scancode_buf_index);
-        if (to_copy == 0) {
-            return 0;
-        }
-    } else {
-        to_copy = count;
-        while ((ssize_t) scancode_buf_index != to_copy) {
-            scheduler_yield();
-        }
-    }
-
     spinlock_acquire(&scancode_buf_lock);
 
-    ssize_t ret;
-    if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, scancode_buf, to_copy)) < 0) {
+    while (scancode_buf_index == 0) {
+        if (flags & O_NONBLOCK) {
+            spinlock_release(&scancode_buf_lock);
+            return -EAGAIN;
+        }
+
+        spinlock_release(&scancode_buf_lock);
+
+        int ret = wait_queue_wait(&scancode_wq);
+        if (ret < 0) {
+            return ret;
+        }
+
+        spinlock_acquire(&scancode_buf_lock);
+    }
+
+    size_t to_copy = MIN(count, scancode_buf_index);
+
+    int ret = USER_MEMCPY_MAYBE_TO_USER(buf, scancode_buf, to_copy);
+    if (ret < 0) {
         spinlock_release(&scancode_buf_lock);
         return ret;
     }
@@ -146,7 +156,28 @@ static ssize_t keyboard_read(dev_t dev, void* buf, size_t count, off_t offset, i
     scancode_buf_index -= to_copy;
 
     spinlock_release(&scancode_buf_lock);
+
     return to_copy;
+}
+
+static short keyboard_poll(dev_t dev, short events, struct poll_table* pt) {
+    (void) dev;
+
+    spinlock_acquire(&scancode_buf_lock);
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        if (scancode_buf_index > 0) {
+            revents |= POLLIN;
+        } else {
+            poll_table_add(pt, &scancode_wq);
+        }
+    }
+
+    spinlock_release(&scancode_buf_lock);
+
+    return revents;
 }
 
 static void ps2_keyboard_irq_handler(struct registers* r, void* arg) {
@@ -265,7 +296,7 @@ again:
 }
 
 void keyboard_init(uint8_t irq) {
-    scancode_buf = kmalloc(SCANCODE_BUF_SIZE * sizeof(uint8_t));
+    scancode_buf = kmalloc(SCANCODE_BUF_LEN * sizeof(uint8_t));
     if (unlikely(scancode_buf == NULL)) {
         kpanic(NULL, false, "failed to create keyboard device scancode buffer");
     }

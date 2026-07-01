@@ -9,7 +9,7 @@ extern struct limine_executable_cmdline_request executable_cmdline_request;
 static char* cmdline;
 
 char* cmdline_get(const char* key) {
-    if (unlikely(cmdline == NULL)) {
+    if (unlikely(!cmdline)) {
         return NULL;
     }
 
@@ -46,12 +46,12 @@ void cmdline_init(void) {
     struct limine_executable_cmdline_response* executable_cmdline_response = executable_cmdline_request.response;
 
     cmdline = executable_cmdline_response->cmdline;
-    if (unlikely(cmdline == NULL || *cmdline == '\0')) {
+    if (unlikely(!cmdline || *cmdline == '\0')) {
         return;
     }
 
     cmdline = strdup(cmdline);
-    if (unlikely(cmdline == NULL)) {
+    if (unlikely(!cmdline)) {
         kpanic(NULL, false, "failed to allocate memory for kernel command line");
     }
 }

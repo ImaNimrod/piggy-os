@@ -12,6 +12,7 @@
 #include <utils/mutex.h>
 #include <utils/spinlock.h>
 #include <utils/vector.h>
+#include <utils/wait_queue.h>
 
 #define KERNEL_STACK_SIZE   0x4000
 #define USER_STACK_SIZE     0x20000
@@ -39,13 +40,7 @@ typedef enum {
     THREAD_STATE_WAITING,
 } thread_state_t;
 
-typedef enum {
-    THREAD_WAKEUP_REASON_NORMAL,
-    THREAD_WAKEUP_REASON_INTERRUPTED,
-} thread_wakeup_reason_t;
-
 struct cpu_local;
-struct wait_queue;
 
 struct thread {
     uintptr_t kernel_stack;
@@ -63,7 +58,7 @@ struct thread {
 
     thread_state_t state;
     int flags;
-    thread_wakeup_reason_t wakeup_reason;
+    int wakeup_reason;
     spinlock_t state_lock;
 
     sigset_t pending_signals;
@@ -80,8 +75,10 @@ struct thread {
     struct thread* prev;
     struct thread* next;
 
-    // for events, mutexes, semaphores
+    // for mutexes, semaphores
     struct thread* next_waiter;
+    // for wait_queues
+    struct wait_node wait_node;
 };
 
 struct vfs_node;

@@ -142,7 +142,7 @@ int elf_load(struct vmm_context* vmm_context, uintptr_t load_base, struct vfs_no
                 break;
             case PT_INTERP:
                 char* buf = kmalloc(pheader.p_filesz);
-                if (unlikely(buf == NULL)) {
+                if (unlikely(!buf)) {
                     ret = -ENOMEM;
                     goto end;
                 }
@@ -175,14 +175,14 @@ uintptr_t elf_setup_stack(uintptr_t stack_top_vaddr, uintptr_t stack_top_paddr, 
     uint64_t* stack = stack_top;
 
     int envp_len;
-    for (envp_len = 0; envp[envp_len] != NULL; envp_len++) {
+    for (envp_len = 0; envp[envp_len]; envp_len++) {
         size_t length = strlen(envp[envp_len]);
         stack = (uint64_t*) ((uintptr_t) stack - length - 1);
         memcpy(stack, envp[envp_len], length + 1);
     }
 
     int argv_len;
-    for (argv_len = 0; argv[argv_len] != NULL; argv_len++) {
+    for (argv_len = 0; argv[argv_len]; argv_len++) {
         size_t length = strlen(argv[argv_len]);
         stack = (uint64_t*) ((uintptr_t) stack - length - 1);
         memcpy(stack, argv[argv_len], length + 1);

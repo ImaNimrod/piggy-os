@@ -145,7 +145,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (!(buf = malloc(BUFSIZE))) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     int ret = EXIT_SUCCESS;

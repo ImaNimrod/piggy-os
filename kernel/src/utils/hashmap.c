@@ -22,7 +22,7 @@ static uint32_t fnv1a_hash(const void* data, size_t length) {
 
 static struct hashmap_entry* get_entry(hashmap_t* hm, const void* key, size_t key_size, size_t hash) {
     struct hashmap_entry* entry = hm->entries[hash % hm->capacity];
-    while (entry != NULL) {
+    while (entry) {
         if (entry->key_size == key_size && entry->hash == hash && (memcmp(entry->key, key, key_size) == 0)) {
             break;
         }
@@ -34,12 +34,12 @@ static struct hashmap_entry* get_entry(hashmap_t* hm, const void* key, size_t ke
 
 hashmap_t* hashmap_create(size_t capacity) {
     hashmap_t* hm = kmalloc(sizeof(hashmap_t));
-    if (unlikely(hm == NULL)) {
+    if (unlikely(!hm)) {
         return NULL;
     }
 
     hm->entries = kmallocz(sizeof(struct hashmap_entry*) * capacity);
-    if (unlikely(hm->entries == NULL)) {
+    if (unlikely(!hm->entries)) {
         kfree(hm);
         return NULL;
     }
@@ -54,7 +54,7 @@ void hashmap_destroy(hashmap_t* hm) {
         struct hashmap_entry* entry = hm->entries[i];
         struct hashmap_entry* next_entry;
 
-        while (entry != NULL) {
+        while (entry) {
             next_entry = entry->next;
 
             kfree(entry->key);
@@ -72,7 +72,7 @@ bool hashmap_get(hashmap_t* hm, const void* key, size_t key_size, void** value) 
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
-    if (entry == NULL) {
+    if (!entry) {
         return false;
     }
 
@@ -84,16 +84,16 @@ bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
-    if (entry != NULL) {
+    if (entry) {
         entry->value = value;
     } else {
         struct hashmap_entry* new_entry = kmalloc(sizeof(struct hashmap_entry));
-        if (unlikely(new_entry == NULL)) {
+        if (unlikely(!new_entry)) {
             return false;
         }
 
         new_entry->key = kmalloc(key_size);
-        if (unlikely(new_entry->key == NULL)) {
+        if (unlikely(!new_entry->key)) {
             kfree(new_entry);
             return false;
         }
@@ -105,7 +105,7 @@ bool hashmap_set(hashmap_t* hm, const void* key, size_t key_size, void* value) {
 
         new_entry->prev = NULL;
         new_entry->next = hm->entries[hash % hm->capacity];
-        if (new_entry->next != NULL) {
+        if (new_entry->next) {
             new_entry->next->prev = new_entry;
         }
 
@@ -120,17 +120,17 @@ bool hashmap_remove(hashmap_t* hm, const void* key, size_t key_size) {
     uint32_t hash = fnv1a_hash(key, key_size);
 
     struct hashmap_entry* entry = get_entry(hm, key, key_size, hash);
-    if (entry == NULL) {
+    if (!entry) {
         return false;
     }
 
-    if (entry->prev != NULL) {
+    if (entry->prev) {
         entry->prev->next = entry->next;
     } else {
         hm->entries[hash % hm->capacity] = entry->next;
     }
 
-    if (entry->next != NULL) {
+    if (entry->next) {
         entry->next->prev = entry->prev;
     }
 

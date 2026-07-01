@@ -124,7 +124,7 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
 
     struct limine_module_response* module_response = module_request.response;
-    if (unlikely(module_response == NULL)) {
+    if (unlikely(!module_response)) {
         kpanic(NULL, false, "missing initial ramdisk");
     }
 
@@ -136,7 +136,7 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
         }
     }
 
-    if (initrd_module == NULL) {
+    if (unlikely(!initrd_module)) {
         kpanic(NULL, false, "missing initial ramdisk");
     }
 
@@ -179,7 +179,7 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
 
     smp_init();
 
-    if (unlikely(thread_create_kernel((uintptr_t) kernel_main, NULL) == NULL)) {
+    if (unlikely(!thread_create_kernel((uintptr_t) kernel_main, NULL))) {
         kpanic(NULL, false, "failed to create kernel main thread");
     }
 

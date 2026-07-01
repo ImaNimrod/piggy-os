@@ -3,7 +3,7 @@
 #include <utils/macros.h>
 
 char serial_getc(uint16_t port) {
-    while (!(inb(port + 5) & 0x01)) {
+    while (!(inb(port + 5) & (1 << 0))) {
         pause();
     }
 
@@ -11,7 +11,7 @@ char serial_getc(uint16_t port) {
 }
 
 void serial_putc(uint16_t port, char c) {
-    while (!(inb(port + 5) & 0x20)) {
+    while (!(inb(port + 5) & (1 << 5))) {
         pause();
     }
 

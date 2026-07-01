@@ -17,7 +17,6 @@ struct wait_queue {
 
 void wait_queue_init(struct wait_queue* wq);
 void wait_queue_add(struct wait_queue* wq, struct wait_node* node);
-void wait_queue_remove(struct wait_queue* wq, struct wait_node* node);
 int wait_queue_wait(struct wait_queue* wq);
 void wait_queue_wake_all(struct wait_queue* wq);
 void wait_queue_wake_one(struct wait_queue* wq);

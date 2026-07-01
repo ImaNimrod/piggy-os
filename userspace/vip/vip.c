@@ -146,7 +146,7 @@ static bool handle_key(struct editor_state* state) {
     char c = '\0';
 
     ssize_t nread;
-    while ((nread = read(STDIN_FILENO, &c, sizeof(char))) == 0) {}
+    while ((nread = read(STDIN_FILENO, &c, sizeof(char))) == 0);
 
     if (nread == -1) {
         return false;
@@ -557,6 +557,7 @@ int main(int argc, char* argv[]) {
     struct termios new_termios = old_termios;
     new_termios.c_iflag &= ~(BRKINT | ICRNL | ISTRIP | IXON);
     new_termios.c_oflag &= ~(OPOST);
+    new_termios.c_cflag |= CS8;
     new_termios.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
     new_termios.c_cc[VMIN] = 0;
     new_termios.c_cc[VTIME] = 1;

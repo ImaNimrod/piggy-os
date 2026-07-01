@@ -15,7 +15,7 @@ void mutex_acquire(mutex_t* m) {
     for (;;) {
         bool int_state = spinlock_acquire_irqsave(&m->lock);
 
-        if (m->owner == NULL) {
+        if (!m->owner) {
             m->owner = current_thread;
             spinlock_release_irqsave(&m->lock, int_state);
             return;
@@ -23,7 +23,7 @@ void mutex_acquire(mutex_t* m) {
 
         current_thread->next_waiter = NULL;
 
-        if (m->waiters_tail == NULL) {
+        if (!m->waiters_tail) {
             m->waiters_head = current_thread;
             m->waiters_tail = current_thread;
         } else {
@@ -44,9 +44,9 @@ void mutex_release(mutex_t* m) {
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
-    if (m->owner == NULL) {
+    if (unlikely(!m->owner)) {
         kpanic(NULL, true, "mutex was double unlocked");
-    } else if (m->owner != current_thread) {
+    } else if (unlikely(m->owner != current_thread)) {
         kpanic(NULL, true, "mutex unlocked by thread that does not own it");
     }
 
@@ -54,20 +54,19 @@ void mutex_release(mutex_t* m) {
 
     struct thread* waiter = NULL;
 
-    if (m->waiters_head != NULL) {
+    if (m->waiters_head) {
         waiter = m->waiters_head;
         m->waiters_head = waiter->next_waiter;
 
-        if (m->waiters_head == NULL) {
+        if (!m->waiters_head) {
             m->waiters_tail = NULL;
         }
-
         waiter->next_waiter = NULL;
     }
 
     spinlock_release_irqsave(&m->lock, int_state);
 
-    if (waiter != NULL) {
-        scheduler_wakeup(waiter, THREAD_WAKEUP_REASON_NORMAL);
+    if (waiter) {
+        scheduler_wakeup(waiter, 0);
     }
 }

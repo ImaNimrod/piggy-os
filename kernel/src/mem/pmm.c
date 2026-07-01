@@ -155,7 +155,7 @@ void pmm_init(void) {
         break;
     }
 
-    if (unlikely(pmm_bitmap == NULL)) {
+    if (unlikely(!pmm_bitmap)) {
         kpanic(NULL, false, "unable to find suitable memory region for PMM bitmap");
     }
 

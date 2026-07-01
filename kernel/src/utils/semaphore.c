@@ -19,7 +19,7 @@ void semaphore_signal(semaphore_t* s) {
 
     struct thread* waiter = NULL;
 
-    if (s->waiters != NULL) {
+    if (s->waiters) {
         waiter = s->waiters;
         s->waiters = waiter->next_waiter;
         waiter->next_waiter = NULL;
@@ -29,8 +29,8 @@ void semaphore_signal(semaphore_t* s) {
 
     spinlock_release_irqsave(&s->lock, int_state);
 
-    if (waiter != NULL) {
-        scheduler_wakeup(waiter, THREAD_WAKEUP_REASON_NORMAL);
+    if (waiter) {
+        scheduler_wakeup(waiter, 0);
     }
 }
 
@@ -47,10 +47,10 @@ void semaphore_wait(semaphore_t* s) {
     current_thread->next_waiter = NULL;
 
     struct thread* iter = s->waiters;
-    if (iter == NULL) {
+    if (!iter) {
         s->waiters = current_thread;
     } else {
-        while (iter->next_waiter != NULL) {
+        while (iter->next_waiter) {
             iter = iter->next_waiter;
         }
         iter->next_waiter = current_thread;

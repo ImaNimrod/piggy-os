@@ -10,12 +10,12 @@
 
 vector_t* vector_create(size_t item_size) {
     vector_t* v = kmalloc(sizeof(vector_t));
-    if (unlikely(v == NULL)) {
+    if (unlikely(!v)) {
         return NULL;
     }
 
     v->data = kmalloc(VECTOR_INITIAL_CAPACITY * item_size);
-    if (unlikely(v->data == NULL)) {
+    if (unlikely(!v->data)) {
         kfree(v);
         return NULL;
     }
@@ -81,15 +81,18 @@ bool vector_remove_by_value(vector_t* v, const void* value) {
 bool vector_push(vector_t* v, const void* value) {
     if (v->size == v->capacity) {
         v->capacity *= VECTOR_GROWTH_FACTOR;
+
         v->data = krealloc(v->data, v->capacity * v->item_size);
-        if (v->data == NULL) {
+        if (unlikely(!v->data)) {
             kpanic(NULL, false, "failed to grow vector");
         }
     }
 
     uintptr_t dest = (uintptr_t) v->data + (v->size * v->item_size);
     memcpy((void*) dest, value, v->item_size);
+
     v->size++;
+
     return true;
 }
 
@@ -100,7 +103,7 @@ bool vector_pop(vector_t* v, void* out) {
 
     v->size--;
 
-    if (likely(out != NULL)) {
+    if (likely(out)) {
         uintptr_t src = (uintptr_t) v->data + (v->size * v->item_size);
         memcpy(out, (const void*) src, v->item_size);
     }
@@ -121,7 +124,7 @@ bool vector_resize(vector_t* v, size_t new_size) {
         }
 
         void* new_data = krealloc(v->data, new_capacity * v->item_size);
-        if (unlikely(new_data == NULL)) {
+        if (unlikely(!new_data)) {
             return false;
         }
 
@@ -130,8 +133,8 @@ bool vector_resize(vector_t* v, size_t new_size) {
     }
 
     memset((uint8_t*) v->data + (v->size * v->item_size), 0, (new_size - v->size) * v->item_size);
-
     v->size = new_size;
+
     return true;
 }
 

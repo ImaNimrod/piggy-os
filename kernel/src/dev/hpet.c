@@ -68,7 +68,7 @@ static void hpet_irq_handler(struct registers* r, void* arg) {
 }
 
 static bool hpet_check(void) {
-    if (cmdline_get("nohpet") != NULL) {
+    if (cmdline_get("nohpet")) {
         return false;
     }
 
@@ -98,7 +98,7 @@ end:
 static struct timer_info* hpet_init(void) {
     spinlock_acquire(&hpet_init_lock);
 
-    if (hpet_timer_info.private != NULL) {
+    if (hpet_timer_info.private) {
         goto end;
     }
 
@@ -174,7 +174,7 @@ static uint64_t hpet_ticks(struct timer_info* info) {
 }
 
 uint64_t hpet_calibrate_tsc(void) {
-    if (hpet_timer_info.private == NULL) {
+    if (!hpet_timer_info.private) {
         return 0;
     }
 

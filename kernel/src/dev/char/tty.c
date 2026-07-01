@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <flanterm.h>
 #include <fs/devfs.h>
+#include <fs/poll.h>
 #include <fs/vfs.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>
@@ -112,11 +113,13 @@ bool tty_is_ready;
 static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
 static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 static int tty_ioctl(dev_t dev, int request, void* argp);
+static short tty_poll(dev_t dev, short events, struct poll_table* pt);
 
 static struct device_ops tty_ops = {
     .read = tty_read,
     .write = tty_write,
     .ioctl = tty_ioctl,
+    .poll = tty_poll,
 };
 
 static pid_t foreground_pgid;
@@ -165,14 +168,15 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     (void) offset;
     (void) flags;
 
+    ssize_t ret;
+
     spinlock_acquire(&read_lock);
 
     while (input_buf_index == 0) {
         spinlock_release(&read_lock);
 
-        int r = wait_queue_wait(&read_wq);
-        if (r == EINTR) {
-            return -EINTR;
+        if ((ret = wait_queue_wait(&read_wq)) < 0) {
+            return ret;
         }
 
         spinlock_acquire(&read_lock);
@@ -189,7 +193,6 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
         }
     }
 
-    ssize_t ret;
     if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, input_buf, to_copy)) < 0) {
         spinlock_release(&read_lock);
         return ret;
@@ -273,6 +276,10 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
             ret = user_memcpy_to_user(argp, (const void*) &winsize, sizeof(struct winsize));
             break;
         case TIOCSWINSZ:
+            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            if (group != NULL) {
+                signal_send_process_group(group, SIGWINCH);
+            }
             break;
         default:
             ret = -ENOTTY;
@@ -281,6 +288,30 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
 
     spinlock_release(&tty_lock);
     return ret;
+}
+
+static short tty_poll(dev_t dev, short events, struct poll_table* pt) {
+    (void) dev;
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        spinlock_acquire(&read_lock);
+
+        if (input_buf_index > 0) {
+            revents |= POLLIN;
+        } else {
+            poll_table_add(pt, &read_wq);
+        }
+
+        spinlock_release(&read_lock);
+    }
+
+    if (events & POLLOUT) {
+        revents |= POLLOUT;
+    }
+
+    return revents;
 }
 
 void tty_add_buf(char* buf, size_t length) {

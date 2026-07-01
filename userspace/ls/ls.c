@@ -80,9 +80,9 @@ static inline char get_mode_suffix(mode_t mode) {
 }
 
 static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name, bool deref_link) {
-    struct directory_entry* entry = calloc(1, sizeof(struct directory_entry));
+    struct directory_entry* entry = malloc(sizeof(struct directory_entry));
     if (!entry) {
-        err(EXIT_FAILURE, "calloc");
+        err(EXIT_FAILURE, "malloc");
     }
 
     entry->name = strdup(entry_name);
@@ -113,6 +113,8 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
         }
 
         entry->link_target[nread] = '\0';
+    } else {
+        entry->link_target = NULL;
     }
 
     if (listing->entry_count >= listing->capacity) {
@@ -326,13 +328,14 @@ static int read_entries(const char* path, struct directory_listing* listing) {
     }
 
     DIR* dir = fdopendir(fd);
-    if (dir == NULL) {
+    if (!dir) {
         warn("failed to open directory");
         close(fd);
         return EXIT_FAILURE;
     }
 
     errno = 0;
+
     struct dirent* entry;
     while ((entry = readdir(dir)) != NULL) {
         if (!filter(entry->d_name)) {

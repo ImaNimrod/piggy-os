@@ -12,7 +12,7 @@ static int mkdir_parents(const char* path) {
 
     char* tmp = malloc(len + 1);
     if (!tmp) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     strcpy(tmp, path);

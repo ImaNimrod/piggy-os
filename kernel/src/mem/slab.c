@@ -73,20 +73,20 @@ static bool move_slab(struct slab** dest_head, struct slab** src_head, struct sl
         return false; 
     }
 
-    if (s->prev != NULL) {
+    if (s->prev) {
         s->prev->next = s->next;
     } else {
         *src_head = s->next;
     }
 
-    if (s->next != NULL) {
+    if (s->next) {
         s->next->prev = s->prev;
     }
 
     s->prev = NULL;
     s->next = *dest_head;
 
-    if (*dest_head != NULL) {
+    if (*dest_head) {
         (*dest_head)->prev = s;
     }
 
@@ -96,7 +96,7 @@ static bool move_slab(struct slab** dest_head, struct slab** src_head, struct sl
 }
 
 static bool slab_free_object(struct slab* slab, void* object) {
-    if (slab == NULL) {
+    if (!slab) {
         return false;
     }
 
@@ -145,7 +145,7 @@ static bool slab_free_object(struct slab* slab, void* object) {
 
 struct slab_cache* slab_cache_create(const char* name, size_t object_size) {
     struct slab_cache* new_cache = slab_cache_alloc(&cache_cache);
-    if (unlikely(new_cache == NULL)) {
+    if (unlikely(!new_cache)) {
         return NULL;
     }
 
@@ -164,7 +164,7 @@ void slab_cache_destroy(struct slab_cache* cache) {
     spinlock_acquire(&cache->lock);
 
     struct slab* iter = cache->partial_slabs;
-    while (iter != NULL) {
+    while (iter) {
         struct slab* next = iter->next;
 
         pmm_free((uintptr_t) iter - HIGH_VMA, cache->pages_per_slab);
@@ -173,7 +173,7 @@ void slab_cache_destroy(struct slab_cache* cache) {
     }
 
     iter = cache->full_slabs;
-    while (iter != NULL) {
+    while (iter) {
         struct slab* next = iter->next;
 
         pmm_free((uintptr_t) iter - HIGH_VMA, cache->pages_per_slab);
@@ -281,14 +281,14 @@ void* kmalloc(size_t size) {
 
 void* kmallocz(size_t size) {
     void* ptr = kmalloc(size);
-    if (likely(ptr != NULL)) {
+    if (likely(ptr)) {
         memset(ptr, 0, size);
     }
     return ptr;
 }
 
 void* krealloc(void* ptr, size_t size) {
-    if (unlikely(ptr == NULL)) {
+    if (unlikely(!ptr)) {
         return kmalloc(size);
     }
 
@@ -301,7 +301,7 @@ void* krealloc(void* ptr, size_t size) {
             }
 
             void* new_ptr = kmalloc(size);
-            if (unlikely(new_ptr == NULL)) {
+            if (unlikely(!new_ptr)) {
                 return NULL;
             }
 
@@ -317,7 +317,7 @@ void* krealloc(void* ptr, size_t size) {
         spinlock_acquire(&cache->lock);
 
         struct slab* iter = cache->partial_slabs;
-        while (iter != NULL) {
+        while (iter) {
             if ((uintptr_t) iter->buffer <= (uintptr_t) ptr && ((uintptr_t) iter->buffer + cache->object_size * iter->total_objects) > (uintptr_t) ptr) {
                 if (cache->object_size >= size) {
                     spinlock_release(&cache->lock);
@@ -328,7 +328,7 @@ void* krealloc(void* ptr, size_t size) {
         }
 
         iter = cache->full_slabs;
-        while (iter != NULL) {
+        while (iter) {
             if ((uintptr_t) iter->buffer <= (uintptr_t) ptr && ((uintptr_t) iter->buffer + cache->object_size * iter->total_objects) > (uintptr_t) ptr) {
                 if (cache->object_size >= size) {
                     spinlock_release(&cache->lock);
@@ -351,7 +351,7 @@ void* krealloc(void* ptr, size_t size) {
 }
 
 void kfree(void* ptr) {
-    if (unlikely(ptr == NULL)) {
+    if (unlikely(!ptr)) {
         return;
     }
 

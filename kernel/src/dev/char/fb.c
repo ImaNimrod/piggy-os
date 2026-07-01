@@ -86,11 +86,13 @@ struct flanterm_context* fb_context;
 bool flanterm_console_decckm;
 
 static int fb_ioctl(dev_t dev, int request, void* argp);
+static short fb_poll(dev_t dev, short events, struct poll_table* pt);
 static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_flags);
 static int fb_munmap(dev_t dev, void* addr, off_t offset);
 
 static struct device_ops fb_ops = {
     .ioctl = fb_ioctl,
+    .poll = fb_poll,
     .mmap = fb_mmap,
     .munmap = fb_munmap,
 };
@@ -133,6 +135,23 @@ static int fb_ioctl(dev_t dev, int request, void* argp) {
     }
 
     return ret;
+}
+
+static short fb_poll(dev_t dev, short events, struct poll_table* pt) {
+    (void) dev;
+    (void) pt;
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        revents |= POLLIN;
+    }
+
+    if (events & POLLOUT) {
+        revents |= POLLOUT;
+    }
+
+    return revents;
 }
 
 static int fb_mmap(dev_t dev, void* addr, off_t offset, int flags, uint64_t pte_flags) {

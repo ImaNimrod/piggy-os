@@ -72,7 +72,7 @@ static void do_notification_work(void) {
 }
 
 static void work_await(struct uacpi_work_context* context) {
-    struct timespec delay = {
+    const struct timespec delay = {
         .tv_sec = 0,
         .tv_nsec = MS_TO_NS(100),
     };

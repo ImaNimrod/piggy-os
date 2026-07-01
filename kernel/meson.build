@@ -111,6 +111,7 @@ kernel_sources = files(
   'src/fs/file.c',
   'src/fs/initrd.c',
   'src/fs/pipe.c',
+  'src/fs/poll.c',
   'src/fs/procfs.c',
   'src/fs/tmpfs.c',
   'src/fs/vfs.c',

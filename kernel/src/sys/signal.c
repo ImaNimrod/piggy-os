@@ -12,14 +12,13 @@ enum {
     DEFAULT_ACTION_CONTINUE,
     DEFAULT_ACTION_IGNORE,
     DEFAULT_ACTION_STOP,
-    DEFAULT_ACTION_TERMINATION,
+    DEFAULT_ACTION_TERMINATE,
 };
 
 struct signal_frame {
     uintptr_t restorer;
     sigset_t saved_mask;
     struct registers context;
-    void* fpu_context;
     uint64_t signal;
 };
 
@@ -39,7 +38,7 @@ static int default_action(int signal) {
         case SIGTTOU:
             return DEFAULT_ACTION_STOP;
         default:
-            return DEFAULT_ACTION_TERMINATION;
+            return DEFAULT_ACTION_TERMINATE;
     }
 }
 
@@ -57,9 +56,9 @@ void signal_handle_pending(struct registers* r) {
             return;
         }
 
-        int signal = 63 - __builtin_clzll(pending) + 1;
+        int signal = __builtin_ctzll(pending) + 1;
 
-        current_thread->pending_signals &= ~(1UL << (signal - 1));
+        current_thread->pending_signals &= ~(1ULL << (signal - 1));
 
         spinlock_acquire(&current_thread->state_lock);
         if (current_thread->flags & THREAD_FLAG_RETURN_SIGNAL_MASK) {
@@ -79,7 +78,7 @@ void signal_handle_pending(struct registers* r) {
         }
 
         if (action.sa_handler == SIG_DFL) {
-            if (default_action(signal) == DEFAULT_ACTION_TERMINATION) {
+            if (default_action(signal) == DEFAULT_ACTION_TERMINATE) {
                 process_exit(current_process, PROCESS_EXITCODE(0, signal));
                 scheduler_thread_exit();
             } else {
@@ -95,7 +94,7 @@ void signal_handle_pending(struct registers* r) {
         spinlock_acquire(&current_thread->signal_lock);
 
         if (!(action.sa_flags & SA_NODEFER)) {
-            current_thread->signal_mask |= (1UL << (signal - 1));
+            current_thread->signal_mask |= (1ULL << (signal - 1));
         }
         current_thread->signal_mask |= (action.sa_mask & ~UNBLOCKABLE_SIGNALS);
 
@@ -113,31 +112,31 @@ void signal_handle_pending(struct registers* r) {
             frame_sp = (uintptr_t) current_thread->signal_stack.ss_sp + current_thread->signal_stack.ss_size;
             spinlock_release(&current_thread->signal_lock);
         } else {
-            frame_sp = r->rsp;
+            frame_sp = r->rsp - 128;
         }
 
         struct signal_frame frame = {
             .saved_mask = old_mask,
             .context = *r,
-            .fpu_context = (void*) (pmm_alloc_zero(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA),
             .signal = signal,
             .restorer = (uintptr_t) action.sa_restorer,
         };
 
-        this_cpu()->fpu_save(frame.fpu_context);
+        uintptr_t sp = frame_sp & ~0xfULL;
+        sp -= sizeof(struct signal_frame);
 
-        void* user_frame_sp = (void*) ((frame_sp - 128 - sizeof(struct signal_frame)) & ~0xful);
-        if (user_memcpy_to_user(user_frame_sp, &frame, sizeof(struct signal_frame)) < 0) {
+        if (user_memcpy_to_user((void*) sp, &frame, sizeof(struct signal_frame)) < 0) {
             process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
         }
 
-        void* user_ret_sp = (void*) ((uintptr_t) user_frame_sp - 8);
-        if (user_memcpy_to_user(user_ret_sp, &action.sa_restorer, 8) < 0) {
+        sp -= sizeof(uintptr_t);
+
+        if (user_memcpy_to_user((void*) sp, &action.sa_restorer, sizeof(uintptr_t)) < 0) {
             process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
         }
 
         r->rip = (uintptr_t) action.sa_handler;
-        r->rsp = (uintptr_t) user_ret_sp;
+        r->rsp = sp;
         r->rdi = signal;
 
         context_switch(r);
@@ -175,8 +174,7 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
 
     frame.context.rflags &= ~(RFLAGS_TF | RFLAGS_DF | RFLAGS_RF);
 
-    memcpy64((uint64_t*) r, (const uint64_t*) &frame.context, sizeof(struct registers) >> 3);
-    this_cpu()->fpu_restore(frame.fpu_context);
+    *r = frame.context;
 
     spinlock_acquire(&current_thread->signal_lock);
     current_thread->signal_mask = frame.saved_mask;
@@ -194,7 +192,7 @@ int signal_send_process(struct process* process, int signal) {
         struct thread* thread = *vector_get(process->threads, i);
 
         spinlock_acquire(&thread->signal_lock);
-        bool unblocked = signal == SIGKILL || signal == SIGSTOP || !(thread->signal_mask & (1UL << (signal - 1)));
+        bool unblocked = signal == SIGKILL || signal == SIGSTOP || !(thread->signal_mask & (1ULL << (signal - 1)));
         spinlock_release(&thread->signal_lock);
 
         if (unblocked) {
@@ -251,9 +249,9 @@ int signal_send_thread(struct thread* thread, int signal) {
     spinlock_release(&process->signal_actions_lock);
 
     spinlock_acquire(&thread->signal_lock);
-    thread->pending_signals |= (1UL << (signal - 1));
+    thread->pending_signals |= (1ULL << (signal - 1));
     spinlock_release(&thread->signal_lock);
 
-    scheduler_wakeup(thread, THREAD_WAKEUP_REASON_INTERRUPTED);
+    scheduler_wakeup(thread, -EINTR);
     return 0;
 }

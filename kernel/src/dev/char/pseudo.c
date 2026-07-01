@@ -8,10 +8,12 @@
 
 static ssize_t pseudo_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
 static ssize_t pseudo_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
+static short pseudo_poll(dev_t dev, short events, struct poll_table* pt);
 
 static struct device_ops pseudo_ops = {
     .read = pseudo_read,
     .write = pseudo_write,
+    .poll = pseudo_poll,
 };
 
 static ssize_t fill_random(uint8_t* buf, size_t count) {
@@ -91,6 +93,23 @@ static ssize_t pseudo_write(dev_t dev, const void* buf, size_t count, off_t offs
     }
 
     return ret;
+}
+
+static short pseudo_poll(dev_t dev, short events, struct poll_table* pt) {
+    (void) dev;
+    (void) pt;
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        revents |= POLLIN;
+    }
+
+    if (events & POLLOUT) {
+        revents |= POLLOUT;
+    }
+
+    return revents;
 }
 
 void pseudo_dev_init(void) {

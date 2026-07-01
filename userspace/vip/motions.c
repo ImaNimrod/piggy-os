@@ -65,7 +65,7 @@ void motion_left(struct editor_state* state) {
 }
 
 void motion_right(struct editor_state* state) {
-    if (state->cursor.x < state->rows[state->cursor.y].length) {
+    if (state->cursor.x < state->rows[state->cursor.y].length - 1) {
         state->cursor.x++;
     }
 }

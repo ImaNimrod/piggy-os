@@ -414,7 +414,7 @@ int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, de
     node->filesystem = devfs_root_node->filesystem;
     node->refcount = 1;
 
-    if (ops->mmap != NULL && ops->munmap != NULL) {
+    if (ops->mmap && ops->munmap) {
         node->flags |= VFS_NODE_FLAG_MMAP;
     }
 

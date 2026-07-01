@@ -20,7 +20,7 @@ struct pvclock_vcpu_time_info {
 } __attribute__((packed));
 
 static bool pvclock_check(void) {
-    if (cmdline_get("nopvclock") != NULL) {
+    if (cmdline_get("nopvclock")) {
         return false;
     }
 
@@ -36,14 +36,14 @@ static bool pvclock_check(void) {
 
 static struct timer_info* pvclock_init(void) {
     void* vaddr = kmalloc(sizeof(struct pvclock_vcpu_time_info));
-    if (unlikely(vaddr == NULL)) {
+    if (unlikely(!vaddr)) {
         kpanic(NULL, false, "failed to allocate memory to map KVM pvclock");
     }
 
     uintptr_t paddr = (uintptr_t) vaddr - HIGH_VMA;
 
     struct timer_info* info = kmalloc(sizeof(struct timer_info));
-    if (unlikely(info == NULL)) {
+    if (unlikely(!info)) {
         kpanic(NULL, false, "failed to allocate memory for KVM pvclock");
     }
     info->hz = 1000000000;

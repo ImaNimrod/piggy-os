@@ -120,7 +120,7 @@ static void virtio_init(struct pci_device* pci_dev) {
     klog("[virtio] found VirtIO device [%04x:%04x]\n", pci_dev->vendor_id, pci_dev->device_id);
 
     struct virtio_device* dev = kmalloc(sizeof(struct virtio_device));
-    if (unlikely(dev == NULL)) {
+    if (unlikely(!dev)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO device");
     }
     dev->pci_dev = pci_dev;
@@ -177,7 +177,7 @@ static void virtio_init(struct pci_device* pci_dev) {
     }
 
     struct virtio_queue* queues = kmalloc(sizeof(struct virtio_queue) * mmio_read16(&dev->common_config->queue_count));
-    if (unlikely(queues == NULL)) {
+    if (unlikely(!queues)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO device queues");
     }
     dev->queues = queues;

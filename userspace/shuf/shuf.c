@@ -55,7 +55,7 @@ static int do_shuf_file(const char* filename, FILE* fp) {
 
     char** lines = malloc(line_capacity * sizeof(char*));
     if (!lines) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     char* line = NULL;
@@ -68,7 +68,7 @@ static int do_shuf_file(const char* filename, FILE* fp) {
 
             lines = reallocarray(lines, line_capacity, sizeof(char*));
             if (!lines) {
-                errx(EXIT_FAILURE, "reallocarray");
+                err(EXIT_FAILURE, "reallocarray");
             }
         }
 

@@ -66,12 +66,12 @@ static void page_fault_handler(struct registers* r, void* arg) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     uintptr_t fault_addr = read_cr2();
 
-    if (current_thread == NULL || current_thread->process == kernel_process) {
+    if (!current_thread || current_thread->process == kernel_process) {
         kpanic(r, true, "fatal kernel pagefault at address: 0x%016lx\n", fault_addr);
     }
 
     if (!vmm_page_fault_handler(fault_addr, r->error_code)) {
-        if (current_thread != NULL && current_thread->usercopy_registers != NULL) {
+        if (current_thread && current_thread->usercopy_registers) {
             memcpy64((uint64_t*) r, (const uint64_t*) current_thread->usercopy_registers, sizeof(struct registers) >> 3);
             current_thread->usercopy_registers = NULL;
             r->rax = -EFAULT;
@@ -87,7 +87,7 @@ static void page_fault_handler(struct registers* r, void* arg) {
 
 struct pagemap* pagemap_create(void) {
     struct pagemap* new_pagemap = slab_cache_alloc(pagemap_cache);
-    if (unlikely(new_pagemap == NULL)) {
+    if (unlikely(!new_pagemap)) {
         return NULL;
     }
 
@@ -298,7 +298,7 @@ bool pagemap_unmap_range(struct pagemap* pagemap, uintptr_t vaddr, size_t length
     }
 
     size_t page_count = length / PAGE_SIZE_4KB;
-    page_size_t page_size;
+    page_size_t page_size = PAGE_SIZE_4KB;
 
     for (size_t i = 0; i < page_count; i++) {
         pagemap_unmap(pagemap, vaddr, &page_size);
@@ -370,12 +370,12 @@ void paging_init(void) {
     }
 
     pagemap_cache = slab_cache_create("struct pagemap cache", sizeof(struct pagemap));
-    if (unlikely(pagemap_cache == NULL)) {
+    if (unlikely(!pagemap_cache)) {
         kpanic(NULL, false, "failed to create object cache for pagemap structs");
     }
 
     kernel_pagemap = slab_cache_alloc(pagemap_cache);
-    if (unlikely(kernel_pagemap == NULL)) {
+    if (unlikely(!kernel_pagemap)) {
         kpanic(NULL, false, "failed to allocate memory for kernel pagemap");
     }
 

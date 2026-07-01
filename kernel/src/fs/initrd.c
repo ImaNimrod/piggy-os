@@ -155,7 +155,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
             break;
         }
 
-        char* name = long_name != NULL ? long_name : header.name;
+        char* name = long_name ? long_name : header.name;
         off_t size = oct2int(header.size, sizeof(header.size));
 
         ssize_t error = 0;
@@ -211,7 +211,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
                 error = vfs_create(vfs_root, name, VFS_TYPE_DIRECTORY, &node);
                 break;
             case TAR_FILE_TYPE_GNU_LONG_PATH:
-                if (long_name != NULL) {
+                if (long_name) {
                     kfree(long_name);
                     long_name = NULL;
                 }
@@ -242,7 +242,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
 
         if (error < 0) {
             klog("[initrd] failed to unpack '%s': %d\n", name, error);
-        } else if (node != NULL) {
+        } else if (node) {
             time_t mtime = oct2int(header.mtime, sizeof(header.mtime));
             struct timespec timestamp = { .tv_sec = mtime, .tv_nsec = 0 };
 
@@ -253,7 +253,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
             VFS_NODE_UNREF(node);
         }
 
-        if (long_name != NULL) {
+        if (long_name) {
             kfree(long_name);
             long_name = NULL;
         }
@@ -261,7 +261,7 @@ void initrd_unpack(struct limine_file* initrd_module) {
         file_count++;
     }
 
-    if (long_name != NULL) {
+    if (long_name) {
         kfree(long_name);
     }
 

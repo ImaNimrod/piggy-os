@@ -7,36 +7,44 @@
 #include <utils/macros.h>
 #include <utils/wait_queue.h>
 
-void wait_queue_init(struct wait_queue* wq) {
-    wq->head = wq->tail = NULL;
-    spinlock_init(&wq->lock);
-}
-
-int wait_queue_wait(struct wait_queue* wq) {
+static void internal_add(struct wait_queue* wq, struct wait_node* node) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
-
-    struct wait_node* node = kmalloc(sizeof(struct wait_node));
-    if (unlikely(node == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for struct wait_node");
-    }
     node->thread = current_thread;
+
     node->next = NULL;
+    node->prev = wq->tail;
 
-    bool int_state = spinlock_acquire_irqsave(&wq->lock);
-
-    if (wq->tail != NULL) {
+    if (wq->tail) {
         wq->tail->next = node;
     } else {
         wq->head = node;
     }
 
     wq->tail = node;
+}
 
-    scheduler_prepare_wait(current_thread, false);
+void wait_queue_init(struct wait_queue* wq) {
+    wq->head = wq->tail = NULL;
+    spinlock_init(&wq->lock);
+}
 
+void wait_queue_add(struct wait_queue* wq, struct wait_node* node) {
+    bool int_state = spinlock_acquire_irqsave(&wq->lock);
+    internal_add(wq, node);
+    spinlock_release_irqsave(&wq->lock, int_state);
+}
+
+int wait_queue_wait(struct wait_queue* wq) {
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    bool int_state = spinlock_acquire_irqsave(&wq->lock);
+
+    internal_add(wq, &current_thread->wait_node);
+
+    scheduler_prepare_wait(current_thread, true);
     spinlock_release_irqsave(&wq->lock, int_state);
 
-    return (scheduler_yield() == THREAD_WAKEUP_REASON_INTERRUPTED) ? EINTR : 0;
+    return scheduler_yield();
 }
 
 void wait_queue_wake_all(struct wait_queue* wq) {
@@ -45,29 +53,29 @@ void wait_queue_wake_all(struct wait_queue* wq) {
     struct wait_node* node = wq->head;
     wq->head = wq->tail = NULL;
 
-    spinlock_release_irqsave(&wq->lock, int_state);
-
-    while (node != NULL) {
+    while (node) {
         struct wait_node* next = node->next;
-        scheduler_wakeup(node->thread, THREAD_WAKEUP_REASON_NORMAL);
+        scheduler_wakeup(node->thread, 0);
         node = next;
     }
+
+    spinlock_release_irqsave(&wq->lock, int_state);
 }
 
 void wait_queue_wake_one(struct wait_queue* wq) {
     bool int_state = spinlock_acquire_irqsave(&wq->lock);
 
     struct wait_node* node = wq->head;
-    if (node == NULL) {
+    if (!node) {
         spinlock_release_irqsave(&wq->lock, int_state);
         return;
     }
 
     wq->head = node->next;
-    if (wq->head == NULL) {
+    if (!wq->head) {
         wq->tail = NULL;
     }
 
     spinlock_release_irqsave(&wq->lock, int_state);
-    scheduler_wakeup(node->thread, THREAD_WAKEUP_REASON_NORMAL);
+    scheduler_wakeup(node->thread, 0);
 }

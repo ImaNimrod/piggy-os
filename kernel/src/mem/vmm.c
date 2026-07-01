@@ -28,7 +28,7 @@ static inline uint64_t mmap_prot_to_pte_flags(int prot) {
 
 static void free_unmapped_ranges(struct vmm_context* context) {
     struct vmm_range* range = context->ranges;
-    while (range != NULL) {
+    while (range) {
         if (!(range->flags & MAP_UNMAP)) {
             range = range->next;
             continue;
@@ -54,12 +54,12 @@ static void free_unmapped_ranges(struct vmm_context* context) {
             }
         }
 
-        if (range->prev != NULL) {
+        if (range->prev) {
             range->prev->next = range->next;
         } else {
             context->ranges = range->next;
         }
-        if (range->next != NULL) {
+        if (range->next) {
             range->next->prev = range->prev;
         }
 
@@ -70,11 +70,11 @@ static void free_unmapped_ranges(struct vmm_context* context) {
 
 static void* get_next_anon_base(struct vmm_context* context, void* addr, size_t size) {
     struct vmm_range* range = context->ranges;
-    if (addr == NULL) {
+    if (!addr) {
         addr = (void*) USER_START;
     }
 
-    if (range == NULL) {
+    if (!range) {
         return addr;
     }
 
@@ -82,7 +82,7 @@ static void* get_next_anon_base(struct vmm_context* context, void* addr, size_t 
         return addr;
     }
 
-    while (range->next != NULL) {
+    while (range->next) {
         addr = (void*) MAX((uintptr_t) addr, range->base + range->size);
 
         if ((uintptr_t) addr < range->next->base) {
@@ -104,8 +104,15 @@ static void* get_next_anon_base(struct vmm_context* context, void* addr, size_t 
 }
 
 static struct vmm_range* get_range(struct vmm_context* context, uintptr_t addr) {
+    struct vmm_range* last_fault_range = this_cpu()->last_fault_range;
+    if (likely(last_fault_range)) {
+        if (addr >= last_fault_range->base && addr < (last_fault_range->base + last_fault_range->size)) {
+            return last_fault_range;
+        }
+    }
+
     struct vmm_range* range = context->ranges;
-    while (range != NULL) {
+    while (range) {
         if (addr >= range->base && addr < (range->base + range->size)) {
             break;
         }
@@ -113,13 +120,14 @@ static struct vmm_range* get_range(struct vmm_context* context, uintptr_t addr) 
         range = range->next;
     }
 
+    this_cpu()->last_fault_range = range;
     return range;
 }
 
 static void insert_range_after(struct vmm_range* range, struct vmm_range* new_range) {
     new_range->prev = range;
     new_range->next = range->next;
-    if (range->next != NULL) {
+    if (range->next) {
         range->next->prev = new_range;
     }
     range->next = new_range;
@@ -127,10 +135,9 @@ static void insert_range_after(struct vmm_range* range, struct vmm_range* new_ra
 
 static void insert_range_ordered(struct vmm_context* context, struct vmm_range* new_range) {
     struct vmm_range* range = context->ranges;
-    if (unlikely(range == NULL)) {
+    if (unlikely(!range)) {
         context->ranges = new_range;
-        new_range->prev = NULL;
-        new_range->next = NULL;
+        new_range->prev = new_range->next = NULL;
         return;
     }
 
@@ -142,7 +149,7 @@ static void insert_range_ordered(struct vmm_context* context, struct vmm_range* 
         return;
     }
 
-    while (range->next != NULL) {
+    while (range->next) {
         if (new_range->base >= (range->base + range->size) && new_range->base < range->next->base) {
             new_range->next = range->next;
             if (new_range->next) {
@@ -163,21 +170,18 @@ static void insert_range_ordered(struct vmm_context* context, struct vmm_range* 
 }
 
 static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
-    if (range == NULL) {
+    if (!range) {
         return NULL;
     }
 
-    if (range->prev != NULL) {
+    if (range->prev) {
         struct vmm_range* prev = range->prev;
 
-        if ((prev->base + prev->size) == range->base &&
-            prev->flags == range->flags &&
-            prev->pte_flags == range->pte_flags) {
-
+        if ((prev->base + prev->size) == range->base && prev->flags == range->flags && prev->pte_flags == range->pte_flags) {
             prev->size += range->size;
             prev->next = range->next;
 
-            if (range->next != NULL) {
+            if (range->next) {
                 range->next->prev = prev;
             }
 
@@ -187,17 +191,14 @@ static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
         }
     }
 
-    if (range->next != NULL) {
+    if (range->next) {
         struct vmm_range* next = range->next;
 
-        if ((range->base + range->size) == next->base &&
-            range->flags == next->flags &&
-            range->pte_flags == next->pte_flags) {
-
+        if ((range->base + range->size) == next->base && range->flags == next->flags && range->pte_flags == next->pte_flags) {
             range->size += next->size;
             range->next = next->next;
 
-            if (next->next != NULL) {
+            if (next->next) {
                 next->next->prev = range;
             }
 
@@ -225,7 +226,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
     uintptr_t top = address + size;
 
     struct vmm_range* range = context->ranges;
-    while (range != NULL && range->base < top) {
+    while (range && range->base < top) {
         uintptr_t range_top = range->base + range->size;
         if (range_top <= address) {
             range = range->next;
@@ -236,7 +237,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
         if (range->base < address && top < range_top) {
             struct vmm_range* right = slab_cache_alloc(vmm_range_cache);
-            if (unlikely(right == NULL)) {
+            if (unlikely(!right)) {
                 return false;
             }
             memcpy(right, range, sizeof(struct vmm_range));
@@ -249,7 +250,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
             try_combine_ranges(right);
 
             struct vmm_range* middle = slab_cache_alloc(vmm_range_cache);
-            if (unlikely(middle == NULL)) {
+            if (unlikely(!middle)) {
                 return false;
             }
             memcpy(middle, range, sizeof(struct vmm_range));
@@ -274,7 +275,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
             size_t delta = top - range->base;
 
             struct vmm_range* new = slab_cache_alloc(vmm_range_cache);
-            if (unlikely(new == NULL)) {
+            if (unlikely(!new)) {
                 return false;
             }
             memcpy(new, range, sizeof(struct vmm_range));
@@ -289,7 +290,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
             new->next = range;
             new->prev = range->prev;
-            if (range->prev != NULL) {
+            if (range->prev) {
                 range->prev->next = new;
             } else {
                 context->ranges = new;
@@ -316,7 +317,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
             range->size -= delta;
 
             struct vmm_range* new = slab_cache_alloc(vmm_range_cache);
-            if (unlikely(new == NULL)) {
+            if (unlikely(!new)) {
                 return false;
             }
             memcpy(new, range, sizeof(struct vmm_range));
@@ -343,12 +344,12 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
 struct vmm_context* vmm_context_create(void) {
     struct vmm_context* context = slab_cache_alloc(vmm_context_cache);
-    if (unlikely(context == NULL)) {
+    if (unlikely(!context)) {
         return NULL;
     }
 
     context->pagemap = pagemap_create();
-    if (unlikely(context->pagemap == NULL)) {
+    if (unlikely(!context->pagemap)) {
         slab_cache_free(vmm_context_cache, context);
         return NULL;
     }
@@ -364,7 +365,7 @@ void vmm_context_destroy(struct vmm_context* context) {
     mutex_acquire(&context->mutex);
 
     struct vmm_range* range = context->ranges;
-    while (range != NULL) {
+    while (range) {
         struct vmm_range* next = range->next;
 
         page_size_t unused;
@@ -403,7 +404,7 @@ struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
     mutex_acquire(&old_context->mutex);
 
     struct vmm_range* range = old_context->ranges;
-    while (range != NULL) {
+    while (range) {
         struct vmm_range* new_range = slab_cache_alloc(vmm_range_cache);
         if (unlikely(new_range == NULL)) {
             goto error;
@@ -460,7 +461,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
         free_unmapped_ranges(context);
     } else {
         void* base = get_next_anon_base(context, (void*) address, size);
-        if (base == NULL) {
+        if (!base) {
             goto end;
         }
 
@@ -470,7 +471,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
         range->pte_flags = mmap_prot_to_pte_flags(prot);
     }
 
-    if (node != NULL) {
+    if (node) {
         range->node = node;
         range->offset = offset;
         VFS_NODE_REF(node);
@@ -534,7 +535,7 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct vmm_context* context = current_thread->process->vmm_context;
-    if (context == NULL) {
+    if (unlikely(!context)) {
         return false;
     }
 
@@ -544,7 +545,7 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
 
     mutex_release(&context->mutex);
 
-    if (range == NULL) {
+    if (unlikely(!range)) {
         return false;
     }
 
@@ -561,12 +562,12 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
 
 void vmm_init(void) {
     vmm_context_cache = slab_cache_create("struct vmm_context cache", sizeof(struct vmm_context));
-    if (unlikely(vmm_context_cache == NULL)) {
+    if (unlikely(!vmm_context_cache)) {
         kpanic(NULL, false, "failed to create object cache for vmm_context structs");
     }
 
     vmm_range_cache = slab_cache_create("struct vmm_range cache", sizeof(struct vmm_range));
-    if (unlikely(vmm_range_cache == NULL)) {
+    if (unlikely(!vmm_range_cache)) {
         kpanic(NULL, false, "failed to create object cache for vmm_range structs");
     }
 

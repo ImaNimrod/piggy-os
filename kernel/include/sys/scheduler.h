@@ -20,10 +20,10 @@ struct scheduler {
 void scheduler_dequeue(struct scheduler* sched, struct thread* thread);
 void scheduler_enqueue(struct scheduler* sched, struct thread* thread);
 void scheduler_prepare_wait(struct thread* thread, bool interruptable);
-void scheduler_sleep(struct thread* thread, const struct timespec* duration);
+int scheduler_sleep(struct thread* thread, const struct timespec* duration);
 [[noreturn]] void scheduler_thread_exit(void);
-bool scheduler_wakeup(struct thread* thread, thread_wakeup_reason_t wakeup_reason);
-thread_wakeup_reason_t scheduler_yield(void);
+bool scheduler_wakeup(struct thread* thread, int wakeup_reason);
+int scheduler_yield(void);
 
 void scheduler_init(void);
 void scheduler_percpu_init(void);

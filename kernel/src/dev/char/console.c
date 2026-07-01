@@ -10,11 +10,13 @@
 #include <utils/usercopy.h> 
 
 static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
+static short console_poll(dev_t dev, short events, struct poll_table* pt);
 
 static mutex_t console_mutex;
 
 static struct device_ops console_ops = {
     .write = console_write,
+    .poll = console_poll,
 };
 
 static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags) {
@@ -43,6 +45,19 @@ static ssize_t console_write(dev_t dev, const void* buf, size_t count, off_t off
 
     mutex_release(&console_mutex);
     return count;
+}
+
+static short console_poll(dev_t dev, short events, struct poll_table* pt) {
+    (void) dev;
+    (void) pt;
+
+    short revents = 0;
+
+    if (events & POLLOUT) {
+        revents |= POLLOUT;
+    }
+
+    return revents;
 }
 
 void console_init(void) {

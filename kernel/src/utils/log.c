@@ -26,7 +26,7 @@ static void print_stack_trace(uintptr_t* rbp) {
         uintptr_t* old_rbp = (uintptr_t*) rbp[0];
         uintptr_t* rip = (uintptr_t*) rbp[1];
 
-        if (rip == NULL || old_rbp == NULL || ((uintptr_t) rip) < HIGH_VMA) {
+        if (!rip || !old_rbp || ((uintptr_t) rip) < HIGH_VMA) {
             break;
         }
 
@@ -43,13 +43,13 @@ void _putchar(char c) {
         serial_putc(COM1_PORT, crnl[0]);
         serial_putc(COM1_PORT, crnl[1]);
 
-        if (likely(fb_context != NULL)) {
+        if (likely(fb_context)) {
             flanterm_write(fb_context, crnl, sizeof(crnl));
         }
     } else {
         serial_putc(COM1_PORT, c);
 
-        if (likely(fb_context != NULL)) {
+        if (likely(fb_context)) {
             flanterm_write(fb_context, &c, sizeof(char));
         }
     }
@@ -82,7 +82,7 @@ void klog(const char* fmt, ...) {
     vprintf(fmt, args);
     va_end(args);
 
-    if (r != NULL) {
+    if (r) {
         printf("\n===============================================================================================\n");
         printf("RAX: 0x%016lx RBX: 0x%016lx RCX: 0x%016lx RDX: 0x%016lx\n", r->rax, r->rbx, r->rcx, r->rdx);
         printf("RSI: 0x%016lx RDI: 0x%016lx RSP: 0x%016lx RBP: 0x%016lx\n", r->rsi, r->rdi, r->rsp, r->rbp);
@@ -94,7 +94,7 @@ void klog(const char* fmt, ...) {
 
     if (stack_trace) {
         uintptr_t* rbp;
-        if (r != NULL) {
+        if (r) {
             rbp = (uintptr_t*) r->rbp;
         } else {
             asm volatile("mov %%rbp, %0" : "=g" (rbp) :: "memory");

@@ -78,6 +78,8 @@ struct vfs_node_ops {
     ssize_t (*readlink)(struct vfs_node*, char*, size_t);
     int (*unlink)(struct vfs_node*, struct vfs_node*, const char*);
 
+    int (*open)(struct vfs_node*, int);
+    void (*close)(struct vfs_node*, int);
     ssize_t (*read)(struct vfs_node*, void*, size_t, off_t, int);
     ssize_t (*write)(struct vfs_node*, const void*, size_t, off_t, int);
     int (*ioctl)(struct vfs_node*, int, void*);

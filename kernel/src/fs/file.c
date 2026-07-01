@@ -152,7 +152,16 @@ int file_insert(struct process* process, struct file* file, bool cloexec) {
 
 void file_release(struct file* file) {
     if (__atomic_sub_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
-        VFS_NODE_UNREF(file->node);
+        struct vfs_node* node = file->node;
+
+        if (node->ops->close) {
+            node->ops->lock(node);
+            node->ops->close(node, file->flags);
+            node->ops->unlock(node);
+        }
+
+        VFS_NODE_UNREF(node);
+
         slab_cache_free(file_cache, file);
     }
 }

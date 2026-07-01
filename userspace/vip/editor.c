@@ -380,7 +380,13 @@ bool editor_paste(struct editor_state* state) {
             .length = state->yank_length - 1,
         };
 
-        return editor_insert_row(state, &new_row, state->cursor.y + 1);
+        if (!editor_insert_row(state, &new_row, state->cursor.y + 1)) {
+            return false;
+        }
+
+        state->cursor.y++;
+        state->cursor.x = 0;
+        return true;
     }
 
     for (size_t i = 0; i < state->yank_length; i++) {

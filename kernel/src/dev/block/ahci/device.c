@@ -254,7 +254,7 @@ void ahci_device_irq_handler(struct ahci_device* device) {
     if (completed_slots != 0) {
         for (uint8_t i = 0; i < device->controller->slot_count; i++) {
             if (completed_slots & (1 << i)) {
-                scheduler_wakeup(device->queue_waiters[i].thread, THREAD_WAKEUP_REASON_NORMAL);
+                scheduler_wakeup(device->queue_waiters[i].thread, 0);
 
                 device->queue_waiters[i].result = (is & HBA_PxIE_ERROR_MASK) ? AHCI_COMMAND_RESULT_ERROR : AHCI_COMMAND_RESULT_OK;
                 device->queue_waiters[i].thread = NULL;

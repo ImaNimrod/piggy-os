@@ -1,25 +1,32 @@
+#include <cpu/smp.h>
 #include <errno.h>
+#include <fs/file.h>
 #include <fs/pipe.h>
+#include <fs/poll.h>
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <sys/signal.h>
 #include <sys/timer.h>
 #include <utils/macros.h>
 #include <utils/mutex.h>
 #include <utils/usercopy.h>
 #include <utils/wait_queue.h>
 
-#define PIPE_DATA_LEN 8192
+#define PIPE_DATA_LEN (4 * PAGE_SIZE_4KB)
 
 struct pipe_node {
     struct vfs_node;
     struct stat stat;
 
     uint8_t* data;
-    size_t data_length;
 
+    size_t size;
     size_t read_index;
     size_t write_index;
+
+    size_t readers;
+    size_t writers;
 
     struct wait_queue read_wq;
     struct wait_queue write_wq;
@@ -27,17 +34,13 @@ struct pipe_node {
     mutex_t mutex;
 };
 
-static int _pipe_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result);
-static int pipe_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result);
-static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name);
-static int pipe_link(struct vfs_node* dir, const char* name, struct vfs_node* node);
-static int pipe_symlink(struct vfs_node* dir, const char* name, const char* target);
-static ssize_t pipe_readlink(struct vfs_node* node, char* buf, size_t length);
-static int pipe_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name);
+static int pipe_open(struct vfs_node* node, int flags);
+static void pipe_close(struct vfs_node* node, int flags);
 static ssize_t pipe_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags);
 static ssize_t pipe_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags);
 static int pipe_ioctl(struct vfs_node* node, int request, void* argp);
 static int pipe_truncate(struct vfs_node* node, off_t length);
+static short pipe_poll(struct vfs_node* node, short events, struct poll_table* pt);
 static int pipe_sync(struct vfs_node* node);
 static int pipe_getstat(struct vfs_node* node, struct stat* stat);
 static int pipe_setstat(struct vfs_node* node, const struct stat* stat, int flags);
@@ -46,17 +49,13 @@ static int pipe_unlock(struct vfs_node* node);
 static void pipe_inactive(struct vfs_node* node);
 
 static struct vfs_node_ops pipe_node_ops = {
-    .create = _pipe_create,
-    .lookup = pipe_lookup,
-    .rename = pipe_rename,
-    .link = pipe_link,
-    .symlink = pipe_symlink,
-    .readlink = pipe_readlink,
-    .unlink = pipe_unlink,
+    .open = pipe_open,
+    .close = pipe_close,
     .read = pipe_read,
     .write = pipe_write,
     .ioctl = pipe_ioctl,
     .truncate = pipe_truncate,
+    .poll = pipe_poll,
     .sync = pipe_sync,
     .getstat = pipe_getstat,
     .setstat = pipe_setstat,
@@ -67,127 +66,194 @@ static struct vfs_node_ops pipe_node_ops = {
 
 static ino_t pipe_inode_counter = 1;
 
-static inline size_t pipe_used(struct pipe_node* p) {
-    return p->write_index - p->read_index;
+static inline size_t pipe_used(struct pipe_node* pnode) {
+    return pnode->size;
 }
 
-static inline size_t pipe_free(struct pipe_node* p) {
-    return p->data_length - pipe_used(p);
+static inline size_t pipe_free(struct pipe_node* pnode) {
+    return PIPE_DATA_LEN - pipe_used(pnode);
 }
 
-static int _pipe_create(struct vfs_node* parent, const char* name, vfs_type_t type, struct vfs_node** result) {
-    (void) parent;
-    (void) name;
-    (void) type;
-    (void) result;
-    return -ENOTSUP;
+static int pipe_open(struct vfs_node* node, int flags) {
+    struct pipe_node* pnode = (struct pipe_node*) node;
+
+    mutex_acquire(&pnode->mutex);
+
+    if ((flags & O_RDONLY) || (flags & O_RDWR)) {
+        pnode->readers++;
+    }
+
+    if ((flags & O_WRONLY) || (flags & O_RDWR)) {
+        pnode->writers++;
+    }
+
+    mutex_release(&pnode->mutex);
+    return 0;
 }
 
-static int pipe_lookup(struct vfs_node* parent, const char* name, struct vfs_node** result) {
-    (void) parent;
-    (void) name;
-    (void) result;
-    return -ENOTSUP;
-}
+static void pipe_close(struct vfs_node* node, int flags) {
+    struct pipe_node* pnode = (struct pipe_node*) node;
 
-static int pipe_rename(struct vfs_node* src_dir, struct vfs_node* src, const char* old_name, struct vfs_node* target_dir, const char* new_name) {
-    (void) src_dir;
-    (void) src;
-    (void) old_name;
-    (void) target_dir;
-    (void) new_name;
-    return -ENOTSUP;
-}
+    mutex_acquire(&pnode->mutex);
 
-static int pipe_link(struct vfs_node* dir, const char* name, struct vfs_node* node) {
-    (void) dir;
-    (void) name;
-    (void) node;
-    return -ENOTSUP;
-}
+    if ((flags & O_RDONLY) || (flags & O_RDWR)) {
+        if (--pnode->readers == 0) {
+            wait_queue_wake_all(&pnode->write_wq);
+        }
+    }
 
-static int pipe_symlink(struct vfs_node* dir, const char* name, const char* target) {
-    (void) dir;
-    (void) name;
-    (void) target;
-    return -ENOTSUP;
-}
+    if ((flags & O_WRONLY) || (flags & O_RDWR)) {
+        if (--pnode->writers == 0) {
+            wait_queue_wake_all(&pnode->read_wq);
+        }
+    }
 
-static ssize_t pipe_readlink(struct vfs_node* node, char* buf, size_t length) {
-    (void) node;
-    (void) buf;
-    (void) length;
-    return -ENOTSUP;
-}
-
-static int pipe_unlink(struct vfs_node* parent, struct vfs_node* child, const char* name) {
-    (void) parent;
-    (void) child;
-    (void) name;
-    return -ENOTSUP;
+    mutex_release(&pnode->mutex);
 }
 
 static ssize_t pipe_read(struct vfs_node* node, void* buf, size_t count, off_t offset, int flags) {
     (void) offset;
-    (void) flags;
 
-    struct pipe_node *p = (struct pipe_node *)node;
-    uint8_t *d = buf;
-
-    mutex_acquire(&p->mutex);
-
-    while (pipe_used(p) == 0) {
-        mutex_release(&p->mutex);
-        wait_queue_wait(&p->read_wq);
-        mutex_acquire(&p->mutex);
+    if (count == 0) {
+        return 0;
     }
+
+    struct pipe_node* pnode = (struct pipe_node*) node;
+    uint8_t* d = buf;
+
+    mutex_acquire(&pnode->mutex);
+
+    while (pipe_used(pnode) == 0) {
+        if (pnode->writers == 0) {
+            mutex_release(&pnode->mutex);
+            return 0;
+        }
+
+        if (flags & O_NONBLOCK) {
+            mutex_release(&pnode->mutex);
+            return -EAGAIN;
+        }
+
+        mutex_release(&pnode->mutex);
+
+        int ret = wait_queue_wait(&pnode->read_wq);
+        if (ret < 0) {
+            return ret;
+        }
+
+        mutex_acquire(&pnode->mutex);
+    }
+
+    bool was_full = pnode->size == PIPE_DATA_LEN;
 
     size_t n = 0;
-    while (n < count && pipe_used(p) > 0) {
-        USER_MEMCPY_MAYBE_TO_USER(&d[n], &p->data[p->read_index % p->data_length], 1);
-        p->read_index++;
-        n++;
+
+    while (n < count && pipe_used(pnode) > 0) {
+        size_t used = pipe_used(pnode);
+        size_t read_pos = pnode->read_index % PIPE_DATA_LEN;
+
+        size_t chunk = MIN(count - n, used);
+        size_t contiguous = PIPE_DATA_LEN - read_pos;
+
+        chunk = MIN(chunk, contiguous);
+
+        int ret = USER_MEMCPY_MAYBE_TO_USER(d + n, pnode->data + (pnode->read_index % PIPE_DATA_LEN), chunk);
+        if (ret < 0) {
+            mutex_release(&pnode->mutex);
+            return n ? (ssize_t) n : ret;
+        }
+
+        pnode->read_index += chunk;
+        pnode->size -= chunk;
+        n += chunk;
     }
 
-    mutex_release(&p->mutex);
-    wait_queue_wake_all(&p->write_wq);
+    bool is_full = pnode->size == PIPE_DATA_LEN;
+
+    mutex_release(&pnode->mutex);
+
+    if (was_full && !is_full) {
+        wait_queue_wake_all(&pnode->write_wq);
+    }
 
     return n;
 }
 
 static ssize_t pipe_write(struct vfs_node* node, const void* buf, size_t count, off_t offset, int flags) {
     (void) offset;
-    (void) flags;
 
-    struct pipe_node* p = (struct pipe_node*) node;
-    const uint8_t* d = buf;
-
-    mutex_acquire(&p->mutex);
-
-    size_t n = 0;
-    while (n < count) {
-        while (pipe_free(p) == 0) {
-            mutex_release(&p->mutex);
-            wait_queue_wait(&p->write_wq);
-            mutex_acquire(&p->mutex);
-        }
-
-        USER_MEMCPY_MAYBE_FROM_USER(&p->data[p->write_index % p->data_length], &d[n], 1);
-
-        p->write_index++;
-        n++;
+    if (count == 0) {
+        return 0;
     }
 
-    mutex_release(&p->mutex);
-    wait_queue_wake_all(&p->read_wq);
+    struct pipe_node* pnode = (struct pipe_node*) node;
+    const uint8_t* d = buf;
 
+    size_t n = 0;
+
+    mutex_acquire(&pnode->mutex);
+
+    while (n < count) {
+        while (pipe_free(pnode) == 0) {
+            if (pnode->readers == 0) {
+                mutex_release(&pnode->mutex);
+                signal_send_process(this_cpu()->scheduler.current_thread->process, SIGPIPE);
+                return n ? (ssize_t) n : -EPIPE;
+            }
+
+            if (flags & O_NONBLOCK) {
+                mutex_release(&pnode->mutex);
+                return n ? (ssize_t) n : -EAGAIN;
+            }
+
+            mutex_release(&pnode->mutex);
+
+            int ret = wait_queue_wait(&pnode->write_wq);
+            if (ret < 0) {
+                return ret;
+            }
+
+            mutex_acquire(&pnode->mutex);
+        }
+
+        size_t free = pipe_free(pnode);
+        size_t write_pos = pnode->write_index % PIPE_DATA_LEN;
+        size_t contiguous = PIPE_DATA_LEN - write_pos;
+
+        size_t chunk = MIN(count - n, free);
+        chunk = MIN(chunk, contiguous);
+
+        int ret = USER_MEMCPY_MAYBE_FROM_USER(pnode->data + write_pos, d + n, chunk);
+
+        if (ret < 0) {
+            mutex_release(&pnode->mutex);
+            return n ? (ssize_t) n : ret;
+        }
+
+        pnode->write_index += chunk;
+        pnode->size += chunk;
+        n += chunk;
+
+        wait_queue_wake_all(&pnode->read_wq);
+    }
+
+    mutex_release(&pnode->mutex);
     return n;
 }
 
 static int pipe_ioctl(struct vfs_node* node, int request, void* argp) {
-    (void) node;
-    (void) request;
-    (void) argp;
+    struct pipe_node* pnode = (struct pipe_node*) node;
+
+    if (request == FIONREAD) {
+        mutex_acquire(&pnode->mutex);
+
+        int n = (int) pipe_used(pnode);
+        int ret = user_memcpy_to_user(argp, &n, sizeof(n));
+
+        mutex_release(&pnode->mutex);
+        return ret;
+    }
+
     return -ENOTTY;
 }
 
@@ -195,6 +261,38 @@ static int pipe_truncate(struct vfs_node* node, off_t length) {
     (void) node;
     (void) length;
     return -EPERM;
+}
+
+static short pipe_poll(struct vfs_node* node, short events, struct poll_table* pt) {
+    struct pipe_node* pnode = (struct pipe_node*) node;
+
+    mutex_acquire(&pnode->mutex);
+
+    short revents = 0;
+
+    if (events & POLLIN) {
+        if (pnode->size > 0) {
+            revents |= POLLIN;
+        } else if (pnode->writers == 0) {
+            revents |= POLLIN | POLLHUP;
+        } else {
+            poll_table_add(pt, &pnode->read_wq);
+        }
+    }
+
+    if (events & POLLOUT) {
+        if (pnode->readers == 0) {
+            revents |= POLLERR;
+        } else if (pnode->size < PIPE_DATA_LEN) {
+            revents |= POLLOUT;
+        } else {
+            poll_table_add(pt, &pnode->write_wq);
+        }
+    }
+
+    mutex_release(&pnode->mutex);
+
+    return revents;
 }
 
 static int pipe_sync(struct vfs_node* node) {
@@ -249,10 +347,11 @@ int pipe_create(struct vfs_node** ret) {
     node->stat.st_blocks = 0;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
 
-    node->read_index = node->write_index;
-
     node->data = (uint8_t*) (pmm_alloc_zero(DIV_CEIL(PIPE_DATA_LEN, PAGE_SIZE_4KB)) + HIGH_VMA);
-    node->data_length = PIPE_DATA_LEN;
+
+    node->size = 0;
+    node->read_index = node->write_index = 0;
+    node->readers = node->writers = 1;
 
     wait_queue_init(&node->read_wq);
     wait_queue_init(&node->write_wq);

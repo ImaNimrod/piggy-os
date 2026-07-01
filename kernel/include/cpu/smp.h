@@ -2,8 +2,7 @@
 #define _KERNEL_CPU_SMP_H
 
 #include <cpu/gdt.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <mem/vmm.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/macros.h>
@@ -29,6 +28,8 @@ struct cpu_local {
     struct timer_info* timer_info;
     uint64_t timer_base_ticks;
     uint64_t timer_tick_offset;
+
+    struct vmm_range* last_fault_range;
 
     size_t cpu_number;
     uint32_t lapic_id;

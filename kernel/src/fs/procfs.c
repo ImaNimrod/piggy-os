@@ -310,7 +310,7 @@ static ssize_t getdents_root(struct dirent* buf, size_t count, off_t offset) {
 static ssize_t read_array(char** array, char* buf, size_t length) {
     size_t pos = 0;
 
-    for (size_t i = 0; array[i] != NULL; i++) {
+    for (size_t i = 0; array[i]; i++) {
         size_t arg_length = strlen(array[i]) + 1;
 
         if (pos + arg_length > length) {

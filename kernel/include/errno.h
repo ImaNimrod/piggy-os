@@ -27,9 +27,11 @@
 #define ENOTTY          25
 #define EOVERFLOW       75
 #define EPERM           1
+#define EPIPE           32
 #define EROFS           30
 #define ESPIPE          29
 #define ESRCH           3
+#define ETIMEDOUT       110
 #define EXDEV           18
 
 #endif /* _KERNEL_ERRNO_H */

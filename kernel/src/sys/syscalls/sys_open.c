@@ -8,7 +8,6 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
-#include <utils/log.h>
 void sys_open(struct registers* r) {
     int dirfd = r->rdi;
     const char* path = (const char*) r->rsi;
@@ -26,7 +25,7 @@ void sys_open(struct registers* r) {
     }
 
     char* kpath = kmalloc(path_len + 1);
-    if (unlikely(kpath == NULL)) {
+    if (unlikely(!kpath)) {
         r->rax = -ENOMEM;
         return;
     }
@@ -76,6 +75,16 @@ retry:
         goto end;
     }
 
+    if (node->ops->open) {
+        node->ops->lock(node);
+        ret = node->ops->open(node, flags);
+        node->ops->unlock(node);
+
+        if (ret < 0) {
+            goto end;
+        }
+    }
+
     if (node->type == VFS_TYPE_REGULAR && (flags & O_TRUNC)) {
         node->ops->lock(node);
         ret = node->ops->truncate(node, 0);
@@ -87,7 +96,7 @@ retry:
     }
 
     file = file_create(node, flags & ~O_CLOEXEC);
-    if (file == NULL) {
+    if (!file) {
         ret = -ENOMEM;
         goto end;
     }
@@ -117,14 +126,18 @@ retry:
 end:
     r->rax = ret;
 
-    if (file != NULL && ret < 0) {
-        file_release(file);
+    if (node && ret < 0) {
+        if (node->ops->close) {
+            node->ops->lock(node);
+            node->ops->close(node, flags);
+            node->ops->unlock(node);
+        }
+
+        VFS_NODE_UNREF(node);
     }
 
-    if (node != NULL) {
-        if (ret < 0) {
-            VFS_NODE_UNREF(node);
-        }
+    if (file && ret < 0) {
+        file_release(file);
     }
 
     file_cleanup_dirfd(dirfile, dirnode);

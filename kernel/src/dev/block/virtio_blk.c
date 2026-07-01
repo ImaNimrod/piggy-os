@@ -217,7 +217,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
         uint16_t index = queue->last_used++ % queue->size;
         uint16_t desc0 = queue->used->ring[index].id;
 
-        scheduler_wakeup(device->queue_waiters[desc0], THREAD_WAKEUP_REASON_NORMAL);
+        scheduler_wakeup(device->queue_waiters[desc0], 0);
         device->queue_waiters[desc0] = NULL;
         semaphore_signal(&device->queue_semaphore);
 

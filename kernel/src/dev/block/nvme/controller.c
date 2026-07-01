@@ -187,7 +187,7 @@ static void nvme_irq_handler(struct registers* r, void* arg) {
         int subid = queue[queue_pair->completion.index].cid;
         queue_pair->entries[subid]->completion = queue[queue_pair->completion.index];
 
-        scheduler_wakeup(queue_pair->entries[subid]->thread, THREAD_WAKEUP_REASON_NORMAL);
+        scheduler_wakeup(queue_pair->entries[subid]->thread, 0);
         queue_pair->entries[subid] = NULL;
         semaphore_signal(&queue_pair->entry_semaphore);
 

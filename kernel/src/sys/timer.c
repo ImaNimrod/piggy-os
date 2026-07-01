@@ -4,6 +4,7 @@
 #include <dev/cmos.h>
 #include <dev/hpet.h>
 #include <dev/pvclock.h>
+#include <errno.h>
 #include <mem/slab.h>
 #include <sys/scheduler.h>
 #include <sys/timer.h>
@@ -14,17 +15,18 @@
 
 #define NS_PER_S 1000000000ULL
 
-struct sleep_event {
-    struct thread* thread;
+struct timer_event {
+    timer_callback_t callback;
+    void* arg;
     struct timespec ts;
-    struct sleep_event* next;
+    struct timer_event* next;
 };
 
 struct timespec time_realtime;
 
 static uint64_t last_ticks;
-static struct sleep_event* sleep_event_list;
-static spinlock_t sleep_event_list_lock;
+static struct timer_event* timer_event_list;
+static spinlock_t timer_event_list_lock;
 
 /*
  * Timer priority ranking is as follows:
@@ -55,21 +57,23 @@ struct timespec timer_time_from_boot(void) {
     return (struct timespec) { secs, nsecs };
 }
 
-void timer_sleep_thread(struct thread* thread, const struct timespec* tp) {
-    struct sleep_event* event = kmalloc(sizeof(struct sleep_event));
-    if (unlikely(event == NULL)) {
-        kpanic(NULL, false, "failed to allocate memory for sleep event");
+int timer_setup(timer_callback_t callback, void* arg, const struct timespec* tp) {
+    struct timer_event* event = kmalloc(sizeof(struct timer_event));
+    if (unlikely(!event)) {
+        return -ENOMEM;
     }
-
-    event->thread = thread;
+    event->callback = callback;
+    event->arg = arg;
     event->ts = *tp;
 
     struct timespec boottime = timer_time_from_boot();
     timespec_add(&event->ts, &boottime);
 
-    spinlock_acquire(&sleep_event_list_lock);
-    SLIST_PUSH_FRONT(sleep_event_list, event, next);
-    spinlock_release(&sleep_event_list_lock);
+    spinlock_acquire(&timer_event_list_lock);
+    SLIST_PUSH_FRONT(timer_event_list, event, next);
+    spinlock_release(&timer_event_list_lock);
+
+    return 0;
 }
 
 void timer_update_timers(void) {
@@ -84,21 +88,20 @@ void timer_update_timers(void) {
 
     last_ticks = current_ticks;
 
-    spinlock_acquire(&sleep_event_list_lock);
+    spinlock_acquire(&timer_event_list_lock);
 
     struct timespec boottime = timer_time_from_boot();
 
-    struct sleep_event* iter;
-    SLIST_FOREACH(sleep_event_list, iter, next) {
+    struct timer_event* iter;
+    SLIST_FOREACH(timer_event_list, iter, next) {
         if (timespec_greater(&boottime, &iter->ts)) {
-            struct thread* thread = iter->thread;
-            SLIST_REMOVE(sleep_event_list, iter, next);
+            SLIST_REMOVE(timer_event_list, iter, next);
+            iter->callback(iter->arg);
             kfree(iter);
-            scheduler_wakeup(thread, THREAD_WAKEUP_REASON_NORMAL);
         }
     }
 
-    spinlock_release(&sleep_event_list_lock);
+    spinlock_release(&timer_event_list_lock);
 }
 
 void timer_wait_ns(uint64_t ns) {
