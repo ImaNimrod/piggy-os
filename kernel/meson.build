@@ -123,9 +123,10 @@ kernel_sources = files(
 
   'src/net/arp.c',
   'src/net/eth.c',
+  'src/net/icmp.c',
   'src/net/ipv4.c',
   'src/net/netif.c',
-  'src/net/packet.c',
+  'src/net/udp.c',
 
   'src/sys/syscalls/sys_archctl.c',
   'src/sys/syscalls/sys_chdir.c',

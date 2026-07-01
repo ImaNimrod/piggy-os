@@ -1,12 +1,18 @@
 #ifndef _KERNEL_NET_IPV4_H
 #define _KERNEL_NET_IPV4_H
 
-#include <net/packet.h>
+#include <stddef.h>
 #include <stdint.h>
 
-#define IPV4_PROTOCOL_ICMP  1
-#define IPV4_PROTOCOL_TCP   6
-#define IPV4_PROTOCOL_UDP   17
+#define BROADCAST_IPV4 ((ipv4_address_t) 0xffffffff)
+
+typedef enum : uint8_t {
+    IPV4_PROTOCOL_ICMP = 1,
+    IPV4_PROTOCOL_TCP = 6,
+    IPV4_PROTOCOL_UDP = 17,
+} ipv4_protocol_t;
+
+typedef uint32_t ipv4_address_t;
 
 struct ipv4_header {
     uint8_t ihl: 4;
@@ -17,16 +23,18 @@ struct ipv4_header {
     uint16_t flags: 3;
     uint16_t fragment_offset: 13;
     uint8_t ttl;
-    uint8_t protocol;
+    ipv4_protocol_t protocol;
     uint16_t checksum;
     ipv4_address_t source;
     ipv4_address_t destination;
     uint8_t payload[];
 } __attribute__((packed));
 
-uint16_t inet_checksum(void* data, uint16_t length);
+struct netif;
 
-void ipv4_handle(struct packet* packet, void* l3_data);
-struct packet* ipv4_prepare_packet(struct netif* netif, uint16_t l4_size, uint8_t protocol, ipv4_address_t destination);
+uint16_t inet_checksum(void* buf, uint16_t len);
+
+void ipv4_handle(struct netif* netif, const void* buf);
+int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_protocol_t protocol, struct netif* netif);
 
 #endif /* _KERNEL_NET_IPV4_H */

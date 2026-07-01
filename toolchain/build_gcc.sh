@@ -70,8 +70,11 @@ pushd "$DIR/build_gcc"
 
     echo "building ${GCC_NAME}..."
 
-    make -j "$NPROC" all-gcc all-target-libgcc all-target-libstdc++-v3 || exit 1
-    make install-gcc install-target-libgcc install-target-libstdc++-v3 || exit 1
+    make -j "$NPROC" all-gcc all-target-libgcc || exit 1
+    make install-gcc install-target-libgcc || exit 1
+
+    make -j "$NPROC" all-target-libstdc++-v3 || exit 1
+    make install-target-libstdc++-v3 || exit 1
 popd
 
 rm -rf "$DIR/build_gcc"

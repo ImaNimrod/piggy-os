@@ -19,6 +19,8 @@
 #define VIRTQ_DESC_F_WRITE      (1 << 1)
 #define VIRTQ_DESC_F_INDIRECT   (1 << 2)
 
+#define VIRTIO_F_VERSION_1 (1ULL << 32)
+
 #define VIRTQ_AVAIL_F_NO_INTERRUPT (1 << 0)
 
 #define VIRTQ_USED_F_NO_NOTIFY (1 << 0)

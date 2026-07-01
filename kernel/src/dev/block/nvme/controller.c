@@ -221,7 +221,7 @@ static void nvme_init(struct pci_device* pci_dev) {
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
-    struct nvme_bar* nvme_bar = (void*) (bar0.base_address + HIGH_VMA);
+    struct nvme_bar* nvme_bar = (void*) (bar0.addr + HIGH_VMA);
 
     uint32_t vs = mmio_read32(&nvme_bar->vs);
     uint16_t major = (vs >> 16) & 0xffff;

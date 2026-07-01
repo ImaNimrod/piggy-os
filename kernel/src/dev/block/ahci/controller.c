@@ -69,7 +69,7 @@ static void ahci_init(struct pci_device* pci_dev) {
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
-    struct hba_registers* hba_registers = (void*) (bar5.base_address + HIGH_VMA);
+    struct hba_registers* hba_registers = (void*) (bar5.addr + HIGH_VMA);
 
     if (!(mmio_read32(&hba_registers->cap) & CAP_S64A)) {
         klog("[ahci] AHCI controller does not support 64-bit addressing\n");

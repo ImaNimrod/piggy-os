@@ -23,7 +23,6 @@
 #define BITMAP_CLEAR(bitmap, i) ((bitmap)[(i) / 64] &= ~(1ULL << ((i) & 63)))
 #define BITMAP_TEST(bitmap, i) ((bitmap)[(i) / 64] & (1ULL << ((i) & 63)))
 
-
 #define LOG2(x) (8 * 8 - __builtin_clzll((x)) - 1)
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -36,12 +35,5 @@
 #define US_TO_NS(us)    ((uint64_t) (us) * 1000ul)
 
 #define ALWAYS_INLINE __attribute__((always_inline)) inline
-
-#define MAC_ADDRESS_FORMAT          "%02x:%02x:%02x:%02x:%02x:%02x"
-#define MAC_ADDRESS_PRINT(mac)      (mac)[0], (mac)[1], (mac)[2], (mac)[3], (mac)[4], (mac)[5]
-
-#define IPV4_ADDRESS(a, b, c, d)    (((ipv4_address_t) a << 24) | ((ipv4_address_t) b << 16) | ((ipv4_address_t) c << 8) | ((ipv4_address_t) d))
-#define IPV4_FORMAT                 "%u.%u.%u.%u"
-#define IPV4_PRINT(ip)              ((ip) >> 24) & 0xff, ((ip) >> 16) & 0xff, ((ip) >> 8) & 0xff, (ip) & 0xff
 
 #endif /* _KERNEL_UTILS_MACROS_H */

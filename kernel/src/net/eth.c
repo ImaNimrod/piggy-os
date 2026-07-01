@@ -5,28 +5,24 @@
 #include <utils/macros.h>
 #include <utils/string.h>
 
-mac_address_t broadcast_mac = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+mac_address_t BROADCAST_MAC = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
-void eth_handle(struct packet* packet) {
-    struct eth_header* header = packet->buf;
+void eth_handle(struct netif* netif, const void* buf) {
+    const struct eth_header* header = buf;
 
     switch (ntohs(header->ethertype)) {
         case ETHERTYPE_ARP:
-            arp_handle(packet, (void*) (header + 1));
+            arp_handle(netif, (void*) (header + 1));
             break;
         case ETHERTYPE_IPV4:
-            ipv4_handle(packet, (void*) (header + 1));
+            ipv4_handle(netif, (void*) (header + 1));
             break;
     }
 }
 
-void* eth_populate_packet(struct packet* packet, mac_address_t* dmac, uint16_t ethertype) {
-    struct eth_header* header = packet->buf;
-
-    memcpy(header->smac, packet->netif->mac, sizeof(mac_address_t));
-    memcpy(header->dmac, dmac, sizeof(mac_address_t));
-
-    header->ethertype = htons(ethertype);
-
-    return header + 1;
+void eth_populate_packet(struct netif* netif, mac_address_t* destination, ethertype_t type, void* buf) {
+    struct eth_header* header = buf;
+    memcpy(header->smac, netif->mac, sizeof(mac_address_t));
+    memcpy(header->dmac, destination, sizeof(mac_address_t));
+    header->ethertype = htons(type);
 }

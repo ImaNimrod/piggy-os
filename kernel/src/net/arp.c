@@ -1,13 +1,12 @@
 #include <mem/slab.h>
 #include <net/arp.h>
-#include <net/eth.h>
-#include <stdint.h>
-#include <sys/scheduler.h>
+#include <net/netif.h>
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 #include <utils/string.h>
+#include <utils/wait_queue.h>
 
 #define ARP_HWTYPE_ETH      0x0001
 #define ARP_PROTYPE_IPV4    0x0800
@@ -37,12 +36,16 @@ struct arp_cache_entry {
 };
 
 static hashmap_t* arp_cache;
-static spinlock_t arp_cache_lock;
+static mutex_t arp_cache_mutex;
+static struct wait_queue arp_cache_wq;
 
-static void arp_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t dip) {
-    struct packet* packet = packet_alloc(netif, sizeof(struct eth_header) + sizeof(struct arp_header) + sizeof(struct arp_data_ipv4));
+static void send_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t dip) {
+    struct packet packet;
+    if (!netif->alloc_packet(netif, &packet, sizeof(struct arp_header) + sizeof(struct arp_data_ipv4))) {
+        return;
+    }
 
-    struct arp_header* header = eth_populate_packet(packet, dmac, ETHERTYPE_ARP);
+    struct arp_header* header = (void*) ((uintptr_t) packet.buf + packet.offset);
     header->hwtype = htons(ARP_HWTYPE_ETH);
     header->protype = htons(ARP_PROTYPE_IPV4);
     header->hwsize = sizeof(mac_address_t);
@@ -55,11 +58,38 @@ static void arp_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t d
     memcpy(data->dmac, dmac, sizeof(mac_address_t));
     data->dip = htonl(dip);
 
-    netif_send_packet(netif, packet);
+    netif->send_packet(netif, &packet, dmac, ETHERTYPE_ARP);
+    netif->free_packet(netif, &packet);
 }
 
-void arp_handle(struct packet* packet, void* l3_data) {
-    struct arp_header* header = l3_data;
+static bool send_request(struct netif* netif, ipv4_address_t ip) {
+    struct packet packet;
+    if (!netif->alloc_packet(netif, &packet, sizeof(struct arp_header) + sizeof(struct arp_data_ipv4))) {
+        return false;
+    }
+
+    struct arp_header* header = (void*) ((uintptr_t) packet.buf + packet.offset);
+    header->hwtype = htons(ARP_HWTYPE_ETH);
+    header->protype = htons(ARP_PROTYPE_IPV4);
+    header->hwsize = sizeof(mac_address_t);
+    header->prosize = sizeof(ipv4_address_t);
+    header->opcode = htons(ARP_OPCODE_REQUEST);
+
+    struct arp_data_ipv4* data = (void*) &header->data;
+    memcpy(data->smac, netif->mac, sizeof(mac_address_t));
+    data->sip = htonl(netif->ipv4_address);
+    memset(data->dmac, 0, sizeof(mac_address_t));
+    data->dip = htonl(ip);
+
+    bool ret = netif->send_packet(netif, &packet, &BROADCAST_MAC, ETHERTYPE_ARP);
+
+    netif->free_packet(netif, &packet);
+
+    return ret;
+}
+
+void arp_handle(struct netif* netif, const void* buf) {
+    const struct arp_header* header = buf;
 
     if (unlikely(ntohs(header->hwtype) != ARP_HWTYPE_ETH)) {
         return;
@@ -72,45 +102,77 @@ void arp_handle(struct packet* packet, void* l3_data) {
 
     uint16_t opcode = ntohs(header->opcode);
     if (opcode == ARP_OPCODE_REQUEST) {
-        if (ntohl(data->dip) == packet->netif->ipv4_address) {
-            arp_reply(packet->netif, &data->smac, ntohl(data->sip));
+        if (ntohl(data->dip) == netif->ipv4_address) {
+            send_reply(netif, &data->smac, ntohl(data->sip));
         }
     } else if (opcode == ARP_OPCODE_REPLY) {
-        if (!memcmp(data->dmac, packet->netif->mac, sizeof(mac_address_t))) {
-            spinlock_acquire(&arp_cache_lock);
+        if (!memcmp(data->dmac, netif->mac, sizeof(mac_address_t))) {
+            mutex_acquire(&arp_cache_mutex);
 
             void* mac = kmalloc(sizeof(mac_address_t));
             memcpy(mac, data->smac, sizeof(mac_address_t));
-            hashmap_set(arp_cache, (const void*) (uintptr_t) ntohl(data->sip), sizeof(ipv4_address_t), mac);
 
-            spinlock_release(&arp_cache_lock);
+            ipv4_address_t ip = ntohl(data->sip);
+
+            hashmap_set(arp_cache, &ip, sizeof(ip), mac);
+
+            mutex_release(&arp_cache_mutex);
+
+            wait_queue_wake_all(&arp_cache_wq);
         }
     }
 }
 
-bool arp_lookup_ip(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
-    if (ip == 0xffffffff) {
-        memcpy(mac, &broadcast_mac, sizeof(mac_address_t));
+bool arp_lookup(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
+    if (ip == BROADCAST_IPV4) {
+        memcpy(mac, &BROADCAST_MAC, sizeof(mac_address_t));
         return true;
     }
 
-    spinlock_acquire(&arp_cache_lock);
+    bool ret = false;
 
-    mac_address_t* cache_mac;
+    mutex_acquire(&arp_cache_mutex);
 
-    bool ret = hashmap_get(arp_cache, (const void*) (uintptr_t) ip, sizeof(ipv4_address_t), (void**) &cache_mac);
-    if (ret) {
-        memcpy(mac, cache_mac, sizeof(mac_address_t));
+    mac_address_t *cached;
+
+    if ((ret = hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached))) {
+        memcpy(mac, cached, sizeof(mac_address_t));
+        goto end;
     }
 
-    spinlock_release(&arp_cache_lock);
+    mutex_release(&arp_cache_mutex);
 
+    if (!(ret = send_request(netif, ip))) {
+        goto end;
+    }
+
+    wait_queue_wait(&arp_cache_wq);
+
+    for (;;) {
+        mutex_acquire(&arp_cache_mutex);
+
+        if (hashmap_get(arp_cache, &ip, sizeof(ip), (void **)&cached)) {
+            memcpy(mac, cached, sizeof(mac_address_t));
+            ret = true;
+            break;
+        }
+
+        mutex_release(&arp_cache_mutex);
+
+        wait_queue_wait(&arp_cache_wq);
+    }
+
+end:
+    mutex_release(&arp_cache_mutex);
     return ret;
 }
 
 void arp_init(void) {
-    arp_cache = hashmap_create(20);
-    if (unlikely(arp_cache == NULL)) {
+    arp_cache = hashmap_create(128);
+    if (unlikely(!arp_cache)) {
         kpanic(NULL, false, "failed to initialize ARP cache");
     }
+
+    mutex_init(&arp_cache_mutex);
+    wait_queue_init(&arp_cache_wq);
 }

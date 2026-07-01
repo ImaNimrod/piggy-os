@@ -230,7 +230,7 @@ static void virtio_blk_irq_handler(struct registers* r, void* ctx) {
 void virtio_blk_init(struct virtio_device* vio_dev) {
     mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER);
 
-    uint64_t features = VIRTIO_BLK_F_SIZE_MAX | VIRTIO_BLK_F_SEGMENT_MAX | VIRTIO_BLK_F_GEOMETRY_BIT | VIRTIO_BLK_F_RO | VIRTIO_BLK_F_BLOCK_SIZE | VIRTIO_BLK_F_FLUSH | VIRTIO_BLK_F_TOPOLOGY;
+    uint64_t features = VIRTIO_F_VERSION_1 | VIRTIO_BLK_F_SIZE_MAX | VIRTIO_BLK_F_SEGMENT_MAX | VIRTIO_BLK_F_GEOMETRY_BIT | VIRTIO_BLK_F_RO | VIRTIO_BLK_F_BLOCK_SIZE | VIRTIO_BLK_F_FLUSH | VIRTIO_BLK_F_TOPOLOGY;
     if ((features = virtio_negotiate_features(vio_dev, features)) == (uint64_t) -1) {
         klog("[virtio_blk] failed to negotiate device features\n");
         return;

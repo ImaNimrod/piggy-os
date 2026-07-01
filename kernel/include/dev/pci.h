@@ -48,8 +48,8 @@ struct pci_device {
 };
 
 struct pci_bar {
-    uintptr_t base_address;
-    size_t length;
+    uintptr_t addr;
+    size_t len;
     bool is_mmio;
     bool mmio_prefetchable;
 };

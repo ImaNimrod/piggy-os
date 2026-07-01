@@ -60,11 +60,13 @@ void virtio_queue_free_descriptor(struct virtio_queue* queue, uint16_t descripto
 }
 
 bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t irq_vector) {
-    if (queue_number > mmio_read16(&dev->common_config->queue_count)) {
+    if (queue_number >= mmio_read16(&dev->common_config->queue_count)) {
         return false;
     }
 
     mmio_write16(&dev->common_config->queue_select, queue_number);
+
+    uint16_t notify_off = mmio_read16(&dev->common_config->queue_notify_offset);
 
     struct virtio_queue* queue = &dev->queues[queue_number];
     queue->size = mmio_read16(&dev->common_config->queue_size);
@@ -79,7 +81,7 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
 
     uintptr_t descriptor_paddr = queue_paddr;
     queue->descriptors = (void*) (descriptor_paddr + HIGH_VMA);
-    uintptr_t available_paddr = ALIGN_UP(descriptor_paddr + (sizeof(struct virtio_queue_descriptor) + queue->size), PAGE_SIZE_4KB);
+    uintptr_t available_paddr = ALIGN_UP(descriptor_paddr + sizeof(struct virtio_queue_descriptor) * queue->size, PAGE_SIZE_4KB);
     queue->available = (void*) (available_paddr + HIGH_VMA);
     uintptr_t used_paddr = ALIGN_UP(available_paddr + (sizeof(struct virtio_queue_available) + (sizeof(uint16_t) * queue->size)), PAGE_SIZE_4KB);
     queue->used = (void*) (used_paddr + HIGH_VMA);
@@ -88,7 +90,9 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
     mmio_write64(&dev->common_config->queue_driver, available_paddr);
     mmio_write64(&dev->common_config->queue_device, used_paddr);
 
-    queue->notify = dev->notify_begin + (mmio_read16(&dev->common_config->queue_notify_offset) * dev->notify_offset_multiplier);
+    queue->notify =
+        dev->notify_begin +
+        ((uintptr_t)notify_off * dev->notify_offset_multiplier);
 
     if (irq_vector != 0xff) {
         mmio_write16(&dev->common_config->queue_msix_vector, queue_number);
@@ -166,9 +170,9 @@ static void virtio_init(struct pci_device* pci_dev) {
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_MEMORY_SPACE | PCI_COMMAND_FLAG_BUSMASTER | PCI_COMMAND_FLAG_INTX_DISABLE, true);
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
-    dev->common_config = (void*) (bar.base_address + HIGH_VMA + common_config_offset);
-    dev->device_config = (void*) (bar.base_address + HIGH_VMA + device_config_offset);
-    dev->notify_begin = (void*) (bar.base_address + HIGH_VMA + notify_offset);
+    dev->common_config = (void*) (bar.addr + HIGH_VMA + common_config_offset);
+    dev->device_config = (void*) (bar.addr + HIGH_VMA + device_config_offset);
+    dev->notify_begin = (void*) (bar.addr + HIGH_VMA + notify_offset);
 
     if (!pci_enable_msix(pci_dev)) {
         klog("[virtio] failed to setup interrupts for VirtIO device\n");

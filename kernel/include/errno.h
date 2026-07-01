@@ -14,7 +14,9 @@
 #define EISDIR          21
 #define ELOOP           40
 #define EMFILE          24
+#define EMSGSIZE        90
 #define ENAMETOOLONG    36
+#define ENETUNREACH     101
 #define ENODEV          19
 #define ENOENT          2
 #define ENOEXEC         8

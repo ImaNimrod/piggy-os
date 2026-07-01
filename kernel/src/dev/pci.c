@@ -254,24 +254,24 @@ bool pci_get_bar(struct pci_device* dev, uint8_t index, struct pci_bar* bar) {
     uint32_t base_low = pci_read(dev, offset, 4);
 
     if (base_low & 1) {
-        bar->base_address = (base_low & 0xfffffffc) & 0xffff;
+        bar->addr = (base_low & 0xfffffffc) & 0xffff;
 
         pci_write(dev, offset, 0xffffffff, 4);
-        bar->length = ((pci_read(dev, offset, 4) & ~(0x3)) + 1) & 0xffff;
+        bar->len = ((pci_read(dev, offset, 4) & ~(0x3)) + 1) & 0xffff;
 
         bar->is_mmio = false;
     } else {
         int type = (base_low >> 1) & 3;
         uint32_t base_high = pci_read(dev, offset + 4, 4);
 
-        bar->base_address = base_low & 0xfffffff0;
+        bar->addr = base_low & 0xfffffff0;
 
         if (type == 2) {
-            bar->base_address |= ((uint64_t) base_high << 32);
+            bar->addr |= ((uint64_t) base_high << 32);
         }
 
         pci_write(dev, offset, 0xffffffff, 4);
-        bar->length = ~((pci_read(dev, offset, 4) & ~(0xf))) + 1;
+        bar->len = ~((pci_read(dev, offset, 4) & ~(0xf))) + 1;
 
         bar->is_mmio = true;
         bar->mmio_prefetchable = base_low & (1 << 3);
@@ -282,18 +282,18 @@ bool pci_get_bar(struct pci_device* dev, uint8_t index, struct pci_bar* bar) {
 }
 
 bool pci_map_bar(struct pci_bar* bar) {
-    if (unlikely(bar->base_address == 0 || bar->length == 0 || !bar->is_mmio)) {
+    if (unlikely(bar->addr == 0 || bar->len == 0 || !bar->is_mmio)) {
         return false;
     }
 
-    pmm_reserve_mmio_space(bar->base_address, DIV_CEIL(bar->length, PAGE_SIZE_4KB));
+    pmm_reserve_mmio_space(bar->addr, DIV_CEIL(bar->len, PAGE_SIZE_4KB));
 
     uint64_t flags = PTE_PRESENT | PTE_WRITABLE | PTE_NX;
     if (!bar->mmio_prefetchable) {
         flags |= PTE_CACHE_DISABLE;
     }
 
-    pagemap_map_range(kernel_pagemap, bar->base_address + HIGH_VMA, bar->base_address, ALIGN_UP(bar->length, PAGE_SIZE_4KB), flags);
+    pagemap_map_range(kernel_pagemap, bar->addr + HIGH_VMA, bar->addr, ALIGN_UP(bar->len, PAGE_SIZE_4KB), flags);
     return true;
 }
 
@@ -356,7 +356,7 @@ bool pci_enable_msix(struct pci_device* dev) {
         return false;
     }
 
-    dev->msix_table = (void*) (bar.base_address + HIGH_VMA + (info & ~7));
+    dev->msix_table = (void*) (bar.addr + HIGH_VMA + (info & ~7));
 
     uint16_t control = pci_read(dev, dev->msix_offset + 2, 2);
 

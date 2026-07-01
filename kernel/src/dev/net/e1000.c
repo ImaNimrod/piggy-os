@@ -5,8 +5,9 @@
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
+#include <net/eth.h>
 #include <net/netif.h>
-#include <net/packet.h>
+#include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -310,7 +311,6 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
     // Packet transmitted
     if (icr & INT_TXDW) {
         semaphore_signal(&device->tx_semaphore);
-        device->netif->tx_count++;
     }
 
     // Packet received
@@ -327,11 +327,8 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
                 break;
             }
 
-            device->netif->rx_count++;
-
             const void* buf = (const void*) (device->rx_descs[device->rx_tail].address + HIGH_VMA);
-            size_t length = device->rx_descs[device->rx_tail].length;
-            netif_add_packet(device->netif, buf, length);
+            eth_handle(device->netif, buf);
 
             device->rx_descs[device->rx_tail].status = 0;
 
@@ -342,17 +339,30 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
     e1000_write(device, E1000_REG_ICR, icr);
 }
 
-static bool e1000_send_packet(struct netif* netif, struct packet* packet) {
+static bool e1000_alloc_packet(struct netif* netif, struct packet* packet, size_t size) {
+    uintptr_t paddr = pmm_alloc_zero(1);
+    packet->buf = (void*) (paddr + HIGH_VMA);
+    packet->size = sizeof(struct eth_header) + size;
+    packet->offset = sizeof(struct eth_header);
+    return true;
+}
+
+static void e1000_free_packet(struct netif* netif, struct packet* packet) {
+    pmm_free((uintptr_t) packet->buf - HIGH_VMA, 1);
+}
+
+static bool e1000_send_packet(struct netif* netif, struct packet* packet, mac_address_t* destination, ethertype_t type) {
     struct e1000_device* device = netif->device;
 
     semaphore_wait(&device->tx_semaphore);
 
     spinlock_acquire(&device->tx_lock);
 
-    struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
+    eth_populate_packet(netif, destination, type, packet->buf);
 
-    memcpy((void*) (tx_desc->address + HIGH_VMA), packet->buf, packet->length);
-    tx_desc->length = packet->length;
+    struct tx_descriptor* tx_desc = &device->tx_descs[device->tx_tail];
+    memcpy((void*) (tx_desc->address + HIGH_VMA), packet->buf, packet->size);
+    tx_desc->length = packet->size;
     tx_desc->cmd = (1 << 0) | (1 << 1) | (1 << 3);
     tx_desc->status = 0;
 
@@ -404,11 +414,16 @@ static void e1000_init(struct pci_device* pci_dev) {
         kpanic(NULL, false, "failed to allocate memory for E1000 device");
     }
 
-    device->mmio_base = bar0.base_address + HIGH_VMA;
+    device->mmio_base = bar0.addr + HIGH_VMA;
 
-    struct netif* netif = netif_create();
+    struct netif* netif = kmalloc(sizeof(struct netif));
+    if (unlikely(!netif)) {
+        kpanic(NULL, false, "failed to allocate memory for E1000 network interface");
+    }
     netif->mtu = 1500;
     netif->device = device;
+    netif->alloc_packet = e1000_alloc_packet;
+    netif->free_packet = e1000_free_packet;
     netif->send_packet = e1000_send_packet;
     netif->update_flags = e1000_update_flags;
 
