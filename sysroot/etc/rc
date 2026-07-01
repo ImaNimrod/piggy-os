@@ -3,6 +3,9 @@ echo mounting filesystems...
 mkdir /dev
 mount /dev:devfs
 
+mkdir /proc
+mount /proc:procfs
+
 mkdir /tmp
 mount /tmp:tmpfs
 
