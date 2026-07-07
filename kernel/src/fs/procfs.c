@@ -39,12 +39,6 @@ struct procfs_node_map_key {
     pid_t pid;
 };
 
-static ino_t inode_counter;
-static struct slab_cache* procfs_node_cache;
-static hashmap_t* procfs_node_map;
-static mutex_t procfs_node_map_mutex;
-static struct procfs_node* procfs_root_node;
-
 static int procfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result);
 static int procfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);
 
@@ -96,6 +90,12 @@ static struct vfs_node_ops procfs_node_ops = {
     .unlock = procfs_unlock,
     .inactive = procfs_inactive,
 };
+
+static ino_t inode_counter = 1;
+static struct slab_cache* procfs_node_cache;
+static hashmap_t* procfs_node_map;
+static mutex_t procfs_node_map_mutex;
+static struct procfs_node* procfs_root_node;
 
 static inline uint64_t node_map_key(enum procfs_node_type type, pid_t pid) {
     return type | ((uint64_t) pid << 32);

@@ -12,7 +12,7 @@ void sys_threadnew(struct registers* r) {
     struct process* current_process = current_thread->process;
 
     struct thread* new_thread = thread_create_user(current_process, (uintptr_t) entry, (uintptr_t) stack);
-    if (new_thread == NULL) {
+    if (!new_thread) {
         r->rax = -ENOMEM;
         return;
     }

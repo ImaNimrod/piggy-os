@@ -58,6 +58,14 @@ extern void sys_sigpending(struct registers* r);
 extern void sys_sigprocmask(struct registers* r);
 extern void sys_sigreturn(struct registers* r);
 extern void sys_sigsuspend(struct registers* r);
+extern void sys_socket(struct registers* r);
+extern void sys_bind(struct registers* r);
+extern void sys_connect(struct registers* r);
+extern void sys_recv(struct registers* r);
+extern void sys_send(struct registers* r);
+extern void sys_getsockname(struct registers* r);
+extern void sys_getpeername(struct registers* r);
+extern void sys_shutdown(struct registers* r);
 extern void sys_uname(struct registers* r);
 extern void sys_futex(struct registers* r);
 extern void sys_poweroff(struct registers* r);
@@ -118,6 +126,14 @@ static syscall_handler_t syscall_table[] = {
     [SYS_SIGPROCMASK]   = sys_sigprocmask,
     [SYS_SIGRETURN]     = sys_sigreturn,
     [SYS_SIGSUSPEND]    = sys_sigsuspend,
+    [SYS_SOCKET]        = sys_socket,
+    [SYS_BIND]          = sys_bind,
+    [SYS_CONNECT]       = sys_connect,
+    [SYS_RECV]          = sys_recv,
+    [SYS_SEND]          = sys_send,
+    [SYS_GETSOCKNAME]   = sys_getsockname,
+    [SYS_GETPEERNAME]   = sys_getpeername,
+    [SYS_SHUTDOWN]      = sys_shutdown,
     [SYS_UNAME]         = sys_uname,
     [SYS_FUTEX]         = sys_futex,
     [SYS_POWEROFF]      = sys_poweroff,

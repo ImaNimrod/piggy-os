@@ -13,7 +13,7 @@ void sys_getpgid(struct registers* r) {
         r->rax = current_process->group->pgid;
     } else {
         struct process* target = process_find_by_pid(pid);
-        if (target != NULL) {
+        if (target) {
             r->rax = target->group->pgid;
         } else {
             r->rax = -ESRCH;

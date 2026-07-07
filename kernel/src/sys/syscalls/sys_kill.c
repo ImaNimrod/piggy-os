@@ -7,7 +7,7 @@
 #include <utils/usercopy.h>
 
 static void signal_all_processes(struct process* process, int signal) {
-    if (process == NULL) {
+    if (!process) {
         return;
     }
 
@@ -33,7 +33,7 @@ void sys_kill(struct registers* r) {
 
     if (pid > 0) {
         struct process* target = process_find_by_pid(pid);
-        if (target == NULL) {
+        if (!target) {
             r->rax = -ESRCH;
             return;
         }
@@ -52,7 +52,7 @@ void sys_kill(struct registers* r) {
             return;
         }
 
-        if (init_process->children == NULL) {
+        if (!init_process->children) {
             r->rax = -ESRCH;
             return;
         }
@@ -61,7 +61,7 @@ void sys_kill(struct registers* r) {
         r->rax = 0;
     } else {
         struct process_group* target = process_group_find_by_pgid(-pid);
-        if (target == NULL) {
+        if (!target) {
             r->rax = -ESRCH;
             return;
         }

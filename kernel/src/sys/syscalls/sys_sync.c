@@ -13,7 +13,7 @@ void sys_sync(struct registers* r) {
     struct process* current_process = current_thread->process;
 
     struct file* file = file_get(current_process, fd);
-    if (file == NULL) {
+    if (!file) {
         r->rax = -EBADF;
         return;
     }

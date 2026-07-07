@@ -64,7 +64,7 @@ static struct vfs_node_ops pipe_node_ops = {
     .inactive = pipe_inactive,
 };
 
-static ino_t pipe_inode_counter = 1;
+static ino_t inode_counter = 1;
 
 static inline size_t pipe_used(struct pipe_node* pnode) {
     return pnode->size;
@@ -338,7 +338,7 @@ int pipe_create(struct vfs_node** ret) {
     node->refcount = 1;
 
     node->stat.st_dev = 0;
-    node->stat.st_ino = __atomic_add_fetch(&pipe_inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_ino = __atomic_fetch_add(&inode_counter, 1, __ATOMIC_SEQ_CST);
     node->stat.st_mode = vfs_type_to_mode(node->type);
     node->stat.st_nlink = 1;
     node->stat.st_rdev = 0;

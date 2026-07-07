@@ -24,7 +24,7 @@ void sys_unlink(struct registers* r) {
     }
 
     char* kpath = kmalloc(path_len + 1);
-    if (unlikely(kpath == NULL)) {
+    if (unlikely(!kpath)) {
         r->rax = -ENOMEM;
         return;
     }

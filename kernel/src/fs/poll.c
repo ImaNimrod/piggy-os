@@ -41,9 +41,11 @@ int poll_table_add(struct poll_table* pt, struct wait_queue* wq) {
 }
 
 int poll_table_wait(struct poll_table* pt, const struct timespec* timeout) {
-    int ret = timer_setup(timer_callback, this_cpu()->scheduler.current_thread, timeout);
-    if (ret < 0) {
-        return ret;
+    if (timeout) {
+        int ret = timer_setup(timer_callback, this_cpu()->scheduler.current_thread, timeout);
+        if (ret < 0) {
+            return ret;
+        }
     }
 
     for (size_t i = 0; i < vector_size(pt->entries); i++) {

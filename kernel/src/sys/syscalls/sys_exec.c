@@ -18,7 +18,7 @@
 #define SHEBANG_MAX_LENGTH 128
 
 static void free_string_array(char** xs) {
-    for (char** iter = xs; *iter != NULL; iter++) {
+    for (char** iter = xs; *iter; iter++) {
         kfree(*iter);
     }
     kfree(xs);
@@ -41,7 +41,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     struct vmm_context* old_vmm_context = current_process->vmm_context;
     struct vmm_context* new_vmm_context = vmm_context_create();
-    if (unlikely(new_vmm_context == NULL)) {
+    if (unlikely(!new_vmm_context)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -114,7 +114,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
         new_argv[j++] = strdup(path);
 
-        for (int k = 1; argv[k] != NULL; k++) {
+        for (int k = 1; argv[k]; k++) {
             new_argv[j++] = strdup(argv[k]);
         }
         new_argv[j] = NULL;
@@ -130,7 +130,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     uintptr_t entry = auxvals.at_entry.value;
 
-    if (ld_path != NULL) {
+    if (ld_path) {
         if (vfs_lookup(vfs_root, ld_path, 0, NULL, &ld_node) < 0) {
             goto end;
         }
@@ -148,7 +148,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file_descriptor* descriptor = &current_process->fds[i];
-        if (descriptor->file != NULL && descriptor->cloexec) {
+        if (descriptor->file && descriptor->cloexec) {
             file_close(current_process, i);
         }
     }
@@ -176,7 +176,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
     vector_destroy(current_process->threads);
 
     current_process->threads = vector_create(sizeof(struct thread*));
-    if (unlikely(current_process->threads == NULL)) {
+    if (unlikely(!current_process->threads)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -189,7 +189,7 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
             path, argv, envp, &auxvals);
 
     struct thread* new_thread = thread_create_user(current_process, entry, stack_top);
-    if (unlikely(new_thread == NULL)) {
+    if (unlikely(!new_thread)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -200,17 +200,17 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
     spinlock_release(&current_thread->signal_lock);
 
 end:
-    if (reference != NULL) {
+    if (reference) {
         VFS_NODE_UNREF(reference);
     }
-    if (node != NULL) {
+    if (node) {
         VFS_NODE_UNREF(node);
     }
 
-    if (ld_path != NULL) {
+    if (ld_path) {
         kfree(ld_path);
     }
-    if (ld_node != NULL) {
+    if (ld_node) {
         VFS_NODE_UNREF(ld_node);
     }
 
@@ -236,7 +236,7 @@ end:
 
 error:
     if (current_process->vmm_context == old_vmm_context) {
-        if (new_vmm_context != NULL) {
+        if (new_vmm_context) {
             vmm_context_destroy(new_vmm_context);
         }
     } else {
@@ -264,8 +264,8 @@ void sys_exec(struct registers* r) {
         return;
     }
 
-    char* kpath = kmallocz(path_len + 1);
-    if (unlikely(kpath == NULL)) {
+    char* kpath = kmalloc(path_len + 1);
+    if (unlikely(!kpath)) {
         r->rax = -ENOMEM;
         return;
     }
@@ -290,7 +290,7 @@ void sys_exec(struct registers* r) {
         if (ret < 0) {
             goto end;
         }
-        if (arg == NULL) {
+        if (!arg) {
             break;
         }
     }
@@ -303,14 +303,14 @@ void sys_exec(struct registers* r) {
         if (ret < 0) {
             goto end;
         }
-        if (env == NULL) {
+        if (!env) {
             break;
         }
     }
 
     kargv = kmallocz((argc + 1) * sizeof(char*));
     kenvp = kmallocz((envc + 1) * sizeof(char*));
-    if (unlikely(kargv == NULL || kenvp == NULL)) {
+    if (unlikely(!kargv || !kenvp)) {
         ret = -ENOMEM;
         goto end;
     }
@@ -326,8 +326,8 @@ void sys_exec(struct registers* r) {
             goto end;
         }
 
-        kargv[i] = kmallocz(len + 1);
-        if (kargv[i] == NULL) {
+        kargv[i] = kmalloc(len + 1);
+        if (!kargv[i]) {
             ret = -ENOMEM;
             goto end;
         }
@@ -349,8 +349,8 @@ void sys_exec(struct registers* r) {
             goto end;
         }
 
-        kenvp[i] = kmallocz(len + 1);
-        if (kenvp[i] == NULL) {
+        kenvp[i] = kmalloc(len + 1);
+        if (!kenvp[i]) {
             ret = -ENOMEM;
             goto end;
         }
@@ -367,10 +367,10 @@ void sys_exec(struct registers* r) {
 end:
     kfree(kpath);
 
-    if (kargv != NULL) {
+    if (kargv) {
         free_string_array(kargv);
     }
-    if (kenvp != NULL) {
+    if (kenvp) {
         free_string_array(kenvp);
     }
 

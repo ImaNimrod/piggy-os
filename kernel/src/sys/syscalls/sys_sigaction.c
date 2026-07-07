@@ -25,13 +25,13 @@ void sys_sigaction(struct registers* r) {
 
     int ret = 0;
 
-    if (oldact != NULL) {
+    if (oldact) {
         if ((ret = user_memcpy_to_user(oldact, &current_process->signal_actions[signal - 1], sizeof(struct sigaction))) < 0) {
             goto end;
         }
     }
 
-    if (act != NULL) {
+    if (act) {
         struct sigaction newact;
 
         if ((ret = user_memcpy_from_user(&newact, act, sizeof(struct sigaction))) < 0) {

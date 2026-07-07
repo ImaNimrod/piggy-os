@@ -14,6 +14,7 @@
 #define DT_BLK      6
 #define DT_REG      8
 #define DT_LNK      10
+#define DT_SOCK     12
 
 #define S_IFMT      0x0f000
 #define S_IFREG     0x01000
@@ -55,6 +56,7 @@ typedef enum {
     VFS_TYPE_CHARDEV,
     VFS_TYPE_SYMLINK,
     VFS_TYPE_FIFO,
+    VFS_TYPE_SOCKET,
 } vfs_type_t;
 
 struct vfs_filesystem;
@@ -165,6 +167,9 @@ static inline mode_t vfs_type_to_mode(vfs_type_t type) {
             break;
         case VFS_TYPE_FIFO:
             mode |= S_IFIFO;
+            break;
+        case VFS_TYPE_SOCKET:
+            mode |= S_IFSOCK;
             break;
         default:
             __builtin_unreachable();

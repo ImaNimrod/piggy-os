@@ -26,14 +26,14 @@ void sys_symlink(struct registers* r) {
     }
 
     char* klink_path = kmalloc(link_path_len + 1);
-    if (unlikely(klink_path == NULL)) {
+    if (unlikely(!klink_path)) {
         r->rax = -ENOMEM;
         return;
     }
     klink_path[link_path_len] = '\0';
 
     char* ktarget_path = kmalloc(target_path_len + 1);
-    if (unlikely(ktarget_path == NULL)) {
+    if (unlikely(!ktarget_path)) {
         kfree(klink_path);
         r->rax = -ENOMEM;
         return;

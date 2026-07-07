@@ -12,7 +12,7 @@ void sys_mprotect(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
-    if (address != NULL && ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {
+    if (address && ((uintptr_t) address % PAGE_SIZE_4KB) != 0) {
         r->rax = -EINVAL;
         return;
     }

@@ -31,6 +31,10 @@ static inline const char* mode_to_type(mode_t mode) {
             return "Character special file";
         case S_IFLNK:
             return "Symbolic link";
+        case S_IFIFO:
+            return "FIFO";
+        case S_IFSOCK:
+            return "Socket";
         default:
             __builtin_unreachable();
     }

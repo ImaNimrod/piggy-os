@@ -180,12 +180,11 @@ static int rtc_ioctl(dev_t dev, int request, void* argp) {
     int ret = 0;
 
     switch (request) {
-        case HWCLOCK_GETTIME:
+        case HWCLKGTM:
             get_rtc_time(&time);
-
             ret = user_memcpy_to_user(argp, &time, sizeof(struct rtc_time));
             break;
-        case HWCLOCK_SETTIME:
+        case HWCLKSTM:
             ret = user_memcpy_from_user(&time, argp, sizeof(struct rtc_time));
             if (ret < 0) {
                 break;

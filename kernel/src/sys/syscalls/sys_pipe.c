@@ -41,7 +41,7 @@ void sys_pipe(struct registers* r) {
     int kfds[2] = { -1, -1 };
 
     read_half = file_create(node, O_RDONLY | (flags & ~O_CLOEXEC));
-    if (read_half == NULL) {
+    if (!read_half) {
         r->rax = -ENOMEM;
         goto error;
     }
@@ -54,7 +54,7 @@ void sys_pipe(struct registers* r) {
     kfds[0] = ret;
 
     write_half = file_create(node, O_WRONLY | (flags & ~O_CLOEXEC));
-    if (write_half == NULL) {
+    if (!write_half) {
         r->rax = -ENOMEM;
         goto error;
     }
@@ -79,7 +79,7 @@ error:
     if (kfds[0] >= 0) {
         file_close(current_process, kfds[0]);
     } else {
-        if (read_half != NULL) {
+        if (read_half) {
             file_release(read_half);
         }
     }
@@ -87,12 +87,12 @@ error:
     if (kfds[1] >= 0) {
         file_close(current_process, kfds[1]);
     } else {
-        if (write_half != NULL) {
+        if (write_half) {
             file_release(write_half);
         }
     }
 
-    if (node != NULL) {
+    if (node) {
         VFS_NODE_UNREF(node);
         VFS_NODE_UNREF(node);
     }

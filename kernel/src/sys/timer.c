@@ -129,7 +129,7 @@ void timer_early_percpu_init(void) {
         }
     }
 
-    if (unlikely(early_driver == NULL)) {
+    if (unlikely(!early_driver)) {
         kpanic(NULL, false, "failed to find early timer driver");
     }
 

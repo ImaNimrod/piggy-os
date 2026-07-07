@@ -70,13 +70,27 @@ static inline char get_mode_indicator(mode_t mode) {
             return 'c';
         case S_IFLNK:
             return 'l';
+        case S_IFIFO:
+            return 'f';
+        case S_IFSOCK:
+            return 's';
         default:
             __builtin_unreachable();
     }
 }
 
 static inline char get_mode_suffix(mode_t mode) {
-    return (S_ISDIR(mode) && print_mode_suffix) ? '/' : '\0';
+    if (!print_mode_suffix) {
+        return '\0';
+    }
+
+    if (S_ISDIR(mode)) {
+        return '/';
+    } else if (S_ISSOCK(mode)) {
+        return '=';
+    }
+
+    return '\0';
 }
 
 static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name, bool deref_link) {

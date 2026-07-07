@@ -22,7 +22,7 @@ void sys_unmount(struct registers* r) {
     }
 
     char* ktarget = kmalloc(target_len + 1);
-    if (unlikely(ktarget == NULL)) {
+    if (unlikely(!ktarget)) {
         r->rax = -ENOMEM;
         return;
     }

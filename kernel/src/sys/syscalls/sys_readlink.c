@@ -34,7 +34,7 @@ void sys_readlink(struct registers* r) {
 
     if (path_len == 0) {
         struct file* file = file_get(current_process, dirfd);
-        if (file == NULL) {
+        if (!file) {
             r->rax = -EBADF;
             return;
         }
@@ -48,7 +48,7 @@ void sys_readlink(struct registers* r) {
         file_release(file);
     } else {
         char* kpath = kmalloc(path_len + 1);
-        if (unlikely(kpath == NULL)) {
+        if (unlikely(!kpath)) {
             r->rax = -ENOMEM;
             return;
         }

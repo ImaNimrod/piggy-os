@@ -1,6 +1,7 @@
 #ifndef _KERNEL_FS_POLL_H
 #define _KERNEL_FS_POLL_H
 
+#include <types.h>
 #include <utils/vector.h>
 #include <utils/wait_queue.h>
 

@@ -3,8 +3,8 @@
 
 #include <types.h>
 
-#define HWCLOCK_GETTIME 0x1001
-#define HWCLOCK_SETTIME 0x1002
+#define HWCLKGTM 0x1001
+#define HWCLKSTM 0x1002
 
 #define RTC_DEV_MAJOR 5
 

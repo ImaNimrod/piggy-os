@@ -28,7 +28,7 @@ static int hardware_to_system(void) {
 
     struct rtc_time rtc_time;
 
-    int ret = ioctl(rtc, HWCLOCK_GETTIME, &rtc_time);
+    int ret = ioctl(rtc, HWCLKGTM, &rtc_time);
     if (ret < 0) {
         warn("ioctl");
         close(rtc);
@@ -75,7 +75,7 @@ static int print_hardware_timestamp(void) {
 
     struct rtc_time rtc_time;
 
-    int ret = ioctl(rtc, HWCLOCK_GETTIME, &rtc_time);
+    int ret = ioctl(rtc, HWCLKGTM, &rtc_time);
     if (ret < 0) {
         warn("ioctl");
         close(rtc);
@@ -127,7 +127,7 @@ static int system_to_hardware(void) {
         return EXIT_FAILURE;
     }
 
-    int ret = ioctl(rtc, HWCLOCK_SETTIME, &rtc_time);
+    int ret = ioctl(rtc, HWCLKSTM, &rtc_time);
     if (ret < 0) {
         warn("ioctl");
         close(rtc);

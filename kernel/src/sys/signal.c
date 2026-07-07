@@ -86,7 +86,7 @@ void signal_handle_pending(struct registers* r) {
             }
         }
 
-        if (action.sa_restorer == NULL) {
+        if (!action.sa_restorer) {
             process_exit(current_process, PROCESS_EXITCODE(0, SIGSEGV));
             return;
         }

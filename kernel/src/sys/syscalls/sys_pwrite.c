@@ -26,7 +26,7 @@ void sys_pwrite(struct registers* r) {
     }
 
     struct file* file = file_get(current_process, fd);
-    if (file == NULL) {
+    if (!file) {
         r->rax = -EBADF;
         return;
     }

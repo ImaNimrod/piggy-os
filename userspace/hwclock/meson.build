@@ -1,4 +1,4 @@
-mount_exe = executable(
+hwclock_exe = executable(
   'hwclock',
   'hwclock.c',
   install: true,

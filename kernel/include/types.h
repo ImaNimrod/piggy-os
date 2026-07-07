@@ -2,6 +2,7 @@
 #define _KERNEL_TYPES_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 typedef int clockid_t;
 typedef long time_t;
@@ -14,7 +15,7 @@ struct timespec {
 typedef long off_t;
 typedef long ssize_t;
 
-typedef unsigned short dev_t;
+typedef unsigned int dev_t;
 typedef unsigned long ino_t;
 typedef int mode_t;
 typedef unsigned long nlink_t;
@@ -95,6 +96,27 @@ struct winsize {
     unsigned short ws_col;
     unsigned short ws_xpixel;
     unsigned short ws_ypixel;
+};
+
+typedef unsigned short sa_family_t;
+typedef unsigned int socklen_t;
+
+typedef uint32_t in_addr_t;
+
+struct in_addr {
+    in_addr_t s_addr;
+};
+
+struct sockaddr {
+    sa_family_t sa_family;
+    char sa_data[14];
+};
+
+struct sockaddr_in {
+    sa_family_t sin_family;
+    uint16_t sin_port;
+    struct in_addr sin_addr;
+    char sin_zero[8];
 };
 
 struct utsname {

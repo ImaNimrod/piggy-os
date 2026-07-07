@@ -17,7 +17,7 @@ void sys_sigaltstack(struct registers* r) {
 
     int ret = 0;
 
-    if (oldss != NULL) {
+    if (oldss) {
         spinlock_acquire(&current_thread->signal_lock);
         stack_t current_stack = current_thread->signal_stack;
         spinlock_release(&current_thread->signal_lock);
@@ -31,7 +31,7 @@ void sys_sigaltstack(struct registers* r) {
         }
     }
 
-    if (ss == NULL) {
+    if (!ss) {
         goto end;
     }
 

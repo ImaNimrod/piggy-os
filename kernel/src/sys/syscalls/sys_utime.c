@@ -25,7 +25,7 @@ void sys_utime(struct registers* r) {
     struct stat stat;
     int setstat_flags = 0;
 
-    if (times != NULL) {
+    if (times) {
         struct timespec ktimes[2];
         if ((ret = user_memcpy_from_user(ktimes, times, sizeof(struct timespec) * 2)) < 0) {
             r->rax = ret;
@@ -56,7 +56,7 @@ void sys_utime(struct registers* r) {
 
     if (flags & AT_EMPTY_PATH) {
         struct file* file = file_get(current_process, dirfd);
-        if (file == NULL) {
+        if (!file) {
             r->rax = -EBADF;
             return;
         }
@@ -76,7 +76,7 @@ void sys_utime(struct registers* r) {
         }
 
         char* kpath = kmalloc(path_len + 1);
-        if (unlikely(kpath == NULL)) {
+        if (unlikely(!kpath)) {
             r->rax = -ENOMEM;
             return;
         }

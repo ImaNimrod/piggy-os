@@ -34,7 +34,10 @@ struct netif;
 
 uint16_t inet_checksum(void* buf, uint16_t len);
 
+bool ipv4_add_route(struct netif* netif, ipv4_address_t address, ipv4_address_t gateway, ipv4_address_t mask);
 void ipv4_handle(struct netif* netif, const void* buf);
-int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_protocol_t protocol, struct netif* netif);
+int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_protocol_t protocol, struct netif* broadcast_netif);
+
+void ipv4_init(void);
 
 #endif /* _KERNEL_NET_IPV4_H */

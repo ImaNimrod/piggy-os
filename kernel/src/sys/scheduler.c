@@ -193,7 +193,7 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     lapic_eoi();
     lapic_timer_oneshot(SCHEDULER_IRQ_VECTOR, SCHEDULER_TIME_QUANTA_MS);
 
-    if (next_thread != this_cpu()->scheduler.idle_thread && (current_thread == NULL || current_thread->process != next_thread->process)) {
+    if (next_thread != this_cpu()->scheduler.idle_thread && (!current_thread || current_thread->process != next_thread->process)) {
         if (next_thread->flags & THREAD_FLAG_USER) {
             pagemap_load(next_thread->process->vmm_context->pagemap);
         } else {
@@ -347,7 +347,7 @@ void scheduler_percpu_init(void) {
     this_cpu()->tss.ist1 = this_cpu()->scheduler_stack + KERNEL_STACK_SIZE;
 
     struct thread* idle_thread = thread_create_kernel((uintptr_t) idle, NULL);
-    if (unlikely(idle_thread == NULL)) {
+    if (unlikely(!idle_thread)) {
         kpanic(NULL, false, "failed to create idle thread");
     }
 

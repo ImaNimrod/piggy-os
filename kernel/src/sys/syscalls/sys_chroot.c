@@ -20,7 +20,7 @@ void sys_chroot(struct registers* r) {
     }
 
     char* kpath = kmalloc(path_len + 1);
-    if (unlikely(kpath == NULL)) {
+    if (unlikely(!kpath)) {
         r->rax = -ENOMEM;
         return;
     }
@@ -48,7 +48,7 @@ void sys_chroot(struct registers* r) {
     process_set_root(current_process, new_root);
 
 end:
-    if (new_root != NULL) {
+    if (new_root) {
         VFS_NODE_UNREF(new_root);
     }
 

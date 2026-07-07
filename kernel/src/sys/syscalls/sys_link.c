@@ -27,14 +27,14 @@ void sys_link(struct registers* r) {
     }
 
     char* kold_path = kmalloc(old_len + 1);
-    if (unlikely(kold_path == NULL)) {
+    if (unlikely(!kold_path)) {
         r->rax = -ENOMEM;
         return;
     }
     kold_path[old_len] = '\0';
 
     char* knew_path = kmalloc(new_len + 1);
-    if (unlikely(knew_path == NULL)) {
+    if (unlikely(!knew_path)) {
         kfree(knew_path);
         r->rax = -ENOMEM;
         return;

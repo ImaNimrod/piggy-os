@@ -289,9 +289,9 @@ static void reset(struct e1000_device* device) {
 static void update_link_status(struct e1000_device* device) {
     uint32_t status = e1000_read(device, E1000_REG_STATUS);
     if (status & STATUS_LU) {
-        device->netif->flags |= NETIF_FLAG_RUNNING;
+        device->netif->flags |= IFF_RUNNING;
     } else {
-        device->netif->flags &= ~NETIF_FLAG_RUNNING;
+        device->netif->flags &= ~IFF_RUNNING;
     }
 }
 
@@ -340,6 +340,8 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 }
 
 static bool e1000_alloc_packet(struct netif* netif, struct packet* packet, size_t size) {
+    (void) netif;
+
     uintptr_t paddr = pmm_alloc_zero(1);
     packet->buf = (void*) (paddr + HIGH_VMA);
     packet->size = sizeof(struct eth_header) + size;
@@ -348,6 +350,8 @@ static bool e1000_alloc_packet(struct netif* netif, struct packet* packet, size_
 }
 
 static void e1000_free_packet(struct netif* netif, struct packet* packet) {
+    (void) netif;
+
     pmm_free((uintptr_t) packet->buf - HIGH_VMA, 1);
 }
 
@@ -374,16 +378,14 @@ static bool e1000_send_packet(struct netif* netif, struct packet* packet, mac_ad
 }
 
 static void e1000_update_flags(struct netif* netif, uint16_t old_flags) {
-    if (!(netif->flags & NETIF_FLAG_UP) && netif->flags & NETIF_FLAG_DYNAMIC) {
-        netif->ipv4_address = 0;
-        netif->ipv4_gateway = 0;
-        netif->ipv4_subnet_mask = 0;
+    if (!(netif->flags & IFF_UP)) {
+        netif->ipv4_address = netif->ipv4_mask = 0;
     }
 
-    if (old_flags & NETIF_FLAG_RUNNING && !(netif->flags & NETIF_FLAG_RUNNING)) {
-        netif->flags |= NETIF_FLAG_RUNNING;
-    } else if (!(old_flags & NETIF_FLAG_RUNNING) && (netif->flags & NETIF_FLAG_RUNNING)) {
-        netif->flags &= ~NETIF_FLAG_RUNNING;
+    if (old_flags & IFF_RUNNING && !(netif->flags & IFF_RUNNING)) {
+        netif->flags |= IFF_RUNNING;
+    } else if (!(old_flags & IFF_RUNNING) && (netif->flags & IFF_RUNNING)) {
+        netif->flags &= ~IFF_RUNNING;
     }
 }
 
@@ -410,7 +412,7 @@ static void e1000_init(struct pci_device* pci_dev) {
     pci_set_command_flags(pci_dev, PCI_COMMAND_FLAG_IO_SPACE, false);
 
     struct e1000_device* device = kmalloc(sizeof(struct e1000_device));
-    if (unlikely(device == NULL)) {
+    if (unlikely(!device)) {
         kpanic(NULL, false, "failed to allocate memory for E1000 device");
     }
 
@@ -420,6 +422,8 @@ static void e1000_init(struct pci_device* pci_dev) {
     if (unlikely(!netif)) {
         kpanic(NULL, false, "failed to allocate memory for E1000 network interface");
     }
+    netif->type = NETIF_TYPE_ETH;
+    netif->flags = IFF_BROADCAST | IFF_MULTICAST;
     netif->mtu = 1500;
     netif->device = device;
     netif->alloc_packet = e1000_alloc_packet;
@@ -447,7 +451,7 @@ static void e1000_init(struct pci_device* pci_dev) {
     device->has_eeprom = detect_eeprom(device);
 
     read_mac_address(device);
-    netif->ipv4_address = IPV4_ADDRESS(192, 168, 100, 2);
+    netif->ipv4_address = netif->ipv4_mask = IPV4_ADDRESS(0, 0, 0, 0);
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {
@@ -485,6 +489,8 @@ static void e1000_init(struct pci_device* pci_dev) {
     e1000_flush(device);
 
     update_link_status(device);
+
+    netif_register(netif);
 
     klog("[e1000] initialized E1000 network card (mac: " MAC_ADDRESS_FORMAT ")\n", MAC_ADDRESS_PRINT(netif->mac));
 

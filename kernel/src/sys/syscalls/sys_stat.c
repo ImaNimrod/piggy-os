@@ -24,7 +24,7 @@ void sys_stat(struct registers* r) {
 
     if (flags & AT_EMPTY_PATH) {
         struct file* file = file_get(current_process, dirfd);
-        if (file == NULL) {
+        if (!file) {
             r->rax = -EBADF;
             return;
         }
@@ -46,7 +46,7 @@ void sys_stat(struct registers* r) {
         }
 
         char* kpath = kmalloc(path_len + 1);
-        if (unlikely(kpath == NULL)) {
+        if (unlikely(!kpath)) {
             r->rax = -ENOMEM;
             return;
         }

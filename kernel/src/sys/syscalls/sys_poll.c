@@ -33,7 +33,7 @@ void sys_poll(struct registers* r) {
     }
 
     struct timespec ktimeout;
-    if (timeout != NULL) {
+    if (timeout) {
         if ((ret = user_memcpy_from_user(&ktimeout, timeout, sizeof(struct timespec))) < 0) {
             kfree(kfds);
             r->rax = ret;
@@ -45,7 +45,7 @@ void sys_poll(struct registers* r) {
     sigset_t old_sigmask = current_thread->signal_mask;
     spinlock_release(&current_thread->signal_lock);
 
-    if (sigmask != NULL) {
+    if (sigmask) {
         sigset_t ksigmask;
         if ((ret = user_memcpy_from_user(&ksigmask, sigmask, sizeof(sigset_t))) < 0) {
             kfree(kfds);
@@ -63,12 +63,12 @@ void sys_poll(struct registers* r) {
         goto end;
     }
 
-    for (;;) {
-        int ready = 0;
+    int ready = 0;
 
+    for (;;) {
         for (nfds_t i = 0; i < nfds; i++) {
             struct file* file = file_get(current_process, kfds[i].fd);
-            if (file == NULL) {
+            if (!file) {
                 kfds[i].revents = POLLNVAL;
                 ready++;
                 continue;
@@ -89,7 +89,7 @@ void sys_poll(struct registers* r) {
             break;
         }
 
-        if ((ret = poll_table_wait(&pt, &ktimeout)) < 0) {
+        if ((ret = poll_table_wait(&pt, timeout ? &ktimeout : NULL)) < 0) {
             if (ret == -ETIMEDOUT) {
                 ret = 0;
             }
@@ -99,16 +99,22 @@ void sys_poll(struct registers* r) {
         if ((ret = poll_table_reset(&pt)) < 0) {
             goto end;
         }
+
+        ready = 0;
     }
 
-    ret = user_memcpy_to_user(fds, kfds, sizeof(struct pollfd) * nfds);
+    if ((ret = user_memcpy_to_user(fds, kfds, sizeof(struct pollfd) * nfds)) < 0) {
+        goto end;
+    }
+
+    ret = ready;
 
 end:
     r->rax = ret;
 
     poll_table_deinit(&pt);
 
-    if (sigmask != NULL) {
+    if (sigmask) {
         spinlock_acquire(&current_thread->signal_lock);
         current_thread->signal_mask = old_sigmask;
         spinlock_release(&current_thread->signal_lock);

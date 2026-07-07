@@ -124,17 +124,11 @@ void arp_handle(struct netif* netif, const void* buf) {
 }
 
 bool arp_lookup(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
-    if (ip == BROADCAST_IPV4) {
-        memcpy(mac, &BROADCAST_MAC, sizeof(mac_address_t));
-        return true;
-    }
-
     bool ret = false;
 
     mutex_acquire(&arp_cache_mutex);
 
-    mac_address_t *cached;
-
+    mac_address_t* cached = NULL;
     if ((ret = hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached))) {
         memcpy(mac, cached, sizeof(mac_address_t));
         goto end;

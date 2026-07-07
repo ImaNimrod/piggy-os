@@ -12,7 +12,7 @@ struct icmp_header {
 } __attribute__((packed));
 
 
-void icmp_handle(struct netif* netif, ipv4_address_t source, const void* buf, size_t len) {
+void icmp_handle(ipv4_address_t source, const void* buf, uint16_t len) {
     if (unlikely(len < sizeof(struct icmp_header))) {
         return;
     }
@@ -29,6 +29,6 @@ void icmp_handle(struct netif* netif, ipv4_address_t source, const void* buf, si
 
         header->checksum = inet_checksum(header, len);
 
-        ipv4_send(header, len, source, IPV4_PROTOCOL_ICMP, netif);
+        ipv4_send(header, len, source, IPV4_PROTOCOL_ICMP, NULL);
     }
 }

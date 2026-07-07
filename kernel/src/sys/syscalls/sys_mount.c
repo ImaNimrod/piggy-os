@@ -30,7 +30,7 @@ void sys_mount(struct registers* r) {
     }
 
     char* ktarget = kmalloc(target_len + 1);
-    if (unlikely(ktarget == NULL)) {
+    if (unlikely(!ktarget)) {
         r->rax = -ENOMEM;
         return;
     }
@@ -43,7 +43,7 @@ void sys_mount(struct registers* r) {
     }
 
     char* kfs_name = kmalloc(fs_name_len + 1);
-    if (unlikely(kfs_name == NULL)) {
+    if (unlikely(!kfs_name)) {
         kfree(ktarget);
         r->rax = -ENOMEM;
         return;
@@ -60,14 +60,14 @@ void sys_mount(struct registers* r) {
     struct vfs_node* backing_node = NULL;
     char* ksource = NULL;
 
-    if (source != NULL) {
+    if (source) {
         size_t source_len;
         if ((ret = user_strlen(source, &source_len)) < 0) {
             goto end;
         }
 
         ksource = kmalloc(source_len + 1);
-        if (unlikely(ksource == NULL)) {
+        if (unlikely(!ksource)) {
             ret = -ENOMEM;
             goto end;
         }
@@ -93,14 +93,14 @@ void sys_mount(struct registers* r) {
     VFS_NODE_UNREF(target_reference);
 
 end:
-    if (backing_node != NULL) {
+    if (backing_node) {
         VFS_NODE_UNREF(backing_node);
         kfree(ksource);
     }
-    if (kfs_name != NULL) {
+    if (kfs_name) {
         kfree(kfs_name);
     }
-    if (ktarget != NULL) {
+    if (ktarget) {
         kfree(ktarget);
     }
 

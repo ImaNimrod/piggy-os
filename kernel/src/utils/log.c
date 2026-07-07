@@ -16,7 +16,7 @@ static spinlock_t panic_lock;
 static spinlock_t print_lock;
 
 static void print_stack_trace(uintptr_t* rbp) {
-    if (rbp == NULL || ((uintptr_t) rbp) < HIGH_VMA) {
+    if (!rbp || ((uintptr_t) rbp) < HIGH_VMA) {
         return;
     }
 

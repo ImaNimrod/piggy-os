@@ -45,7 +45,7 @@ void sys_mmap(struct registers* r) {
         }
 
         file = file_get(current_process, fd);
-        if (file == NULL) {
+        if (!file) {
             r->rax = -EBADF;
             return;
         }
@@ -68,7 +68,7 @@ void sys_mmap(struct registers* r) {
     r->rax = (uintptr_t) vmm_map(current_process->vmm_context, (uintptr_t) address, size, prot, flags, node, offset, 0);
 
 end:
-    if (file != NULL) {
+    if (file) {
         file_release(file);
     }
 }

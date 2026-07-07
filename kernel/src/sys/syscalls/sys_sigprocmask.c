@@ -20,13 +20,13 @@ void sys_sigprocmask(struct registers* r) {
 
     int ret = 0;
 
-    if (oldset != NULL) {
+    if (oldset) {
         if ((ret = user_memcpy_to_user(oldset, &current_thread->signal_mask, sizeof(sigset_t))) < 0) {
             goto end;
         }
     }
 
-    if (set != NULL) {
+    if (set) {
         sigset_t kset;
 
         if ((ret = user_memcpy_from_user(&kset, set, sizeof(sigset_t))) < 0) {

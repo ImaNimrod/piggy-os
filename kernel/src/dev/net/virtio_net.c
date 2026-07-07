@@ -188,7 +188,8 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     if (unlikely(!netif)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO network interface");
     }
-    netif->mtu = 1514;
+    netif->type = NETIF_TYPE_ETH;
+    netif->mtu = 1500;
     netif->device = device;
     netif->alloc_packet = virtio_net_alloc_packet;
     netif->free_packet = virtio_net_free_packet;
@@ -200,7 +201,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     struct virtio_net_config* net_config = vio_dev->device_config;
 
     memcpy(netif->mac, (void*) net_config->mac, sizeof(mac_address_t));
-    netif->ipv4_address = IPV4_ADDRESS(192, 168, 100, 2);
+    netif->ipv4_address = netif->ipv4_mask = IPV4_ADDRESS(0, 0, 0, 0);
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {
@@ -248,6 +249,8 @@ void virtio_net_init(struct virtio_device* vio_dev) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO net TX queue waiters");
     }
     semaphore_init(&device->tx_semaphore, vio_dev->queues[1].size);
+
+    netif_register(netif);
 
     isr_register_handler(vector, virtio_net_tx_irq_handler, device);
     mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);

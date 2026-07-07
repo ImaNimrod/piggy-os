@@ -27,7 +27,7 @@ void sys_wait(struct registers* r) {
 
     if (pid == -1) {
         for (;;) {
-            if (current_process->children == NULL) {
+            if (!current_process->children) {
                 r->rax = -ECHILD;
                 return;
             }
@@ -56,7 +56,7 @@ void sys_wait(struct registers* r) {
             }
         }
 
-        if (child == NULL) {
+        if (!child) {
             r->rax = -ECHILD;
             return;
         }
@@ -75,7 +75,7 @@ void sys_wait(struct registers* r) {
     }
 
 end:
-    if (status != NULL) {
+    if (status) {
         int ret;
         if ((ret = user_memcpy_to_user(status, &child->exit_status, sizeof(int))) < 0) {
             r->rax = ret;
