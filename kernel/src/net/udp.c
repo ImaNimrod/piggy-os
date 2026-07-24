@@ -1,6 +1,5 @@
 #include <errno.h>
 #include <mem/slab.h>
-#include <fs/socket.h>
 #include <net/udp.h>
 #include <utils/log.h> 
 #include <utils/macros.h> 
@@ -11,8 +10,8 @@
 #include <utils/wait_queue.h>
 
 struct udp_header {
-    uint16_t src_port;
-    uint16_t dest_port;
+    uint16_t source;
+    uint16_t destination;
     uint16_t length;
     uint16_t checksum;
 } __attribute__((packed));
@@ -53,8 +52,8 @@ static int udp_bind(struct socket_node* node, const struct sockaddr* addr, sockl
 static int udp_connect(struct socket_node* node, const struct sockaddr* addr, socklen_t addr_len); 
 static ssize_t udp_recv(struct socket_node* node, void* buf, size_t count, struct sockaddr* addr, socklen_t* addr_len);
 static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count, const struct sockaddr* addr, socklen_t addr_len);
-static ssize_t udp_getsockname(struct socket_node* node, struct sockaddr* addr);
-static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr);
+static ssize_t udp_getsockname(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
+static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
 static short udp_poll(struct socket_node* node, short events, struct poll_table* pt);
 static void udp_destroy(struct socket_node* node);
 
@@ -107,6 +106,45 @@ static int alloc_port(struct udp_socket* socket, uint16_t* out_port) {
     return -EADDRINUSE;
 }
 
+static uint16_t checksum(struct udp_header* header, ipv4_address_t source_addr, ipv4_address_t destination_addr) {
+    uint32_t sum = 0;
+
+    uint16_t udp_len = ntohs(header->length);
+
+    sum += (source_addr >> 16) & 0xffff;
+    sum += source_addr & 0xffff;
+
+    sum += (destination_addr >> 16) & 0xffff;
+    sum += destination_addr & 0xffff;
+
+    sum += IPV4_PROTOCOL_UDP;
+    sum += udp_len;
+
+    const uint16_t* ptr = (const uint16_t*) header;
+    uint16_t len = udp_len;
+
+    while (len >= 2) {
+        sum += ntohs(*ptr++);
+        len -= 2;
+    }
+
+    if (len) {
+        sum += *(const uint8_t*) ptr << 8;
+    }
+
+    while (sum >> 16) {
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+
+    uint16_t checksum = ~sum;
+
+    if (checksum == 0) {
+        checksum = 0xffff;
+    }
+
+    return htons(checksum);
+}
+
 static int udp_bind(struct socket_node* node, const struct sockaddr* addr, socklen_t addr_len) {
     if (addr_len < sizeof(struct sockaddr_in)) {
         return -EINVAL;
@@ -156,25 +194,13 @@ static int udp_connect(struct socket_node* node, const struct sockaddr* addr, so
 
     mutex_acquire(&socket->mutex);
 
-    int ret = 0;
-
-    if (socket->remote_port != 0) {
-        ret = -EISCONN;
-        goto end;
-    }
-
     const struct sockaddr_in* in = (const struct sockaddr_in*) addr;
-
-    ipv4_address_t address = ntohl(in->sin_addr.s_addr);
-    uint16_t port = ntohs(in->sin_port);
-
-    socket->remote_addr = address;
-    socket->remote_port = port;
+    socket->remote_addr = ntohl(in->sin_addr.s_addr);
+    socket->remote_port = ntohs(in->sin_port);
     socket->connected = true;
 
-end:
     mutex_release(&socket->mutex);
-    return ret;
+    return 0;
 }
 
 static ssize_t udp_recv(struct socket_node* node, void* buf, size_t count, struct sockaddr* addr, socklen_t* addr_len) {
@@ -258,8 +284,8 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
         return 0;
     }
 
-    ipv4_address_t dest_addr;
-    uint16_t dest_port;
+    ipv4_address_t destination_addr;
+    uint16_t destination_port;
 
     if (!addr) {
         if (addr_len != 0) {
@@ -271,8 +297,8 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
             return -EDESTADDRREQ;
         }
 
-        dest_addr = socket->remote_addr;
-        dest_port = socket->remote_port;
+        destination_addr = socket->remote_addr;
+        destination_port = socket->remote_port;
     } else {
         if (addr_len < sizeof(struct sockaddr_in)) {
             mutex_release(&socket->mutex);
@@ -285,8 +311,8 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
 
         const struct sockaddr_in* in = (const struct sockaddr_in*) addr;
 
-        dest_addr = ntohl(in->sin_addr.s_addr);
-        dest_port = ntohs(in->sin_port);
+        destination_addr = ntohl(in->sin_addr.s_addr);
+        destination_port = ntohs(in->sin_port);
     }
 
     if (!socket->bound) {
@@ -307,8 +333,8 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
     }
 
     struct udp_header* header = datagram;
-    header->src_port = htons(socket->local_port);
-    header->dest_port = htons(dest_port);
+    header->source = htons(socket->local_port);
+    header->destination = htons(destination_port);
     header->length = htons(total_count);
     header->checksum = 0;
 
@@ -318,9 +344,11 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
         return ret;
     }
 
+    struct netif* bound_netif = socket->bound_netif;
+
     mutex_release(&socket->mutex);
 
-    ret = ipv4_send(datagram, total_count, dest_addr, IPV4_PROTOCOL_UDP, socket->bound_netif);
+    ret = ipv4_send(datagram, total_count, destination_addr, IPV4_PROTOCOL_UDP, bound_netif);
 
     kfree(datagram);
 
@@ -331,27 +359,44 @@ static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count,
     return count;
 }
 
-static ssize_t udp_getsockname(struct socket_node* node, struct sockaddr* addr) {
+static ssize_t udp_getsockname(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len) {
     struct udp_socket* socket = (struct udp_socket*) node;
+
+    if (addr_len < sizeof(struct sockaddr_in)) {
+        return -EINVAL;
+    }
 
     mutex_acquire(&socket->mutex);
 
     struct sockaddr_in* sin = (struct sockaddr_in*) addr;
+    memset(sin, 0, sizeof(struct sockaddr_in));
+
     sin->sin_family = AF_INET;
-    sin->sin_addr.s_addr = htonl(socket->remote_addr);
-    sin->sin_port = htons(socket->remote_port);
+    sin->sin_addr.s_addr = htonl(socket->local_addr);
+    sin->sin_port = htons(socket->local_port);
 
     mutex_release(&socket->mutex);
 
     return sizeof(struct sockaddr_in);
 }
 
-static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr) {
+static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len) {
     struct udp_socket* socket = (struct udp_socket*) node;
+
+    if (addr_len < sizeof(struct sockaddr_in)) {
+        return -EINVAL;
+    }
 
     mutex_acquire(&socket->mutex);
 
+    if (!socket->connected) {
+        mutex_release(&socket->mutex);
+        return -ENOTCONN;
+    }
+
     struct sockaddr_in* sin = (struct sockaddr_in*) addr;
+    memset(sin, 0, sizeof(struct sockaddr_in));
+
     sin->sin_family = AF_INET;
     sin->sin_addr.s_addr = htonl(socket->remote_addr);
     sin->sin_port = htons(socket->remote_port);
@@ -396,50 +441,76 @@ static void udp_destroy(struct socket_node* node) {
         spinlock_release_irqsave(&udp_port_map_lock, int_state);
     }
 
+    struct receive_data* data = socket->rx_head;
+    while (data) {
+        struct receive_data* next = data->next;
+
+        kfree(data->buf);
+        kfree(data);
+
+        data = next;
+    }
+
     kfree(socket);
 }
 
-void udp_handle(ipv4_address_t source, const void* buf, uint16_t len) {
+void udp_handle(ipv4_address_t source, ipv4_address_t destination, const void* buf, uint16_t len) {
     if (unlikely(len < sizeof(struct udp_header))) {
         return;
     }
 
     struct udp_header* header = (void*) buf;
 
-    // TODO: verify UDP packet checksums
+    if (header->checksum != 0) {
+        uint16_t received = header->checksum;
 
-    uint16_t dest_port = ntohs(header->dest_port);
-    uint16_t data_len = ntohs(header->length) - sizeof(struct udp_header);
+        header->checksum = 0;
+
+        if (checksum(header, source, destination) != received) {
+            return;
+        }
+    }
+
+    uint16_t destination_port = ntohs(header->destination);
 
     bool int_state = spinlock_acquire_irqsave(&udp_port_map_lock);
-
-    struct udp_socket* socket = udp_port_map[dest_port];
-    if (socket && !(socket->shutdown & SHUT_RD)) {
+    struct udp_socket* socket = udp_port_map[destination_port];
+    if (socket) {
         VFS_NODE_REF(socket);
     }
-
     spinlock_release_irqsave(&udp_port_map_lock, int_state);
 
-    if (!socket || (socket->shutdown & SHUT_RD)) {
+    if (!socket) {
         return;
     }
 
+    mutex_acquire(&socket->mutex);
+
+    if (socket->shutdown & SHUT_RD) {
+        mutex_release(&socket->mutex);
+        goto end;
+    }
+
+    mutex_release(&socket->mutex);
+
+    uint16_t data_len = ntohs(header->length) - sizeof(struct udp_header);
+
     struct receive_data* data = kmalloc(sizeof(struct receive_data));
-    if (!data) {
-        return;
+    if (unlikely(!data)) {
+        goto end;
     }
     data->addr = htonl(source);
-    data->port = header->src_port;
+    data->port = header->source;
     data->len = data_len;
     data->next = NULL;
 
     data->buf = kmalloc(data_len);
-    if (!data->buf) {
+    if (unlikely(!data->buf)) {
         kfree(data);
-        return;
+        goto end;
     }
 
-    memcpy(data->buf, (const void*) (header + 1), data->len);
+    memcpy(data->buf, (void*) (header + 1), data_len);
 
     mutex_acquire(&socket->mutex);
 
@@ -453,9 +524,10 @@ void udp_handle(ipv4_address_t source, const void* buf, uint16_t len) {
 
     mutex_release(&socket->mutex);
 
-    VFS_NODE_UNREF(socket);
-
     wait_queue_wake_all(&socket->rx_wq);
+
+end:
+    VFS_NODE_UNREF(socket);
 }
 
 int udp_socket_create(struct socket_node** ret) {

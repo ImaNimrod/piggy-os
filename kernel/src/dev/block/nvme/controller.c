@@ -116,11 +116,11 @@ bool run_command(struct queue_pair* queue_pair, struct entry_pair* entry_pair) {
 
     queue_pair->submission.index %= queue_pair->submission.entry_count;
 
-    mmio_write32(queue_pair->submission.doorbell, queue_pair->submission.index);
-
     scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
     spinlock_release_irqsave(&queue_pair->lock, int_state);
+
+    mmio_write32(queue_pair->submission.doorbell, queue_pair->submission.index);
 
     scheduler_yield();
     return entry_pair->completion.status == 0;

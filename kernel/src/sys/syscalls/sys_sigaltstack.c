@@ -7,8 +7,6 @@
 
 #define VALID_FLAGS (SS_DISABLE)
 
-#include <utils/log.h>
-
 void sys_sigaltstack(struct registers* r) {
     const stack_t* ss = (const stack_t*) r->rdi;
     stack_t* oldss = (stack_t*) r->rsi;

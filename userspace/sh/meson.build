@@ -1,6 +1,7 @@
 sh_sources = files(
   'builtins.c',
   'history.c',
+  'interactive.c',
   'sh.c',
 )
 

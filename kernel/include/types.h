@@ -119,12 +119,18 @@ struct sockaddr_in {
     char sin_zero[8];
 };
 
+struct sockaddr_storage {
+    sa_family_t ss_family;
+    char __padding[128 - sizeof(sa_family_t) - sizeof(long)];
+    long __force_alignment;
+};
+
 struct utsname {
-    char sysname[64];
-    char nodename[64];
-    char release[64];
-    char version[64];
-    char machine[64];
+    char sysname[65];
+    char nodename[65];
+    char release[65];
+    char version[65];
+    char machine[65];
 };
 
 #endif /* _KERNEL_TYPES_H */

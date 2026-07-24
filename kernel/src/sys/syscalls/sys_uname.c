@@ -1,12 +1,11 @@
 #include <config.h>
 #include <cpu/isr.h>
+#include <net/netif.h>
 #include <types.h>
 #include <utils/usercopy.h>
 
-// TODO: update nodename (hostname) in the future
-static struct utsname kernel_utsname = {
+static struct utsname utsname = {
     .sysname = "Piggy",
-    .nodename = "piggy",
     .release = RELEASE,
     .version = VERSION,
     .machine = "x86_64",
@@ -14,5 +13,8 @@ static struct utsname kernel_utsname = {
 
 void sys_uname(struct registers* r) {
     struct utsname* buf = (struct utsname*) r->rdi;
-    r->rax = user_memcpy_to_user(buf, &kernel_utsname, sizeof(struct utsname));
+
+    strncpy(utsname.nodename, hostname, sizeof(utsname.nodename));
+
+    r->rax = user_memcpy_to_user(buf, &utsname, sizeof(utsname));
 }

@@ -52,7 +52,7 @@ struct netif* loopback_init(void) {
     netif->update_flags = loopback_update_flags;
 
     memset(netif->mac, 0, sizeof(mac_address_t));
-    netif->ipv4_address = IPV4_ADDRESS(127, 0, 0, 1);
+    netif->ipv4_addr = IPV4_ADDRESS(127, 0, 0, 1);
     netif->ipv4_mask = IPV4_ADDRESS(255, 0, 0, 0);
 
     netif_register(netif);

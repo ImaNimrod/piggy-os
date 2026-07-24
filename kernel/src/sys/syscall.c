@@ -66,9 +66,10 @@ extern void sys_send(struct registers* r);
 extern void sys_getsockname(struct registers* r);
 extern void sys_getpeername(struct registers* r);
 extern void sys_shutdown(struct registers* r);
+extern void sys_sethostname(struct registers* r);
 extern void sys_uname(struct registers* r);
 extern void sys_futex(struct registers* r);
-extern void sys_poweroff(struct registers* r);
+extern void sys_powerctl(struct registers* r);
 extern void sys_archctl(struct registers* r);
 
 typedef void (*syscall_handler_t)(struct registers*);
@@ -134,13 +135,16 @@ static syscall_handler_t syscall_table[] = {
     [SYS_GETSOCKNAME]   = sys_getsockname,
     [SYS_GETPEERNAME]   = sys_getpeername,
     [SYS_SHUTDOWN]      = sys_shutdown,
+    [SYS_SETHOSTNAME]   = sys_sethostname,
     [SYS_UNAME]         = sys_uname,
     [SYS_FUTEX]         = sys_futex,
-    [SYS_POWEROFF]      = sys_poweroff,
+    [SYS_POWERCTL]      = sys_powerctl,
     [SYS_ARCHCTL]       = sys_archctl,
 };
 
 void syscall_handler(struct registers* r) {
+    signal_handle_pending(r);
+
     if (r->rax >= SIZEOF_ARRAY(syscall_table)) {
         r->rax = -ENOSYS;
     } else {

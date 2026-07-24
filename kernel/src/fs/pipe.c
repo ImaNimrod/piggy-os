@@ -347,7 +347,7 @@ int pipe_create(struct vfs_node** ret) {
     node->stat.st_blocks = 0;
     node->stat.st_atim = node->stat.st_mtim = node->stat.st_ctim = time_realtime;
 
-    node->data = (uint8_t*) (pmm_alloc_zero(DIV_CEIL(PIPE_DATA_LEN, PAGE_SIZE_4KB)) + HIGH_VMA);
+    node->data = (uint8_t*) (pmm_alloc(DIV_CEIL(PIPE_DATA_LEN, PAGE_SIZE_4KB)) + HIGH_VMA);
 
     node->size = 0;
     node->read_index = node->write_index = 0;

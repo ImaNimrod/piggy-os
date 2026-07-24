@@ -31,15 +31,18 @@ void sys_getpeername(struct registers* r) {
 
     struct socket_node* socket = (struct socket_node*) file->node;
 
-    struct sockaddr kaddr;
+    struct sockaddr_storage kaddr;
 
-    ssize_t len = socket->sockops->getsockname(socket, &kaddr);
-    if (len < 0) {
-        ret = len;
+    if (max_addr_len > sizeof(kaddr)) {
+        ret = -EINVAL;
         goto end;
     }
 
-    socklen_t actual_len = MIN(len, max_addr_len);
+    ssize_t actual_len = socket->sockops->getsockname(socket, (struct sockaddr*) &kaddr, max_addr_len);
+    if (actual_len < 0) {
+        ret = actual_len;
+        goto end;
+    }
 
     if ((ret = user_memcpy_to_user(addr, &kaddr, actual_len)) < 0) {
         goto end;

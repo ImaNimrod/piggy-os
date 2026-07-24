@@ -122,6 +122,8 @@ struct process {
     struct process* children;
     struct process* sibling_next;
 
+    struct wait_queue child_wq;
+
     struct process_group* group;
     struct process* group_prev;
     struct process* group_next;

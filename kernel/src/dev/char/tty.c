@@ -110,6 +110,8 @@
 
 bool tty_is_ready;
 
+// TODO: implement ttyname via ioctls
+
 static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int flags);
 static ssize_t tty_write(dev_t dev, const void* buf, size_t count, off_t offset, int flags);
 static int tty_ioctl(dev_t dev, int request, void* argp);

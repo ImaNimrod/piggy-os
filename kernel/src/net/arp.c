@@ -1,6 +1,8 @@
+#include <cpu/smp.h>
 #include <mem/slab.h>
 #include <net/arp.h>
 #include <net/netif.h>
+#include <sys/scheduler.h>
 #include <utils/hashmap.h>
 #include <utils/log.h>
 #include <utils/macros.h>
@@ -11,8 +13,8 @@
 #define ARP_HWTYPE_ETH      0x0001
 #define ARP_PROTYPE_IPV4    0x0800
 
-#define ARP_OPCODE_REQUEST  1
-#define ARP_OPCODE_REPLY    2
+#define ARP_OPCODE_REQUEST  0x0001
+#define ARP_OPCODE_REPLY    0x0002
 
 struct arp_header {
     uint16_t hwtype;
@@ -29,11 +31,6 @@ struct arp_data_ipv4 {
     mac_address_t dmac;
     ipv4_address_t dip;
 } __attribute__((packed));
-
-struct arp_cache_entry {
-    ipv4_address_t ip;
-    mac_address_t mac;
-};
 
 static hashmap_t* arp_cache;
 static mutex_t arp_cache_mutex;
@@ -54,7 +51,7 @@ static void send_reply(struct netif* netif, mac_address_t* dmac, ipv4_address_t 
 
     struct arp_data_ipv4* data = (void*) &header->data;
     memcpy(data->smac, netif->mac, sizeof(mac_address_t));
-    data->sip = htonl(netif->ipv4_address);
+    data->sip = htonl(netif->ipv4_addr);
     memcpy(data->dmac, dmac, sizeof(mac_address_t));
     data->dip = htonl(dip);
 
@@ -77,7 +74,7 @@ static bool send_request(struct netif* netif, ipv4_address_t ip) {
 
     struct arp_data_ipv4* data = (void*) &header->data;
     memcpy(data->smac, netif->mac, sizeof(mac_address_t));
-    data->sip = htonl(netif->ipv4_address);
+    data->sip = htonl(netif->ipv4_addr);
     memset(data->dmac, 0, sizeof(mac_address_t));
     data->dip = htonl(ip);
 
@@ -102,7 +99,7 @@ void arp_handle(struct netif* netif, const void* buf) {
 
     uint16_t opcode = ntohs(header->opcode);
     if (opcode == ARP_OPCODE_REQUEST) {
-        if (ntohl(data->dip) == netif->ipv4_address) {
+        if (ntohl(data->dip) == netif->ipv4_addr) {
             send_reply(netif, &data->smac, ntohl(data->sip));
         }
     } else if (opcode == ARP_OPCODE_REPLY) {
@@ -124,45 +121,36 @@ void arp_handle(struct netif* netif, const void* buf) {
 }
 
 bool arp_lookup(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
-    bool ret = false;
-
-    mutex_acquire(&arp_cache_mutex);
-
-    mac_address_t* cached = NULL;
-    if ((ret = hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached))) {
-        memcpy(mac, cached, sizeof(mac_address_t));
-        goto end;
-    }
-
-    mutex_release(&arp_cache_mutex);
-
-    if (!(ret = send_request(netif, ip))) {
-        goto end;
-    }
-
-    wait_queue_wait(&arp_cache_wq);
+    mac_address_t* cached;
 
     for (;;) {
         mutex_acquire(&arp_cache_mutex);
 
-        if (hashmap_get(arp_cache, &ip, sizeof(ip), (void **)&cached)) {
+        if (hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached)) {
             memcpy(mac, cached, sizeof(mac_address_t));
-            ret = true;
-            break;
+            mutex_release(&arp_cache_mutex);
+            return true;
         }
+
+        struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+        scheduler_prepare_wait(current_thread, true);
+        wait_queue_add(&arp_cache_wq, &current_thread->wait_node);
 
         mutex_release(&arp_cache_mutex);
 
-        wait_queue_wait(&arp_cache_wq);
-    }
+        if (!send_request(netif, ip)) {
+            return false;
+        }
 
-end:
-    mutex_release(&arp_cache_mutex);
-    return ret;
+        if (scheduler_yield() < 0) {
+            return false;
+        }
+    }
 }
 
 void arp_init(void) {
-    arp_cache = hashmap_create(128);
+    arp_cache = hashmap_create(64);
     if (unlikely(!arp_cache)) {
         kpanic(NULL, false, "failed to initialize ARP cache");
     }

@@ -342,7 +342,7 @@ static void e1000_irq_handler(struct registers* r, void* ctx) {
 static bool e1000_alloc_packet(struct netif* netif, struct packet* packet, size_t size) {
     (void) netif;
 
-    uintptr_t paddr = pmm_alloc_zero(1);
+    uintptr_t paddr = pmm_alloc(1);
     packet->buf = (void*) (paddr + HIGH_VMA);
     packet->size = sizeof(struct eth_header) + size;
     packet->offset = sizeof(struct eth_header);
@@ -379,7 +379,7 @@ static bool e1000_send_packet(struct netif* netif, struct packet* packet, mac_ad
 
 static void e1000_update_flags(struct netif* netif, uint16_t old_flags) {
     if (!(netif->flags & IFF_UP)) {
-        netif->ipv4_address = netif->ipv4_mask = 0;
+        netif->ipv4_addr = netif->ipv4_mask = 0;
     }
 
     if (old_flags & IFF_RUNNING && !(netif->flags & IFF_RUNNING)) {
@@ -451,7 +451,7 @@ static void e1000_init(struct pci_device* pci_dev) {
     device->has_eeprom = detect_eeprom(device);
 
     read_mac_address(device);
-    netif->ipv4_address = netif->ipv4_mask = IPV4_ADDRESS(0, 0, 0, 0);
+    netif->ipv4_addr = netif->ipv4_mask = 0;
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {

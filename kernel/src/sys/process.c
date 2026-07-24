@@ -30,19 +30,19 @@ static pid_t next_pid;
 
 static char** dup_array(char** argv) {
     int argc = 0;
-    while (argv[argc] != NULL) {
+    while (argv[argc]) {
         argc++;
     }
 
     char** new_argv = kmalloc((argc + 1) * sizeof(char*));
-    if (unlikely(new_argv == NULL)) {
+    if (unlikely(!new_argv)) {
         return NULL;
     }
 
     for (int i = 0; i < argc; i++) {
         new_argv[i] = strdup(argv[i]);
 
-        if (unlikely(new_argv[i] == NULL)) {
+        if (unlikely(!new_argv[i])) {
             while (i > 0) {
                 kfree(new_argv[--i]);
             }
@@ -57,7 +57,7 @@ static char** dup_array(char** argv) {
 }
 
 static void free_array(char** argv) {
-    for (size_t i = 0; argv[i] != NULL; i++) {
+    for (size_t i = 0; argv[i]; i++) {
         kfree(argv[i]);
     }
 
@@ -76,7 +76,7 @@ static void group_destroy(struct process_group* group) {
 
 struct process* process_create(struct process* parent) {
     struct process* new_process = slab_cache_alloc(process_cache);
-    if (unlikely(new_process == NULL)) {
+    if (unlikely(!new_process)) {
         return NULL;
     }
 
@@ -86,22 +86,23 @@ struct process* process_create(struct process* parent) {
     spinlock_init(&new_process->thread_list_lock);
 
     new_process->threads = vector_create(sizeof(struct thread*));
-    if (unlikely(new_process->threads == NULL)) {
+    if (unlikely(!new_process->threads)) {
         goto error;
     }
 
     spinlock_init(&new_process->node_lock);
     mutex_init(&new_process->fd_mutex);
     spinlock_init(&new_process->signal_actions_lock);
+    wait_queue_init(&new_process->child_wq);
 
-    if (likely(parent != NULL)) {
+    if (likely(parent)) {
         new_process->cmdline = dup_array(parent->cmdline);
-        if (unlikely(new_process->cmdline == NULL)) {
+        if (unlikely(!new_process->cmdline)) {
             goto error;
         }
 
         new_process->environ = dup_array(parent->environ);
-        if (unlikely(new_process->environ == NULL)) {
+        if (unlikely(!new_process->environ)) {
             goto error;
         }
 
@@ -117,7 +118,7 @@ struct process* process_create(struct process* parent) {
         file_fork(parent, new_process);
 
         new_process->vmm_context = vmm_context_fork(parent->vmm_context);
-        if (unlikely(new_process->vmm_context == NULL)) {
+        if (unlikely(!new_process->vmm_context)) {
             goto error;
         }
 
@@ -136,11 +137,11 @@ struct process* process_create(struct process* parent) {
         VFS_NODE_REF(vfs_root);
 
         new_process->vmm_context = vmm_context_create();
-        if (unlikely(new_process->vmm_context == NULL)) {
+        if (unlikely(!new_process->vmm_context)) {
             goto error;
         }
 
-        if (unlikely(process_group_create(new_process) == NULL)) {
+        if (unlikely(!process_group_create(new_process))) {
             goto error;
         }
     }
@@ -152,18 +153,18 @@ struct process* process_create(struct process* parent) {
     return new_process;
 
 error:
-    if (new_process->cmdline != NULL) {
+    if (new_process->cmdline) {
         free_array(new_process->cmdline);
     }
-    if (new_process->environ != NULL) {
+    if (new_process->environ) {
         free_array(new_process->environ);
     }
 
-    if (new_process->vmm_context != NULL) {
+    if (new_process->vmm_context) {
         vmm_context_destroy(new_process->vmm_context);
     }
 
-    if (new_process->threads != NULL) {
+    if (new_process->threads) {
         vector_destroy(new_process->threads);
     }
 
@@ -186,7 +187,7 @@ void process_create_init(void) {
     init_node->ops->unlock(init_node);
 
     init_process = process_create(NULL);
-    if (unlikely(init_process == NULL)) {
+    if (unlikely(!init_process)) {
         kpanic(NULL, false, "failed to create init process");
     }
 
@@ -197,17 +198,19 @@ void process_create_init(void) {
     console_node->ops->unlock(console_node);
 
     struct file* stdin_file = file_create(console_node, O_RDONLY);
-    if (unlikely(stdin_file == NULL)) {
+    if (unlikely(!stdin_file)) {
         kpanic(NULL, false, "failed to create stdin file descriptor for init process");
     }
     init_process->fds[0].file = stdin_file;
+
     struct file* stdout_file = file_create(console_node, O_WRONLY);
-    if (unlikely(stdout_file == NULL)) {
+    if (unlikely(!stdout_file)) {
         kpanic(NULL, false, "failed to create stdout file descriptor for init process");
     }
     init_process->fds[1].file = stdout_file;
+
     struct file* stderr_file = file_create(console_node, O_WRONLY);
-    if (unlikely(stderr_file == NULL)) {
+    if (unlikely(!stderr_file)) {
         kpanic(NULL, false, "failed to create stderr file descriptor for init process");
     }
     init_process->fds[2].file = stderr_file;
@@ -218,14 +221,14 @@ void process_create_init(void) {
     char* ld_path = NULL;
 
     init_process->cmdline = kmalloc(2 * sizeof(char*));
-    if (unlikely(init_process->cmdline == NULL)) {
+    if (unlikely(!init_process->cmdline)) {
         kpanic(NULL, false, "failed to allocate memory for init process command line");
     }
     init_process->cmdline[0] = strdup(init_path);
     init_process->cmdline[1] = NULL;
 
     init_process->environ = kmalloc(1 * sizeof(char*));
-    if (unlikely(init_process->environ == NULL)) {
+    if (unlikely(!init_process->environ)) {
         kpanic(NULL, false, "failed to allocate memory for init process environment");
     }
     init_process->environ[0] = NULL;
@@ -237,7 +240,7 @@ void process_create_init(void) {
 
     uintptr_t entry = auxvals.at_entry.value;
 
-    if (ld_path != NULL) {
+    if (ld_path) {
         struct vfs_node* ld_node;
         if (vfs_lookup(vfs_root, ld_path, 0, NULL, &ld_node) < 0) {
             kpanic(NULL, false, "failed to find interpreter %s", ld_node);
@@ -265,7 +268,7 @@ void process_create_init(void) {
             init_path, argv, envp, &auxvals);
 
     struct thread* init_thread = thread_create_user(init_process, entry, stack_top);
-    if (unlikely(init_thread == NULL)) {
+    if (unlikely(!init_thread)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
 }
@@ -279,6 +282,8 @@ void process_destroy(struct process* process) {
 
     free_array(process->cmdline);
     free_array(process->environ);
+
+    SLIST_REMOVE(process->parent->children, process, sibling_next);
 
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         thread_destroy((struct thread*) *vector_get(process->threads, i));
@@ -303,25 +308,28 @@ void process_exit(struct process* process, int status) {
     VFS_NODE_UNREF(process->cwd);
     VFS_NODE_UNREF(process->root);
 
-    SLIST_REMOVE(process->parent->children, process, sibling_next);
-
     // Reparent dying process' children to init
 
     struct process* child = process->children;
-    while (child != NULL) {
-        struct process* next = child->sibling_next;
+    if (child) {
+        while (child) {
+            struct process* next = child->sibling_next;
 
-        child->parent = init_process;
-        SLIST_PUSH_FRONT(init_process->children, child, sibling_next);
+            child->parent = init_process;
+            SLIST_PUSH_FRONT(init_process->children, child, sibling_next);
 
-        child = next;
+            child = next;
+        }
+
+        wait_queue_wake_all(&init_process->child_wq);
     }
 
-    signal_send_process(init_process, SIGCHLD);
-
-    process_group_remove(process->group, process);
+    //process_group_remove(process->group, process);
 
     vmm_context_destroy(process->vmm_context);
+
+    wait_queue_wake_all(&process->parent->child_wq);
+    signal_send_process(process->parent, SIGCHLD);
 
     process->state = PROCESS_STATE_ZOMBIE;
     process->exit_status = status;
@@ -339,16 +347,20 @@ struct process* process_find_by_pid(pid_t pid) {
 
 struct vfs_node* process_get_cwd(struct process* process) {
     spinlock_acquire(&process->node_lock);
+
     struct vfs_node* cwd = process->cwd;
     VFS_NODE_REF(cwd);
+
     spinlock_release(&process->node_lock);
     return cwd;
 }
 
 struct vfs_node* process_get_root(struct process* process) {
     spinlock_acquire(&process->node_lock);
+
     struct vfs_node* root = process->root;
     VFS_NODE_REF(root);
+
     spinlock_release(&process->node_lock);
     return root;
 }
@@ -377,7 +389,7 @@ void process_set_root(struct process* process, struct vfs_node* new_root) {
 
 struct process_group* process_group_create(struct process* leader) {
     struct process_group* group = slab_cache_alloc(process_group_cache);
-    if (unlikely(group == NULL)) {
+    if (unlikely(!group)) {
         return NULL;
     }
 
@@ -424,7 +436,7 @@ void process_group_move(struct process_group* new_group, struct process* process
         return;
     }
 
-    if (old_group == NULL) {
+    if (!old_group) {
         process_group_add(new_group, process);
         return;
     }
@@ -462,7 +474,7 @@ void process_group_remove(struct process_group* group, struct process* process) 
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     struct thread* thread = slab_cache_alloc(thread_cache);
-    if (unlikely(thread == NULL)) {
+    if (unlikely(!thread)) {
         return NULL;
     }
 
@@ -500,7 +512,7 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
 
 struct thread* thread_create_user(struct process* process, uintptr_t entry, uintptr_t stack) {
     struct thread* thread = slab_cache_alloc(thread_cache);
-    if (unlikely(thread == NULL)) {
+    if (unlikely(!thread)) {
         return NULL;
     }
 
@@ -560,7 +572,7 @@ void thread_destroy(struct thread* thread) {
 
 struct thread* thread_fork(struct process* process, struct thread* old_thread, struct registers* context) {
     struct thread* new_thread = slab_cache_alloc(thread_cache);
-    if (unlikely(new_thread == NULL)) {
+    if (unlikely(!new_thread)) {
         return NULL;
     }
 
@@ -612,43 +624,43 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
 
 void process_init(void) {
     process_cache = slab_cache_create("struct process cache", sizeof(struct process));
-    if (unlikely(process_cache == NULL)) {
+    if (unlikely(!process_cache)) {
         kpanic(NULL, false, "failed to initialize object cache for process structs");
     }
 
     process_group_cache = slab_cache_create("struct process_group cache", sizeof(struct process_group));
-    if (unlikely(process_group_cache == NULL)) {
+    if (unlikely(!process_group_cache)) {
         kpanic(NULL, false, "failed to initialize object cache for process_group structs");
     }
 
     thread_cache = slab_cache_create("struct thread cache", sizeof(struct thread));
-    if (unlikely(thread_cache == NULL)) {
+    if (unlikely(!thread_cache)) {
         kpanic(NULL, false, "failed to initialize object cache for thread structs");
     }
 
     mutex_init(&processes_mutex);
 
     processes = hashmap_create(128);
-    if (unlikely(processes == NULL)) {
+    if (unlikely(!processes)) {
         kpanic(NULL, false, "failed to create process hashmap");
     }
 
     mutex_init(&process_groups_mutex);
 
     process_groups = hashmap_create(64);
-    if (unlikely(process_groups == NULL)) {
+    if (unlikely(!process_groups)) {
         kpanic(NULL, false, "failed to create process group hashmap");
     }
 
     kernel_process = slab_cache_alloc(process_cache);
-    if (unlikely(kernel_process == NULL)) {
+    if (unlikely(!kernel_process)) {
         kpanic(NULL, false, "failed to create kernel process");
     }
 
     spinlock_init(&kernel_process->thread_list_lock);
 
     kernel_process->threads = vector_create(sizeof(struct thread*));
-    if (unlikely(kernel_process->threads == NULL)) {
+    if (unlikely(!kernel_process->threads)) {
         kpanic(NULL, false, "failed to create kernel process threads vector");
     }
 

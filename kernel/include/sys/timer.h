@@ -28,6 +28,14 @@ struct timer_driver {
 
 typedef void (*timer_callback_t)(void*);
 
+struct timer_event {
+    timer_callback_t callback;
+    void* arg;
+    struct timespec ts;
+
+    struct timer_event* next;
+};
+
 extern struct timespec time_realtime;
 
 static inline void timespec_add(struct timespec* a, const struct timespec* b) {
@@ -52,7 +60,8 @@ static inline bool timespec_greater(const struct timespec* a, const struct times
 }
 
 struct timespec timer_time_from_boot(void);
-int timer_setup(timer_callback_t callback, void* arg, const struct timespec* tp);
+int timer_remove(struct timer_event* event);
+int timer_setup(struct timer_event* event, timer_callback_t callback, void* arg, const struct timespec* tp);
 void timer_update_timers(void);
 void timer_wait_ns(uint64_t ns);
 

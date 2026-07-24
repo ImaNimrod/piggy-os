@@ -5,6 +5,8 @@
 #include <net/ipv4.h>
 #include <stddef.h>
 
+#define HOST_NAME_MAX 64
+
 #define IFNAMSIZ 16
 
 #define IFF_UP          (1 << 0)
@@ -37,9 +39,10 @@ struct netif {
 
     short flags;
     uint16_t mtu;
+    uint32_t index;
 
     mac_address_t mac;
-    ipv4_address_t ipv4_address;
+    ipv4_address_t ipv4_addr;
     ipv4_address_t ipv4_mask;
 
     void* device;
@@ -51,6 +54,8 @@ struct netif {
 
     struct netif* next;
 };
+
+extern char hostname[HOST_NAME_MAX];
 
 struct netif* netif_find(const char* name);
 void netif_register(struct netif* netif);

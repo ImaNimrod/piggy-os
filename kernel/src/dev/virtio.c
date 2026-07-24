@@ -103,16 +103,20 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
         pci_set_msix_mask(dev->pci_dev, queue_number, false);
     }
 
+    mfence();
+
     mmio_write16(&dev->common_config->queue_enable, 1);
     return true;
 }
 
 uint16_t virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor) {
     queue->available->ring[queue->available->index % queue->size] = descriptor;
+    mfence();
     return queue->available->index++;
 }
 
 void virtio_queue_notify(struct virtio_queue* queue) {
+    mfence();
     mmio_write32(queue->notify, 0);
 }
 

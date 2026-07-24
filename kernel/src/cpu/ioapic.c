@@ -125,7 +125,7 @@ static void parse_ioapic_entry(struct acpi_madt_ioapic* ioapic_entry) {
             PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
 
     struct ioapic* ioapic = kmalloc(sizeof(struct ioapic));
-    if (unlikely(ioapic == NULL)) {
+    if (unlikely(!ioapic)) {
         kpanic(NULL, false, "failed to allocate memory for ioapic");
     }
     ioapic->base = vaddr;
@@ -207,7 +207,7 @@ bool ioapic_redirect_irq(uint8_t irq, uint8_t vector) {
     }
 
     struct ioapic* ioapic = get_ioapic_for_irq(gsi);
-    if (unlikely(ioapic == NULL)) {
+    if (unlikely(!ioapic)) {
         return false;
     }
 
@@ -229,7 +229,7 @@ bool ioapic_set_irq_mask(uint8_t irq, bool mask) {
     }
 
     struct ioapic* ioapic = get_ioapic_for_irq(gsi);
-    if (unlikely(ioapic == NULL)) {
+    if (unlikely(!ioapic)) {
         return false;
     }
 

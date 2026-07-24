@@ -25,8 +25,8 @@ enum {
     PS2_DEVICE_MOUSE,
 };
 
-static int keyboard_irq = 1;
-static int mouse_irq = 12;
+static int keyboard_irq = -1;
+static int mouse_irq = -1;
 
 uint8_t send_device_command(uint8_t command, bool second_port) {
     uint8_t res;
@@ -110,7 +110,7 @@ static uacpi_iteration_decision match_ps2_device(void* user, uacpi_namespace_nod
 }
 
 void ps2_init(void) {
-    bool brokenps2 = cmdline_get("brokenps2") != NULL;
+    bool brokenps2 = cmdline_get("brokenps2");
     if (brokenps2) {
         keyboard_irq = PS2_KEYBOARD_ISA_IRQ;
         mouse_irq = PS2_MOUSE_ISA_IRQ;

@@ -7,17 +7,19 @@
 #include <stdlib.h> 
 #include <signal.h> 
 #include <string.h> 
+#include <termios.h> 
 #include <unistd.h> 
 
 #include "builtins.h"
 #include "history.h"
+#include "interactive.h"
 #include "sh.h"
 
-char cwd[PATH_MAX];
 int last_status;
 
 static FILE* input;
 static bool is_interactive;
+static struct termios old_termios;
 static pid_t shell_pgid;
 
 static int run_program(char** argv) {
@@ -76,6 +78,30 @@ static int run_program(char** argv) {
     return WEXITSTATUS(status);
 }
 
+static void disable_raw_mode(void) {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios) < 0) {
+        err(EXIT_FAILURE, "tcsetattr");
+    }
+}
+
+static void enable_raw_mode(void) {
+    if (tcgetattr(STDIN_FILENO, &old_termios) < 0) {
+        err(EXIT_FAILURE, "tcgetattr");
+    }
+
+    struct termios new_termios = old_termios;
+    new_termios.c_iflag &= ~(BRKINT | ICRNL | ISTRIP | IXON);
+    new_termios.c_oflag &= ~(OPOST);
+    new_termios.c_cflag |= CS8;
+    new_termios.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    new_termios.c_cc[VMIN] = 0;
+    new_termios.c_cc[VTIME] = 1;
+
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &new_termios) < 0) {
+        err(EXIT_FAILURE, "tcsetattr");
+    }
+}
+
 static void usage(void) {
     fprintf(stderr, "usage: sh [-i] [-c COMMAND]\n");
     exit(EXIT_FAILURE);
@@ -103,7 +129,7 @@ int split_args(char* line, char*** argv) {
 
     char** tokens = malloc(64 * sizeof(char*));
     if (!tokens) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     char* token = strtok(line, " \t\n\a");
@@ -125,8 +151,6 @@ int main(int argc, char* argv[]) {
     char* command = NULL;
     int args_index = 0;
 
-    setpwd();
-
     int c;
     while ((c = getopt(argc, argv, "c:i")) != -1) {
         if (args_index > 0) {
@@ -146,6 +170,19 @@ int main(int argc, char* argv[]) {
                 break;
             default:
                 usage();
+        }
+    }
+
+    pwd = getenv("PWD");
+    if (pwd) {
+        pwd = strdup(pwd);
+        if (!pwd) {
+            err(EXIT_FAILURE, "strdup");
+        }
+    } else {
+        pwd = getcwd(NULL, 0);
+        if (pwd) {
+            setenv("PWD", pwd, 1);
         }
     }
 
@@ -173,7 +210,7 @@ int main(int argc, char* argv[]) {
     input = stdin;
     if (argc > 1) {
         input = fopen(argv[1], "r");
-        if (input == NULL) {
+        if (!input) {
             err(EXIT_FAILURE, argv[1]);
         }
     }
@@ -201,16 +238,18 @@ int main(int argc, char* argv[]) {
 
     for (;;) {
         if (is_interactive) {
-            fprintf(stderr, "\033[94msh\033[0m:\033[32m%s\033[0m> ", cwd);
+            enable_raw_mode();
+            nread = readline_interactive(&line_buf);
+            disable_raw_mode();
+        } else {
+            nread = getline(&line_buf, &line_cap, input);
+            if (nread > 0 && line_buf[nread - 1] == '\n') {
+                line_buf[nread - 1] = '\0';
+            }
         }
 
-        nread = getline(&line_buf, &line_cap, input);
-        if (nread == -1) {
+        if (nread < 0) {
             break;
-        }
-
-        if (nread > 0 && line_buf[nread - 1] == '\n') {
-            line_buf[nread - 1] = '\0';
         }
 
         if (line_buf[0] != '\0') {

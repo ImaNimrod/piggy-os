@@ -6,12 +6,16 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
+#include <utils/log.h>
 static void signal_all_processes(struct process* process, int signal) {
     if (!process) {
         return;
     }
 
-    signal_send_process(process, signal);
+    if (process != init_process) {
+        klog("pid: %d\n", process->pid);
+        signal_send_process(process, signal);
+    }
 
     struct process* child;
     SLIST_FOREACH(process->children, child, sibling_next) {
@@ -57,7 +61,7 @@ void sys_kill(struct registers* r) {
             return;
         }
 
-        signal_all_processes(init_process->children, signal);
+        signal_all_processes(init_process, signal);
         r->rax = 0;
     } else {
         struct process_group* target = process_group_find_by_pgid(-pid);

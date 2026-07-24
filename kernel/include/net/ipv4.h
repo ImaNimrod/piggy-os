@@ -32,9 +32,11 @@ struct ipv4_header {
 
 struct netif;
 
-uint16_t inet_checksum(void* buf, uint16_t len);
+uint16_t inet_checksum(const void* restrict buf, uint16_t len);
 
-bool ipv4_add_route(struct netif* netif, ipv4_address_t address, ipv4_address_t gateway, ipv4_address_t mask);
+int ipv4_route_add(struct netif* netif, ipv4_address_t addr, ipv4_address_t gateway, ipv4_address_t mask);
+int ipv4_route_delete(ipv4_address_t addr, ipv4_address_t gateway, ipv4_address_t mask);
+
 void ipv4_handle(struct netif* netif, const void* buf);
 int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_protocol_t protocol, struct netif* broadcast_netif);
 

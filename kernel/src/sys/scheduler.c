@@ -265,13 +265,21 @@ void scheduler_prepare_wait(struct thread* thread, bool interruptable) {
 }
 
 int scheduler_sleep(struct thread* thread, const struct timespec* duration) {
-    int ret = timer_setup(timer_callback, thread, duration);
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
+
+    struct timer_event event;
+
+    int ret = timer_setup(&event, timer_callback, thread, duration);
     if (ret < 0) {
         return ret;
     }
 
-    scheduler_prepare_wait(thread, true);
-    return scheduler_yield();
+    ret = scheduler_yield();
+    if (ret < 0) {
+        timer_remove(&event);
+    }
+
+    return ret;
 }
 
 [[noreturn]] void scheduler_thread_exit(void) {

@@ -239,7 +239,7 @@ void fb_dev_init(void) {
 
     framebuffer_count = framebuffer_response->framebuffer_count;
     framebuffers = kmalloc(sizeof(struct framebuffer_info) * framebuffer_count);
-    if (unlikely(framebuffers == NULL)) {
+    if (unlikely(!framebuffers)) {
         kpanic(NULL, false, "failed to allocate memory for framebuffer information");
     }
 

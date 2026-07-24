@@ -55,6 +55,7 @@ static uintptr_t inner_alloc(size_t pages, uint64_t last_limit) {
         }
 
         last_used_index = start + pages;
+        usable_pages -= pages;
         return start * PAGE_SIZE_4KB;
     }
 
@@ -97,6 +98,8 @@ void pmm_free(uintptr_t paddr, size_t page_count) {
     for (size_t i = page; i < page + page_count; i++) {
         BITMAP_CLEAR(pmm_bitmap, i);
     }
+
+    usable_pages += page_count;
 
     spinlock_release(&pmm_lock);
 }
@@ -175,6 +178,8 @@ void pmm_init(void) {
             }
         }
     }
+
+    spinlock_init(&pmm_lock);
 
     klog("[pmm] usable memory: %zuMiB | reserved memory: %zuMiB\n",
             (usable_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);

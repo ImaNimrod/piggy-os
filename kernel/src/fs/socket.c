@@ -2,6 +2,7 @@
 #include <fs/socket.h>
 #include <mem/paging.h>
 #include <mem/slab.h>
+#include <net/raw.h>
 #include <net/udp.h>
 #include <sys/timer.h>
 #include <utils/macros.h> 
@@ -19,6 +20,7 @@ struct ifreq {
         struct sockaddr ifr_netmask;
         struct sockaddr ifr_hwaddr;
         short ifr_flags;
+        int ifr_ivalue;
         int ifr_mtu;
     };
 };
@@ -63,7 +65,20 @@ static int socket_ioctl(struct vfs_node* node, int request, void* argp) {
     int ret = 0;
 
     switch (request) {
-        case SIOCGIFFLAGS: {
+        case SIOCGIFCONF:
+            break;
+        case SIOCGIFFLAGS:
+        case SIOCSIFFLAGS:
+        case SIOCGIFMTU:
+        case SIOCSIFMTU:
+        case SIOCGIFADDR:
+        case SIOCSIFADDR:
+        case SIOCGIFNETMASK:
+        case SIOCSIFNETMASK:
+        case SIOCGIFBRDADDR:
+        case SIOCSIFBRDADDR:
+        case SIOCGIFHWADDR:
+        case SIOCGIFINDEX: {
             struct ifreq ifr;
             if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
                 break;
@@ -75,163 +90,97 @@ static int socket_ioctl(struct vfs_node* node, int request, void* argp) {
                 break;
             }
 
-            ifr.ifr_flags = netif->flags;
+            switch (request) {
+                case SIOCGIFFLAGS:
+                    ifr.ifr_flags = netif->flags;
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                case SIOCSIFFLAGS:
+                    netif->flags = ifr.ifr_flags;
+                    break;
+                case SIOCGIFMTU:
+                    ifr.ifr_mtu = netif->mtu;
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                case SIOCSIFMTU:
+                    ret = -ENOTSUP;
+                    break;
+                case SIOCGIFADDR: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    sin->sin_family = AF_INET;
+                    sin->sin_addr.s_addr = htonl(netif->ipv4_addr);
+                    sin->sin_port = 0;
 
-            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                }
+                case SIOCSIFADDR: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    if (sin->sin_family != AF_INET) {
+                        ret = -EAFNOSUPPORT;
+                        break;
+                    }
+
+                    netif->ipv4_addr = ntohl(sin->sin_addr.s_addr);
+                    ret = ipv4_route_add(netif, netif->ipv4_addr, 0, netif->ipv4_mask);
+                    break;
+                }
+                case SIOCGIFNETMASK: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    sin->sin_family = AF_INET;
+                    sin->sin_addr.s_addr = htonl(netif->ipv4_mask);
+                    sin->sin_port = 0;
+
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                }
+                case SIOCSIFNETMASK: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    if (sin->sin_family != AF_INET) {
+                        ret = -EAFNOSUPPORT;
+                        break;
+                    }
+
+                    netif->ipv4_mask = ntohl(sin->sin_addr.s_addr);
+                    break;
+                }
+                case SIOCGIFBRDADDR: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    sin->sin_family = AF_INET;
+                    sin->sin_addr.s_addr = htonl(netif->ipv4_addr | ~netif->ipv4_mask);
+                    sin->sin_port = 0;
+
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                }
+                case SIOCSIFBRDADDR: {
+                    struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
+                    if (sin->sin_family != AF_INET) {
+                        ret = -EAFNOSUPPORT;
+                        break;
+                    }
+
+                    ret = -ENOTSUP;
+                    break;
+                }
+                case SIOCGIFINDEX:
+                    ifr.ifr_ivalue = netif->index;
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+                case SIOCGIFHWADDR:
+                    memset(&ifr.ifr_hwaddr, 0, sizeof(ifr.ifr_hwaddr));
+
+                    ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
+                    memcpy(ifr.ifr_hwaddr.sa_data, netif->mac, 6);
+
+                    ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
+                    break;
+            }
+
             break;
         }
-        case SIOCSIFFLAGS: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            netif->flags = ifr.ifr_flags;
-            break;
-        }
-        case SIOCGIFMTU: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            ifr.ifr_mtu = netif->mtu;
-
-            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
-            break;
-        }
-        case SIOCSIFMTU: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            ret = -ENOTSUP;
-            break;
-        }
-        case SIOCGIFADDR: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
-            sin->sin_family = AF_INET;
-            sin->sin_addr.s_addr = htonl(netif->ipv4_address);
-            sin->sin_port = 0;
-
-            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
-            break;
-        }
-        case SIOCSIFADDR: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
-            if (sin->sin_family != AF_INET) {
-                ret = -EAFNOSUPPORT;
-                break;
-            }
-
-            netif->ipv4_address = ntohl(sin->sin_addr.s_addr);
-
-            ret = ipv4_add_route(netif, netif->ipv4_address, 0, netif->ipv4_mask);
-            break;
-        }
-        case SIOCGIFNETMASK: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
-            sin->sin_family = AF_INET;
-            sin->sin_addr.s_addr = htonl(netif->ipv4_mask);
-            sin->sin_port = 0;
-
-            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
-            break;
-        }
-        case SIOCSIFNETMASK: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            struct sockaddr_in* sin = (struct sockaddr_in*) &ifr.ifr_addr;
-            if (sin->sin_family != AF_INET) {
-                ret = -EAFNOSUPPORT;
-                break;
-            }
-
-            netif->ipv4_mask = ntohl(sin->sin_addr.s_addr);
-            break;
-        }
-        case SIOCGIFHWADDR: {
-            struct ifreq ifr;
-            if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&ifr, argp, sizeof(ifr))) < 0) {
-                break;
-            }
-
-            struct netif* netif = netif_find(ifr.ifr_name);
-            if (!netif) {
-                ret = -ENODEV;
-                break;
-            }
-
-            memset(&ifr.ifr_hwaddr, 0, sizeof(ifr.ifr_hwaddr));
-
-            ifr.ifr_hwaddr.sa_family = ARPHRD_ETHER;
-            memcpy(ifr.ifr_hwaddr.sa_data, netif->mac, 6);
-
-            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &ifr, sizeof(ifr));
-            break;
-        }
-        case SIOCADDRT: {
+        case SIOCADDRT:
+        case SIOCDELRT: {
             struct rtentry route;
             if ((ret = USER_MEMCPY_MAYBE_FROM_USER(&route, argp, sizeof(route))) < 0) {
                 break;
@@ -243,7 +192,12 @@ static int socket_ioctl(struct vfs_node* node, int request, void* argp) {
                 break;
             }
 
-            ret = ipv4_add_route(netif, ntohl(route.destination), ntohl(route.gateway), ntohl(route.mask));
+            if (request == SIOCADDRT) {
+                ret = ipv4_route_add(netif, ntohl(route.destination), ntohl(route.gateway), ntohl(route.mask));
+            } else {
+                ret = ipv4_route_delete(ntohl(route.destination), ntohl(route.gateway), ntohl(route.mask));
+            }
+
             break;
         }
         case SIOCIFBIND: {
@@ -330,14 +284,8 @@ int socket_create(int family, int type, int protocol, struct vfs_node** ret) {
                     }
                     break;
                 case SOCK_RAW:
-                    /*
-                    if (protocol == IPV4_PROTOCOL_ICMP) {
-                        error = icmp_socket_create(ret);
-                    } else {
-                        error = -EPROTONOSUPPORT;
-                    }
+                    error = raw_socket_create(protocol, &node);
                     break;
-                    */
                 case SOCK_STREAM:
                 default:
                     error = -EPROTONOSUPPORT;

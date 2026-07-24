@@ -31,7 +31,9 @@
 #define SIOCSIFADDR     0x8924
 #define SIOCGIFNETMASK  0x8925
 #define SIOCSIFNETMASK  0x8926
-#define SIOCGIFHWADDR   0x8927
+#define SIOCGIFBRDADDR  0x8927
+#define SIOCSIFBRDADDR  0x8928
+#define SIOCGIFHWADDR   0x8929
 #define SIOCGIFINDEX    0x8933
 #define SIOCADDRT       0x8958
 #define SIOCDELRT       0x8959
@@ -44,8 +46,8 @@ struct socket_ops {
     int (*connect)(struct socket_node*, const struct sockaddr*, socklen_t);
     ssize_t (*recv)(struct socket_node*, void*, size_t, struct sockaddr*, socklen_t*);
     ssize_t (*send)(struct socket_node*, const void*, size_t, const struct sockaddr*, socklen_t);
-    ssize_t (*getpeername)(struct socket_node*, struct sockaddr*);
-    ssize_t (*getsockname)(struct socket_node*, struct sockaddr*);
+    ssize_t (*getpeername)(struct socket_node*, struct sockaddr*, socklen_t);
+    ssize_t (*getsockname)(struct socket_node*, struct sockaddr*, socklen_t);
     short (*poll)(struct socket_node*, short, struct poll_table*);
     void (*destroy)(struct socket_node*);
 };

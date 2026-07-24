@@ -327,7 +327,7 @@ void sys_exec(struct registers* r) {
         }
 
         kargv[i] = kmalloc(len + 1);
-        if (!kargv[i]) {
+        if (unlikely(!kargv[i])) {
             ret = -ENOMEM;
             goto end;
         }
@@ -350,7 +350,7 @@ void sys_exec(struct registers* r) {
         }
 
         kenvp[i] = kmalloc(len + 1);
-        if (!kenvp[i]) {
+        if (unlikely(!kenvp[i])) {
             ret = -ENOMEM;
             goto end;
         }

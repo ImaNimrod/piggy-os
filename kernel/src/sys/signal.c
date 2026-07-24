@@ -19,6 +19,9 @@ struct signal_frame {
     uintptr_t restorer;
     sigset_t saved_mask;
     struct registers context;
+    uint64_t fs_base;
+    uint64_t gs_base;
+    void* fpu_context;
     uint64_t signal;
 };
 
@@ -41,6 +44,8 @@ static int default_action(int signal) {
             return DEFAULT_ACTION_TERMINATE;
     }
 }
+
+#include <utils/log.h>
 
 void signal_handle_pending(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
@@ -80,7 +85,7 @@ void signal_handle_pending(struct registers* r) {
         if (action.sa_handler == SIG_DFL) {
             if (default_action(signal) == DEFAULT_ACTION_TERMINATE) {
                 process_exit(current_process, PROCESS_EXITCODE(0, signal));
-                scheduler_thread_exit();
+                return;
             } else {
                 continue;
             }
@@ -118,21 +123,28 @@ void signal_handle_pending(struct registers* r) {
         struct signal_frame frame = {
             .saved_mask = old_mask,
             .context = *r,
+            .fs_base = rdmsr(MSR_IA32_FS_BASE),
+            .gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE),
             .signal = signal,
             .restorer = (uintptr_t) action.sa_restorer,
         };
+
+        frame.fpu_context = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
+        this_cpu()->fpu_save(frame.fpu_context);
 
         uintptr_t sp = frame_sp & ~0xfULL;
         sp -= sizeof(struct signal_frame);
 
         if (user_memcpy_to_user((void*) sp, &frame, sizeof(struct signal_frame)) < 0) {
             process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
+            return;
         }
 
         sp -= sizeof(uintptr_t);
 
         if (user_memcpy_to_user((void*) sp, &action.sa_restorer, sizeof(uintptr_t)) < 0) {
             process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
+            return;
         }
 
         r->rip = (uintptr_t) action.sa_handler;
@@ -166,15 +178,23 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
     struct signal_frame frame;
     if (user_memcpy_from_user(&frame, (void*) r->rsp, sizeof(struct signal_frame)) < 0) {
         process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
+        scheduler_thread_exit();
     }
 
     if (!IS_USER_ADDRESS((void*) frame.context.rip) || frame.context.cs != USER_CODE_SEGMENT || frame.context.ss != USER_DATA_SEGMENT) {
         process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
+        scheduler_thread_exit();
     }
 
     frame.context.rflags &= ~(RFLAGS_TF | RFLAGS_DF | RFLAGS_RF);
 
     *r = frame.context;
+
+    this_cpu()->fpu_restore(frame.fpu_context);
+    pmm_free((uintptr_t) frame.fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
+
+    wrmsr(MSR_IA32_FS_BASE, frame.fs_base);
+    wrmsr(MSR_IA32_KERNEL_GS_BASE, frame.gs_base);
 
     spinlock_acquire(&current_thread->signal_lock);
     current_thread->signal_mask = frame.saved_mask;

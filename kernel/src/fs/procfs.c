@@ -560,9 +560,10 @@ static ssize_t procfs_read(struct vfs_node* node, void* buf, size_t count, off_t
         return 0;
     }
 
+    actual_count -= offset;
     actual_count = MIN(actual_count, (ssize_t) count);
 
-    int ret = USER_MEMCPY_MAYBE_TO_USER(buf, data, actual_count);
+    int ret = USER_MEMCPY_MAYBE_TO_USER(buf, data + offset, actual_count);
     if (ret < 0) {
         return ret;
     }

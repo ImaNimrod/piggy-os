@@ -48,13 +48,13 @@ static void do_work(struct uacpi_work_context* context) {
         struct uacpi_work* work = NULL;
 
         bool int_state = spinlock_acquire_irqsave(&context->queue_lock);
-        if (context->queue != NULL) {
+        if (context->queue) {
             work = context->queue;
             context->queue = work->next;
         }
         spinlock_release_irqsave(&context->queue_lock, int_state);
 
-        if (work == NULL) {
+        if (!work) {
             continue;
         }
 
@@ -78,10 +78,8 @@ static void work_await(struct uacpi_work_context* context) {
     };
 
     for (;;) {
-        bool empty;
-
         bool int_state = spinlock_acquire_irqsave(&context->queue_lock);
-        empty = context->queue == NULL;
+        bool empty = context->queue == NULL;
         spinlock_release_irqsave(&context->queue_lock, int_state);
 
         if (empty) {
@@ -97,7 +95,7 @@ static void work_init(struct uacpi_work_context* context, void (*proc)(void)) {
     spinlock_init(&context->queue_lock);
 
     context->thread = thread_create_kernel((uintptr_t) proc, NULL);
-    if (unlikely(context->thread == NULL)) {
+    if (unlikely(!context->thread)) {
         kpanic(NULL, false, "failed to create uACPI worker thread");
     }
 }
@@ -315,7 +313,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec) {
 
 uacpi_handle uacpi_kernel_create_mutex(void) {
     mutex_t* mutex = kmalloc(sizeof(mutex_t));
-    if (likely(mutex != NULL)) {
+    if (likely(mutex)) {
         mutex_init(mutex);
     }
     return (uacpi_handle) mutex;
@@ -327,7 +325,7 @@ void uacpi_kernel_free_mutex(uacpi_handle mutex) {
 
 uacpi_handle uacpi_kernel_create_event(void) {
     semaphore_t* event = kmalloc(sizeof(semaphore_t));
-    if (likely(event != NULL)) {
+    if (likely(event)) {
         semaphore_init(event, 1);
     }
     return event;
@@ -399,7 +397,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 irq, uacpi_interru
     (void) out_irq_handle;
 
     struct uacpi_irq_context* irq_context = kmalloc(sizeof(struct uacpi_irq_context));
-    if (unlikely(irq_context == NULL)) {
+    if (unlikely(!irq_context)) {
         kpanic(NULL, true, "failed to allocate memory for uACPI IRQ context");
     }
     irq_context->handler = handler;
@@ -424,7 +422,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_handle uacpi_kernel_create_spinlock(void) {
     spinlock_t* lock = kmalloc(sizeof(spinlock_t));
-    if (likely(lock != NULL)) {
+    if (likely(lock)) {
         spinlock_init(lock);
     }
     return (uacpi_handle) lock;
@@ -444,7 +442,7 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle lock, uacpi_cpu_flags int_state) 
 
 uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx) {
     struct uacpi_work* work = kmalloc(sizeof(struct uacpi_work));
-    if (unlikely(work == NULL)) {
+    if (unlikely(!work)) {
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
     work->ctx = ctx;

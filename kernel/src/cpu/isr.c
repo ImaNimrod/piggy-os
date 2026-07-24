@@ -85,7 +85,7 @@ void isr_handler(struct registers* r) {
     struct isr_table_entry* entry = &isrs[int_number];
 
     if (int_number < EXCEPTION_NUM - 1) {
-        if (entry->handler == NULL) {
+        if (!entry->handler) {
             kpanic(r, false, "unhandled exception: %s", EXCEPTION_MESSAGES[int_number]);
         }
 

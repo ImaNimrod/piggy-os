@@ -38,7 +38,7 @@ static int futex_wait(struct futex* futex, uintptr_t paddr, uint32_t* addr, uint
 
     if (!futex) {
         futex = kmalloc(sizeof(struct futex));
-        if (!futex) {
+        if (unlikely(!futex)) {
             ret = -ENOMEM;
             goto end;
         }

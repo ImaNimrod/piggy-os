@@ -1,9 +1,9 @@
 mv_exe = executable(
   'mv',
   'mv.c',
+  dependencies: shared_dep,
   install: true,
-  install_dir: get_option('bindir'),
-  dependencies: shared_dep
+  install_dir: get_option('bindir')
 )
 
 install_data(

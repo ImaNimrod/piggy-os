@@ -2,11 +2,11 @@ SYSROOT_DIR:=$(PWD)/sysroot
 TOOLCHAIN_DIR:=$(PWD)/toolchain
 
 EDK2_OVMF_URL:=https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
-LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.3.2/limine-binary.tar.xz
+LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.5.2/limine-binary.tar.xz
 
 EMU:=$(TOOLCHAIN_DIR)/local/bin/qemu-system-x86_64
 
-EMUOPTS := -machine q35 \
+EMUOPTS := -machine q35,pcspk-audiodev=speaker \
 		   -m 4G \
 		   -cpu host \
 		   -enable-kvm \
@@ -14,6 +14,7 @@ EMUOPTS := -machine q35 \
 		   -serial stdio \
 		   -rtc base=utc \
 		   -no-reboot \
+		   -audiodev pa,id=speaker \
 		   -bios edk2-ovmf/ovmf-code-x86_64.fd
 
 NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))

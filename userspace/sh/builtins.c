@@ -12,6 +12,8 @@
 
 extern char** environ;
 
+char* pwd;
+
 static int builtin_cd(int argc, char* argv[]);
 static int builtin_echo(int argc, char* argv[]);
 static int builtin_exec(int argc, char* argv[]);
@@ -59,6 +61,10 @@ static int builtin_cd(int argc, char* argv[]) {
 
     if (!arg) {
         path = getenv("HOME");
+        if (!path) {
+            warnx("$HOME not set");
+            return EXIT_FAILURE;
+        }
     } else if (arg[0] == '~') {
         const char* home = getenv("HOME");
         if (!home) {
@@ -80,9 +86,14 @@ static int builtin_cd(int argc, char* argv[]) {
 
     if (chdir(path) < 0) {
         warn(path);
+        return EXIT_FAILURE;
     }
 
-    setpwd();
+    pwd = getcwd(NULL, 0);
+    if (pwd) {
+        setenv("PWD", pwd, 1);
+    }
+
     return EXIT_SUCCESS;
 }
 
@@ -185,7 +196,7 @@ static int builtin_pwd(int argc, char* argv[]) {
 
     char* buf = malloc(PATH_MAX);
     if (!buf) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     if (!getcwd(buf, PATH_MAX)) {

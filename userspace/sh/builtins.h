@@ -8,4 +8,6 @@ struct shell_builtin {
 
 extern const struct shell_builtin BUILTINS[];
 
+extern char* pwd;
+
 #endif /* _SH_BUILTINS_H */

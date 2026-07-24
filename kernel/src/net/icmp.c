@@ -4,31 +4,33 @@
 #define ICMP_TYPE_ECHO_REPLY    0
 #define ICMP_TYPE_ECHO_REQUEST  8
 
-struct icmp_header {
+struct icmp_echo_request {
     uint8_t type;
     uint8_t code;
     uint16_t checksum;
+    uint16_t identifier;
+    uint16_t sequence;
     uint8_t data[];
 } __attribute__((packed));
 
-
 void icmp_handle(ipv4_address_t source, const void* buf, uint16_t len) {
-    if (unlikely(len < sizeof(struct icmp_header))) {
+    if (unlikely(len < sizeof(struct icmp_echo_request))) {
         return;
     }
 
-    struct icmp_header* header = (void*) buf;
+    struct icmp_echo_request* echo = (void*) buf;
 
-    if (inet_checksum(header, len) != 0) {
+    if (inet_checksum(echo, len) != 0) {
         return;
     }
 
-    if (header->type == ICMP_TYPE_ECHO_REQUEST && header->code == 0) {
-        header->type = ICMP_TYPE_ECHO_REPLY;
-        header->checksum = 0;
-
-        header->checksum = inet_checksum(header, len);
-
-        ipv4_send(header, len, source, IPV4_PROTOCOL_ICMP, NULL);
+    if (echo->type != ICMP_TYPE_ECHO_REQUEST || echo->code != 0) {
+        return;
     }
+
+    echo->type = ICMP_TYPE_ECHO_REPLY;
+    echo->checksum = 0;
+    echo->checksum = inet_checksum(echo, len);
+
+    ipv4_send(echo, len, source, IPV4_PROTOCOL_ICMP, NULL);
 }

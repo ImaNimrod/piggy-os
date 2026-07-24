@@ -5,8 +5,6 @@
 #include <dev/hpet.h>
 #include <dev/pvclock.h>
 #include <errno.h>
-#include <mem/slab.h>
-#include <sys/scheduler.h>
 #include <sys/timer.h>
 #include <utils/list.h>
 #include <utils/log.h>
@@ -14,13 +12,6 @@
 #include <utils/spinlock.h>
 
 #define NS_PER_S 1000000000ULL
-
-struct timer_event {
-    timer_callback_t callback;
-    void* arg;
-    struct timespec ts;
-    struct timer_event* next;
-};
 
 struct timespec time_realtime;
 
@@ -57,27 +48,32 @@ struct timespec timer_time_from_boot(void) {
     return (struct timespec) { secs, nsecs };
 }
 
-int timer_setup(timer_callback_t callback, void* arg, const struct timespec* tp) {
-    struct timer_event* event = kmalloc(sizeof(struct timer_event));
-    if (unlikely(!event)) {
-        return -ENOMEM;
-    }
+int timer_remove(struct timer_event* event) {
+    bool int_state = spinlock_acquire_irqsave(&timer_event_list_lock);
+    SLIST_REMOVE(timer_event_list, event, next);
+    spinlock_release_irqsave(&timer_event_list_lock, int_state);
+
+    return 0;
+}
+
+int timer_setup(struct timer_event* event, timer_callback_t callback, void* arg, const struct timespec* tp) {
     event->callback = callback;
     event->arg = arg;
     event->ts = *tp;
+    event->next = NULL;
 
     struct timespec boottime = timer_time_from_boot();
     timespec_add(&event->ts, &boottime);
 
-    spinlock_acquire(&timer_event_list_lock);
+    bool int_state = spinlock_acquire_irqsave(&timer_event_list_lock);
     SLIST_PUSH_FRONT(timer_event_list, event, next);
-    spinlock_release(&timer_event_list_lock);
+    spinlock_release_irqsave(&timer_event_list_lock, int_state);
 
     return 0;
 }
 
 void timer_update_timers(void) {
-    if (last_ticks == 0) {
+    if (unlikely(last_ticks == 0)) {
         last_ticks = this_cpu()->timer_base_ticks;
     }
 
@@ -88,20 +84,35 @@ void timer_update_timers(void) {
 
     last_ticks = current_ticks;
 
-    spinlock_acquire(&timer_event_list_lock);
-
     struct timespec boottime = timer_time_from_boot();
 
+    struct timer_event* expired = NULL;
+
+    bool int_state = spinlock_acquire_irqsave(&timer_event_list_lock);
+
     struct timer_event* iter;
-    SLIST_FOREACH(timer_event_list, iter, next) {
+    struct timer_event* next;
+
+    for (iter = timer_event_list; iter; iter = next) {
+        next = iter->next;
+
         if (timespec_greater(&boottime, &iter->ts)) {
             SLIST_REMOVE(timer_event_list, iter, next);
-            iter->callback(iter->arg);
-            kfree(iter);
+
+            iter->next = expired;
+            expired = iter;
         }
     }
 
-    spinlock_release(&timer_event_list_lock);
+    spinlock_release_irqsave(&timer_event_list_lock, int_state);
+
+    while (expired) {
+        struct timer_event* enext = expired->next;
+
+        expired->callback(expired->arg);
+
+        expired = enext;
+    }
 }
 
 void timer_wait_ns(uint64_t ns) {

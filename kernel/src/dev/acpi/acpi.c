@@ -77,7 +77,7 @@ void acpi_early_init(void) {
 }
 
 void acpi_init(void) {
-    bool noacpi = cmdline_get("noacpi") != NULL;
+    bool noacpi = cmdline_get("noacpi");
     if (noacpi) {
         klog("[acpi] 'noacpi' argument found, performing only limited ACPI initialization\n");
     }

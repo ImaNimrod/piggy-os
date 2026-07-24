@@ -5,6 +5,7 @@
 #include <net/icmp.h>
 #include <net/ipv4.h>
 #include <net/netif.h>
+#include <net/raw.h>
 #include <net/udp.h>
 #include <utils/list.h>
 #include <utils/log.h>
@@ -17,7 +18,7 @@
 
 struct routing_table_entry {
     struct netif* netif;
-    ipv4_address_t address;
+    ipv4_address_t addr;
     ipv4_address_t gateway;
     ipv4_address_t mask;
     struct routing_table_entry* next;
@@ -43,49 +44,49 @@ static struct routing_table_entry* get_route(ipv4_address_t ip) {
 
     mutex_acquire(&routing_table_mutex);
 
-    struct routing_table_entry* iter = routing_table;
-    while (iter) {
-        if ((ip & iter->mask) == (iter->address & iter->mask)) {
-            uint32_t prefix = mask_to_prefix(iter->mask);
+    struct routing_table_entry* entry;
+    SLIST_FOREACH(routing_table, entry, next) {
+        if ((ip & entry->mask) == (entry->addr & entry->mask)) {
+            uint32_t prefix = mask_to_prefix(entry->mask);
             if (!best || prefix > best_prefix) {
-                best = iter;
+                best = entry;
                 best_prefix = prefix;
             }
         }
-
-        iter = iter->next;
     }
 
     mutex_release(&routing_table_mutex);
     return best;
 }
 
-uint16_t inet_checksum(void* buf, uint16_t len) {
-    uint16_t* ptr = buf;
-    uint32_t sum = 0;
+uint16_t inet_checksum(const void* restrict buf, uint16_t len) {
+    const uint16_t* ptr = buf;
+
+    uint64_t sum = 0;
 
     while (len >= 2) {
         sum += *ptr++;
         len -= 2;
     }
 
-    if (len != 0) {
-        sum += ((uint16_t) *(const uint8_t*) ptr) << 8;
+    if (len) {
+        sum += *(const uint8_t *)ptr;
     }
 
     while (sum >> 16) {
         sum = (sum & 0xffff) + (sum >> 16);
     }
-    return (uint16_t) ~sum;
+
+    return ~sum;
 }
 
-bool ipv4_add_route(struct netif* netif, ipv4_address_t address, ipv4_address_t gateway, ipv4_address_t mask) {
+int ipv4_route_add(struct netif* netif, ipv4_address_t addr, ipv4_address_t gateway, ipv4_address_t mask) {
     struct routing_table_entry* entry = kmalloc(sizeof(struct routing_table_entry));
     if (unlikely(!entry)) {
-        return false;
+        return -ENOMEM;
     }
     entry->netif = netif;
-    entry->address = address;
+    entry->addr = addr;
     entry->gateway = gateway;
     entry->mask = mask;
 
@@ -93,7 +94,27 @@ bool ipv4_add_route(struct netif* netif, ipv4_address_t address, ipv4_address_t 
     SLIST_PUSH_FRONT(routing_table, entry, next);
     mutex_release(&routing_table_mutex);
 
-    return true;
+    return 0;
+}
+
+int ipv4_route_delete(ipv4_address_t addr, ipv4_address_t gateway, ipv4_address_t mask) {
+    int ret = -EINVAL;
+
+    mutex_acquire(&routing_table_mutex);
+
+    struct routing_table_entry* entry;
+    SLIST_FOREACH(routing_table, entry, next) {
+        if (addr == entry->addr && gateway == entry->gateway && mask == entry->mask) {
+            SLIST_REMOVE(routing_table, entry, next);
+            kfree(entry);
+            ret = 0;
+            goto end;
+        }
+    }
+
+end:
+    mutex_release(&routing_table_mutex);
+    return ret;
 }
 
 void ipv4_handle(struct netif* netif, const void* buf) {
@@ -119,12 +140,14 @@ void ipv4_handle(struct netif* netif, const void* buf) {
     ipv4_address_t source = ntohl(header->source);
     ipv4_address_t destination = ntohl(header->destination);
 
-    if (destination != BROADCAST_IPV4 && destination != netif->ipv4_address) {
+    if (destination != BROADCAST_IPV4 && destination != netif->ipv4_addr) {
         return;
     }
 
     const void* payload = (uint8_t*) header + header_size;
     uint16_t payload_len = ntohs(header->length) - header_size;
+
+    raw_socket_receive(header, source, destination);
 
     switch (header->protocol) {
         case IPV4_PROTOCOL_ICMP:
@@ -134,7 +157,7 @@ void ipv4_handle(struct netif* netif, const void* buf) {
             klog("TCP packet received... in your fucking dreams kiddo\n");
             break;
         case IPV4_PROTOCOL_UDP:
-            udp_handle(source, payload, payload_len);
+            udp_handle(source, destination, payload, payload_len);
             break;
     }
 }
@@ -175,7 +198,7 @@ int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_prot
         .ttl = 64,
         .protocol = protocol,
         .checksum = 0,
-        .source = htonl(netif->ipv4_address),
+        .source = htonl(netif->ipv4_addr),
         .destination = htonl(destination),
     };
 
@@ -200,7 +223,7 @@ int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_prot
 void ipv4_init(void) {
     mutex_init(&routing_table_mutex);
 
-    if (!ipv4_add_route(loopback_init(), IPV4_ADDRESS(127, 0, 0, 1), IPV4_ADDRESS(0, 0, 0, 0), IPV4_ADDRESS(255, 0, 0, 0))) {
+    if (ipv4_route_add(loopback_init(), IPV4_ADDRESS(127, 0, 0, 1), IPV4_ADDRESS(0, 0, 0, 0), IPV4_ADDRESS(255, 0, 0, 0)) < 0) {
         kpanic(NULL, false, "failed to add routing table entry for loopback device");
     }
 }

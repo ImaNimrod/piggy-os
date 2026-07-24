@@ -49,7 +49,7 @@ static struct timer_info* tsc_init(void) {
     klog("[tsc]: initialized invariant TSC (frequency: %luMHz)\n", tsc_frequency / 1000000);
 
     struct timer_info* info = kmalloc(sizeof(struct timer_info));
-    if (unlikely(info == NULL)) {
+    if (unlikely(!info)) {
         kpanic(NULL, false, "failed to allocate memory for TSC timer");
     }
     info->hz = tsc_frequency;

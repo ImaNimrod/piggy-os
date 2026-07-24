@@ -6,7 +6,7 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
-#define WNOHANG 0x01
+#define WNOHANG (1 << 0)
 
 #define VALID_FLAGS (WNOHANG)
 
@@ -45,7 +45,11 @@ void sys_wait(struct registers* r) {
                 return;
             }
 
-            scheduler_yield();
+            int ret = wait_queue_wait(&current_process->child_wq);
+            if (ret < 0) {
+                r->rax = ret;
+                return;
+            }
         }
     } else if (pid > 0) {
         struct process* iter;
@@ -67,7 +71,11 @@ void sys_wait(struct registers* r) {
         }
 
         while (child->state != PROCESS_STATE_ZOMBIE) {
-            scheduler_yield();
+            int ret = wait_queue_wait(&current_process->child_wq);
+            if (ret < 0) {
+                r->rax = ret;
+                return;
+            }
         }
     } else {
         r->rax = -EINVAL;

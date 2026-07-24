@@ -31,7 +31,6 @@ struct virtio_net_header {
     uint16_t gso_size;
     uint16_t csum_start;
     uint16_t csum_offset;
-    uint16_t buffer_count;
 } __attribute__((packed));
 
 struct virtio_net_device {
@@ -92,7 +91,6 @@ static void virtio_net_tx_irq_handler(struct registers* r, void* ctx) {
         uint16_t desc = tx_queue->used->ring[index].id;
 
         pmm_free(tx_queue->descriptors[desc].address, 1);
-        tx_queue->descriptors[desc].address = 0;
 
         scheduler_wakeup(device->tx_queue_waiters[desc], 0);
         device->tx_queue_waiters[desc] = NULL;
@@ -106,7 +104,9 @@ static void virtio_net_tx_irq_handler(struct registers* r, void* ctx) {
 }
 
 static bool virtio_net_alloc_packet(struct netif* netif, struct packet* packet, size_t size) {
-    uintptr_t paddr = pmm_alloc_zero(1);
+    (void) netif;
+
+    uintptr_t paddr = pmm_alloc(1);
     packet->buf = (void*) (paddr + HIGH_VMA);
     packet->size = sizeof(struct virtio_net_header) + sizeof(struct eth_header) + size;
     packet->offset = sizeof(struct virtio_net_header) + sizeof(struct eth_header);
@@ -114,6 +114,7 @@ static bool virtio_net_alloc_packet(struct netif* netif, struct packet* packet, 
 }
 
 static void virtio_net_free_packet(struct netif* netif, struct packet* packet) {
+    (void) netif;
     pmm_free((uintptr_t) packet->buf - HIGH_VMA, 1);
 }
 
@@ -133,8 +134,6 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet, m
     }
 
     memset(packet->buf, 0, sizeof(struct virtio_net_header));
-    //struct virtio_net_header* hdr = packet->buf;
-    //hdr->hdr_len = sizeof(struct virtio_net_header) + sizeof(struct eth_header);
 
     eth_populate_packet(netif, destination, type, (void*) ((uintptr_t) packet->buf + sizeof(struct virtio_net_header)));
 
@@ -167,7 +166,7 @@ static void virtio_net_update_flags(struct netif* netif, uint16_t old_flags) {
 void virtio_net_init(struct virtio_device* vio_dev) {
     mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER);
 
-    uint64_t features = VIRTIO_F_VERSION_1 | VIRTIO_NET_F_MAC;
+    uint64_t features = VIRTIO_NET_F_MAC;
     if ((features = virtio_negotiate_features(vio_dev, features)) == (uint64_t) -1) {
         klog("[virtio_net] failed to negotiate device features\n");
         return;
@@ -179,7 +178,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     }
 
     struct virtio_net_device* device = kmalloc(sizeof(struct virtio_net_device));
-    if (unlikely(device == NULL)) {
+    if (unlikely(!device)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO network device");
     }
     device->vio_dev = vio_dev;
@@ -201,7 +200,7 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     struct virtio_net_config* net_config = vio_dev->device_config;
 
     memcpy(netif->mac, (void*) net_config->mac, sizeof(mac_address_t));
-    netif->ipv4_address = netif->ipv4_mask = IPV4_ADDRESS(0, 0, 0, 0);
+    netif->ipv4_addr = netif->ipv4_mask = 0;
 
     uint8_t vector;
     if (unlikely(!isr_allocate_vector(&vector))) {
@@ -228,6 +227,8 @@ void virtio_net_init(struct virtio_device* vio_dev) {
         descriptor->flags = VIRTQ_DESC_F_WRITE;
         virtio_queue_insert(rx_queue, i);
     }
+
+    virtio_queue_notify(rx_queue);
 
     if (unlikely(!isr_allocate_vector(&vector))) {
         kpanic(NULL, false, "failed to allocate IRQ vector for VirtIO network device TX queue");

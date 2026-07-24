@@ -397,7 +397,7 @@ void vmm_context_destroy(struct vmm_context* context) {
 
 struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
     struct vmm_context* new_context = vmm_context_create();
-    if (unlikely(new_context == NULL)) {
+    if (unlikely(!new_context)) {
         return NULL;
     }
 
@@ -406,7 +406,7 @@ struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
     struct vmm_range* range = old_context->ranges;
     while (range) {
         struct vmm_range* new_range = slab_cache_alloc(vmm_range_cache);
-        if (unlikely(new_range == NULL)) {
+        if (unlikely(!new_range)) {
             goto error;
         }
         memcpy(new_range, range, sizeof(struct vmm_range));
@@ -444,7 +444,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
 
     void* ret = NULL;
     struct vmm_range* range = slab_cache_alloc(vmm_range_cache);
-    if (unlikely(range == NULL)) {
+    if (unlikely(!range)) {
         goto end;
     }
 

@@ -1,9 +1,9 @@
 cp_exe = executable(
   'cp',
   'cp.c',
+  dependencies: shared_dep,
   install: true,
   install_dir: get_option('bindir'),
-  dependencies: shared_dep
 )
 
 install_data(

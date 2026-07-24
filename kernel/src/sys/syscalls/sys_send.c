@@ -30,7 +30,7 @@ void sys_send(struct registers* r) {
 
     int ret = 0;
 
-    const struct sockaddr* kaddr = NULL;
+    struct sockaddr_storage kaddr;
 
     if (addr || addr_len) {
         if (!addr || addr_len == 0) {
@@ -38,27 +38,22 @@ void sys_send(struct registers* r) {
             goto end;
         }
 
-        kaddr = kmalloc(addr_len);
-        if (!kaddr) {
-            ret = -ENOMEM;
+        if (addr_len > sizeof(kaddr)) {
+            ret = -EINVAL;
             goto end;
         }
 
-        if ((ret = user_memcpy_from_user((void*) kaddr, addr, addr_len)) < 0) {
+        if ((ret = user_memcpy_from_user(&kaddr, addr, addr_len)) < 0) {
             goto end;
         }
     }
 
     struct socket_node* socket = (struct socket_node*) file->node;
 
-    ret = socket->sockops->send(socket, buf, count, kaddr, addr_len);
+    ret = socket->sockops->send(socket, buf, count, (struct sockaddr*) &kaddr, addr_len);
 
 end:
     file_release(file);
-
-    if (kaddr) {
-        kfree((void*) kaddr);
-    }
 
     r->rax = ret;
 }

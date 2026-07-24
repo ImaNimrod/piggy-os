@@ -1,6 +1,7 @@
 #include <net/arp.h>
 #include <net/ipv4.h>
 #include <net/netif.h>
+#include <net/raw.h>
 #include <net/udp.h>
 #include <printf.h>
 #include <utils/list.h>
@@ -8,11 +9,14 @@
 #include <utils/spinlock.h>
 #include <utils/string.h>
 
+char hostname[HOST_NAME_MAX] = "piggy";
+
 static struct netif* netif_list;
 static spinlock_t netif_list_lock;
 
 static uint32_t lo_counter;
 static uint32_t eth_counter;
+static int32_t netif_counter;
 
 struct netif* netif_find(const char* name) {
     spinlock_acquire(&netif_list_lock);
@@ -40,6 +44,8 @@ void netif_register(struct netif* netif) {
             break;
     }
 
+    netif->index = netif_counter++;
+
     SLIST_PUSH_FRONT(netif_list, netif, next);
 
     spinlock_release(&netif_list_lock);
@@ -50,6 +56,8 @@ void net_init(void) {
 
     arp_init();
     ipv4_init();
+
+    raw_socket_init();
     udp_init();
 
     klog("[net] initialized networking subsystem\n");

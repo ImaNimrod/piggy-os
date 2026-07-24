@@ -27,6 +27,7 @@
 #define ENOMEM          12
 #define ENOSPC          28
 #define ENOSYS          38
+#define ENOTCONN        107
 #define ENOTDIR         20
 #define ENOTEMPTY       39
 #define ENOTSOCK        88

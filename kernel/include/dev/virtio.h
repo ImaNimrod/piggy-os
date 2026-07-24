@@ -51,24 +51,24 @@ struct virtio_queue_descriptor {
     uint32_t length;
     uint16_t flags;
     uint16_t next;
-};
+} __attribute__((packed));
 
 struct virtio_queue_available {
     uint16_t flags;
     uint16_t index;
     uint16_t ring[];
-};
+} __attribute__((packed));
 
 struct virtio_queue_used_entry {
     uint32_t id;
     uint32_t length;
-};
+} __attribute__((packed));
 
 struct virtio_queue_used {
     uint16_t flags;
     uint16_t index;
     struct virtio_queue_used_entry ring[];
-};
+} __attribute__((packed));
 
 struct virtio_queue {
     uint16_t size;
