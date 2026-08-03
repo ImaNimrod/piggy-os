@@ -146,6 +146,7 @@ int split_args(char* line, char*** argv) {
 }
 
 int main(int argc, char* argv[]) {
+    bool force_interactive = false;
     bool run_command = false;
 
     char* command = NULL;
@@ -167,6 +168,7 @@ int main(int argc, char* argv[]) {
                 }
                 break;
             case 'i':
+                force_interactive = true;
                 break;
             default:
                 usage();
@@ -215,7 +217,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    is_interactive = isatty(STDIN_FILENO);
+    if (run_command) {
+        is_interactive = force_interactive;
+    } else {
+        is_interactive = force_interactive || isatty(fileno(input));
+    }
 
     if (is_interactive) {
         shell_pgid = getpid();
@@ -243,18 +249,26 @@ int main(int argc, char* argv[]) {
             disable_raw_mode();
         } else {
             nread = getline(&line_buf, &line_cap, input);
-            if (nread > 0 && line_buf[nread - 1] == '\n') {
-                line_buf[nread - 1] = '\0';
-            }
         }
 
         if (nread < 0) {
             break;
         }
 
-        if (line_buf[0] != '\0') {
-            history_push(line_buf);
+        if (nread > 0 && line_buf[nread - 1] == '\n') {
+            line_buf[nread - 1] = '\0';
         }
+
+        char* comment = strchr(line_buf, '#');
+        if (comment) {
+            line_buf[comment - line_buf] = '\0';
+        }
+
+        if (*line_buf == '\0') {
+            continue;
+        }
+
+        history_push(line_buf);
 
         char** argv;
         int argc = split_args(line_buf, &argv);

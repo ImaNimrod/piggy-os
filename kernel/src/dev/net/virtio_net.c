@@ -149,7 +149,7 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet, m
 
     scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
-    spinlock_release(&tx_queue->lock);
+    spinlock_release_irqsave(&tx_queue->lock, int_state);
 
     virtio_queue_notify(tx_queue);
 

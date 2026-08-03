@@ -83,7 +83,7 @@ int main(int argc, char* argv[]) {
             case 'c':
                 errno = 0;
                 byte_count = strtol(optarg, &end_ptr, 10);
-                if (errno != 0 || byte_count < 0 || optarg == end_ptr) {
+                if (errno != 0 || byte_count < 0 || optarg == end_ptr || *end_ptr) {
                     warnx("invalid byte count: '%s'", optarg);
                     usage();
                 }
@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
             case 'n':
                 errno = 0;
                 line_count = strtol(optarg, &end_ptr, 10);
-                if (errno != 0 || line_count < 0 || optarg == end_ptr) {
+                if (errno != 0 || line_count < 0 || optarg == end_ptr || *end_ptr) {
                     warnx("invalid line count: '%s'", optarg);
                     usage();
                 }

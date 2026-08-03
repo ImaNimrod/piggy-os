@@ -36,9 +36,7 @@ static double parse_interval(const char* arg) {
 }
 
 static void usage(void) {
-    fprintf(stderr, "usage: sleep NUMBER[UNIT]...\n"
-            "UNIT can be 's', 'm', 'h', or 'd', for seconds, minutes, hours, or days.\n"
-            "If multiple arguments are provided, pause for the sum of their values.\n");
+    fprintf(stderr, "usage: sleep NUMBER[UNIT]...\n");
     exit(EXIT_FAILURE);
 }
 

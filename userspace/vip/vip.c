@@ -75,8 +75,8 @@ static void draw_status_bar(struct editor_state* state, struct abuf* out) {
             mode_to_string(state->mode), filename);
 
     char right[64];
-    int right_length = snprintf(right, sizeof(right), "%zu:%zu",
-            state->cursor.y + 1, state->cursor.x + 1);
+    int right_length = snprintf(right, sizeof(right), "%zu%% %zu:%zu",
+            ((state->cursor.y + 1) * 100 / state->row_count), state->cursor.y + 1, state->cursor.x + 1);
 
     ab_append(out, "\033[7m", 4);
 

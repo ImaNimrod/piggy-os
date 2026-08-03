@@ -5,7 +5,7 @@
 #include <net/ipv4.h>
 #include <stddef.h>
 
-#define HOST_NAME_MAX 64
+#define HOST_NAME_MAX 255
 
 #define IFNAMSIZ 16
 

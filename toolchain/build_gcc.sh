@@ -73,6 +73,12 @@ pushd "$DIR/build_gcc"
     make -j "$NPROC" all-gcc all-target-libgcc || exit 1
     make install-gcc install-target-libgcc || exit 1
 
+    pushd "$DIR/../libc"
+        meson configure build -Dheaders_only=false
+        meson compile --jobs "$NPROC" -C build
+        meson install -C build
+    popd
+
     make -j "$NPROC" all-target-libstdc++-v3 || exit 1
     make install-target-libstdc++-v3 || exit 1
 popd

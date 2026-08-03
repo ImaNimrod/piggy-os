@@ -16,10 +16,11 @@ int main(int argc, char* argv[]) {
     bool modify_atime = true;
     bool modify_mtime = true;
     bool no_create = false;
+    bool no_dereference = false;
     char* reference_file = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "acmr:")) != -1) {
+    while ((c = getopt(argc, argv, "achmr:")) != -1) {
         switch (c) {
             case 'a':
                 modify_atime = true;
@@ -27,6 +28,9 @@ int main(int argc, char* argv[]) {
                 break;
             case 'c':
                 no_create = true;
+                break;
+            case 'h':
+                no_dereference = true;
                 break;
             case 'm':
                 modify_atime = false;
@@ -72,7 +76,7 @@ int main(int argc, char* argv[]) {
     int ret = EXIT_SUCCESS;
 
     for (int i = 0; i < argc; i++) {
-        if (utimensat(AT_FDCWD, argv[i], ts, 0) < 0) {
+        if (utimensat(AT_FDCWD, argv[i], ts, no_dereference ? AT_SYMLINK_NOFOLLOW : 0) < 0) {
             if (!no_create) {
                 if (errno == ENOENT) {
                     int fd = open(argv[i], O_WRONLY | O_CREAT);

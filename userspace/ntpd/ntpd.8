@@ -1,0 +1,38 @@
+.TH NTPD "8" "July 2026" "PiggyOS" "System Administration"
+
+.SH NAME
+ntpd \- system Network Time Protocol daemon
+
+.SH SYNOPSIS
+.B ntpd
+
+.SH DESCRIPTION
+
+.PP
+Operating system daemon that maintains the system time by continuously syncing it with internet NTP servers.
+
+.SH OPTIONS
+
+.TP
+.B \-c CONFIG
+load a configuration file from path CONFIG instead of the default /etc/ntpd.conf
+
+.SH FILES
+
+.TS
+\fB/etc/ntpd.conf\fR default configuration file
+.TE
+
+.SH SEE ALSO
+.sp
+\fBntpd.conf\fR(5).
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License MIT: The MIT License <https://mit-license.org/>.
