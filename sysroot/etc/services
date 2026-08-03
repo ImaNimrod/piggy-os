@@ -1,0 +1,7 @@
+ssh     22/tcp
+domain  53/udp
+bootps  67/udp
+bootpc  68/udp
+http    80/tcp
+ntp     123/udp
+https   443/tcp
