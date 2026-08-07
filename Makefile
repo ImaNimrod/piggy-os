@@ -4,9 +4,9 @@ TOOLCHAIN_DIR:=$(PWD)/toolchain
 EDK2_OVMF_URL:=https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
 LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.5.2/limine-binary.tar.xz
 
-EMU:=$(TOOLCHAIN_DIR)/local/bin/qemu-system-x86_64
+EMU:=qemu-system-x86_64
 
-EMUOPTS := -machine q35,pcspk-audiodev=speaker \
+EMUOPTS := -machine q35 \
 		   -m 4G \
 		   -cpu host \
 		   -enable-kvm \
@@ -14,7 +14,6 @@ EMUOPTS := -machine q35,pcspk-audiodev=speaker \
 		   -serial stdio \
 		   -rtc base=utc \
 		   -no-reboot \
-		   -audiodev pa,id=speaker \
 		   -bios edk2-ovmf/ovmf-code-x86_64.fd
 
 NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))
@@ -22,7 +21,7 @@ ifeq ($(NPROC),)
 	NPROC := 1
 endif
 
-export PATH := $(PATH):$(TOOLCHAIN_DIR)/local/bin
+export PATH := $(TOOLCHAIN_DIR)/local/bin:$(PATH)
 
 .PHONY: all
 all: piggy.iso
@@ -56,9 +55,9 @@ run-virtio: edk2-ovmf
 .PHONY: toolchain
 toolchain:
 	./toolchain/build_autotools.sh
-	./toolchain/build_gcc.sh
 	./toolchain/build_libtool.sh
-	./toolchain/build_qemu.sh
+	./toolchain/build_binutils.sh
+	./toolchain/build_gcc.sh
 
 .PHONY: todolist
 todolist:

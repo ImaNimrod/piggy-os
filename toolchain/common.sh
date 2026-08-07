@@ -11,10 +11,9 @@ fi
 
 source "$DIR/toolchain.config"
 
-export CC="cc"
 export CFLAGS="-g0 -O2 -mtune=native -pipe"
 export CXXFLAGS="-g0 -O2 -mtune=native -pipe"
-export PATH="$PATH:$PREFIX/bin"
+export PATH="$PREFIX/bin:$PATH"
 
 function download_and_extract() {
     declare -n NAME=${1^^}_NAME

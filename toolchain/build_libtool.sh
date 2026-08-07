@@ -14,7 +14,7 @@ popd
 
 mkdir -p "$DIR/build_libtool"
 pushd "$DIR/build_libtool"
-    echo "configuring ${LIBTOOL_NAME}..."
+    echo "configuring $LIBTOOL_NAME..."
 
     "$DIR"/tarballs/"$LIBTOOL_NAME"/configure \
         --prefix="$PREFIX" \
@@ -22,37 +22,37 @@ pushd "$DIR/build_libtool"
         --enable-shared \
         --with-gnu-ld
 
-    echo "building ${LIBTOOL_NAME}..."
+    echo "building $LIBTOOL_NAME..."
 
-    make -j "$NPROC" || exit 1
-    make install || exit 1
+    make -j "$NPROC"
+    make install
 popd
 
 rm -rf "$DIR/build_libtool"
 
 mkdir -p "$DIR/build_pkgconf"
 pushd "$DIR/build_pkgconf"
-    echo "configuring ${PKGCONF_NAME}..."
+    echo "configuring $PKGCONF_NAME..."
 
     "$DIR"/tarballs/"$PKGCONF_NAME"/configure \
         --prefix="$PREFIX"
 
-    echo "building ${PKGCONF_NAME}..."
+    echo "building $PKGCONF_NAME..."
 
-    make -j "$NPROC" || exit 1
-    make install || exit 1
+    make -j "$NPROC"
+    make install
 popd
 
 rm -rf "$DIR/build_pkgconf"
 
-mkdir -p ${PREFIX}/share/pkgconfig/personality.d
+mkdir -p "$PREFIX/share/pkgconfig/personality.d"
 
-cat > ${PREFIX}/share/pkgconfig/personality.d/x86_64-piggy.personality << EOF
-Triplet: x86_64-piggy
-SysrootDir: ${SYSROOT}
-DefaultSearchPaths: ${SYSROOT}/usr/lib/pkgconfig:${SYSROOT}/usr/share/pkgconfig
-SystemIncludePaths: ${SYSROOT}/usr/include
-SystemLibraryPaths: ${SYSROOT}/usr/lib
+cat > "$PREFIX/share/pkgconfig/personality.d/$TARGET.personality" << EOF
+Triplet: $TARGET 
+SysrootDir: $SYSROOT
+DefaultSearchPaths: $SYSROOT/usr/lib/pkgconfig:$SYSROOT/usr/share/pkgconfig
+SystemIncludePaths: $SYSROOT/usr/include
+SystemLibraryPaths: $SYSROOT/usr/lib
 EOF
 
 pushd "$DIR/local/bin"

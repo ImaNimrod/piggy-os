@@ -18,7 +18,6 @@ add_global_arguments([
   '-fno-strict-aliasing',
   '-fstack-protector-strong',
 
-  '-Wdeprecated-non-prototype',
   '-Wnested-externs',
   '-Wold-style-definition',
   '-Wredundant-decls',
