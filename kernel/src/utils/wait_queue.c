@@ -55,7 +55,10 @@ void wait_queue_wake_all(struct wait_queue* wq) {
 
     while (node) {
         struct wait_node* next = node->next;
+
+        node->prev = node->next = NULL;
         scheduler_wakeup(node->thread, 0);
+
         node = next;
     }
 
@@ -75,6 +78,8 @@ void wait_queue_wake_one(struct wait_queue* wq) {
     if (!wq->head) {
         wq->tail = NULL;
     }
+
+    node->prev = node->next = NULL;
 
     spinlock_release_irqsave(&wq->lock, int_state);
     scheduler_wakeup(node->thread, 0);

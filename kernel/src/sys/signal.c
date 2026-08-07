@@ -65,12 +65,9 @@ void signal_handle_pending(struct registers* r) {
 
         current_thread->pending_signals &= ~(1ULL << (signal - 1));
 
-        spinlock_acquire(&current_thread->state_lock);
-        if (current_thread->flags & THREAD_FLAG_RETURN_SIGNAL_MASK) {
+        if (__atomic_fetch_and(&current_thread->flags, ~THREAD_FLAG_RETURN_SIGNAL_MASK, __ATOMIC_ACQUIRE) & THREAD_FLAG_RETURN_SIGNAL_MASK) {
             old_mask = current_thread->return_signal_mask;
-            current_thread->flags &= ~THREAD_FLAG_RETURN_SIGNAL_MASK;
         }
-        spinlock_release(&current_thread->state_lock);
 
         spinlock_release(&current_thread->signal_lock);
 
@@ -84,16 +81,14 @@ void signal_handle_pending(struct registers* r) {
 
         if (action.sa_handler == SIG_DFL) {
             if (default_action(signal) == DEFAULT_ACTION_TERMINATE) {
-                process_exit(current_process, PROCESS_EXITCODE(0, signal));
-                return;
+                process_exit(PROCESS_EXITCODE(0, signal));
             } else {
                 continue;
             }
         }
 
         if (!action.sa_restorer) {
-            process_exit(current_process, PROCESS_EXITCODE(0, SIGSEGV));
-            return;
+            process_exit(PROCESS_EXITCODE(0, SIGSEGV));
         }
 
         spinlock_acquire(&current_thread->signal_lock);
@@ -136,15 +131,13 @@ void signal_handle_pending(struct registers* r) {
         sp -= sizeof(struct signal_frame);
 
         if (user_memcpy_to_user((void*) sp, &frame, sizeof(struct signal_frame)) < 0) {
-            process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
-            return;
+            process_exit(PROCESS_EXITCODE(0, SIGSEGV));
         }
 
         sp -= sizeof(uintptr_t);
 
         if (user_memcpy_to_user((void*) sp, &action.sa_restorer, sizeof(uintptr_t)) < 0) {
-            process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
-            return;
+            process_exit(PROCESS_EXITCODE(0, SIGSEGV));
         }
 
         r->rip = (uintptr_t) action.sa_handler;
@@ -177,13 +170,11 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
 
     struct signal_frame frame;
     if (user_memcpy_from_user(&frame, (void*) r->rsp, sizeof(struct signal_frame)) < 0) {
-        process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
-        scheduler_thread_exit();
+        process_exit(PROCESS_EXITCODE(0, SIGSEGV));
     }
 
     if (!IS_USER_ADDRESS((void*) frame.context.rip) || frame.context.cs != USER_CODE_SEGMENT || frame.context.ss != USER_DATA_SEGMENT) {
-        process_exit(current_thread->process, PROCESS_EXITCODE(0, SIGSEGV));
-        scheduler_thread_exit();
+        process_exit(PROCESS_EXITCODE(0, SIGSEGV));
     }
 
     frame.context.rflags &= ~(RFLAGS_TF | RFLAGS_DF | RFLAGS_RF);

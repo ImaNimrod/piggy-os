@@ -24,6 +24,8 @@ static void free_string_array(char** xs) {
     kfree(xs);
 }
 
+#include <utils/log.h>
+
 static int exec_internal(char* path, int argc, char** argv, char** envp, size_t depth) {
     if (depth > SHEBANG_MAX_DEPTH) {
         return -ELOOP;
@@ -145,6 +147,8 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
     }
 
     cli(); // no going back after this point
+           //
+    process_stop_all_threads();
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         struct file_descriptor* descriptor = &current_process->fds[i];
@@ -165,20 +169,8 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     spinlock_release(&current_process->signal_actions_lock);
 
-    struct thread* t;
-    for (size_t i = 0; i < vector_size(current_process->threads); i++) {
-        t = *vector_get(current_process->threads, i);
-        if (t != current_thread) {
-            scheduler_dequeue(&t->cpu->scheduler, t);
-            thread_destroy(t);
-        }
-    }
-    vector_destroy(current_process->threads);
-
-    current_process->threads = vector_create(sizeof(struct thread*));
-    if (unlikely(!current_process->threads)) {
-        ret = -ENOMEM;
-        goto end;
+    if (unlikely(vector_size(current_process->threads) != 1)) {
+        kpanic(NULL, false, "BURH");
     }
 
     uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
@@ -240,7 +232,7 @@ error:
             vmm_context_destroy(new_vmm_context);
         }
     } else {
-        process_exit(current_process, -1);
+        process_exit(-1);
     }
 
     return ret;

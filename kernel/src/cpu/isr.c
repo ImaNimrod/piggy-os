@@ -97,8 +97,4 @@ void isr_handler(struct registers* r) {
 
         lapic_eoi();
     }
-
-    if (r->cs == USER_CODE_SEGMENT) {
-        signal_handle_pending(r);
-    }
 }

@@ -9,6 +9,10 @@
 #include <utils/log.h>
 #include <utils/string.h>
 
+// THREAD_FLAG_RETURN_SIGNAL_MASK, THREAD_FLAG_SHOULD_EXIT can just be set with __atomic functions
+// while THREAD_FLAG_INTERRUPTABLE must be accessed while thread->state_lock is held because the
+// interruptable state is intrinsically tied to thread state WAITING
+
 extern void context_call_and_switch(void (*fn)(struct registers* r, void* arg), void* arg, void* stack);
 [[noreturn]] extern void context_switch(struct registers* r);
 
@@ -107,13 +111,16 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
 
     this_cpu()->scheduler.current_thread = NULL;
     reschedule(r, NULL);
-    __builtin_unreachable();
 }
 
 [[noreturn]] static void internal_yield(struct registers* r, void* arg) {
     (void) arg;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    if (__atomic_load_n(&current_thread->flags, __ATOMIC_RELAXED) & THREAD_FLAG_SHOULD_EXIT) {
+        internal_thread_exit(r, arg);
+    }
 
     spinlock_acquire(&current_thread->state_lock);
 
@@ -140,8 +147,6 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     } else {
         reschedule(r, NULL);
     }
-
-    __builtin_unreachable();
 }
 
 [[noreturn]] static void reschedule(struct registers* r, void* arg)  {
@@ -184,6 +189,11 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
     // Switch to the next thread's context
     struct thread* next_thread = get_next_thread();
 
+    if (__atomic_load_n(&next_thread->flags, __ATOMIC_RELAXED) & THREAD_FLAG_SHOULD_EXIT) {
+        this_cpu()->scheduler.current_thread = next_thread;
+        internal_thread_exit(r, NULL);
+    }
+
     spinlock_acquire(&next_thread->state_lock);
     next_thread->state = THREAD_STATE_RUNNING;
     spinlock_release(&next_thread->state_lock);
@@ -213,7 +223,6 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
 
     this_cpu()->tss.rsp0 = next_thread->kernel_stack;
     context_switch(&next_thread->registers);
-    __builtin_unreachable();
 }
 
 static void timer_callback(void* arg) {

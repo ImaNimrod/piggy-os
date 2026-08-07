@@ -27,6 +27,7 @@
 #define THREAD_FLAG_USER                (1 << 0)
 #define THREAD_FLAG_INTERRUPTABLE       (1 << 1)
 #define THREAD_FLAG_RETURN_SIGNAL_MASK  (1 << 2)
+#define THREAD_FLAG_SHOULD_EXIT         (1 << 3)
 
 typedef enum {
     PROCESS_STATE_RUNNING,
@@ -99,6 +100,7 @@ struct process {
     spinlock_t thread_list_lock;
 
     int exit_status;
+    spinlock_t exiting;
 
     char** cmdline;
     char** environ;
@@ -118,7 +120,6 @@ struct process {
     struct timespec time_used;
 
     struct process* parent;
-
     struct process* children;
     struct process* sibling_next;
 
@@ -138,12 +139,13 @@ extern mutex_t processes_mutex;
 struct process* process_create(struct process* parent);
 void process_create_init(void);
 void process_destroy(struct process* process);
-void process_exit(struct process* process, int status);
+[[noreturn]] void process_exit(int status);
 struct process* process_find_by_pid(pid_t pid);
 struct vfs_node* process_get_cwd(struct process* process);
 struct vfs_node* process_get_root(struct process* process);
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
 void process_set_root(struct process* process, struct vfs_node* new_root);
+void process_stop_all_threads(void);
 
 struct process_group* process_group_create(struct process* leader);
 void process_group_add(struct process_group* group, struct process* process);

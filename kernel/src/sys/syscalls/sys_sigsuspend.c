@@ -22,9 +22,7 @@ void sys_sigsuspend(struct registers* r) {
         return;
     }
 
-    spinlock_acquire(&current_thread->state_lock);
-    current_thread->flags |= THREAD_FLAG_RETURN_SIGNAL_MASK;
-    spinlock_release(&current_thread->state_lock);
+    __atomic_fetch_or(&current_thread->flags, THREAD_FLAG_RETURN_SIGNAL_MASK, __ATOMIC_RELEASE);
 
     spinlock_release(&current_thread->signal_lock);
 

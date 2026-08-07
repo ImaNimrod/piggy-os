@@ -83,6 +83,7 @@ struct process* process_create(struct process* parent) {
     new_process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
     new_process->state = PROCESS_STATE_RUNNING;
 
+    spinlock_init(&new_process->exiting);
     spinlock_init(&new_process->thread_list_lock);
 
     new_process->threads = vector_create(sizeof(struct thread*));
@@ -243,7 +244,7 @@ void process_create_init(void) {
     if (ld_path) {
         struct vfs_node* ld_node;
         if (vfs_lookup(vfs_root, ld_path, 0, NULL, &ld_node) < 0) {
-            kpanic(NULL, false, "failed to find interpreter %s", ld_node);
+            kpanic(NULL, false, "failed to find interpreter '%s'", ld_path);
         }
         ld_node->ops->unlock(ld_node);
 
@@ -296,21 +297,31 @@ void process_destroy(struct process* process) {
 
 // TODO: finish locking process children list and restructring process / thread exit
 
-void process_exit(struct process* process, int status) {
-    if (unlikely(process->pid == 1)) {
+[[noreturn]] void process_exit(int status) {
+    struct process* current_process = this_cpu()->scheduler.current_thread->process;
+
+    if (unlikely(current_process->pid <= 1)) {
         kpanic(NULL, false, "attempted to exit init process with status = %d", status);
     }
 
-    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
-        file_close(process, i);
+    if (!spinlock_test_and_acquire(&current_process->exiting)) {
+        scheduler_thread_exit();
     }
 
-    VFS_NODE_UNREF(process->cwd);
-    VFS_NODE_UNREF(process->root);
+    process_stop_all_threads();
+
+    current_process->state = PROCESS_STATE_ZOMBIE;
+    current_process->exit_status = status;
+
+    process_group_remove(current_process->group, current_process);
+
+    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
+        file_close(current_process, i);
+    }
 
     // Reparent dying process' children to init
 
-    struct process* child = process->children;
+    struct process* child = current_process->children;
     if (child) {
         while (child) {
             struct process* next = child->sibling_next;
@@ -324,15 +335,15 @@ void process_exit(struct process* process, int status) {
         wait_queue_wake_all(&init_process->child_wq);
     }
 
-    //process_group_remove(process->group, process);
+    wait_queue_wake_all(&current_process->parent->child_wq);
+    signal_send_process(current_process->parent, SIGCHLD);
 
-    vmm_context_destroy(process->vmm_context);
+    VFS_NODE_UNREF(current_process->cwd);
+    VFS_NODE_UNREF(current_process->root);
 
-    wait_queue_wake_all(&process->parent->child_wq);
-    signal_send_process(process->parent, SIGCHLD);
+    vmm_context_destroy(current_process->vmm_context);
 
-    process->state = PROCESS_STATE_ZOMBIE;
-    process->exit_status = status;
+    scheduler_thread_exit();
 }
 
 struct process* process_find_by_pid(pid_t pid) {
@@ -385,6 +396,32 @@ void process_set_root(struct process* process, struct vfs_node* new_root) {
 
     VFS_NODE_UNREF(old_root);
     spinlock_release(&process->node_lock);
+}
+
+void process_stop_all_threads(void) {
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+    struct process* current_process = current_thread->process;
+
+    spinlock_acquire(&current_process->thread_list_lock);
+
+    for (size_t i = 0; i < vector_size(current_process->threads); i++) {
+        struct thread* thread = *vector_get(current_process->threads, i);
+        if (thread == current_thread) {
+            continue;
+        }
+
+        __atomic_fetch_or(&thread->flags, THREAD_FLAG_SHOULD_EXIT, __ATOMIC_RELEASE);
+
+        spinlock_acquire(&thread->state_lock);
+        thread_state_t state = thread->state;
+        spinlock_release(&thread->state_lock);
+
+        if (state == THREAD_STATE_WAITING) {
+            scheduler_wakeup(thread, 0);
+        }
+    }
+
+    spinlock_release(&current_process->thread_list_lock);
 }
 
 struct process_group* process_group_create(struct process* leader) {
