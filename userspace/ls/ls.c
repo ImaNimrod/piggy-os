@@ -27,7 +27,7 @@ struct directory_entry {
 
 struct directory_listing {
     size_t capacity;
-    size_t entry_count;
+    size_t count;
     struct directory_entry** entries;
 };
 
@@ -131,7 +131,7 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
         entry->link_target = NULL;
     }
 
-    if (listing->entry_count >= listing->capacity) {
+    if (listing->count >= listing->capacity) {
         if (listing->capacity == 0) {
             listing->capacity = 4;
         }
@@ -145,7 +145,7 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
         listing->capacity *= 2;
     }
 
-    listing->entries[listing->entry_count++] = entry;
+    listing->entries[listing->count++] = entry;
 }
 
 static void get_color(mode_t mode, char** pre, char** post) {
@@ -189,7 +189,7 @@ static bool filter_default(const char* name) {
 }
 
 static void free_listing(struct directory_listing* listing) {
-    for (size_t i = 0; i < listing->entry_count; i++) {
+    for (size_t i = 0; i < listing->count; i++) {
         free(listing->entries[i]->name);
 
         if (listing->entries[i]->link_target != NULL) {
@@ -199,7 +199,7 @@ static void free_listing(struct directory_listing* listing) {
         free(listing->entries[i]);
     }
 
-    listing->entry_count = 0;
+    listing->count = 0;
 }
 
 static void output_columns(struct directory_listing* listing) {
@@ -214,7 +214,7 @@ static void output_columns(struct directory_listing* listing) {
 
     size_t name_field_length = 0;
 
-    for (size_t i = 0; i < listing->entry_count; i++) {
+    for (size_t i = 0; i < listing->count; i++) {
         size_t length = strlen(listing->entries[i]->name);
         if (length > name_field_length) {
             name_field_length = length;
@@ -231,13 +231,13 @@ static void output_columns(struct directory_listing* listing) {
         columns = 1;
     }
 
-    size_t rows = (listing->entry_count + columns - 1) / columns;
+    size_t rows = (listing->count + columns - 1) / columns;
 
     struct directory_entry* entry;
     for (size_t row = 0; row < rows; row++) {
         for (size_t column = 0; column < columns; column++) {
             size_t index = (column * rows) + row;
-            if (index >= (size_t) listing->entry_count) {
+            if (index >= (size_t) listing->count) {
                 putchar('\n');
                 break;
             }
@@ -263,7 +263,7 @@ static void output_long(struct directory_listing* listing) {
 
     struct directory_entry* entry;
 
-    for (size_t i = 0; i < listing->entry_count; i++) {
+    for (size_t i = 0; i < listing->count; i++) {
         entry = listing->entries[i];
 
         int length = snprintf(NULL, 0, "%lu", entry->stat.st_size);
@@ -282,7 +282,7 @@ static void output_long(struct directory_listing* listing) {
         }
     }
 
-    for (size_t i = 0; i < listing->entry_count; i++) {
+    for (size_t i = 0; i < listing->count; i++) {
         entry = listing->entries[i];
 
         putchar(get_mode_indicator(entry->stat.st_mode));
@@ -315,7 +315,7 @@ static void output_long(struct directory_listing* listing) {
 
 static void output_oneline(struct directory_listing* listing) {
     struct directory_entry* entry;
-    for (size_t i = 0; i < listing->entry_count; i++) {
+    for (size_t i = 0; i < listing->count; i++) {
         entry = listing->entries[i];
 
         char* pre;
@@ -328,7 +328,7 @@ static void output_oneline(struct directory_listing* listing) {
 
 static void print_listing(struct directory_listing* listing) {
     if (!unsorted) {
-        qsort(listing->entries, listing->entry_count, sizeof(struct directory_entry*), (int (*)(const void*, const void*)) sort);
+        qsort(listing->entries, listing->count, sizeof(struct directory_entry*), (int (*)(const void*, const void*)) sort);
     }
 
     output(listing);
@@ -483,7 +483,7 @@ int main(int argc, char* argv[]) {
     }
 
     print_listing(&listing);
-    bool print_newline = listing.entry_count > 0;
+    bool print_newline = listing.count > 0;
 
     free_listing(&listing);
 

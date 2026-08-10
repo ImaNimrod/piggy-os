@@ -11,7 +11,6 @@ void sys_getpeername(struct registers* r) {
     int fd = r->rdi;
     struct sockaddr* addr = (struct sockaddr*) r->rsi;
     socklen_t max_addr_len = r->rdx;
-    socklen_t* addr_len = (socklen_t*) r->r10;
 
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
@@ -22,7 +21,7 @@ void sys_getpeername(struct registers* r) {
         return;
     }
 
-    int ret = 0;
+    ssize_t ret = 0;
 
     if (file->node->type != VFS_TYPE_SOCKET) {
         ret = -ENOTSOCK;
@@ -48,9 +47,7 @@ void sys_getpeername(struct registers* r) {
         goto end;
     }
 
-    if ((ret = user_memcpy_to_user(addr_len, &actual_len, sizeof(actual_len))) < 0) {
-        goto end;
-    }
+    ret = actual_len;
 
 end:
     file_release(file);

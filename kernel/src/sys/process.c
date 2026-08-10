@@ -1,7 +1,7 @@
 #include <cpu/asm.h>
 #include <cpu/smp.h>
+#include <errno.h>
 #include <fs/devfs.h> 
-#include <fs/procfs.h> 
 #include <mem/paging.h>
 #include <mem/pmm.h>
 #include <mem/slab.h>
@@ -16,12 +16,14 @@
 struct process* kernel_process;
 struct process* init_process;
 
-hashmap_t* processes;
-mutex_t processes_mutex;
-
 static struct slab_cache* process_cache;
 static struct slab_cache* process_group_cache;
 static struct slab_cache* thread_cache;
+
+static struct process* process_list_head;
+static struct process* process_list_tail;
+static hashmap_t* processes;
+static mutex_t processes_mutex;
 
 static hashmap_t* process_groups;
 static mutex_t process_groups_mutex;
@@ -97,13 +99,10 @@ struct process* process_create(struct process* parent) {
     wait_queue_init(&new_process->child_wq);
 
     if (likely(parent)) {
+        strncpy(new_process->name, parent->name, sizeof(init_process->name));
+
         new_process->cmdline = dup_array(parent->cmdline);
         if (unlikely(!new_process->cmdline)) {
-            goto error;
-        }
-
-        new_process->environ = dup_array(parent->environ);
-        if (unlikely(!new_process->environ)) {
             goto error;
         }
 
@@ -148,7 +147,20 @@ struct process* process_create(struct process* parent) {
     }
 
     mutex_acquire(&processes_mutex);
+
     hashmap_set(processes, &new_process->pid, sizeof(pid_t), new_process);
+
+    new_process->prev = process_list_tail;
+    new_process->next = NULL;
+
+    if (process_list_tail) {
+        process_list_tail->next = new_process;
+    } else {
+        process_list_head = new_process;
+    }
+
+    process_list_tail = new_process;
+
     mutex_release(&processes_mutex);
 
     return new_process;
@@ -156,9 +168,6 @@ struct process* process_create(struct process* parent) {
 error:
     if (new_process->cmdline) {
         free_array(new_process->cmdline);
-    }
-    if (new_process->environ) {
-        free_array(new_process->environ);
     }
 
     if (new_process->vmm_context) {
@@ -191,6 +200,8 @@ void process_create_init(void) {
     if (unlikely(!init_process)) {
         kpanic(NULL, false, "failed to create init process");
     }
+
+    strncpy(init_process->name, "init", sizeof(init_process->name));
 
     struct vfs_node* console_node;
     if (devfs_get("console", &console_node) < 0) {
@@ -227,12 +238,6 @@ void process_create_init(void) {
     }
     init_process->cmdline[0] = strdup(init_path);
     init_process->cmdline[1] = NULL;
-
-    init_process->environ = kmalloc(1 * sizeof(char*));
-    if (unlikely(!init_process->environ)) {
-        kpanic(NULL, false, "failed to allocate memory for init process environment");
-    }
-    init_process->environ[0] = NULL;
 
     struct auxvals auxvals;
     if (elf_load(init_process->vmm_context, 0, init_node, &auxvals, &ld_path) < 0) {
@@ -276,13 +281,26 @@ void process_create_init(void) {
 
 void process_destroy(struct process* process) {
     mutex_acquire(&processes_mutex);
+
     hashmap_remove(processes, &process->pid, sizeof(pid_t));
+
+    if (process->prev) {
+        process->prev->next = process->next;
+    } else {
+        process_list_head = process->next;
+    }
+
+    if (process->next) {
+        process->next->prev = process->prev;
+    } else {
+        process_list_tail = process->prev;
+    }
+
+    process->prev = process->next = NULL;
+
     mutex_release(&processes_mutex);
 
-    procfs_delete_nodes(process->pid);
-
     free_array(process->cmdline);
-    free_array(process->environ);
 
     SLIST_REMOVE(process->parent->children, process, sibling_next);
 
@@ -374,6 +392,58 @@ struct vfs_node* process_get_root(struct process* process) {
 
     spinlock_release(&process->node_lock);
     return root;
+}
+
+pid_t process_next_pid(pid_t pid) {
+    if (pid == 0) {
+        return init_process->pid;
+    }
+
+    mutex_acquire(&processes_mutex);
+
+    struct process* process;
+
+    if (!hashmap_get(processes, &pid, sizeof(pid_t), (void**) &process)) {
+        mutex_release(&processes_mutex);
+        return -ESRCH;
+    }
+
+    if (!process->next) {
+        mutex_release(&processes_mutex);
+        return 0;
+    }
+
+    pid_t next = process->next->pid;
+
+    mutex_release(&processes_mutex);
+    return next;
+}
+
+pid_t process_prev_pid(pid_t pid) {
+    mutex_acquire(&processes_mutex);
+
+    if (pid == 0) {
+        pid_t prev = process_list_tail->pid;
+        mutex_release(&processes_mutex);
+        return prev;
+    }
+
+    struct process* process;
+
+    if (!hashmap_get(processes, &pid, sizeof(pid_t), (void**) &process)) {
+        mutex_release(&processes_mutex);
+        return -ESRCH;
+    }
+
+    if (!process->prev) {
+        mutex_release(&processes_mutex);
+        return 0;
+    }
+
+    pid_t prev = process->prev->pid;
+
+    mutex_release(&processes_mutex);
+    return prev;
 }
 
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd) {

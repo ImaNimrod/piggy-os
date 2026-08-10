@@ -5,7 +5,7 @@
 #include <sys/timer.h>
 #include <types.h>
 
-#define PATH_MAX_LENGTH 512
+#define PATH_MAX_LEN 512
 
 #define DT_UNKNOWN  0
 #define DT_FIFO     1

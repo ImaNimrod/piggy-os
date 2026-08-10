@@ -14,8 +14,8 @@
 #include <utils/macros.h>
 #include <utils/usercopy.h>
 
-#define SHEBANG_MAX_DEPTH  8
-#define SHEBANG_MAX_LENGTH 128
+#define SHEBANG_MAX_DEPTH   8
+#define SHEBANG_MAX_LEN     256
 
 static void free_string_array(char** xs) {
     for (char** iter = xs; *iter; iter++) {
@@ -23,8 +23,6 @@ static void free_string_array(char** xs) {
     }
     kfree(xs);
 }
-
-#include <utils/log.h>
 
 static int exec_internal(char* path, int argc, char** argv, char** envp, size_t depth) {
     if (depth > SHEBANG_MAX_DEPTH) {
@@ -59,10 +57,10 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     ret = elf_load(new_vmm_context, 0, node, &auxvals, &ld_path);
     if (ret == -ENOEXEC) {
-        char shebang[SHEBANG_MAX_LENGTH];
+        char shebang[SHEBANG_MAX_LEN];
 
         node->ops->lock(node);
-        ssize_t nread = node->ops->read(node, shebang, SHEBANG_MAX_LENGTH - 1, 0, 0);
+        ssize_t nread = node->ops->read(node, shebang, SHEBANG_MAX_LEN - 1, 0, 0);
         node->ops->unlock(node);
 
         if (nread < 2 || shebang[0] != '#' || shebang[1] != '!') {
@@ -157,6 +155,9 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
         }
     }
 
+    strncpy(current_process->name, argv[0], PROCESS_NAME_MAX);
+    current_process->name[PROCESS_NAME_MAX - 1] = '\0';
+
     current_process->vmm_context = new_vmm_context;
 
     spinlock_acquire(&current_process->signal_actions_lock);
@@ -168,10 +169,6 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
     }
 
     spinlock_release(&current_process->signal_actions_lock);
-
-    if (unlikely(vector_size(current_process->threads) != 1)) {
-        kpanic(NULL, false, "BURH");
-    }
 
     uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
     uintptr_t user_stack_vaddr = (uintptr_t) vmm_map(current_process->vmm_context, PROCESS_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE,
@@ -215,10 +212,7 @@ end:
     }
 
     free_string_array(current_process->cmdline);
-    free_string_array(current_process->environ);
-
     current_process->cmdline = argv;
-    current_process->environ = envp;
 
     pagemap_load(kernel_pagemap);
     vmm_context_destroy(old_vmm_context);

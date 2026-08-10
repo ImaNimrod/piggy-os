@@ -69,6 +69,7 @@ extern void sys_shutdown(struct registers* r);
 extern void sys_sethostname(struct registers* r);
 extern void sys_uname(struct registers* r);
 extern void sys_futex(struct registers* r);
+extern void sys_procctl(struct registers* r);
 extern void sys_powerctl(struct registers* r);
 extern void sys_archctl(struct registers* r);
 
@@ -138,6 +139,7 @@ static syscall_handler_t syscall_table[] = {
     [SYS_SETHOSTNAME]   = sys_sethostname,
     [SYS_UNAME]         = sys_uname,
     [SYS_FUTEX]         = sys_futex,
+    [SYS_PROCCTL]       = sys_procctl,
     [SYS_POWERCTL]      = sys_powerctl,
     [SYS_ARCHCTL]       = sys_archctl,
 };

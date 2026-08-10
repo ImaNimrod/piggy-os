@@ -22,7 +22,7 @@ struct vmm_range {
     uintptr_t base;
     size_t size;
     int flags;
-    uint64_t pte_flags;
+    int prot;
 
     struct vfs_node* node;
     off_t offset;

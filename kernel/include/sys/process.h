@@ -21,6 +21,7 @@
 
 #define PROCESS_EXITCODE(ret, sig) (((sig) << 8) | (ret))
 
+#define PROCESS_NAME_MAX    64
 #define PROCESS_FD_COUNT    32
 #define PROCESS_STACK_TOP   USER_END
 
@@ -93,6 +94,7 @@ struct process_group {
 };
 
 struct process {
+    char name[PROCESS_NAME_MAX];
     pid_t pid;
     process_state_t state;
 
@@ -103,7 +105,6 @@ struct process {
     spinlock_t exiting;
 
     char** cmdline;
-    char** environ;
 
     struct vfs_node* cwd;
     struct vfs_node* root;
@@ -128,13 +129,14 @@ struct process {
     struct process_group* group;
     struct process* group_prev;
     struct process* group_next;
+
+    // for global process list
+    struct process* prev;
+    struct process* next;
 };
 
 extern struct process* kernel_process;
 extern struct process* init_process;
-
-extern hashmap_t* processes;
-extern mutex_t processes_mutex;
 
 struct process* process_create(struct process* parent);
 void process_create_init(void);
@@ -143,6 +145,8 @@ void process_destroy(struct process* process);
 struct process* process_find_by_pid(pid_t pid);
 struct vfs_node* process_get_cwd(struct process* process);
 struct vfs_node* process_get_root(struct process* process);
+pid_t process_prev_pid(pid_t pid);
+pid_t process_next_pid(pid_t pid);
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
 void process_set_root(struct process* process, struct vfs_node* new_root);
 void process_stop_all_threads(void);

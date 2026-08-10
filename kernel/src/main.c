@@ -16,7 +16,6 @@
 #include <fs/fat32.h>
 #include <fs/file.h>
 #include <fs/initrd.h>
-#include <fs/procfs.h>
 #include <fs/tmpfs.h>
 #include <fs/vfs.h>
 #include <limine.h>
@@ -101,7 +100,6 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
     cmos_init();
 
     devfs_init();
-    procfs_init();
     tmpfs_init();
     fat32_init();
     file_init();

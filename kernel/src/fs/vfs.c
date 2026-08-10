@@ -146,7 +146,7 @@ int vfs_lookup(struct vfs_node* reference, const char* path, int flags, char* la
     }
 
     size_t path_len = strlen(path);
-    if (path_len > PATH_MAX_LENGTH) {
+    if (path_len > PATH_MAX_LEN) {
         return -ENAMETOOLONG;
     }
 
@@ -271,9 +271,9 @@ int vfs_lookup(struct vfs_node* reference, const char* path, int flags, char* la
         }
 
         if (next->type == VFS_TYPE_SYMLINK && (!is_last || (is_last && !(flags & VFS_LOOKUP_FLAG_NOFOLLOW)))) {
-            char link_path[PATH_MAX_LENGTH];
+            char link_path[PATH_MAX_LEN];
 
-            ssize_t nread = next->ops->readlink(next, link_path, PATH_MAX_LENGTH - 1);
+            ssize_t nread = next->ops->readlink(next, link_path, PATH_MAX_LEN - 1);
             next->ops->unlock(next);
 
             if (nread < 0) {

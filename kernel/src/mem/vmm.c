@@ -177,7 +177,7 @@ static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
     if (range->prev) {
         struct vmm_range* prev = range->prev;
 
-        if ((prev->base + prev->size) == range->base && prev->flags == range->flags && prev->pte_flags == range->pte_flags) {
+        if ((prev->base + prev->size) == range->base && prev->flags == range->flags && prev->prot == range->prot) {
             prev->size += range->size;
             prev->next = range->next;
 
@@ -194,7 +194,7 @@ static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
     if (range->next) {
         struct vmm_range* next = range->next;
 
-        if ((range->base + range->size) == next->base && range->flags == next->flags && range->pte_flags == next->pte_flags) {
+        if ((range->base + range->size) == next->base && range->flags == next->flags && range->prot == next->prot) {
             range->size += next->size;
             range->next = next->next;
 
@@ -209,7 +209,7 @@ static struct vmm_range* try_combine_ranges(struct vmm_range* range) {
     return range;
 }
 
-static void update_pte_flags(struct vmm_context* context, uintptr_t address, size_t size, uint64_t new_pte_flags) {
+static void update_prot(struct vmm_context* context, uintptr_t address, size_t size, uint64_t new_prot) {
     page_size_t unused;
     for (size_t i = 0; i < size; i += PAGE_SIZE_4KB) {
         uintptr_t vaddr = address + i;
@@ -218,11 +218,11 @@ static void update_pte_flags(struct vmm_context* context, uintptr_t address, siz
             continue;
         }
 
-        pagemap_remap(context->pagemap, vaddr, new_pte_flags);
+        pagemap_remap(context->pagemap, vaddr, new_prot);
     }
 }
 
-static bool update_range(struct vmm_context* context, uintptr_t address, size_t size, uint64_t new_pte_flags, bool mark_unmap) {
+static bool update_range(struct vmm_context* context, uintptr_t address, size_t size, uint64_t new_prot, bool mark_unmap) {
     uintptr_t top = address + size;
 
     struct vmm_range* range = context->ranges;
@@ -258,14 +258,14 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
             middle->base = address;
             middle->size = size;
-            middle->pte_flags = new_pte_flags;
+            middle->prot = new_prot;
             if (mark_unmap) {
                 middle->flags |= MAP_UNMAP;
             }
 
             insert_range_after(range, middle);
 
-            update_pte_flags(context, middle->base, middle->size, new_pte_flags);
+            update_prot(context, middle->base, middle->size, new_prot);
 
             range->size = address - range->base;
             return true;
@@ -283,7 +283,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
             new->base = range->base;
             new->size = delta;
-            new->pte_flags = new_pte_flags;
+            new->prot = new_prot;
             if (mark_unmap) {
                 new->flags |= MAP_UNMAP;
             }
@@ -299,7 +299,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
             try_combine_ranges(new);
 
-            update_pte_flags(context, new->base, new->size, new_pte_flags);
+            update_prot(context, new->base, new->size, new_prot);
 
             range->base = top;
             range->size -= delta;
@@ -307,11 +307,11 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
         }
 
         if (address <= range->base && range_top <= top) {
-            range->pte_flags = new_pte_flags;
+            range->prot = new_prot;
             if (mark_unmap) {
                 range->flags |= MAP_UNMAP;
             }
-            update_pte_flags(context, range->base, range->size, new_pte_flags);
+            update_prot(context, range->base, range->size, new_prot);
         } else if (range->base < address && range_top <= top) {
             size_t delta = range_top - address;
             range->size -= delta;
@@ -325,7 +325,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
 
             new->base = address;
             new->size = delta;
-            new->pte_flags = new_pte_flags;
+            new->prot = new_prot;
             if (mark_unmap) {
                 new->flags |= MAP_UNMAP;
             }
@@ -333,7 +333,7 @@ static bool update_range(struct vmm_context* context, uintptr_t address, size_t 
             insert_range_after(range, new);
             try_combine_ranges(new);
 
-            update_pte_flags(context, new->base, new->size, new_pte_flags);
+            update_prot(context, new->base, new->size, new_prot);
         }
 
         range = next;
@@ -422,7 +422,7 @@ struct vmm_context* vmm_context_fork(struct vmm_context* old_context) {
 
             uintptr_t new_paddr = pmm_alloc(1);
             memcpy64((uint64_t*) (new_paddr + HIGH_VMA), (uint64_t*) (old_paddr + HIGH_VMA), PAGE_SIZE_4KB >> 3);
-            pagemap_map(new_context->pagemap, vaddr, new_paddr, new_range->pte_flags, PAGE_SIZE_4KB);
+            pagemap_map(new_context->pagemap, vaddr, new_paddr, mmap_prot_to_pte_flags(new_range->prot), PAGE_SIZE_4KB);
         }
 
         insert_range_ordered(new_context, new_range);
@@ -452,7 +452,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
         range->base = address;
         range->size = size;
         range->flags = flags;
-        range->pte_flags = mmap_prot_to_pte_flags(prot);
+        range->prot = prot;
 
         if (!update_range(context, address, size, 0, true)) {
             goto end;
@@ -468,7 +468,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
         range->base = (uintptr_t) base;
         range->size = size;
         range->flags = flags;
-        range->pte_flags = mmap_prot_to_pte_flags(prot);
+        range->prot = prot;
     }
 
     if (node) {
@@ -479,7 +479,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
 
     if (paddr != 0) {
         for (size_t i = 0; i < size; i += PAGE_SIZE_4KB) {
-            pagemap_map(context->pagemap, range->base + i, paddr + i, range->pte_flags, PAGE_SIZE_4KB);
+            pagemap_map(context->pagemap, range->base + i, paddr + i, mmap_prot_to_pte_flags(range->prot), PAGE_SIZE_4KB);
         }
     }
 
@@ -512,9 +512,7 @@ end:
 int vmm_remap(struct vmm_context* context, uintptr_t address, size_t size, int prot) {
     mutex_acquire(&context->mutex);
 
-    uint64_t new_pte_flags = mmap_prot_to_pte_flags(prot);
-
-    int ret = update_range(context, address, size, new_pte_flags, false) ? 0 : -ENOMEM;
+    int ret = update_range(context, address, size, prot, false) ? 0 : -ENOMEM;
     pagemap_invalidate(address, size);
 
     mutex_release(&context->mutex);
@@ -550,10 +548,10 @@ bool vmm_page_fault_handler(uintptr_t fault_addr, uint64_t error_code) {
     }
 
     if (range->flags & MAP_ANONYMOUS) {
-        pagemap_map(context->pagemap, fault_addr, pmm_alloc_zero(1), range->pte_flags, PAGE_SIZE_4KB);
+        pagemap_map(context->pagemap, fault_addr, pmm_alloc_zero(1), mmap_prot_to_pte_flags(range->prot), PAGE_SIZE_4KB);
     } else {
         range->node->ops->lock(range->node);
-        range->node->ops->mmap(range->node, (void*) fault_addr, range->offset + (fault_addr - range->base), range->flags, range->pte_flags);
+        range->node->ops->mmap(range->node, (void*) fault_addr, range->offset + (fault_addr - range->base), range->flags, mmap_prot_to_pte_flags(range->prot));
         range->node->ops->unlock(range->node);
     }
 

@@ -137,16 +137,6 @@ static bool mount_pseudofs(void) {
         return false;
     }
 
-    if (mkdir("/proc", 0777) < 0) {
-        warn("mkdir");
-        return false;
-    }
-
-    if (mount(NULL, "/proc", "procfs") < 0) {
-        warn("mount");
-        return false;
-    }
-
     return true;
 }
 

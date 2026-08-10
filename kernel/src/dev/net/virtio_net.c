@@ -74,6 +74,7 @@ static void rx_handler(void* arg) {
 static void virtio_net_rx_irq_handler(struct registers* r, void* ctx) {
     (void) r;
 
+    klog("virtio rx irq\n");
     struct virtio_net_device* device = ctx;
     wait_queue_wake_one(&device->rx_wq);
 }
@@ -81,6 +82,7 @@ static void virtio_net_rx_irq_handler(struct registers* r, void* ctx) {
 static void virtio_net_tx_irq_handler(struct registers* r, void* ctx) {
     (void) r;
 
+    klog("virtio tx irq\n");
     struct virtio_net_device* device = ctx;
     struct virtio_queue* tx_queue = &device->vio_dev->queues[1];
 
@@ -144,17 +146,16 @@ static bool virtio_net_send_packet(struct netif* netif, struct packet* packet, m
 
     memcpy((void*) (descriptor->address +  HIGH_VMA), packet->buf, packet->size);
 
+    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
+
     device->tx_queue_waiters[desc] = this_cpu()->scheduler.current_thread;
     virtio_queue_insert(tx_queue, desc);
-
-    scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
     spinlock_release_irqsave(&tx_queue->lock, int_state);
 
     virtio_queue_notify(tx_queue);
 
     scheduler_yield();
-
     return true;
 }
 
@@ -166,7 +167,7 @@ static void virtio_net_update_flags(struct netif* netif, uint16_t old_flags) {
 void virtio_net_init(struct virtio_device* vio_dev) {
     mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER);
 
-    uint64_t features = VIRTIO_NET_F_MAC;
+    uint64_t features = VIRTIO_F_VERSION_1 | VIRTIO_NET_F_MAC;
     if ((features = virtio_negotiate_features(vio_dev, features)) == (uint64_t) -1) {
         klog("[virtio_net] failed to negotiate device features\n");
         return;
@@ -202,17 +203,43 @@ void virtio_net_init(struct virtio_device* vio_dev) {
     memcpy(netif->mac, (void*) net_config->mac, sizeof(mac_address_t));
     netif->ipv4_addr = netif->ipv4_mask = 0;
 
-    uint8_t vector;
-    if (unlikely(!isr_allocate_vector(&vector))) {
+    uint8_t rx_vector;
+    if (unlikely(!isr_allocate_vector(&rx_vector))) {
         kpanic(NULL, false, "failed to allocate IRQ vector for VirtIO network device RX queue");
     }
 
-    if (!virtio_queue_init(vio_dev, 0, vector)) {
+    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
+
+    if (!virtio_queue_init(vio_dev, 0, rx_vector)) {
         klog("[virtio_net] failed to initialize VirtIO network device RX queue\n");
         return;
     }
 
-    isr_register_handler(vector, virtio_net_rx_irq_handler, device);
+    isr_register_handler(rx_vector, virtio_net_rx_irq_handler, device);
+
+    uint8_t tx_vector;
+    if (unlikely(!isr_allocate_vector(&tx_vector))) {
+        kpanic(NULL, false, "failed to allocate IRQ vector for VirtIO network device TX queue");
+    }
+
+    if (!virtio_queue_init(vio_dev, 1, tx_vector)) {
+        klog("[virtio_net] failed to initialize VirtIO net device TX queue\n");
+        return;
+    }
+
+    wait_queue_init(&device->rx_wq);
+
+    device->rx_thread = thread_create_kernel((uintptr_t) rx_handler, device);
+    if (unlikely(!device->rx_thread)) {
+        kpanic(NULL, false, "failed to create network receive worker thread");
+    }
+
+    device->tx_queue_waiters = kmallocz(sizeof(struct thread*) * vio_dev->queues[1].size);
+    if (unlikely(!device->tx_queue_waiters)) {
+        kpanic(NULL, false, "failed to allocate memory for VirtIO net TX queue waiters");
+    }
+
+    semaphore_init(&device->tx_semaphore, vio_dev->queues[1].size);
 
     // Setup packet buffers in receieve queue
     struct virtio_queue* rx_queue = &vio_dev->queues[0];
@@ -230,31 +257,10 @@ void virtio_net_init(struct virtio_device* vio_dev) {
 
     virtio_queue_notify(rx_queue);
 
-    if (unlikely(!isr_allocate_vector(&vector))) {
-        kpanic(NULL, false, "failed to allocate IRQ vector for VirtIO network device TX queue");
-    }
-
-    if (!virtio_queue_init(vio_dev, 1, vector)) {
-        klog("[virtio_net] failed to initialize VirtIO net device TX queue\n");
-        return;
-    }
-
-    device->rx_thread = thread_create_kernel((uintptr_t) rx_handler, device);
-    if (unlikely(!device->rx_thread)) {
-        kpanic(NULL, false, "failed to create network receive worker thread");
-    }
-    wait_queue_init(&device->rx_wq);
-
-    device->tx_queue_waiters = kmalloc(sizeof(struct thread*) * vio_dev->queues[1].size);
-    if (unlikely(!device->tx_queue_waiters)) {
-        kpanic(NULL, false, "failed to allocate memory for VirtIO net TX queue waiters");
-    }
-    semaphore_init(&device->tx_semaphore, vio_dev->queues[1].size);
 
     netif_register(netif);
 
-    isr_register_handler(vector, virtio_net_tx_irq_handler, device);
-    mmio_write8(&vio_dev->common_config->status, mmio_read8(&vio_dev->common_config->status) | VIRTIO_STATUS_DRIVER_OK);
+    isr_register_handler(tx_vector, virtio_net_tx_irq_handler, device);
 
     klog("[virtio_net] initialized VirtIO network device (mac: " MAC_ADDRESS_FORMAT ")\n", MAC_ADDRESS_PRINT(netif->mac));
 }
