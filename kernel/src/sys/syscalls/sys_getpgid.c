@@ -12,7 +12,7 @@ void sys_getpgid(struct registers* r) {
     if (pid == 0 || pid == current_process->pid) {
         r->rax = current_process->group->pgid;
     } else {
-        struct process* target = process_find_by_pid(pid);
+        struct process* target = process_find(pid);
         if (target) {
             r->rax = target->group->pgid;
         } else {

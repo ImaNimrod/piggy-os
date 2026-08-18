@@ -21,7 +21,6 @@ static int builtin_exit(int argc, char* argv[]);
 static int builtin_export(int argc, char* argv[]);
 static int builtin_history(int argc, char* argv[]);
 static int builtin_pwd(int argc, char* argv[]);
-static int builtin_source(int argc, char* argv[]);
 static int builtin_unset(int argc, char* argv[]);
 
 const struct shell_builtin BUILTINS[] = {
@@ -32,7 +31,6 @@ const struct shell_builtin BUILTINS[] = {
     { "export", builtin_export },
     { "history", builtin_history },
     { "pwd", builtin_pwd },
-    { "source", builtin_source },
     { "unset", builtin_unset },
     { NULL, NULL },
 };
@@ -208,36 +206,6 @@ static int builtin_pwd(int argc, char* argv[]) {
 
     free(buf);
     return EXIT_SUCCESS;
-}
-
-static int builtin_source(int argc, char* argv[]) {
-    if (argc < 2) {
-        warnx("source: filename required");
-        return EXIT_FAILURE;
-    }
-
-    FILE* fp = fopen(argv[1], "r");
-    if (!fp) {
-        warn(argv[1]);
-        return EXIT_FAILURE;
-    }
-
-    char* line = NULL;
-    size_t len = 0;
-    ssize_t nread;
-
-    int ret = EXIT_SUCCESS;
-
-    while ((nread = getline(&line, &len, fp)) != -1) {
-        char** argv;
-        int argc = split_args(line, &argv);
-        ret |= execute(argc, argv);
-        free(argv);
-    }
-
-    free(line);
-    fclose(fp);
-    return ret;
 }
 
 static int builtin_unset(int argc, char* argv[]) {

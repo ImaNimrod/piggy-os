@@ -98,6 +98,8 @@ static void work_init(struct uacpi_work_context* context, void (*proc)(void)) {
     if (unlikely(!context->thread)) {
         kpanic(NULL, false, "failed to create uACPI worker thread");
     }
+
+    scheduler_enqueue(&context->thread->cpu->scheduler, context->thread);
 }
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out_rsdp_address) {

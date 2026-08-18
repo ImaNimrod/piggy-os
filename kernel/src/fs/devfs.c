@@ -18,7 +18,7 @@ struct devfs_node {
 static struct slab_cache* devfs_node_cache;
 static struct devfs_node* devfs_root_node;
 static hashmap_t* devices;
-static ino_t inode_counter = 1;
+static _Atomic(ino_t) inode_counter = 1;
 
 static int devfs_mount(struct vfs_node* backing, struct vfs_node* target, struct vfs_filesystem** result);
 static int devfs_root(struct vfs_filesystem* filesystem, struct vfs_node** result);
@@ -419,7 +419,7 @@ int devfs_register(const char* name, vfs_type_t type, struct device_ops* ops, de
     }
 
     node->stat.st_dev = 0;
-    node->stat.st_ino = __atomic_add_fetch(&inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_ino = atomic_fetch_add_explicit(&inode_counter, 1, memory_order_relaxed);
     node->stat.st_mode = vfs_type_to_mode(type);
     node->stat.st_nlink = 1;
     node->stat.st_rdev = dev;
@@ -462,7 +462,7 @@ void devfs_init(void) {
     devfs_root_node->ops = &devfs_node_ops;
     devfs_root_node->refcount = 1;
 
-    devfs_root_node->stat.st_ino = __atomic_fetch_add(&inode_counter, 1, __ATOMIC_SEQ_CST);
+    devfs_root_node->stat.st_ino = atomic_fetch_add_explicit(&inode_counter, 1, memory_order_relaxed);
     devfs_root_node->stat.st_mode = vfs_type_to_mode(devfs_root_node->type);
     devfs_root_node->stat.st_nlink = 2;
     devfs_root_node->stat.st_blksize = PAGE_SIZE_4KB;

@@ -34,14 +34,14 @@ void wait_queue_add(struct wait_queue* wq, struct wait_node* node) {
     spinlock_release_irqsave(&wq->lock, int_state);
 }
 
-int wait_queue_wait(struct wait_queue* wq) {
+int wait_queue_wait(struct wait_queue* wq, bool interruptable) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
 
     bool int_state = spinlock_acquire_irqsave(&wq->lock);
 
     internal_add(wq, &current_thread->wait_node);
 
-    scheduler_prepare_wait(current_thread, true);
+    scheduler_prepare_wait(current_thread, interruptable);
     spinlock_release_irqsave(&wq->lock, int_state);
 
     return scheduler_yield();

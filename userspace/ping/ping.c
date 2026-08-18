@@ -77,6 +77,7 @@ int main(int argc, char* argv[]) {
                 break;
             case 'c':
                 errno = 0;
+
                 ping_count = strtoul(optarg, &end_ptr, 10);
                 if (errno != 0 || ping_count == 0 || optarg == end_ptr || *end_ptr) {
                     warnx("invalid count: '%s'", optarg);

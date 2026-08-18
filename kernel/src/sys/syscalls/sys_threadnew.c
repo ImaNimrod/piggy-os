@@ -17,5 +17,7 @@ void sys_threadnew(struct registers* r) {
         return;
     }
 
+    scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
+
     r->rax = new_thread->tid;
 }

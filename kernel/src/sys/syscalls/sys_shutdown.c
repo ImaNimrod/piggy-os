@@ -12,6 +12,11 @@ void sys_shutdown(struct registers* r) {
     struct thread* current_thread = this_cpu()->scheduler.current_thread;
     struct process* current_process = current_thread->process;
 
+    if (how & ~SHUT_RDWR) {
+        r->rax = -EINVAL;
+        return;
+    }
+
     struct file* file = file_get(current_process, fd);
     if (!file) {
         r->rax = -EBADF;
@@ -27,7 +32,7 @@ void sys_shutdown(struct registers* r) {
 
     struct socket_node* socket = (struct socket_node*) file->node;
 
-    ret = socket_shutdown(socket, how);
+    ret = socket->sockops->shutdown(socket, how);
 
 end:
     file_release(file);

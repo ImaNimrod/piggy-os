@@ -36,7 +36,7 @@ void sys_kill(struct registers* r) {
     }
 
     if (pid > 0) {
-        struct process* target = process_find_by_pid(pid);
+        struct process* target = process_find(pid);
         if (!target) {
             r->rax = -ESRCH;
             return;
@@ -64,7 +64,7 @@ void sys_kill(struct registers* r) {
         signal_all_processes(init_process, signal);
         r->rax = 0;
     } else {
-        struct process_group* target = process_group_find_by_pgid(-pid);
+        struct process_group* target = process_group_find(-pid);
         if (!target) {
             r->rax = -ESRCH;
             return;
@@ -72,9 +72,10 @@ void sys_kill(struct registers* r) {
 
         if (signal == 0) {
             r->rax = 0;
-            return;
+        } else {
+            r->rax = signal_send_process_group(target, signal);
         }
 
-        r->rax = signal_send_process_group(target, signal);
+        process_group_unref(target);
     }
 }

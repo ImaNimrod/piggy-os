@@ -30,6 +30,7 @@ int main(int argc, char* argv[]) {
         switch (c) {
             case 'n':
                 errno = 0;
+
                 iterations = strtoumax(optarg, &end_ptr, 10);
                 if (errno != 0 || end_ptr == optarg || *end_ptr) {
                     warnx("invalid iteration count: '%s'", optarg);
@@ -106,7 +107,7 @@ int main(int argc, char* argv[]) {
         char buf[BUF_SIZE];
 
         for (uintmax_t j = 0; j < iterations; j++) {
-            bool failed= false;
+            bool failed = false;
             bool is_zero_pass = zero && j == iterations - 1;
 
             if (verbose) {

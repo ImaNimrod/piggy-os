@@ -1,16 +1,12 @@
 #ifndef _KERNEL_UTILS_MUTEX_H
 #define _KERNEL_UTILS_MUTEX_H
 
-#include <utils/spinlock.h>
-
-struct thread;
+#include <stdatomic.h>
+#include <utils/wait_queue.h>
 
 typedef struct {
-    spinlock_t lock;
-    struct thread* owner;
-
-    struct thread* waiters_head;
-    struct thread* waiters_tail;
+    _Atomic(struct thread*) owner;
+    struct wait_queue wq;
 } mutex_t; 
 
 void mutex_init(mutex_t* m);

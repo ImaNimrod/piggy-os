@@ -118,7 +118,7 @@ void signal_handle_pending(struct registers* r) {
         struct signal_frame frame = {
             .saved_mask = old_mask,
             .context = *r,
-            .fs_base = rdmsr(MSR_IA32_FS_BASE),
+            .fs_base = this_cpu()->read_fs_base(),
             .gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE),
             .signal = signal,
             .restorer = (uintptr_t) action.sa_restorer,
@@ -184,7 +184,7 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
     this_cpu()->fpu_restore(frame.fpu_context);
     pmm_free((uintptr_t) frame.fpu_context - HIGH_VMA, DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB));
 
-    wrmsr(MSR_IA32_FS_BASE, frame.fs_base);
+    this_cpu()->write_fs_base(frame.fs_base);
     wrmsr(MSR_IA32_KERNEL_GS_BASE, frame.gs_base);
 
     spinlock_acquire(&current_thread->signal_lock);

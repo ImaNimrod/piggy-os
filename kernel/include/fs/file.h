@@ -2,7 +2,7 @@
 #define _KERNEL_FS_FILE_H
 
 #include <fs/vfs.h>
-#include <stddef.h>
+#include <stdatomic.h>
 
 #define AT_FDCWD -100
 
@@ -30,14 +30,13 @@ struct file {
     struct vfs_node* node;
     int flags;
     off_t offset;
-    size_t refcount;
+    atomic_size_t refcount;
 }; 
 
 struct file_descriptor {
     struct file* file;
     bool cloexec;
 };
-
 
 int file_close(struct process* process, int fd);
 struct file* file_create(struct vfs_node* node, int flags);

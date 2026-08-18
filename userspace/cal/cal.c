@@ -167,6 +167,7 @@ int main(int argc, char *argv[]) {
                 break;
             case 'n':
                 errno = 0;
+
                 month_count = strtol(optarg, &end_ptr, 10);
                 if (errno != 0 || month_count <= 0 || optarg == end_ptr) {
                     warnx("invalid month count: '%s'", optarg);
@@ -210,6 +211,7 @@ int main(int argc, char *argv[]) {
         char* end1;
 
         errno = 0;
+
         long year = strtol(argv[0], &end1, 10);
         if (errno != 0 || year <= 0 || argv[0] == end1) {
             warnx("invalid year: '%s'", argv[0]);
@@ -227,6 +229,7 @@ int main(int argc, char *argv[]) {
         char* end2;
 
         errno = 0;
+
         long month = strtol(argv[0], &end1, 10);
         if (errno != 0 || month <= 0 || month > 12 || argv[0] == end1) {
             warnx("invalid month: '%s'", argv[0]);
@@ -234,6 +237,7 @@ int main(int argc, char *argv[]) {
         }
 
         errno = 0;
+
         long year = strtol(argv[1], &end2, 10);
         if (errno != 0 || year <= 0 || argv[1] == end2) {
             warnx("invalid year: '%s'", argv[1]);

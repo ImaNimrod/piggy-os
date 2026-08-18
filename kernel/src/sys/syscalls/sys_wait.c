@@ -10,6 +10,8 @@
 
 #define VALID_FLAGS (WNOHANG)
 
+// TODO: actually implement waiting on pgid now that process groups exist
+
 void sys_wait(struct registers* r) {
     pid_t pid = r->rdi;
     int* status = (int*) r->rsi;
@@ -45,7 +47,7 @@ void sys_wait(struct registers* r) {
                 return;
             }
 
-            int ret = wait_queue_wait(&current_process->child_wq);
+            int ret = wait_queue_wait(&current_process->child_wq, true);
             if (ret < 0) {
                 r->rax = ret;
                 return;
@@ -71,7 +73,7 @@ void sys_wait(struct registers* r) {
         }
 
         while (child->state != PROCESS_STATE_ZOMBIE) {
-            int ret = wait_queue_wait(&current_process->child_wq);
+            int ret = wait_queue_wait(&current_process->child_wq, true);
             if (ret < 0) {
                 r->rax = ret;
                 return;

@@ -18,14 +18,32 @@ size_t cpu_count = 1;
 struct cpu_local* cpu_local_data;
 bool use_x2apic;
 
-static size_t initialized_cpus;
-static size_t synced_cpus;
+static atomic_size_t initialized_cpus;
+static atomic_size_t synced_cpus;
 
 static volatile uint64_t sync_sec;
 static volatile uint64_t sync_usec;
 static volatile bool sync_ready;
 
 extern void syscall_entry(void);
+
+static uint64_t rdfsbase(void) {
+    uint64_t ret;
+    asm volatile("rdfsbase %0" : "=r"(ret));
+    return ret;
+}
+
+static uint64_t read_fs_msr(void) {
+    return rdmsr(MSR_IA32_FS_BASE);
+}
+
+static void wrfsbase(uint64_t value) {
+    asm volatile("wrfsbase %0" :: "r"(value) : "memory");
+}
+
+static void write_fs_msr(uint64_t value) {
+    wrmsr(MSR_IA32_FS_BASE, value);
+}
 
 static void fxsave(void* ctx) {
     asm volatile("fxsave (%0)" :: "r"(ctx) : "memory");
@@ -136,6 +154,16 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
 
     cpuid(7, 0, &unused, &ebx, &ecx, &unused);
 
+    // If FSGSBASE is supported, enable it
+    if (ebx & (1 << 0)) {
+        this_cpu()->read_fs_base = rdfsbase;
+        this_cpu()->write_fs_base = wrfsbase;
+        cr4 |= (1 << 16);
+    } else {
+        this_cpu()->read_fs_base = read_fs_msr;
+        this_cpu()->write_fs_base = write_fs_msr;
+    }
+
     // If SMEP is supported, enable it
     if (ebx & (1 << 7)) {
         cr4 |= (1 << 20);
@@ -212,7 +240,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     timer_percpu_init();
 
     klog("[smp] CPU #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
-    __atomic_add_fetch(&initialized_cpus, 1, __ATOMIC_SEQ_CST);
+    atomic_fetch_add_explicit(&initialized_cpus, 1, memory_order_relaxed);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
         uint64_t hz = cpu_local->timer_info->hz;
@@ -223,7 +251,7 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
         cpu_local->timer_base_ticks = cpu_local->timer_driver->ticks(cpu_local->timer_info);
         cpu_local->timer_tick_offset = (sync_sec * hz) + (sync_usec * mhz);
 
-        __atomic_add_fetch(&synced_cpus, 1, __ATOMIC_SEQ_CST);
+        atomic_fetch_add_explicit(&synced_cpus, 1, memory_order_relaxed);
 
         scheduler_await();
     }
@@ -275,7 +303,7 @@ void smp_init(void) {
             isr_register_handler(3, sigtrap_handler, NULL);
 
             if (!use_x2apic) {
-                bsp_lapic_addr = rdmsr(MSR_IA32_APIC_BASE) & ~(0xffful);
+                bsp_lapic_addr = rdmsr(MSR_IA32_APIC_BASE) & ~0xfffUL;
                 pagemap_map(kernel_pagemap, bsp_lapic_addr + HIGH_VMA, bsp_lapic_addr, PTE_PRESENT | PTE_WRITABLE | PTE_CACHE_DISABLE | PTE_GLOBAL | PTE_NX, PAGE_SIZE_4KB);
                 klog("[smp] processor is using XAPIC\n");
             } else {
@@ -284,7 +312,7 @@ void smp_init(void) {
 
             single_cpu_init(mp_info);
         } else {
-            __atomic_store_n(&mp_info->goto_address, cpu_goto_fn, __ATOMIC_SEQ_CST);
+            atomic_store_explicit(&mp_info->goto_address, cpu_goto_fn, memory_order_seq_cst);
         }
     }
 
@@ -294,7 +322,7 @@ void smp_init(void) {
         uint64_t hz = timer_info->hz;
         uint64_t mhz = hz / 1000000;
 
-        while (__atomic_load_n(&initialized_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count)  {
+        while (atomic_load_explicit(&initialized_cpus, memory_order_seq_cst) != mp_response->cpu_count)  {
             pause();
         }
 
@@ -303,7 +331,7 @@ void smp_init(void) {
         sync_usec = (ticks % hz) / mhz;
         sync_ready = true;
 
-        while (__atomic_load_n(&synced_cpus, __ATOMIC_SEQ_CST) != mp_response->cpu_count - 1)  {
+        while (atomic_load_explicit(&synced_cpus, memory_order_seq_cst) != mp_response->cpu_count - 1)  {
             pause();
         }
     }

@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <sys/elf.h>
 #include <sys/signal.h>
+#include <stdatomic.h>
 #include <types.h>
 #include <utils/hashmap.h>
 #include <utils/mutex.h>
@@ -77,8 +78,6 @@ struct thread {
     struct thread* prev;
     struct thread* next;
 
-    // for mutexes, semaphores
-    struct thread* next_waiter;
     // for wait_queues
     struct wait_node wait_node;
 };
@@ -91,6 +90,8 @@ struct process_group {
     struct process* head;
     struct process* tail;
     mutex_t mutex;
+
+    atomic_size_t refcount;
 };
 
 struct process {
@@ -98,13 +99,13 @@ struct process {
     pid_t pid;
     process_state_t state;
 
-    vector_t* threads;
-    spinlock_t thread_list_lock;
+    char** cmdline;
 
     int exit_status;
     spinlock_t exiting;
 
-    char** cmdline;
+    vector_t* threads;
+    spinlock_t thread_list_lock;
 
     struct vfs_node* cwd;
     struct vfs_node* root;
@@ -121,14 +122,17 @@ struct process {
     struct timespec time_used;
 
     struct process* parent;
+
     struct process* children;
     struct process* sibling_next;
+    spinlock_t child_list_lock;
 
     struct wait_queue child_wq;
 
     struct process_group* group;
     struct process* group_prev;
     struct process* group_next;
+    mutex_t group_mutex;
 
     // for global process list
     struct process* prev;
@@ -142,7 +146,7 @@ struct process* process_create(struct process* parent);
 void process_create_init(void);
 void process_destroy(struct process* process);
 [[noreturn]] void process_exit(int status);
-struct process* process_find_by_pid(pid_t pid);
+struct process* process_find(pid_t pid);
 struct vfs_node* process_get_cwd(struct process* process);
 struct vfs_node* process_get_root(struct process* process);
 pid_t process_prev_pid(pid_t pid);
@@ -150,12 +154,12 @@ pid_t process_next_pid(pid_t pid);
 void process_set_cwd(struct process* process, struct vfs_node* new_cwd);
 void process_set_root(struct process* process, struct vfs_node* new_root);
 void process_stop_all_threads(void);
+void process_zombify(void);
 
-struct process_group* process_group_create(struct process* leader);
-void process_group_add(struct process_group* group, struct process* process);
-struct process_group* process_group_find_by_pgid(pid_t pgid);
+struct process_group* process_group_create(pid_t pgid);
+struct process_group* process_group_find(pid_t pgid);
 void process_group_move(struct process_group* new_group, struct process* process);
-void process_group_remove(struct process_group* group, struct process* process);
+void process_group_unref(struct process_group* group);
 
 struct thread* thread_create_kernel(uintptr_t entry, void* arg);
 struct thread* thread_create_user(struct process* process, uintptr_t entry, uintptr_t stack);

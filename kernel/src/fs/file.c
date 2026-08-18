@@ -6,6 +6,9 @@
 #include <utils/macros.h>
 #include <utils/mutex.h>
 
+#define FILE_REF(file) atomic_fetch_add_explicit(&(file)->refcount, 1, memory_order_relaxed)
+#define FILE_UNREF(file) atomic_fetch_sub_explicit(&(file)->refcount, 1, memory_order_release) - 1
+
 static struct slab_cache* file_cache;
 
 static int get_free_fd(struct process* process, int start_fd) {
@@ -100,7 +103,7 @@ int file_dup(struct process* process, int old_fd, int new_fd, bool exact, bool c
     }
 
     if (ret >= 0) {
-        __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+        FILE_REF(file);
     }
 
     mutex_release(&process->fd_mutex);
@@ -116,7 +119,7 @@ void file_fork(struct process* old_process, struct process* new_process) {
         }
 
         new_process->fds[i] = old_process->fds[i];
-        __atomic_add_fetch(&old_process->fds[i].file->refcount, 1, __ATOMIC_SEQ_CST);
+        FILE_REF(old_process->fds[i].file);
     }
 
     mutex_release(&old_process->fd_mutex);
@@ -131,7 +134,7 @@ struct file* file_get(struct process* process, int fd) {
 
     struct file* file = process->fds[fd].file;
     if (file) {
-        __atomic_add_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST);
+        FILE_REF(file);
     }
 
     mutex_release(&process->fd_mutex);
@@ -151,7 +154,7 @@ int file_insert(struct process* process, struct file* file, bool cloexec) {
 }
 
 void file_release(struct file* file) {
-    if (__atomic_sub_fetch(&file->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+    if (FILE_UNREF(file) == 0) {
         struct vfs_node* node = file->node;
 
         if (node->ops->close) {

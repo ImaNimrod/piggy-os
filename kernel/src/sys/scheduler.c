@@ -100,14 +100,7 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
 [[noreturn]] static void internal_thread_exit(struct registers* r, void* arg) {
     (void) arg;
 
-    struct thread* current_thread = this_cpu()->scheduler.current_thread;
-    struct process* current_process = current_thread->process;
-
-    spinlock_acquire(&current_process->thread_list_lock);
-    vector_remove_by_value(current_process->threads, &current_thread);
-    spinlock_release(&current_process->thread_list_lock);
-
-    thread_destroy(current_thread);
+    thread_destroy(this_cpu()->scheduler.current_thread);
 
     this_cpu()->scheduler.current_thread = NULL;
     reschedule(r, NULL);
@@ -166,7 +159,7 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
 
         if (current_thread->flags & THREAD_FLAG_USER) {
             this_cpu()->fpu_save(current_thread->fpu_context);
-            current_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
+            current_thread->fs_base = this_cpu()->read_fs_base();
             current_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
         }
 
@@ -213,7 +206,7 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
 
     if (next_thread->flags & THREAD_FLAG_USER) {
         this_cpu()->fpu_restore(next_thread->fpu_context);
-        wrmsr(MSR_IA32_FS_BASE, next_thread->fs_base);
+        this_cpu()->write_fs_base(next_thread->fs_base);
         wrmsr(MSR_IA32_KERNEL_GS_BASE, next_thread->gs_base);
     }
 
@@ -292,6 +285,18 @@ int scheduler_sleep(struct thread* thread, const struct timespec* duration) {
 }
 
 [[noreturn]] void scheduler_thread_exit(void) {
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+    struct process* current_process = current_thread->process;
+
+    spinlock_acquire(&current_process->thread_list_lock);
+    vector_remove_by_value(current_process->threads, &current_thread);
+    bool last = vector_size(current_process->threads)  == 0;
+    spinlock_release(&current_process->thread_list_lock);
+
+    if (last) {
+        process_zombify();
+    }
+
     cli();
     context_call_and_switch(internal_thread_exit, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));
     __builtin_unreachable();
@@ -367,6 +372,8 @@ void scheduler_percpu_init(void) {
     if (unlikely(!idle_thread)) {
         kpanic(NULL, false, "failed to create idle thread");
     }
+
+    scheduler_enqueue(&idle_thread->cpu->scheduler, idle_thread);
 
     this_cpu()->scheduler.idle_thread = idle_thread;
     this_cpu()->scheduler.current_thread = idle_thread;

@@ -1,6 +1,7 @@
 #ifndef _KERNEL_FS_VFS_H
 #define _KERNEL_FS_VFS_H
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include <sys/timer.h>
 #include <types.h>
@@ -116,14 +117,14 @@ struct vfs_node {
     struct vfs_filesystem* filesystem;
     struct vfs_filesystem* mounted;
 
-    size_t refcount;
+    atomic_size_t refcount;
 };
 
 extern struct vfs_node* vfs_root;
 
-#define VFS_NODE_REF(node) __atomic_add_fetch(&(node)->refcount, 1, __ATOMIC_SEQ_CST)
+#define VFS_NODE_REF(node) atomic_fetch_add_explicit(&(node)->refcount, 1, memory_order_relaxed)
 #define VFS_NODE_UNREF(node) do { \
-    if (__atomic_sub_fetch(&(node)->refcount, 1, __ATOMIC_SEQ_CST) == 0) { \
+    if (atomic_fetch_sub_explicit(&(node)->refcount, 1, memory_order_release) <= 1) { \
         (node)->ops->inactive((struct vfs_node*) (node)); \
         (node) = NULL; \
     } \

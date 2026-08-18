@@ -28,7 +28,7 @@ static mutex_t processes_mutex;
 static hashmap_t* process_groups;
 static mutex_t process_groups_mutex;
 
-static pid_t next_pid;
+static _Atomic(pid_t) next_pid;
 
 static char** dup_array(char** argv) {
     int argc = 0;
@@ -66,14 +66,47 @@ static void free_array(char** argv) {
     kfree(argv);
 }
 
-static void group_destroy(struct process_group* group) {
+static void group_remove_from_hashmap(struct process_group* group) {
+    mutex_acquire(&process_groups_mutex);
+
+    struct process_group* current = NULL;
+
+    if (hashmap_get(process_groups, &group->pgid, sizeof(pid_t), (void**) &current) && current == group) {
+        hashmap_remove(process_groups, &group->pgid, sizeof(pid_t));
+
+        mutex_release(&process_groups_mutex);
+
+        process_group_unref(group);
+        return;
+    }
+
+    mutex_release(&process_groups_mutex);
+}
+
+static void leave_group(struct process* process) {
+    mutex_acquire(&process->group_mutex);
+
+    struct process_group* group = process->group;
+    if (unlikely(!group)) {
+        mutex_release(&process->group_mutex);
+        return;
+    }
+
     mutex_acquire(&group->mutex);
 
-    mutex_acquire(&process_groups_mutex);
-    hashmap_remove(process_groups, &group->pgid, sizeof(pid_t));
-    mutex_release(&process_groups_mutex);
+    DLIST_REMOVE(group->head, process, group_prev, group_next);
+    process->group = NULL;
+    process->group_prev = process->group_next = NULL;
 
-    slab_cache_free(process_group_cache, group);
+    bool empty = DLIST_IS_EMPTY(group->head);
+
+    mutex_release(&group->mutex);
+
+    mutex_release(&process->group_mutex);
+
+    if (empty) {
+        group_remove_from_hashmap(group);
+    }
 }
 
 struct process* process_create(struct process* parent) {
@@ -82,11 +115,12 @@ struct process* process_create(struct process* parent) {
         return NULL;
     }
 
-    new_process->pid = __atomic_fetch_add(&next_pid, 1, __ATOMIC_SEQ_CST);
+    new_process->pid = atomic_fetch_add_explicit(&next_pid, 1, memory_order_relaxed);
     new_process->state = PROCESS_STATE_RUNNING;
 
     spinlock_init(&new_process->exiting);
     spinlock_init(&new_process->thread_list_lock);
+    spinlock_init(&new_process->child_list_lock);
 
     new_process->threads = vector_create(sizeof(struct thread*));
     if (unlikely(!new_process->threads)) {
@@ -96,6 +130,7 @@ struct process* process_create(struct process* parent) {
     spinlock_init(&new_process->node_lock);
     mutex_init(&new_process->fd_mutex);
     spinlock_init(&new_process->signal_actions_lock);
+    mutex_init(&new_process->group_mutex);
     wait_queue_init(&new_process->child_wq);
 
     if (likely(parent)) {
@@ -127,9 +162,16 @@ struct process* process_create(struct process* parent) {
         spinlock_release(&parent->signal_actions_lock);
 
         new_process->parent = parent;
-        SLIST_PUSH_FRONT(parent->children, new_process, sibling_next);
 
-        process_group_add(parent->group, new_process);
+        spinlock_acquire(&parent->child_list_lock);
+        SLIST_PUSH_FRONT(parent->children, new_process, sibling_next);
+        spinlock_release(&parent->child_list_lock);
+
+        mutex_acquire(&parent->group_mutex);
+        struct process_group* parent_group = parent->group;
+        mutex_release(&parent->group_mutex);
+
+        process_group_move(parent_group, new_process);
     } else {
         new_process->cwd = vfs_root;
         VFS_NODE_REF(vfs_root);
@@ -141,9 +183,12 @@ struct process* process_create(struct process* parent) {
             goto error;
         }
 
-        if (unlikely(!process_group_create(new_process))) {
+        struct process_group* new_group = process_group_create(new_process->pid);
+        if (unlikely(!new_group)) {
             goto error;
         }
+
+        process_group_move(new_group, new_process);
     }
 
     mutex_acquire(&processes_mutex);
@@ -277,6 +322,8 @@ void process_create_init(void) {
     if (unlikely(!init_thread)) {
         kpanic(NULL, false, "failed to create thread for init process");
     }
+
+    scheduler_enqueue(&init_thread->cpu->scheduler, init_thread);
 }
 
 void process_destroy(struct process* process) {
@@ -302,18 +349,18 @@ void process_destroy(struct process* process) {
 
     free_array(process->cmdline);
 
+    spinlock_acquire(&process->parent->child_list_lock);
     SLIST_REMOVE(process->parent->children, process, sibling_next);
+    spinlock_release(&process->parent->child_list_lock);
 
-    for (size_t i = 0; i < vector_size(process->threads); i++) {
-        thread_destroy((struct thread*) *vector_get(process->threads, i));
+    if (vector_size(process->threads) != 0) {
+        kpanic(NULL, false, "process->threads not empty %zu", vector_size(process->threads));
     }
+
     vector_destroy(process->threads);
 
     slab_cache_free(process_cache, process);
-
 }
-
-// TODO: finish locking process children list and restructring process / thread exit
 
 [[noreturn]] void process_exit(int status) {
     struct process* current_process = this_cpu()->scheduler.current_thread->process;
@@ -328,43 +375,12 @@ void process_destroy(struct process* process) {
 
     process_stop_all_threads();
 
-    current_process->state = PROCESS_STATE_ZOMBIE;
     current_process->exit_status = status;
-
-    process_group_remove(current_process->group, current_process);
-
-    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
-        file_close(current_process, i);
-    }
-
-    // Reparent dying process' children to init
-
-    struct process* child = current_process->children;
-    if (child) {
-        while (child) {
-            struct process* next = child->sibling_next;
-
-            child->parent = init_process;
-            SLIST_PUSH_FRONT(init_process->children, child, sibling_next);
-
-            child = next;
-        }
-
-        wait_queue_wake_all(&init_process->child_wq);
-    }
-
-    wait_queue_wake_all(&current_process->parent->child_wq);
-    signal_send_process(current_process->parent, SIGCHLD);
-
-    VFS_NODE_UNREF(current_process->cwd);
-    VFS_NODE_UNREF(current_process->root);
-
-    vmm_context_destroy(current_process->vmm_context);
 
     scheduler_thread_exit();
 }
 
-struct process* process_find_by_pid(pid_t pid) {
+struct process* process_find(pid_t pid) {
     mutex_acquire(&processes_mutex);
 
     struct process* process = NULL;
@@ -494,7 +510,51 @@ void process_stop_all_threads(void) {
     spinlock_release(&current_process->thread_list_lock);
 }
 
-struct process_group* process_group_create(struct process* leader) {
+void process_zombify(void) {
+    struct process* current_process = this_cpu()->scheduler.current_thread->process;
+
+    current_process->state = PROCESS_STATE_ZOMBIE;
+
+    leave_group(current_process);
+
+    for (int i = 0; i < PROCESS_FD_COUNT; i++) {
+        file_close(current_process, i);
+    }
+
+    // Reparent dying process' children to init
+
+    spinlock_acquire(&current_process->child_list_lock);
+    struct process* child = current_process->children;
+    spinlock_release(&current_process->child_list_lock);
+
+    if (child) {
+        spinlock_acquire(&init_process->child_list_lock);
+
+        while (child) {
+            struct process* next = child->sibling_next;
+
+            child->parent = init_process;
+            SLIST_PUSH_FRONT(init_process->children, child, sibling_next);
+
+            child = next;
+        }
+
+
+        spinlock_release(&init_process->child_list_lock);
+
+        wait_queue_wake_all(&init_process->child_wq);
+    }
+
+    wait_queue_wake_all(&current_process->parent->child_wq);
+    signal_send_process(current_process->parent, SIGCHLD);
+
+    VFS_NODE_UNREF(current_process->cwd);
+    VFS_NODE_UNREF(current_process->root);
+
+    vmm_context_destroy(current_process->vmm_context);
+}
+
+struct process_group* process_group_create(pid_t pgid) {
     struct process_group* group = slab_cache_alloc(process_group_cache);
     if (unlikely(!group)) {
         return NULL;
@@ -502,8 +562,9 @@ struct process_group* process_group_create(struct process* leader) {
 
     mutex_init(&group->mutex);
 
-    group->pgid = leader->pid;
-    group->head = leader;
+    group->pgid = pgid;
+    group->head = group->tail = NULL;
+    group->refcount = 1;
 
     mutex_acquire(&process_groups_mutex);
 
@@ -513,69 +574,74 @@ struct process_group* process_group_create(struct process* leader) {
         return NULL;
     }
 
-    leader->group = group;
-
     mutex_release(&process_groups_mutex);
+
     return group;
 }
 
-void process_group_add(struct process_group* group, struct process* process) {
-    mutex_acquire(&group->mutex);
-    DLIST_PUSH_FRONT(group->head, process, group_prev, group_next);
-    process->group = group;
-    mutex_release(&group->mutex);
-}
-
-struct process_group* process_group_find_by_pgid(pid_t pgid) {
+struct process_group* process_group_find(pid_t pgid) {
     mutex_acquire(&process_groups_mutex);
 
     struct process_group* group = NULL;
-    hashmap_get(process_groups, &pgid, sizeof(pid_t), (void**) &group);
+    if (hashmap_get(process_groups, &pgid, sizeof(pid_t), (void**) &group)) {
+        atomic_fetch_add_explicit(&group->refcount, 1, memory_order_relaxed);
+    }
 
     mutex_release(&process_groups_mutex);
     return group;
 }
 
 void process_group_move(struct process_group* new_group, struct process* process) {
+    mutex_acquire(&process->group_mutex);
+
     struct process_group* old_group = process->group;
 
     if (old_group == new_group) {
+        mutex_release(&process->group_mutex);
         return;
     }
 
-    if (!old_group) {
-        process_group_add(new_group, process);
-        return;
+    struct process_group* first = old_group;
+    struct process_group* second = new_group;
+
+    if (first && second && first > second) {
+        first = new_group;
+        second = old_group;
     }
 
-    mutex_acquire(&old_group->mutex);
-    mutex_acquire(&new_group->mutex);
+    if (first) {
+        mutex_acquire(&first->mutex);
+    }
+    if (second) {
+        mutex_acquire(&second->mutex);
+    }
 
-    DLIST_REMOVE(old_group->head, process, group_prev, group_next);
+    if (old_group) {
+        DLIST_REMOVE(old_group->head, process, group_prev, group_next);
+    }
+
     DLIST_PUSH_FRONT(new_group->head, process, group_prev, group_next);
+    process->group = new_group;
 
-    bool old_empty = DLIST_IS_EMPTY(old_group->head);
+    bool old_empty = old_group != NULL && DLIST_IS_EMPTY(old_group->head);
 
-    mutex_release(&new_group->mutex);
-    mutex_release(&old_group->mutex);
+    if (second) {
+        mutex_release(&second->mutex);
+    }
+    if (first) {
+        mutex_release(&first->mutex);
+    }
+
+    mutex_release(&process->group_mutex);
 
     if (old_empty) {
-        group_destroy(old_group);
+        group_remove_from_hashmap(old_group);
     }
 }
 
-void process_group_remove(struct process_group* group, struct process* process) {
-    mutex_acquire(&group->mutex);
-
-    DLIST_REMOVE(group->head, process, group_prev, group_next);
-    process->group = NULL;
-
-    bool empty = DLIST_IS_EMPTY(group->head);
-
-    mutex_release(&group->mutex);
-
-    if (empty) {
-        group_destroy(group);
+void process_group_unref(struct process_group* group) {
+    if (__atomic_sub_fetch(&group->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+        slab_cache_free(process_group_cache, group);
     }
 }
 
@@ -613,7 +679,6 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
 
     spinlock_release(&kernel_process->thread_list_lock);
 
-    scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
 }
 
@@ -662,7 +727,6 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
 
     spinlock_release(&process->thread_list_lock);
 
-    scheduler_enqueue(&thread->cpu->scheduler, thread);
     return thread;
 }
 
@@ -702,7 +766,7 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
     new_thread->fpu_context = (void*) (pmm_alloc(DIV_CEIL(this_cpu()->fpu_context_size, PAGE_SIZE_4KB)) + HIGH_VMA);
     memcpy(new_thread->fpu_context, old_thread->fpu_context, this_cpu()->fpu_context_size);
 
-    new_thread->fs_base = rdmsr(MSR_IA32_FS_BASE);
+    new_thread->fs_base = this_cpu()->read_fs_base();
     new_thread->gs_base = rdmsr(MSR_IA32_KERNEL_GS_BASE);
 
     // Signals
@@ -725,7 +789,6 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
 
     spinlock_release(&process->thread_list_lock);
 
-    scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
     return new_thread;
 }
 

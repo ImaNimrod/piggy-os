@@ -91,7 +91,7 @@ void sys_procctl(struct registers* r) {
         case PROCCTL_STATUS:
         case PROCCTL_CMDLINE:
         case PROCCTL_VMMAPS:
-            struct process* process = process_find_by_pid(pid);
+            struct process* process = process_find(pid);
             if (!process) {
                 ret = -ESRCH;
                 break;

@@ -1,13 +1,13 @@
 #ifndef _KERNEL_UTILS_SPINLOCK_H
 #define _KERNEL_UTILS_SPINLOCK_H
 
-#include <stdint.h>
+#include <stdatomic.h>
 
-typedef uint32_t spinlock_t;
+typedef atomic_bool spinlock_t;
 
 #define spinlock_init(lock) \
     do { \
-        *lock = (spinlock_t) {0}; \
+        atomic_init(lock, false); \
     } while (0);
 
 void spinlock_acquire(spinlock_t* lock);

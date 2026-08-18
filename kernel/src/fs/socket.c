@@ -57,7 +57,7 @@ static struct vfs_node_ops socket_node_ops = {
     .inactive = socket_inactive,
 };
 
-static ino_t inode_counter = 1;
+static _Atomic(ino_t) inode_counter = 1;
 
 static int socket_ioctl(struct vfs_node* node, int request, void* argp) {
     struct socket_node* snode = (struct socket_node*) node;
@@ -307,7 +307,7 @@ int socket_create(int family, int type, int protocol, struct vfs_node** ret) {
     node->refcount = 1;
 
     node->stat.st_dev = 0;
-    node->stat.st_ino = __atomic_fetch_add(&inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_ino = atomic_fetch_add_explicit(&inode_counter, 1, memory_order_relaxed);
     node->stat.st_mode = vfs_type_to_mode(node->type);
     node->stat.st_nlink = 1;
     node->stat.st_rdev = 0;

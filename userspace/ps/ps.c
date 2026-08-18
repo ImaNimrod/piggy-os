@@ -30,7 +30,7 @@ static inline const char* state_name(int state) {
 
 static void add_entry(struct process_list* list, const struct procctl_status* status) {
     if (list->count == list->capacity) {
-        size_t new_capacity = list->capacity ? list->capacity * 2 : 16;
+        size_t new_capacity = list->capacity ? list->capacity * 2 : 32;
 
         struct process* new_entries = reallocarray(list->entries, new_capacity, sizeof(struct process));
         if (!new_entries) {
@@ -145,6 +145,7 @@ int main(int argc, char* argv[]) {
         switch (c) {
             case 'p':
                 errno = 0;
+
                 unsigned long value = strtoul(optarg, &end_ptr, 10);
                 if (errno != 0 || value > INT_MAX || optarg == end_ptr || *end_ptr) {
                     warnx("invalid PID: '%s'", optarg);
@@ -165,7 +166,7 @@ int main(int argc, char* argv[]) {
     argc -= optind;
     argv += optind;
 
-    if (argc > 1) {
+    if (argc >= 1) {
         warnx("extra operands provided");
         usage();
     }

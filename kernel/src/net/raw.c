@@ -47,6 +47,7 @@ static ssize_t raw_recv(struct socket_node* node, void* buf, size_t count, struc
 static ssize_t raw_send(struct socket_node* node, const void* buf, size_t count, const struct sockaddr* addr, socklen_t addr_len);
 static ssize_t raw_getsockname(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
 static ssize_t raw_getpeername(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
+static int raw_shutdown(struct socket_node* node, int how);
 static short raw_poll(struct socket_node* node, short events, struct poll_table* pt);
 static void raw_destroy(struct socket_node* node);
 
@@ -57,6 +58,7 @@ static struct socket_ops raw_sockops = {
     .send = raw_send,
     .getsockname = raw_getsockname,
     .getpeername = raw_getpeername,
+    .shutdown = raw_shutdown,
     .poll = raw_poll,
     .destroy = raw_destroy,
 };
@@ -118,7 +120,7 @@ static ssize_t raw_recv(struct socket_node* node, void* buf, size_t count, struc
     while (!socket->rx_head) {
         mutex_release(&socket->mutex);
 
-        int ret = wait_queue_wait(&socket->rx_wq);
+        int ret = wait_queue_wait(&socket->rx_wq, true);
         if (ret < 0) {
             return ret;
         }
@@ -289,6 +291,19 @@ static ssize_t raw_getpeername(struct socket_node* node, struct sockaddr* addr, 
     return sizeof(struct sockaddr_in);
 }
 
+static int raw_shutdown(struct socket_node* node, int how) {
+    if (how & ~SHUT_RDWR) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(&node->mutex);
+
+    node->shutdown |= how;
+
+    mutex_release(&node->mutex);
+    return 0;
+}
+
 static short raw_poll(struct socket_node* node, short events, struct poll_table* pt) {
     struct raw_socket* socket = (struct raw_socket*) node;
 
@@ -296,7 +311,7 @@ static short raw_poll(struct socket_node* node, short events, struct poll_table*
 
     short revents = 0;
 
-    if (events & POLLIN) {
+    if (events & POLLIN && !(socket->shutdown & SHUT_RD)) {
         if (socket->rx_head) {
             revents |= POLLIN;
         } else {
@@ -304,7 +319,7 @@ static short raw_poll(struct socket_node* node, short events, struct poll_table*
         }
     }
 
-    if (events & POLLOUT) {
+    if (events & POLLOUT && !(socket->shutdown & SHUT_WR)) {
         revents |= POLLOUT;
     }
 

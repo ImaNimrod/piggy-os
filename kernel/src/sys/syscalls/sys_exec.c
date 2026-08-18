@@ -17,6 +17,8 @@
 #define SHEBANG_MAX_DEPTH   8
 #define SHEBANG_MAX_LEN     256
 
+[[noreturn]] extern void context_switch(struct registers* r);
+
 static void free_string_array(char** xs) {
     for (char** iter = xs; *iter; iter++) {
         kfree(*iter);
@@ -25,6 +27,7 @@ static void free_string_array(char** xs) {
 }
 
 static int exec_internal(char* path, int argc, char** argv, char** envp, size_t depth) {
+    // HOW LONG?
     if (depth > SHEBANG_MAX_DEPTH) {
         return -ELOOP;
     }
@@ -104,6 +107,10 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
         int new_argc = argc + 1 + (*interp_arg ? 2 : 1);
         char** new_argv = kmallocz((new_argc + 1) * sizeof(char*));
+        if (!new_argv) {
+            ret = -ENOMEM;
+            goto end;
+        }
 
         int j = 0;
         new_argv[j++] = strdup(interp);
@@ -144,8 +151,16 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
         entry = ld_auxvals.at_entry.value;
     }
 
-    cli(); // no going back after this point
-           //
+    uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
+    uintptr_t user_stack_vaddr = (uintptr_t) vmm_map(new_vmm_context, PROCESS_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE,
+            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, NULL, 0, user_stack_paddr);
+
+    uintptr_t stack_top = elf_setup_stack(user_stack_vaddr + USER_STACK_SIZE, user_stack_paddr + USER_STACK_SIZE,
+            path, argv, envp, &auxvals);
+
+    // TO THE POINT OF KNOW RETURN!!!!!
+    cli();
+
     process_stop_all_threads();
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
@@ -170,23 +185,28 @@ static int exec_internal(char* path, int argc, char** argv, char** envp, size_t 
 
     spinlock_release(&current_process->signal_actions_lock);
 
-    uintptr_t user_stack_paddr = pmm_alloc(USER_STACK_SIZE / PAGE_SIZE_4KB);
-    uintptr_t user_stack_vaddr = (uintptr_t) vmm_map(current_process->vmm_context, PROCESS_STACK_TOP - USER_STACK_SIZE, USER_STACK_SIZE,
-            PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, NULL, 0, user_stack_paddr);
-
-    uintptr_t stack_top = elf_setup_stack(user_stack_vaddr + USER_STACK_SIZE, user_stack_paddr + USER_STACK_SIZE,
-            path, argv, envp, &auxvals);
-
-    struct thread* new_thread = thread_create_user(current_process, entry, stack_top);
-    if (unlikely(!new_thread)) {
-        ret = -ENOMEM;
-        goto end;
-    }
-
     spinlock_acquire(&current_thread->signal_lock);
-    new_thread->pending_signals = current_thread->pending_signals;
-    new_thread->signal_mask = current_thread->signal_mask;
+    current_thread->pending_signals = 0;
+    current_thread->signal_stack.ss_flags = SS_DISABLE;
     spinlock_release(&current_thread->signal_lock);
+
+    memset64((uint64_t*) &current_thread->registers, 0, sizeof(struct registers) >> 3);
+    current_thread->registers.rip = entry;
+    current_thread->registers.rsp = stack_top;
+    current_thread->registers.cs = USER_CODE_SEGMENT;
+    current_thread->registers.ss = USER_DATA_SEGMENT;
+    current_thread->registers.rflags = 0x202;
+
+    this_cpu()->fpu_save(current_thread->fpu_context);
+
+    memset(current_thread->fpu_context, 0, this_cpu()->fpu_context_size);
+    ((uint16_t*) current_thread->fpu_context)[0] = DEFAULT_FCW;
+    ((uint32_t*) current_thread->fpu_context)[6] = DEFAULT_MXCSR;
+
+    this_cpu()->fpu_restore(current_thread->fpu_context);
+
+    this_cpu()->write_fs_base(0);
+    wrmsr(MSR_IA32_KERNEL_GS_BASE, 0);
 
 end:
     if (reference) {
@@ -214,11 +234,10 @@ end:
     free_string_array(current_process->cmdline);
     current_process->cmdline = argv;
 
-    pagemap_load(kernel_pagemap);
+    pagemap_load(new_vmm_context->pagemap);
     vmm_context_destroy(old_vmm_context);
 
-    scheduler_thread_exit();
-    __builtin_unreachable();
+    context_switch(&current_thread->registers);
 
 error:
     if (current_process->vmm_context == old_vmm_context) {

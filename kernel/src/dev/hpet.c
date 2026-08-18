@@ -61,7 +61,7 @@ static void hpet_irq_handler(struct registers* r, void* arg) {
 
     hpet_write(HPET_REG_CONFIG, 0);
 
-    __atomic_add_fetch(&hpet_private.ticks_passed, hpet_read(HPET_REG_COUNT), __ATOMIC_SEQ_CST);
+    atomic_fetch_add_explicit(&hpet_private.ticks_passed, hpet_read(HPET_REG_COUNT), memory_order_seq_cst);
     hpet_write(HPET_REG_COUNT, 0);
 
     hpet_write(HPET_REG_CONFIG, HPET_ENABLE_CNF | ((hpet_private.type == HPET_TYPE_LEGACY) ? HPET_LEG_RT_CNF : 0));

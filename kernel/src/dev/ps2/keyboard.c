@@ -136,7 +136,7 @@ static ssize_t keyboard_read(dev_t dev, void *buf, size_t count, off_t offset, i
 
         spinlock_release(&scancode_buf_lock);
 
-        int ret = wait_queue_wait(&scancode_wq);
+        int ret = wait_queue_wait(&scancode_wq, true);
         if (ret < 0) {
             return ret;
         }

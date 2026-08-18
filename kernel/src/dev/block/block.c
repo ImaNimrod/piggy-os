@@ -239,7 +239,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
                 .lba_offset = entry->start_lba,
             };
 
-            block_register(name, makedev(PARTITION_DEV_MAJOR, __atomic_fetch_add(&partition_device_minor, 1, __ATOMIC_SEQ_CST)), &block_device, false);
+            block_register(name, makedev(PARTITION_DEV_MAJOR, atomic_fetch_add_explicit(&partition_device_minor, 1, memory_order_relaxed)), &block_device, false);
 
             klog("[block] found GPT partition %s\n", name);
             partition_number++;
@@ -265,7 +265,7 @@ static void detect_partitions(struct block_device* device, const char* device_na
                 .lba_offset = entry->start_sector,
             };
 
-            block_register(name, makedev(PARTITION_DEV_MAJOR, __atomic_fetch_add(&partition_device_minor, 1, __ATOMIC_SEQ_CST)), &block_device, false);
+            block_register(name, makedev(PARTITION_DEV_MAJOR, atomic_fetch_add_explicit(&partition_device_minor, 1, memory_order_relaxed)), &block_device, false);
 
             klog("[block] found MBR partition %s\n", name);
             partition_number++;

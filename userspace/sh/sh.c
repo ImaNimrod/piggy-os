@@ -14,6 +14,17 @@
 #include "history.h"
 #include "interactive.h"
 #include "sh.h"
+#include "tokenizer.h"
+
+struct command {
+    char** argv;
+    size_t argc;
+};
+
+struct pipeline {
+    struct command* commands;
+    size_t count;
+};
 
 int last_status;
 
@@ -22,60 +33,71 @@ static bool is_interactive;
 static struct termios old_termios;
 static pid_t shell_pgid;
 
-static int run_program(char** argv) {
-    pid_t pid = fork();
-    if (pid < 0) {
-        warn("fork");
-        return EXIT_FAILURE;
+static void free_pipeline(struct pipeline* pipeline) {
+    for (size_t i = 0; i < pipeline->count; i++) {
+        free(pipeline->commands[i].argv);
     }
 
-    if (pid == 0) {
-        setpgid(0, 0);
+    free(pipeline->commands);
+}
 
-        signal(SIGINT, SIG_DFL);
-        signal(SIGTSTP, SIG_DFL);
-        signal(SIGQUIT, SIG_DFL);
-        signal(SIGTTIN, SIG_DFL);
-        signal(SIGTTOU, SIG_DFL);
+static int parse_pipeline(struct token* tokens, size_t token_count, struct pipeline* pipeline) {
+    memset(pipeline, 0, sizeof(*pipeline));
 
-        execvp(argv[0], argv);
-        err(EXIT_FAILURE, "execvp");
+    size_t command_capacity = 4;
+
+    pipeline->commands = malloc(command_capacity * sizeof(*pipeline->commands));
+    if (!pipeline->commands) {
+        return -1;
     }
 
-    setpgid(pid, pid);
+    size_t command_start = 0;
 
-    if (is_interactive) {
-        tcsetpgrp(STDIN_FILENO, pid);
-    }
+    for (size_t i = 0; i <= token_count; i++) {
+        bool end = i == token_count;
+        bool pipe = !end && tokens[i].type == TOKEN_PIPE;
 
-    int status;
-    while (waitpid(pid, &status, 0) < 0) {
-        if (errno == EINTR) {
+        if (!end && !pipe) {
             continue;
         }
 
-        warn("waitpid");
-        break;
-    }
-
-    if (is_interactive) {
-        tcsetpgrp(STDIN_FILENO, shell_pgid);
-    }
-
-    if (WIFSIGNALED(status)) {
-        int signal = WTERMSIG(status);
-        if (is_interactive) {
-            if (signal == SIGINT) {
-                fputc('\n', stdout);
-            } else {
-                fprintf(stderr, "%s\n", strsignal(signal));
-            }
+        if (i == command_start) {
+            warnx("empty command in pipeline");
+            free_pipeline(pipeline);
+            return -1;
         }
 
-        return 128 + signal;
+        if (pipeline->count >= command_capacity) {
+            command_capacity *= 2;
+
+            struct command* commands = realloc(pipeline->commands, command_capacity * sizeof(*pipeline->commands));
+            if (!commands) {
+                free_pipeline(pipeline);
+                return -1;
+            }
+
+            pipeline->commands = commands;
+        }
+
+        struct command* command = &pipeline->commands[pipeline->count++];
+        command->argc = i - command_start;
+
+        command->argv = malloc((command->argc + 1) * sizeof(char*));
+        if (!command->argv) {
+            free_pipeline(pipeline);
+            return -1;
+        }
+
+        for (size_t j = 0; j < command->argc; j++) {
+            command->argv[j] = tokens[command_start + j].text;
+        }
+
+        command->argv[command->argc] = NULL;
+
+        command_start = i + 1;
     }
 
-    return WEXITSTATUS(status);
+    return 0;
 }
 
 static void disable_raw_mode(void) {
@@ -102,17 +124,79 @@ static void enable_raw_mode(void) {
     }
 }
 
-static void usage(void) {
-    fprintf(stderr, "usage: sh [-i] [-c COMMAND]\n");
-    exit(EXIT_FAILURE);
-}
-
-int execute(int argc, char* argv[]) {
-    if (argc == 0) {
-        return EXIT_SUCCESS;
+static int run_program(char** argv) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        warn("fork");
+        return EXIT_FAILURE;
     }
 
+    if (pid == 0) {
+        if (setpgid(0, 0) < 0) {
+            err(EXIT_FAILURE, "setpgid");
+        }
+
+        signal(SIGINT, SIG_DFL);
+        signal(SIGTSTP, SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGTTIN, SIG_DFL);
+        signal(SIGTTOU, SIG_DFL);
+
+        execvp(argv[0], argv);
+        err(EXIT_FAILURE, "execvp");
+    }
+
+    if (setpgid(pid, pid) < 0) {
+        warn("setpgid");
+    }
+
+    if (is_interactive) {
+        tcsetpgrp(STDIN_FILENO, pid);
+    }
+
+    int status;
+    pid_t ret;
+
+    do {
+        ret = waitpid(pid, &status, 0);
+    } while (ret < 0 && errno == EINTR);
+
+    if (ret < 0) {
+        warn("waitpid");
+
+        if (is_interactive) {
+            tcsetpgrp(STDIN_FILENO, shell_pgid);
+        }
+
+        return EXIT_FAILURE;
+    }
+
+    if (is_interactive) {
+        if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
+            warn("tcsetpgrp");
+        }
+    }
+
+    if (WIFSIGNALED(status)) {
+        int sig = WTERMSIG(status);
+
+        if (is_interactive) {
+            if (sig == SIGINT) {
+                fputc('\n', stdout);
+            } else {
+                warnx("%s", strsignal(sig));
+            }
+        }
+
+        return 128 + sig;
+    }
+
+    return WEXITSTATUS(status);
+}
+
+static int execute_builtin(int argc, char** argv) {
     size_t i = 0;
+
     while (BUILTINS[i].name) {
         if (strcmp(argv[0], BUILTINS[i].name) == 0) {
             return (*BUILTINS[i].func)(argc, argv);
@@ -121,52 +205,289 @@ int execute(int argc, char* argv[]) {
         i++;
     }
 
+    return -1;
+}
+
+static int execute(int argc, char** argv) {
+    if (argc == 0) {
+        return EXIT_SUCCESS;
+    }
+
+    int builtin = execute_builtin(argc, argv);
+    if (builtin >= 0) {
+        return builtin;
+    }
+
     return run_program(argv);
 }
 
-int split_args(char* line, char*** argv) {
-    int count = 0;
-
-    char** tokens = malloc(64 * sizeof(char*));
-    if (!tokens) {
-        errx(EXIT_FAILURE, "malloc");
+static int execute_pipeline(struct pipeline* pipeline) {
+    size_t count = pipeline->count;
+    if (count == 0) {
+        return EXIT_SUCCESS;
     }
 
-    char* token = strtok(line, " \t\n\a");
-    while (token) {
-        tokens[count] = token;
-        count++;
-        token = strtok(NULL, " \t\n\a");
+    if (count == 1) {
+        return execute(pipeline->commands[0].argc, pipeline->commands[0].argv);
     }
 
-    tokens[count] = NULL;
+    int (*pipes)[2] = calloc(count - 1, sizeof(*pipes));
+    if (!pipes) {
+        warn("calloc");
+        return EXIT_FAILURE;
+    }
 
-    *argv = tokens;
-    return count;
+    for (size_t i = 0; i < count - 1; i++) {
+        if (pipe(pipes[i]) < 0) {
+            warn("pipe");
+
+            for (size_t j = 0; j < i; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            free(pipes);
+            return EXIT_FAILURE;
+        }
+    }
+
+    int pgid_pipe[2] = { -1, -1 };
+
+    if (is_interactive) {
+        if (pipe(pgid_pipe) < 0) {
+            warn("pipe");
+
+            for (size_t i = 0; i < count - 1; i++) {
+                close(pipes[i][0]);
+                close(pipes[i][1]);
+            }
+
+            free(pipes);
+            return EXIT_FAILURE;
+        }
+    }
+
+    pid_t* pids = calloc(count, sizeof(*pids));
+    if (!pids) {
+        warn("calloc");
+
+        for (size_t i = 0; i < count - 1; i++) {
+            close(pipes[i][0]);
+            close(pipes[i][1]);
+        }
+
+        if (is_interactive) {
+            close(pgid_pipe[0]);
+            close(pgid_pipe[1]);
+        }
+
+        free(pipes);
+        return EXIT_FAILURE;
+    }
+
+    pid_t pgid = 0;
+    size_t spawned = 0;
+
+    for (size_t i = 0; i < count; i++) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            warn("fork");
+            goto error;
+        }
+
+        if (pid == 0) {
+            if (is_interactive) {
+                close(pgid_pipe[1]);
+            }
+
+            pid_t child_pgid = pgid;
+
+            if (child_pgid == 0) {
+                child_pgid = getpid();
+            }
+
+            if (setpgid(0, child_pgid) < 0) {
+                err(EXIT_FAILURE, "setpgid");
+            }
+
+            if (i > 0) {
+                if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                    err(EXIT_FAILURE, "dup2");
+                }
+            }
+
+            if (i < count - 1) {
+                if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                    err(EXIT_FAILURE, "dup2");
+                }
+            }
+
+            for (size_t j = 0; j < count - 1; j++) {
+                close(pipes[j][0]);
+                close(pipes[j][1]);
+            }
+
+            if (is_interactive) {
+                char dummy;
+                if (read(pgid_pipe[0], &dummy, 1) < 0) {
+                    _Exit(EXIT_FAILURE);
+                }
+
+                close(pgid_pipe[0]);
+            }
+
+            signal(SIGINT, SIG_DFL);
+            signal(SIGTSTP, SIG_DFL);
+            signal(SIGQUIT, SIG_DFL);
+            signal(SIGTTIN, SIG_DFL);
+            signal(SIGTTOU, SIG_DFL);
+
+            execvp(pipeline->commands[i].argv[0], pipeline->commands[i].argv);
+            err(EXIT_FAILURE, "%s", pipeline->commands[i].argv[0]);
+        }
+
+        pids[i] = pid;
+        spawned++;
+
+        if (pgid == 0) {
+            pgid = pid;
+        }
+
+        if (setpgid(pid, pgid) < 0) {
+            if (errno != ESRCH) {
+                warn("setpgid");
+                goto error;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < count - 1; i++) {
+        close(pipes[i][0]);
+        close(pipes[i][1]);
+    }
+
+    free(pipes);
+    pipes = NULL;
+
+    if (is_interactive) {
+        if (tcsetpgrp(STDIN_FILENO, pgid) < 0) {
+            warn("tcsetpgrp");
+            goto error;
+        }
+
+        close(pgid_pipe[1]);
+        pgid_pipe[1] = -1;
+
+        close(pgid_pipe[0]);
+        pgid_pipe[0] = -1;
+    }
+
+    int last_pipeline_status = EXIT_SUCCESS;
+
+    for (size_t i = 0; i < count; i++) {
+        pid_t ret;
+        int status;
+
+        do {
+            ret = waitpid(pids[i], &status, 0);
+        } while (ret < 0 && errno == EINTR);
+
+        if (ret < 0) {
+            warn("waitpid");
+
+            if (i == count - 1) {
+                last_pipeline_status = EXIT_FAILURE;
+            }
+
+            continue;
+        }
+
+        if (i == count - 1) {
+            if (WIFEXITED(status)) {
+                last_pipeline_status = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                int sig = WTERMSIG(status);
+
+                last_pipeline_status = 128 + sig;
+
+                if (is_interactive) {
+                    if (sig == SIGINT) {
+                        fputc('\n', stdout);
+                    } else {
+                        warnx("%s", strsignal(sig));
+                    }
+                }
+            }
+        }
+    }
+
+    if (is_interactive) {
+        if (tcsetpgrp(STDIN_FILENO, shell_pgid) < 0) {
+            err(EXIT_FAILURE, "tcsetpgrp");
+        }
+    }
+
+    free(pids);
+
+    return last_pipeline_status;
+
+error:
+    if (pipes) {
+        for (size_t i = 0; i < count - 1; i++) {
+            close(pipes[i][0]);
+            close(pipes[i][1]);
+        }
+
+        free(pipes);
+    }
+
+    if (is_interactive) {
+        if (pgid_pipe[1] != -1) {
+            close(pgid_pipe[1]);
+            pgid_pipe[1] = -1;
+        }
+
+        if (pgid_pipe[0] != -1) {
+            close(pgid_pipe[0]);
+            pgid_pipe[0] = -1;
+        }
+    }
+
+    if (pgid != 0) {
+        kill(-pgid, SIGTERM);
+    }
+
+    for (size_t i = 0; i < spawned; i++) {
+        while (waitpid(pids[i], NULL, 0) < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            break;
+        }
+    }
+
+    if (is_interactive) {
+        tcsetpgrp(STDIN_FILENO, shell_pgid);
+    }
+
+    free(pids);
+
+    return EXIT_FAILURE;
+}
+
+static void usage(void) {
+    fprintf(stderr, "usage: sh [-i] [-c COMMAND]\n");
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char* argv[]) {
     bool force_interactive = false;
-    bool run_command = false;
-
-    char* command = NULL;
-    int args_index = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "c:i")) != -1) {
-        if (args_index > 0) {
-            break; 
-        }
-
+    while ((c = getopt(argc, argv, "i")) != -1) {
         switch (c) {
-            case 'c':
-                run_command = true;
-                command = optarg;
-
-                if (strcmp(command, "--") == 0) {
-                    args_index = optind;
-                }
-                break;
             case 'i':
                 force_interactive = true;
                 break;
@@ -188,27 +509,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (run_command) {
-        int ret = EXIT_SUCCESS;
-
-        if (args_index != 0) {
-            if (argc - args_index == 1) {
-                char** command_argv;
-                int command_argc = split_args(argv[args_index], &command_argv);
-
-                ret = execute(command_argc, command_argv);
-
-                free(command_argv);
-            } else {
-                ret = execute(argc - args_index, &argv[args_index]);
-            }
-        } else {
-            ret = execute(1, (char* []) { command, NULL });
-        }
-
-        return ret;
-    }
-
     input = stdin;
     if (argc > 1) {
         input = fopen(argv[1], "r");
@@ -217,11 +517,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (run_command) {
-        is_interactive = force_interactive;
-    } else {
-        is_interactive = force_interactive || isatty(fileno(input));
-    }
+    is_interactive = force_interactive || isatty(fileno(input));
 
     if (is_interactive) {
         shell_pgid = getpid();
@@ -270,12 +566,28 @@ int main(int argc, char* argv[]) {
 
         history_push(line_buf);
 
-        char** argv;
-        int argc = split_args(line_buf, &argv);
+        struct token* tokens;
 
-        last_status = execute(argc, argv);
+        int token_count = tokenize(line_buf, &tokens);
+        if (token_count < 0) {
+            continue;
+        }
 
-        free(argv);
+        if (token_count == 0) {
+            tokens_free(tokens, token_count);
+            continue;
+        }
+
+        struct pipeline pipeline;
+        if (parse_pipeline(tokens, token_count, &pipeline) < 0) {
+            tokens_free(tokens, token_count);
+            continue;
+        }
+
+        last_status = execute_pipeline(&pipeline);
+
+        free_pipeline(&pipeline);
+        tokens_free(tokens, token_count);
     }
 
     if (input != stdin) {

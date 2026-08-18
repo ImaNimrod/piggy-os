@@ -1,6 +1,8 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,25 +78,32 @@ int main(int argc, char* argv[]) {
     bool verbose = false;
 
     char* end_ptr;
+    uintmax_t value;
 
     int c;
     while ((c = getopt(argc, argv, "c:n:qvz")) != -1) {
         switch (c) {
             case 'c':
                 errno = 0;
-                byte_count = strtol(optarg, &end_ptr, 10);
-                if (errno != 0 || byte_count < 0 || optarg == end_ptr || *end_ptr) {
+
+                value = strtoumax(optarg, &end_ptr, 10);
+                if (errno != 0 || optarg == end_ptr || *end_ptr || value == 0 || value > SSIZE_MAX) {
                     warnx("invalid byte count: '%s'", optarg);
                     usage();
                 }
+
+                byte_count = (ssize_t) value;
                 break;
             case 'n':
                 errno = 0;
-                line_count = strtol(optarg, &end_ptr, 10);
-                if (errno != 0 || line_count < 0 || optarg == end_ptr || *end_ptr) {
+
+                value = strtoumax(optarg, &end_ptr, 10);
+                if (errno != 0 || optarg == end_ptr || *end_ptr || value == 0 || value > SSIZE_MAX) {
                     warnx("invalid line count: '%s'", optarg);
                     usage();
                 }
+
+                line_count = (ssize_t) value;
                 break;
             case 'q':
                 quiet = true;

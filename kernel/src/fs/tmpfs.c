@@ -18,7 +18,7 @@
 
 struct tmpfs_filesystem {
     struct vfs_filesystem;
-    ino_t inode_counter;
+    _Atomic(ino_t) inode_counter;
 };
 
 struct tmpfs_node {
@@ -111,7 +111,7 @@ static struct tmpfs_node* create_node(vfs_type_t type, struct vfs_filesystem* fi
     }
 
     node->stat.st_dev = 0;
-    node->stat.st_ino = __atomic_add_fetch(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, __ATOMIC_SEQ_CST);
+    node->stat.st_ino = atomic_fetch_add_explicit(&((struct tmpfs_filesystem*) filesystem)->inode_counter, 1, memory_order_relaxed);
     node->stat.st_mode = vfs_type_to_mode(type);
     node->stat.st_nlink = type == VFS_TYPE_DIRECTORY ? 2 : 1;
     node->stat.st_rdev = 0;

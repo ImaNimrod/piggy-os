@@ -168,6 +168,7 @@ int main(int argc, char* argv[]) {
                 break;
             case 'n':
                 errno = 0;
+
                 print_line_count = strtoumax(optarg, &end_ptr, 10);
                 if (errno != 0 || end_ptr == optarg || *end_ptr) {
                     warnx("invalid line count: '%s'", optarg);

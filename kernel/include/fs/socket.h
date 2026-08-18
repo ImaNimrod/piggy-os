@@ -15,6 +15,7 @@
 #define SOCK_STREAM 3
 
 #define IPPROTO_ICMP    1
+#define IPPROTO_TCP     6
 #define IPPROTO_UDP     17
 
 #define SHUT_RD     (1 << 0)
@@ -48,6 +49,7 @@ struct socket_ops {
     ssize_t (*send)(struct socket_node*, const void*, size_t, const struct sockaddr*, socklen_t);
     ssize_t (*getpeername)(struct socket_node*, struct sockaddr*, socklen_t);
     ssize_t (*getsockname)(struct socket_node*, struct sockaddr*, socklen_t);
+    int (*shutdown)(struct socket_node*, int);
     short (*poll)(struct socket_node*, short, struct poll_table*);
     void (*destroy)(struct socket_node*);
 };
@@ -65,6 +67,5 @@ struct socket_node {
 };
 
 int socket_create(int family, int type, int protocol, struct vfs_node** ret);
-int socket_shutdown(struct socket_node* snode, int how);
 
 #endif /* _KERNEL_FS_SOCKET_H */ 

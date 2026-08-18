@@ -177,7 +177,7 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     while (input_buf_index == 0) {
         spinlock_release(&read_lock);
 
-        if ((ret = wait_queue_wait(&read_wq)) < 0) {
+        if ((ret = wait_queue_wait(&read_wq, true)) < 0) {
             return ret;
         }
 
@@ -257,7 +257,7 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
         case TIOCGPGRP:
             ret = user_memcpy_to_user(argp, (const void*) &foreground_pgid, sizeof(pid_t));
             break;
-        case TIOCSPGRP:
+        case TIOCSPGRP: {
             pid_t new_foreground_pgid;
             if ((ret = user_memcpy_from_user((void*) &new_foreground_pgid, argp, sizeof(pid_t))) < 0) {
                 break;
@@ -268,21 +268,26 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
                 break;
             }
 
-            if (process_group_find_by_pgid(new_foreground_pgid) == NULL) {
-                ret = -ESRCH;
-            } else {
+            struct process_group* group = process_group_find(new_foreground_pgid);
+            if (group) {
                 foreground_pgid = new_foreground_pgid;
+                process_group_unref(group);
+            } else {
+                ret = -ESRCH;
             }
             break;
+        }
         case TIOCGWINSZ:
             ret = user_memcpy_to_user(argp, (const void*) &winsize, sizeof(struct winsize));
             break;
-        case TIOCSWINSZ:
-            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
-            if (group != NULL) {
+        case TIOCSWINSZ: {
+            struct process_group* group = process_group_find(foreground_pgid);
+            if (group) {
                 signal_send_process_group(group, SIGWINCH);
+                process_group_unref(group);
             }
             break;
+        }
         default:
             ret = -ENOTTY;
             break;
@@ -349,27 +354,30 @@ void tty_add_char(char c) {
 
     if (termios.c_lflag & ISIG) {
         if (c == termios.c_cc[VINTR]) {
-            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            struct process_group* group = process_group_find(foreground_pgid);
             if (group != NULL) {
                 signal_send_process_group(group, SIGINT);
+                process_group_unref(group);
             }
 
             goto end;
         }
 
         if (c == termios.c_cc[VQUIT]) {
-            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            struct process_group* group = process_group_find(foreground_pgid);
             if (group != NULL) {
                 signal_send_process_group(group, SIGQUIT);
+                process_group_unref(group);
             }
 
             goto end;
         }
 
         if (c == termios.c_cc[VSUSP]) {
-            struct process_group* group = process_group_find_by_pgid(foreground_pgid);
+            struct process_group* group = process_group_find(foreground_pgid);
             if (group != NULL) {
                 signal_send_process_group(group, SIGTSTP);
+                process_group_unref(group);
             }
 
             goto end;

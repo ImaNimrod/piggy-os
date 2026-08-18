@@ -54,6 +54,7 @@ static ssize_t udp_recv(struct socket_node* node, void* buf, size_t count, struc
 static ssize_t udp_send(struct socket_node* node, const void* buf, size_t count, const struct sockaddr* addr, socklen_t addr_len);
 static ssize_t udp_getsockname(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
 static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr, socklen_t addr_len);
+static int udp_shutdown(struct socket_node* node, int how);
 static short udp_poll(struct socket_node* node, short events, struct poll_table* pt);
 static void udp_destroy(struct socket_node* node);
 
@@ -64,6 +65,7 @@ static struct socket_ops udp_sockops = {
     .send = udp_send,
     .getsockname = udp_getsockname,
     .getpeername = udp_getpeername,
+    .shutdown = udp_shutdown,
     .poll = udp_poll,
     .destroy = udp_destroy,
 };
@@ -211,7 +213,7 @@ static ssize_t udp_recv(struct socket_node* node, void* buf, size_t count, struc
     while (!socket->rx_head) {
         mutex_release(&socket->mutex);
 
-        int ret = wait_queue_wait(&socket->rx_wq);
+        int ret = wait_queue_wait(&socket->rx_wq, true);
         if (ret < 0) {
             return ret;
         }
@@ -406,6 +408,19 @@ static ssize_t udp_getpeername(struct socket_node* node, struct sockaddr* addr, 
     return sizeof(struct sockaddr_in);
 }
 
+static int udp_shutdown(struct socket_node* node, int how) {
+    if (how & ~SHUT_RDWR) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(&node->mutex);
+
+    node->shutdown |= how;
+
+    mutex_release(&node->mutex);
+    return 0;
+}
+
 static short udp_poll(struct socket_node* node, short events, struct poll_table* pt) {
     struct udp_socket* socket = (struct udp_socket*) node;
 
@@ -413,7 +428,7 @@ static short udp_poll(struct socket_node* node, short events, struct poll_table*
 
     short revents = 0;
 
-    if (events & POLLIN) {
+    if (events & POLLIN && !(socket->shutdown & SHUT_RD)) {
         if (socket->rx_head) {
             revents |= POLLIN;
         } else {
@@ -421,7 +436,7 @@ static short udp_poll(struct socket_node* node, short events, struct poll_table*
         }
     }
 
-    if (events & POLLOUT) {
+    if (events & POLLOUT && !(socket->shutdown & SHUT_WR)) {
         revents |= POLLOUT;
     }
 

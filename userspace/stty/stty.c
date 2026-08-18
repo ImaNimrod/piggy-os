@@ -148,6 +148,7 @@ static cc_t parse_mintime(const char* string) {
     char* end_ptr;
 
     errno = 0;
+
     uintmax_t value = strtoumax(string, &end_ptr, 10);
     if (errno != 0 || end_ptr == string || *end_ptr || value != (cc_t) value) {
         errx(EXIT_FAILURE, "invalid mintime quantity: %s", string);
@@ -164,6 +165,7 @@ static unsigned short parse_winsize(const char* string) {
     char* end_ptr;
 
     errno = 0;
+
     uintmax_t value = strtoumax(string, &end_ptr, 10);
     if (errno != 0 || end_ptr == string || *end_ptr || value != (unsigned short) value) {
         errx(EXIT_FAILURE, "invalid window size: %s", string);

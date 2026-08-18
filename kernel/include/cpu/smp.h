@@ -18,6 +18,9 @@ struct cpu_local {
     struct gdt gdt;
     struct tss tss;
 
+    uint64_t (*read_fs_base)(void);
+    void (*write_fs_base)(uint64_t);
+
     size_t fpu_context_size;
     void (*fpu_save)(void*);
     void (*fpu_restore)(void*);

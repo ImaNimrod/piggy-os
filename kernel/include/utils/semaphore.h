@@ -1,17 +1,15 @@
 #ifndef _KERNEL_UTILS_SEMAPHORE_H
 #define _KERNEL_UTILS_SEMAPHORE_H
 
-#include <stdint.h>
-#include <sys/process.h>
-#include <utils/spinlock.h>
+#include <stdatomic.h>
+#include <utils/wait_queue.h>
 
 typedef struct {
-    uint64_t value;
-    struct thread* waiters;
-    spinlock_t lock;
+    atomic_uint value;
+    struct wait_queue wq;
 } semaphore_t;
 
-void semaphore_init(semaphore_t* s, uint64_t value);
+void semaphore_init(semaphore_t* s, unsigned int value);
 void semaphore_reset(semaphore_t* s);
 void semaphore_signal(semaphore_t* s);
 void semaphore_wait(semaphore_t* s);

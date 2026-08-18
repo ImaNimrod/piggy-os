@@ -3,6 +3,7 @@ sh_sources = files(
   'history.c',
   'interactive.c',
   'sh.c',
+  'tokenizer.c',
 )
 
 sh_exe = executable(

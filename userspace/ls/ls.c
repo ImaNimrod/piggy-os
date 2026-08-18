@@ -96,7 +96,7 @@ static inline char get_mode_suffix(mode_t mode) {
 static void add_entry(struct directory_listing* listing, int dirfd, char* entry_name, bool deref_link) {
     struct directory_entry* entry = malloc(sizeof(struct directory_entry));
     if (!entry) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     entry->name = strdup(entry_name);
@@ -114,7 +114,7 @@ static void add_entry(struct directory_listing* listing, int dirfd, char* entry_
     if (S_ISLNK(entry->stat.st_mode) && output == output_long) {
         entry->link_target = malloc(PATH_MAX);
         if (!entry->link_target) {
-            err(EXIT_FAILURE, "malloc");
+            errx(EXIT_FAILURE, "malloc");
         }
 
         ssize_t nread = readlinkat(dirfd, entry->name, entry->link_target, PATH_MAX);

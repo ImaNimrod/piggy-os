@@ -15,7 +15,7 @@ struct out_file {
 static void add_file(struct out_file** head, int fd, const char* filename) {
     struct out_file* node = malloc(sizeof(struct out_file));
     if (!node) {
-        err(EXIT_FAILURE, "malloc");
+        errx(EXIT_FAILURE, "malloc");
     }
 
     node->fd = fd;

@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 
 #include <err.h>
+#include <resolv.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,7 +146,7 @@ static void apply_config(struct dhcp_context* ctx) {
         err(EXIT_FAILURE, "ioctl(SIOCADDRT)");
     }
 
-    FILE* fp = fopen("/etc/resolv.conf", "w");
+    FILE* fp = fopen(_PATH_RESCONF, "w");
     if (!fp) {
         err(EXIT_FAILURE, "fopen");
     }

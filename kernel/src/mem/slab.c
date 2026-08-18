@@ -241,6 +241,8 @@ void slab_init(void) {
     cache_cache.object_size = sizeof(struct slab_cache);
     cache_cache.pages_per_slab = DIV_CEIL(sizeof(struct slab_cache) * OBJECTS_PER_SLAB + sizeof(struct slab) + OBJECTS_PER_SLAB, PAGE_SIZE_4KB);
 
+    spinlock_init(&cache_cache.lock);
+
     kmalloc_caches[0] = slab_cache_create("kmalloc_16 cache", 16);
     kmalloc_caches[1] = slab_cache_create("kmalloc_24 cache", 24);
     kmalloc_caches[2] = slab_cache_create("kmalloc_32 cache", 32);
@@ -288,6 +290,11 @@ void* kmallocz(size_t size) {
 }
 
 void* krealloc(void* ptr, size_t size) {
+    if (unlikely(size == 0)) {
+        kfree(ptr);
+        return NULL;
+    }
+
     if (unlikely(!ptr)) {
         return kmalloc(size);
     }

@@ -443,6 +443,7 @@ void* vmm_map(struct vmm_context* context, uintptr_t address, size_t size, int p
     mutex_acquire(&context->mutex);
 
     void* ret = NULL;
+
     struct vmm_range* range = slab_cache_alloc(vmm_range_cache);
     if (unlikely(!range)) {
         goto end;

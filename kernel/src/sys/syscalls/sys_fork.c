@@ -23,5 +23,7 @@ void sys_fork(struct registers* r) {
         return;
     }
 
+    scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
+
     r->rax = new_process->pid;
 }

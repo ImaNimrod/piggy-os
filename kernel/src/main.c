@@ -177,9 +177,11 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
 
     smp_init();
 
-    if (unlikely(!thread_create_kernel((uintptr_t) kernel_main, NULL))) {
+    struct thread* kernel_main_thread = thread_create_kernel((uintptr_t) kernel_main, NULL);
+    if (unlikely(!kernel_main_thread)) {
         kpanic(NULL, false, "failed to create kernel main thread");
     }
 
+    scheduler_enqueue(&kernel_main_thread->cpu->scheduler, kernel_main_thread);
     scheduler_await();
 }
