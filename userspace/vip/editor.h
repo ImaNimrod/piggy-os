@@ -56,6 +56,11 @@ struct editor_state {
     char command_buf[256];
     size_t command_length;
 
+    bool search_active;
+    char search_buf[256];
+    size_t search_length;
+    bool search_reverse;
+
     struct {
         size_t y;
         size_t x;
@@ -83,6 +88,8 @@ bool editor_join_lines(struct editor_state *state);
 bool editor_paste(struct editor_state* state);
 bool editor_replace_char(struct editor_state* state, char c);
 void editor_scroll(struct editor_state* state);
+bool editor_search_backward(struct editor_state* state, const char* pattern, size_t length);
+bool editor_search_forward(struct editor_state* state, const char* pattern, size_t length);
 void editor_set_mode(struct editor_state* state, enum mode mode);
 bool editor_yank_range(struct editor_state* state, const struct range* range);
 

@@ -38,15 +38,19 @@ int main(int argc, char* argv[]) {
         }
 
         size_t offset = 0;
+
         for (int i = 0; i < argc; i++) {
-            offset += sprintf(result + offset, "%s", argv[i]);
+            size_t len = strlen(argv[i]);
+
+            memcpy(result + offset, argv[i], len);
+            offset += len;
+
             if (argv[i + 1]) {
                 result[offset++] = ' ';
             }
         }
 
         result[offset++] = '\n';
-        result[offset] = '\0';
 
         out = result;
         out_len = offset;

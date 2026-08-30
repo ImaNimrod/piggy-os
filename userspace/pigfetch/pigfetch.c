@@ -1,6 +1,8 @@
 #include <sys/utsname.h>
 
+#include <cpuid.h>
 #include <err.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -32,6 +34,42 @@ static const char* logo[] = {
     "                         @@@@@@@@@@@@@@                            ",
 };
 
+static void get_cpu_name(char* buf, size_t len) {
+    uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
+
+    if (!__get_cpuid(0x80000002, &eax, &ebx, &ecx, &edx)) {
+        goto error;
+    }
+
+    ((uint32_t*) buf)[0] = eax;
+    ((uint32_t*) buf)[1] = ebx;
+    ((uint32_t*) buf)[2] = ecx;
+    ((uint32_t*) buf)[3] = edx;
+
+    if (!__get_cpuid(0x80000003, &eax, &ebx, &ecx, &edx)) {
+        goto error;
+    }
+
+    ((uint32_t*) buf)[4] = eax;
+    ((uint32_t*) buf)[5] = ebx;
+    ((uint32_t*) buf)[6] = ecx;
+    ((uint32_t*) buf)[7] = edx;
+
+    if (!__get_cpuid(0x80000004, &eax, &ebx, &ecx, &edx)) {
+        goto error;
+    }
+
+    ((uint32_t*) buf)[8] = eax;
+    ((uint32_t*) buf)[9] = ebx;
+    ((uint32_t*) buf)[10] = ecx;
+    ((uint32_t*) buf)[11] = edx;
+
+    return;
+
+error:
+    snprintf(buf, len, "Unknown");
+}
+
 int main(void) {
     struct utsname uts;
     if (uname(&uts) < 0) {
@@ -43,7 +81,13 @@ int main(void) {
     snprintf(line2, sizeof(line2), "\033[1;34mHost\033[0m: %s", uts.nodename);
     snprintf(line3, sizeof(line3), "\033[1;34mKernel\033[0m: %s (%s)", uts.release, uts.version);
 
-    const char* text[] = { "pigfetch", "--------", line1, line2, line3 };
+    char cpu[48];
+    get_cpu_name(cpu, sizeof(cpu));
+
+    char line4[200];
+    snprintf(line4, sizeof(line4), "\033[1;34mCPU\033[0m: %s", cpu);
+
+    const char* text[] = { "pigfetch", "--------", line1, line2, line3, line4 };
 
     size_t logo_lines = SIZEOF_ARRAY(logo);
     size_t text_lines = SIZEOF_ARRAY(text);

@@ -3,6 +3,8 @@
 
 #include <ctype.h>
 #include <err.h>
+#include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +22,8 @@ struct abuf {
     size_t capacity;
 };
 
+static volatile sig_atomic_t resize_pending;
+
 static struct termios old_termios;
 static struct editor_state state;
 
@@ -34,6 +38,11 @@ static inline const char* mode_to_string(enum mode mode) {
         default:
             __builtin_unreachable();
     }
+}
+
+static void handle_sigwinch(int signum) {
+    (void) signum;
+    resize_pending = 1;
 }
 
 static void ab_append(struct abuf* ab, const char* s, size_t length) {
@@ -61,56 +70,17 @@ static void ab_free(struct abuf* ab) {
     free(ab->buf);
 }
 
-static void draw_status_bar(struct editor_state* state, struct abuf* out) {
-    const char* filename;
-    if (state->filename) {
-        char* basename = strrchr(state->filename, '/');
-        filename = basename ? basename + 1 : state->filename;
-    } else {
-        filename = "[No Name]";
-    }
-
-    char left[256];
-    int left_length = snprintf(left, sizeof(left), " %s | %s ",
-            mode_to_string(state->mode), filename);
-
-    char right[64];
-    int right_length = snprintf(right, sizeof(right), "%zu%% %zu:%zu",
-            ((state->cursor.y + 1) * 100 / state->row_count), state->cursor.y + 1, state->cursor.x + 1);
-
-    ab_append(out, "\033[7m", 4);
-
-    char buf[32];
-    int length = snprintf(buf, sizeof(buf), "\033[%d;1H", state->winsize.ws_row - 1);
-    ab_append(out, buf, length);
-
-    ab_append(out, left, left_length);
-
-    size_t padding = state->winsize.ws_col - left_length - right_length;
-    while (padding--) {
-        ab_append(out, " ", 1);
-    }
-
-    ab_append(out, right, right_length);
-
-    ab_append(out, "\033[m", 3);
-
-    length = snprintf(buf, sizeof(buf), "\033[%d;1H", state->winsize.ws_row);
-    ab_append(out, buf, length);
-
-    ab_append(out, "\033[K", 3);
-
-    if (state->mode == MODE_COMMAND) {
-        ab_append(out, ":", 1);
-        ab_append(out, state->command_buf, state->command_length);
-    }
-}
-
 static bool execute_command(struct editor_state* state) {
     char filename[PATH_MAX];
     if (sscanf(state->command_buf, "e %255s", filename) == 1) {
+        struct editor_state new_state;
+        if (!editor_create(&new_state, filename)) {
+            return false;
+        }
+
         editor_destroy(state);
-        editor_create(state, filename);
+        *state = new_state;
+
         return true;
     }
 
@@ -149,6 +119,10 @@ static bool handle_key(struct editor_state* state) {
     while ((nread = read(STDIN_FILENO, &c, sizeof(char))) == 0);
 
     if (nread == -1) {
+        if (errno == EINTR) {
+            return true;
+        }
+
         return false;
     }
 
@@ -367,15 +341,17 @@ static bool handle_key(struct editor_state* state) {
                     editor_set_mode(state, MODE_INSERT);
                     break;
                 case 'o':
-                    editor_insert_row(state, &EMPTY_ROW, state->cursor.y + 1);
-                    motion_line_start(state);
-                    motion_down(state);
-                    editor_set_mode(state, MODE_INSERT);
+                    if (editor_insert_row(state, &EMPTY_ROW, state->cursor.y + 1)) {
+                        state->cursor.y++;
+                        state->cursor.x = 0;
+                        editor_set_mode(state, MODE_INSERT);
+                    }
                     break;
                 case 'O':
-                    editor_insert_row(state, &EMPTY_ROW, state->cursor.y);
-                    motion_line_start(state);
-                    editor_set_mode(state, MODE_INSERT);
+                    if (editor_insert_row(state, &EMPTY_ROW, state->cursor.y)) {
+                        state->cursor.x = 0;
+                        editor_set_mode(state, MODE_INSERT);
+                    }
                     break;
                 case 'J':
                     editor_join_lines(state);
@@ -386,7 +362,35 @@ static bool handle_key(struct editor_state* state) {
                 case 'x':
                     editor_delete_char(state, true);
                     break;
+                case 'n':
+                    if (state->search_length != 0) {
+                        if (state->search_reverse) {
+                            editor_search_backward(state, state->search_buf, state->search_length);
+                        } else {
+                            editor_search_forward(state, state->search_buf, state->search_length);
+                        }
+                    }
+                    break;
+                case 'N':
+                    if (state->search_length != 0) {
+                        if (state->search_reverse) {
+                            editor_search_forward(state, state->search_buf, state->search_length);
+                        } else {
+                            editor_search_backward(state, state->search_buf, state->search_length);
+                        }
+                    }
+                    break;
                 case ':':
+                    editor_set_mode(state, MODE_COMMAND);
+                    break;
+                case '/':
+                    state->search_active = true;
+                    state->search_reverse = false;
+                    editor_set_mode(state, MODE_COMMAND);
+                    break;
+                case '?':
+                    state->search_active = true;
+                    state->search_reverse = true;
                     editor_set_mode(state, MODE_COMMAND);
                     break;
             }
@@ -418,10 +422,28 @@ static bool handle_key(struct editor_state* state) {
         case MODE_COMMAND:
             switch (c) {
                 case '\033':
+                    state->command_length = 0;
+                    state->command_buf[0] = '\0';
                     editor_set_mode(state, MODE_NORMAL);
                     break;
                 case '\r':
-                    execute_command(state);
+                    if (state->search_active) {
+                        if (state->command_length != 0) {
+                            memcpy(state->search_buf, state->command_buf, state->command_length);
+                            state->search_length = state->command_length;
+
+                            if (state->search_reverse) {
+                                editor_search_backward(state, state->search_buf, state->search_length);
+                            } else {
+                                editor_search_forward(state, state->search_buf, state->search_length);
+                            }
+                        }
+
+                        state->search_active = false;
+                    } else {
+                        execute_command(state);
+                    }
+
                     editor_set_mode(state, MODE_NORMAL);
                     break;
                 case 127:
@@ -444,6 +466,9 @@ static bool handle_key(struct editor_state* state) {
 }
 
 static void update(struct editor_state* state) {
+    size_t text_height = state->winsize.ws_row - 2;
+    size_t gutter = gutter_width(state);
+
     editor_scroll(state);
 
     struct abuf out = {};
@@ -451,70 +476,131 @@ static void update(struct editor_state* state) {
     ab_append(&out, "\033[?25l", 6);
     ab_append(&out, "\033[H", 3);
 
-    size_t gutter = gutter_width(state);
+    for (size_t y = 0; y < text_height; y++) {
+        size_t filerow = state->row_offset + y;
 
-    for (int y = 0; y < state->winsize.ws_row - 2; y++) {
-        size_t filerow = y + state->row_offset;
+        ab_append(&out, "\033[K", 3);
 
         if (filerow < state->row_count) {
-            char lbuf[32];
-
-            if (filerow == state->cursor.y) {
-                ab_append(&out, "\033[93m", 5); // yellow
-            } else {
-                ab_append(&out, "\033[90m", 5); // gray
-            }
-
-            int length = snprintf(lbuf, sizeof(lbuf), " %*zu ", (int) (gutter - 1), filerow + 1);
-            ab_append(&out, lbuf, length);
-
-            ab_append(&out, "\033[39m", 5);
-
             struct row* row = &state->rows[filerow];
 
+            char lbuf[32];
+
+            int length = snprintf(lbuf, sizeof(lbuf), " %*zu ", (int)(gutter - 1), filerow + 1);
+
+            if (filerow == state->cursor.y) {
+                ab_append(&out, "\033[93m", 5);
+            } else {
+                ab_append(&out, "\033[90m", 5);
+            }
+
+            ab_append(&out, lbuf, length);
+            ab_append(&out, "\033[39m", 5);
+
             if (state->col_offset < row->length) {
-                size_t len = MIN(row->length - state->col_offset, state->winsize.ws_col - gutter);
-                ab_append(&out, row->buf + state->col_offset, len);
+                size_t available = state->winsize.ws_col - gutter;
+                size_t length = MIN(row->length - state->col_offset, available);
+
+                ab_append(&out, row->buf + state->col_offset, length);
             }
         } else {
             char lbuf[32];
             int length = snprintf(lbuf, sizeof(lbuf), "%*s ", (int)(gutter - 1), "~");
+
+            ab_append(&out, "\033[90m", 5);
             ab_append(&out, lbuf, length);
+            ab_append(&out, "\033[39m", 5);
         }
 
-        ab_append(&out, "\033[K", 3);
-
-        if (y < state->winsize.ws_row - 1) {
+        if (y + 1 < text_height) {
             ab_append(&out, "\r\n", 2);
         }
     }
 
-    draw_status_bar(state, &out);
-
-    int screen_y = state->cursor.y - state->row_offset;
-    int screen_x = state->cursor.x - state->col_offset + gutter + 1;
-
-    if (screen_y < 0) {
-        screen_y = 0;
-    }
-    if (screen_x < 0) {
-        screen_x = 0;
-    }
-    if (screen_y >= state->winsize.ws_row - 2) {
-        screen_y = state->winsize.ws_row - 3;
-    }
-    if (screen_x >= state->winsize.ws_col) {
-        screen_x = state->winsize.ws_col - 1;
-    }
+    ab_append(&out, "\033[7m", 4);
 
     char buf[32];
-    int length = snprintf(buf, sizeof(buf), "\033[%d;%dH", screen_y + 1, screen_x + 1);
+    int length = snprintf(buf, sizeof(buf), "\033[%zu;1H", text_height + 1);
 
     ab_append(&out, buf, length);
 
+    ab_append(&out, "\033[K", 3);
+
+    const char* filename;
+
+    if (state->filename) {
+        char* basename = strrchr(state->filename, '/');
+        filename = basename ? basename + 1 : state->filename;
+    } else {
+        filename = "[No Name]";
+    }
+
+    char left[256];
+    int left_length = snprintf(left, sizeof(left), " %s | %s ",
+            mode_to_string(state->mode), filename);
+
+    char right[64];
+    int right_length = snprintf(right, sizeof(right), "%zu%% %zu:%zu",
+            (state->cursor.y + 1) * 100 / state->row_count, state->cursor.y + 1, state->cursor.x + 1);
+
+    ab_append(&out, left, left_length);
+
+    if ((size_t)(left_length + right_length) < state->winsize.ws_col) {
+        size_t padding =
+            state->winsize.ws_col - left_length - right_length;
+
+        while (padding--) {
+            ab_append(&out, " ", 1);
+        }
+    }
+
+    ab_append(&out, right, right_length);
+
+    ab_append(&out, "\033[m", 3);
+
+    length = snprintf(buf, sizeof(buf), "\033[%zu;1H", text_height + 2);
+
+    ab_append(&out, buf, length);
+    ab_append(&out, "\033[K", 3);
+
+    if (state->mode == MODE_COMMAND) {
+        if (state->search_active) {
+            char prompt = state->search_reverse ? '?' : '/';
+            ab_append(&out, &prompt, 1);
+            ab_append(&out, state->command_buf, state->command_length);
+        } else {
+            ab_append(&out, ":", 1);
+            ab_append(&out, state->command_buf, state->command_length);
+        }
+    }
+
+    int screen_y = (int)(state->cursor.y - state->row_offset) + 1;
+
+    int screen_x = (int)(state->cursor.x - state->col_offset) + (int)gutter + 1;
+
+    if (screen_y < 1) {
+        screen_y = 1;
+    }
+
+    if (screen_y > (int) text_height) {
+        screen_y = (int) text_height;
+    }
+
+    if (screen_x < 1) {
+        screen_x = 1;
+    }
+
+    if (screen_x > (int)state->winsize.ws_col) {
+        screen_x = (int)state->winsize.ws_col;
+    }
+
+    length = snprintf(buf, sizeof(buf), "\033[%d;%dH", screen_y, screen_x);
+
+    ab_append(&out, buf, length);
     ab_append(&out, "\033[?25h", 6);
 
     write(STDOUT_FILENO, out.buf, out.length);
+
     ab_free(&out);
 }
 
@@ -568,6 +654,17 @@ int main(int argc, char* argv[]) {
         err(EXIT_FAILURE, "tcsetattr");
     }
 
+    struct sigaction sa = {
+        .sa_handler = handle_sigwinch,
+        .sa_flags = 0,
+    };
+
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGWINCH, &sa, NULL) < 0) {
+        err(EXIT_FAILURE, "sigaction(SIGWINCH)");
+    }
+
     int ret = EXIT_SUCCESS;
 
     if (argc == 0) {
@@ -576,8 +673,18 @@ int main(int argc, char* argv[]) {
         }
 
         while (!state.quit) {
+            if (resize_pending) {
+                resize_pending = 0;
+
+                if (ioctl(STDIN_FILENO, TIOCGWINSZ, &state.winsize) < 0) {
+                    err(EXIT_FAILURE, "ioctl(TIOCGWINSZ)");
+                }
+            }
+
             update(&state);
-            handle_key(&state);
+            if (!handle_key(&state)) {
+                state.quit = true;
+            }
         }
 
         editor_destroy(&state);
@@ -589,8 +696,18 @@ int main(int argc, char* argv[]) {
             }
 
             while (!state.quit) {
+                if (resize_pending) {
+                    resize_pending = 0;
+
+                    if (ioctl(STDIN_FILENO, TIOCGWINSZ, &state.winsize) < 0) {
+                        err(EXIT_FAILURE, "ioctl(TIOCGWINSZ)");
+                    }
+                }
+
                 update(&state);
-                handle_key(&state);
+                if (!handle_key(&state)) {
+                    state.quit = true;
+                }
             }
 
             editor_destroy(&state);

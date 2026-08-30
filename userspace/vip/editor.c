@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -39,6 +41,43 @@ static inline char* xstrndup(const char* str, size_t n) {
     return ret;
 }
 
+static bool find_in_row_backward(struct row* row, size_t end, const char* pattern, size_t length, size_t* result) {
+    if (length == 0 || end < length) {
+        return false;
+    }
+
+    size_t start = end - length;
+
+    for (;;) {
+        if (memcmp(row->buf + start, pattern, length) == 0) {
+            *result = start;
+            return true;
+        }
+
+        if (start == 0) {
+            break;
+        }
+
+        start--;
+    }
+
+    return false;
+}
+
+static bool find_in_row_forward(struct row* row, size_t start, const char* pattern, size_t length, size_t* result) {
+    if (length == 0 || start > row->length) {
+        return false;
+    }
+
+    void* p = memmem(row->buf + start, row->length - start, pattern, length);
+    if (!p) {
+        return false;
+    }
+
+    *result = (char*)p - row->buf;
+    return true;
+}
+
 bool editor_create(struct editor_state* state, const char* filename) {
     memset(state, 0, sizeof(struct editor_state));
 
@@ -53,17 +92,22 @@ bool editor_create(struct editor_state* state, const char* filename) {
         if (!fp) {
             if (errno != ENOENT) {
                 warn("%s", filename);
+                free(state->filename);
                 return false;
             }
         } else {
             struct stat stat;
             if (fstat(fileno(fp), &stat) < 0) {
                 warn("failed to stat %s", filename);
+                fclose(fp);
+                free(state->filename);
                 return false;
             }
 
             if (!S_ISREG(stat.st_mode)) {
                 warnx("%s is not a regular file", filename);
+                fclose(fp);
+                free(state->filename);
                 return false;
             }
 
@@ -418,6 +462,8 @@ bool editor_replace_char(struct editor_state* state, char c) {
 }
 
 void editor_scroll(struct editor_state* state) {
+    size_t text_height = state->winsize.ws_row - 2;
+
     if (state->cursor.y < state->row_offset + SCROLLOFF) {
         if (state->cursor.y < SCROLLOFF) {
             state->row_offset = 0;
@@ -426,8 +472,8 @@ void editor_scroll(struct editor_state* state) {
         }
     }
 
-    if (state->cursor.y >= state->row_offset + state->winsize.ws_row - SCROLLOFF) {
-        state->row_offset = state->cursor.y - state->winsize.ws_row + SCROLLOFF + 1;
+    if (state->cursor.y >= state->row_offset + text_height - SCROLLOFF) {
+        state->row_offset = state->cursor.y - text_height + SCROLLOFF + 1;
     }
 
     if (state->cursor.x < state->col_offset + SCROLLOFF) {
@@ -447,6 +493,68 @@ void editor_scroll(struct editor_state* state) {
     }
 
     state->cursor.x = MIN(state->cursor.x, state->rows[state->cursor.y].length);
+}
+
+bool editor_search_backward(struct editor_state* state, const char* pattern, size_t length) {
+    if (length == 0) {
+        return false;
+    }
+
+    size_t y = state->cursor.y;
+    size_t x = state->cursor.x;
+    if (x > 0) {
+        state->cursor.x--;
+    }
+
+    for (size_t n = 0; n < state->row_count; n++) {
+        struct row* row = &state->rows[y];
+
+        size_t found;
+        if (find_in_row_backward(row, x, pattern, length, &found)) {
+            state->cursor.y = y;
+            state->cursor.x = found + 1;
+            return true;
+        }
+
+        if (y == 0) {
+            y = state->row_count - 1;
+        } else {
+            y--;
+        }
+
+        x = state->rows[y].length;
+    }
+
+    return false;
+}
+
+bool editor_search_forward(struct editor_state* state, const char* pattern, size_t length) {
+    if (length == 0) {
+        return false;
+    }
+
+    size_t y = state->cursor.y;
+    size_t x = state->cursor.x + 1;
+
+    for (size_t n = 0; n < state->row_count; n++) {
+        struct row* row = &state->rows[y];
+
+        size_t found;
+        if (find_in_row_forward(row, x, pattern, length, &found)) {
+            state->cursor.y = y;
+            state->cursor.x = found + 1;
+            return true;
+        }
+
+        y++;
+        if (y >= state->row_count) {
+            y = 0;
+        }
+
+        x = 0;
+    }
+
+    return false;
 }
 
 void editor_set_mode(struct editor_state* state, enum mode mode) {
@@ -480,6 +588,8 @@ bool editor_yank_range(struct editor_state* state, const struct range* range) {
     struct row* row = &state->rows[range->y];
 
     if (range->line) {
+        free(state->yank_buf);
+
         state->yank_buf = xmalloc(row->length + 2);
 
         memcpy(state->yank_buf, row->buf, row->length);

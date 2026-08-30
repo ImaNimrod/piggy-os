@@ -186,7 +186,7 @@ static bool set_hostname(config_t* config) {
     return true;
 }
 
-static void signal_handler(int signal);
+static void signal_handler(int signum);
 
 static bool setup_signals(void) {
     struct sigaction sa;
@@ -220,12 +220,12 @@ static bool setup_tempdir(void) {
     return true;
 }
 
-static void signal_handler(int signal) {
+static void signal_handler(int signum) {
     int op = 0;
 
-    if (signal == SIGINT) {
+    if (signum == SIGINT) {
         op = POWERCTL_REBOOT;
-    } else if (signal == SIGUSR1) {
+    } else if (signum == SIGUSR1) {
         op = POWERCTL_SHUTDOWN;
     }
 

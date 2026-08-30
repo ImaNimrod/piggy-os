@@ -52,8 +52,8 @@ static uint16_t checksum(void* buf, size_t len) {
     return ~sum;
 }
 
-static void sigint_handler(int signal) {
-    (void) signal;
+static void sigint_handler(int signum) {
+    (void) signum;
     stop = 1;
 }
 
