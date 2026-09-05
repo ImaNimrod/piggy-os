@@ -47,6 +47,25 @@ int wait_queue_wait(struct wait_queue* wq, bool interruptable) {
     return scheduler_yield();
 }
 
+int wait_queue_wait_mutex(struct wait_queue* wq, mutex_t* m, bool interruptable) {
+    struct thread* current_thread = this_cpu()->scheduler.current_thread;
+
+    bool int_state = spinlock_acquire_irqsave(&wq->lock);
+
+    internal_add(wq, &current_thread->wait_node);
+
+    scheduler_prepare_wait(current_thread, interruptable);
+    spinlock_release_irqsave(&wq->lock, int_state);
+
+    mutex_release(m);
+
+    int ret = scheduler_yield();
+
+    mutex_acquire(m);
+
+    return ret;
+}
+
 void wait_queue_wake_all(struct wait_queue* wq) {
     bool int_state = spinlock_acquire_irqsave(&wq->lock);
 
@@ -65,13 +84,13 @@ void wait_queue_wake_all(struct wait_queue* wq) {
     spinlock_release_irqsave(&wq->lock, int_state);
 }
 
-void wait_queue_wake_one(struct wait_queue* wq) {
+bool wait_queue_wake_one(struct wait_queue* wq) {
     bool int_state = spinlock_acquire_irqsave(&wq->lock);
 
     struct wait_node* node = wq->head;
     if (!node) {
         spinlock_release_irqsave(&wq->lock, int_state);
-        return;
+        return false;
     }
 
     wq->head = node->next;
@@ -83,4 +102,5 @@ void wait_queue_wake_one(struct wait_queue* wq) {
 
     spinlock_release_irqsave(&wq->lock, int_state);
     scheduler_wakeup(node->thread, 0);
+    return true;
 }

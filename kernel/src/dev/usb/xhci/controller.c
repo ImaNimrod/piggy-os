@@ -246,6 +246,11 @@ static void xhci_init(struct pci_device* pci_dev) {
         timeout--;
     }
 
+    if (unlikely(timeout == 0)) {
+        klog("[xhci] xHCI controller not resetting\n");
+        return;
+    }
+
     struct xhci_controller* controller = kmalloc(sizeof(struct xhci_controller));
     if (unlikely(controller == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for xHCI controller");

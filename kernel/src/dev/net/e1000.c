@@ -57,6 +57,8 @@
 #define E1000_REG_TADV          0x382c
 #define E1000_REG_CRCERRS       0x4000
 #define E1000_REG_MTA           0x5200
+#define E1000_REG_RAL           0x5400
+#define E1000_REG_RAH           0x5404
 
 #define CTRL_FD         (1 << 0)
 #define CTRL_GIO_MD     (1 << 2)
@@ -80,6 +82,9 @@
 #define INT_RXT0    (1 << 7)
 
 #define RCTL_EN     (1 << 1)
+#define RCTL_SBP    (1 << 2)
+#define RCTL_UPE    (1 << 3)
+#define RCTL_MPE    (1 << 4)
 #define RCTL_BAM    (1 << 15)
 #define RCTL_SECRC  (1 << 26)
 
@@ -187,7 +192,7 @@ static void init_rx(struct e1000_device* device) {
         desc->status = 0;
     }
 
-    e1000_write(device, E1000_REG_RCTL, RCTL_EN | RCTL_BAM | RCTL_SECRC);
+    e1000_write(device, E1000_REG_RCTL, RCTL_EN | RCTL_SBP | RCTL_UPE | RCTL_MPE | RCTL_BAM | RCTL_SECRC);
 
     e1000_write(device, E1000_REG_RSRPD, 0);
     e1000_write(device, E1000_REG_RADV, 0);
@@ -249,6 +254,15 @@ static void read_mac_address(struct e1000_device* device) {
         uint16_t mac45 = read_eeprom(device, 2);
         netif->mac[4] = mac45 & 0xff;
         netif->mac[5] = (mac45 >> 8) & 0xff;
+
+        uint32_t low;
+        memcpy(&low, &netif->mac[0], 4);
+        uint32_t high = 0;
+        memcpy(&high, &netif->mac[4], 2);
+        high |= 0x80000000;
+
+        e1000_write(device, E1000_REG_RAL, low);
+        e1000_write(device, E1000_REG_RAH, high);
     } else {
         uint32_t* mem_base_mac = (uint32_t*) (device->mmio_base + 0x5400);
         uint32_t mac0123 = mmio_read32(&mem_base_mac[0]);

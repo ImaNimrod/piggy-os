@@ -2,6 +2,7 @@
 #define _KERNEL_UTILS_HASHMAP_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct hashmap_entry {
     uint32_t hash;

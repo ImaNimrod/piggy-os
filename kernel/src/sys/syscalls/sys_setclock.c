@@ -7,12 +7,23 @@ void sys_setclock(struct registers* r) {
     clockid_t clockid = r->rdi;
     const struct timespec* tp = (const struct timespec*) r->rsi;
 
-    int ret = 0;
     if (clockid == CLOCK_REALTIME) {
-        ret = user_memcpy_from_user(&time_realtime, tp, sizeof(struct timespec));
-    } else {
-        ret =  -EINVAL;
-    }
+        struct timespec ktp;
 
-    r->rax = ret;
+        int ret = user_memcpy_from_user(&ktp, tp, sizeof(struct timespec));
+        if (ret < 0) {
+            r->rax = ret;
+            return;
+        }
+
+        if (!timespec_validate(&ktp)) {
+            r->rax = -EINVAL;
+            return;
+        }
+
+        time_realtime = ktp;
+        r->rax = 0;
+    } else {
+        r->rax =  -EINVAL;
+    }
 }

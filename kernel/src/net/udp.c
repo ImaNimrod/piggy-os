@@ -211,14 +211,11 @@ static ssize_t udp_recv(struct socket_node* node, void* buf, size_t count, struc
     mutex_acquire(&socket->mutex);
 
     while (!socket->rx_head) {
-        mutex_release(&socket->mutex);
-
-        int ret = wait_queue_wait(&socket->rx_wq, true);
+        int ret = wait_queue_wait_mutex(&socket->rx_wq, &socket->mutex, true);
         if (ret < 0) {
+            mutex_release(&socket->mutex);
             return ret;
         }
-
-        mutex_acquire(&socket->mutex);
     }
 
     struct receive_data* data = socket->rx_head;

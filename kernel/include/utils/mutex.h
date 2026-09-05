@@ -4,7 +4,7 @@
 #include <stdatomic.h>
 #include <utils/wait_queue.h>
 
-typedef struct {
+typedef struct mutex {
     _Atomic(struct thread*) owner;
     struct wait_queue wq;
 } mutex_t; 

@@ -121,30 +121,39 @@ void arp_handle(struct netif* netif, const void* buf) {
 }
 
 bool arp_lookup(struct netif* netif, ipv4_address_t ip, mac_address_t* mac) {
+    if (ip == netif->ipv4_addr) {
+        memcpy(mac, netif->mac, sizeof(*mac));
+        return true;
+    }
+
+    mutex_acquire(&arp_cache_mutex);
+
     mac_address_t* cached;
 
+    if (hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached)) {
+        memcpy(mac, cached, sizeof(*mac));
+        mutex_release(&arp_cache_mutex);
+        return true;
+    }
+
+    mutex_release(&arp_cache_mutex);
+
+    if (!send_request(netif, ip)) {
+        return false;
+    }
+
+    mutex_acquire(&arp_cache_mutex);
+
     for (;;) {
-        mutex_acquire(&arp_cache_mutex);
+        if (wait_queue_wait_mutex(&arp_cache_wq, &arp_cache_mutex, true) < 0) {
+            mutex_release(&arp_cache_mutex);
+            return false;
+        }
 
         if (hashmap_get(arp_cache, &ip, sizeof(ip), (void**) &cached)) {
             memcpy(mac, cached, sizeof(mac_address_t));
             mutex_release(&arp_cache_mutex);
             return true;
-        }
-
-        struct thread* current_thread = this_cpu()->scheduler.current_thread;
-
-        scheduler_prepare_wait(current_thread, true);
-        wait_queue_add(&arp_cache_wq, &current_thread->wait_node);
-
-        mutex_release(&arp_cache_mutex);
-
-        if (!send_request(netif, ip)) {
-            return false;
-        }
-
-        if (scheduler_yield() < 0) {
-            return false;
         }
     }
 }

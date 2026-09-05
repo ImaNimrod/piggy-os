@@ -117,7 +117,7 @@ struct vfs_node {
     struct vfs_filesystem* filesystem;
     struct vfs_filesystem* mounted;
 
-    atomic_size_t refcount;
+    atomic_int refcount;
 };
 
 extern struct vfs_node* vfs_root;

@@ -18,12 +18,15 @@ void sys_fork(struct registers* r) {
     struct thread* new_thread = thread_fork(new_process, current_thread, r);
     if (!new_thread) {
         vmm_context_destroy(new_process->vmm_context);
-        process_destroy(new_process);
+        PROCESS_UNREF(new_process);
+
         r->rax = -ENOMEM;
         return;
     }
 
     scheduler_enqueue(&new_thread->cpu->scheduler, new_thread);
+
+    PROCESS_UNREF(new_process);
 
     r->rax = new_process->pid;
 }

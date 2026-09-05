@@ -152,6 +152,4 @@ void syscall_handler(struct registers* r) {
     } else {
         syscall_table[r->rax](r);
     }
-
-    signal_handle_pending(r);
 }

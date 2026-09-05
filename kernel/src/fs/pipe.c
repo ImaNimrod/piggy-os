@@ -79,12 +79,17 @@ static int pipe_open(struct vfs_node* node, int flags) {
 
     mutex_acquire(&pnode->mutex);
 
-    if ((flags & O_RDONLY) || (flags & O_RDWR)) {
-        pnode->readers++;
-    }
-
-    if ((flags & O_WRONLY) || (flags & O_RDWR)) {
-        pnode->writers++;
+    switch (flags & O_ACCMODE) {
+        case O_RDONLY:
+            pnode->readers++;
+            break;
+        case O_WRONLY:
+            pnode->writers++;
+            break;
+        case O_RDWR:
+            pnode->readers++;
+            pnode->writers++;
+            break;
     }
 
     mutex_release(&pnode->mutex);
@@ -96,16 +101,25 @@ static void pipe_close(struct vfs_node* node, int flags) {
 
     mutex_acquire(&pnode->mutex);
 
-    if ((flags & O_RDONLY) || (flags & O_RDWR)) {
-        if (--pnode->readers == 0) {
-            wait_queue_wake_all(&pnode->write_wq);
-        }
-    }
-
-    if ((flags & O_WRONLY) || (flags & O_RDWR)) {
-        if (--pnode->writers == 0) {
-            wait_queue_wake_all(&pnode->read_wq);
-        }
+    switch (flags & O_ACCMODE) {
+        case O_RDONLY:
+            if (--pnode->readers == 0) {
+                wait_queue_wake_all(&pnode->write_wq);
+            }
+            break;
+        case O_WRONLY:
+            if (--pnode->writers == 0) {
+                wait_queue_wake_all(&pnode->read_wq);
+            }
+            break;
+        case O_RDWR:
+            if (--pnode->readers == 0) {
+                wait_queue_wake_all(&pnode->write_wq);
+            }
+            if (--pnode->writers == 0) {
+                wait_queue_wake_all(&pnode->read_wq);
+            }
+            break;
     }
 
     mutex_release(&pnode->mutex);
@@ -134,14 +148,11 @@ static ssize_t pipe_read(struct vfs_node* node, void* buf, size_t count, off_t o
             return -EAGAIN;
         }
 
-        mutex_release(&pnode->mutex);
-
-        int ret = wait_queue_wait(&pnode->read_wq, true);
+        int ret = wait_queue_wait_mutex(&pnode->read_wq, &pnode->mutex, true);
         if (ret < 0) {
+            mutex_release(&pnode->mutex);
             return ret;
         }
-
-        mutex_acquire(&pnode->mutex);
     }
 
     bool was_full = pnode->size == PIPE_DATA_LEN;
@@ -168,11 +179,9 @@ static ssize_t pipe_read(struct vfs_node* node, void* buf, size_t count, off_t o
         n += chunk;
     }
 
-    bool is_full = pnode->size == PIPE_DATA_LEN;
-
     mutex_release(&pnode->mutex);
 
-    if (was_full && !is_full) {
+    if (was_full) {
         wait_queue_wake_all(&pnode->write_wq);
     }
 
@@ -197,23 +206,22 @@ static ssize_t pipe_write(struct vfs_node* node, const void* buf, size_t count, 
         while (pipe_free(pnode) == 0) {
             if (pnode->readers == 0) {
                 mutex_release(&pnode->mutex);
+
                 signal_send_process(this_cpu()->scheduler.current_thread->process, SIGPIPE);
+
                 return n ? (ssize_t) n : -EPIPE;
             }
 
             if (flags & O_NONBLOCK) {
                 mutex_release(&pnode->mutex);
-                return n ? (ssize_t) n : -EAGAIN;
+                return n ? (ssize_t)n : -EAGAIN;
             }
 
-            mutex_release(&pnode->mutex);
-
-            int ret = wait_queue_wait(&pnode->write_wq, true);
+            int ret = wait_queue_wait_mutex(&pnode->write_wq, &pnode->mutex, true);
             if (ret < 0) {
-                return ret;
+                mutex_release(&pnode->mutex);
+                return n ? (ssize_t) n : ret;
             }
-
-            mutex_acquire(&pnode->mutex);
         }
 
         size_t free = pipe_free(pnode);
@@ -273,9 +281,12 @@ static short pipe_poll(struct vfs_node* node, short events, struct poll_table* p
     if (events & POLLIN) {
         if (pnode->size > 0) {
             revents |= POLLIN;
-        } else if (pnode->writers == 0) {
-            revents |= POLLIN | POLLHUP;
-        } else {
+        }
+        if (pnode->writers == 0) {
+            revents |= POLLHUP;
+        }
+
+        if (!(revents & POLLIN) && !(revents & POLLHUP)) {
             poll_table_add(pt, &pnode->read_wq);
         }
     }
@@ -351,7 +362,7 @@ int pipe_create(struct vfs_node** ret) {
 
     node->size = 0;
     node->read_index = node->write_index = 0;
-    node->readers = node->writers = 1;
+    node->readers = node->writers = 0;
 
     wait_queue_init(&node->read_wq);
     wait_queue_init(&node->write_wq);

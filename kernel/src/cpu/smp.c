@@ -209,15 +209,10 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
         cpuid(13, 1, &eax, &unused, &unused, &unused);
         cpu_local->fpu_save = (eax & (1 << 0)) ? xsaveopt : xsave;
         cpu_local->fpu_restore = xrstor;
-
-        klog("[smp] CPU #%zu using xsave/xrstor (mask: 0x%lx size: %zu)\n",
-                this_cpu()->cpu_number, xcr0, ebx);
     } else {
         cpu_local->fpu_context_size = 512;
         cpu_local->fpu_save = fxsave;
         cpu_local->fpu_restore = fxrstor;
-
-        klog("[smp] CPU #%zu using legacy fxsave/fxrstor\n", this_cpu()->cpu_number);
     }
 
     // Enable SYSCALL/SYSRET instructions
@@ -239,7 +234,6 @@ static void single_cpu_init(struct limine_mp_info* mp_info) {
     scheduler_percpu_init();
     timer_percpu_init();
 
-    klog("[smp] CPU #%zu online%s\n", cpu_local->cpu_number, (cpu_local->lapic_id == bsp_lapic_id ? " (BSP)" : ""));
     atomic_fetch_add_explicit(&initialized_cpus, 1, memory_order_relaxed);
 
     if (cpu_local->lapic_id != bsp_lapic_id) {
@@ -315,6 +309,8 @@ void smp_init(void) {
             atomic_store_explicit(&mp_info->goto_address, cpu_goto_fn, memory_order_seq_cst);
         }
     }
+
+    klog("[smp] waiting for APs to initialize...\n");
 
     if (!nosmp) {
         struct timer_driver* timer_driver = this_cpu()->timer_driver;

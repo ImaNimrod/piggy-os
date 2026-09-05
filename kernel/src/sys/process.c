@@ -13,6 +13,8 @@
 #include <utils/log.h>
 #include <utils/string.h>
 
+mutex_t processes_mutex;
+
 struct process* kernel_process;
 struct process* init_process;
 
@@ -23,7 +25,6 @@ static struct slab_cache* thread_cache;
 static struct process* process_list_head;
 static struct process* process_list_tail;
 static hashmap_t* processes;
-static mutex_t processes_mutex;
 
 static hashmap_t* process_groups;
 static mutex_t process_groups_mutex;
@@ -115,12 +116,14 @@ struct process* process_create(struct process* parent) {
         return NULL;
     }
 
+    memset(new_process, 0, sizeof(struct process));
+
     new_process->pid = atomic_fetch_add_explicit(&next_pid, 1, memory_order_relaxed);
     new_process->state = PROCESS_STATE_RUNNING;
+    new_process->refcount = 1;
 
     spinlock_init(&new_process->exiting);
     spinlock_init(&new_process->thread_list_lock);
-    spinlock_init(&new_process->child_list_lock);
 
     new_process->threads = vector_create(sizeof(struct thread*));
     if (unlikely(!new_process->threads)) {
@@ -161,11 +164,12 @@ struct process* process_create(struct process* parent) {
         memcpy(new_process->signal_actions, parent->signal_actions, sizeof(parent->signal_actions));
         spinlock_release(&parent->signal_actions_lock);
 
-        new_process->parent = parent;
+        mutex_acquire(&parent->mutex);
 
-        spinlock_acquire(&parent->child_list_lock);
+        new_process->parent = parent;
         SLIST_PUSH_FRONT(parent->children, new_process, sibling_next);
-        spinlock_release(&parent->child_list_lock);
+
+        mutex_release(&parent->mutex);
 
         mutex_acquire(&parent->group_mutex);
         struct process_group* parent_group = parent->group;
@@ -324,11 +328,11 @@ void process_create_init(void) {
     }
 
     scheduler_enqueue(&init_thread->cpu->scheduler, init_thread);
+
+    PROCESS_UNREF(init_process);
 }
 
 void process_destroy(struct process* process) {
-    mutex_acquire(&processes_mutex);
-
     hashmap_remove(processes, &process->pid, sizeof(pid_t));
 
     if (process->prev) {
@@ -345,13 +349,9 @@ void process_destroy(struct process* process) {
 
     process->prev = process->next = NULL;
 
-    mutex_release(&processes_mutex);
-
     free_array(process->cmdline);
 
-    spinlock_acquire(&process->parent->child_list_lock);
-    SLIST_REMOVE(process->parent->children, process, sibling_next);
-    spinlock_release(&process->parent->child_list_lock);
+    leave_group(process);
 
     if (vector_size(process->threads) != 0) {
         kpanic(NULL, false, "process->threads not empty %zu", vector_size(process->threads));
@@ -383,8 +383,10 @@ void process_destroy(struct process* process) {
 struct process* process_find(pid_t pid) {
     mutex_acquire(&processes_mutex);
 
-    struct process* process = NULL;
-    hashmap_get(processes, &pid, sizeof(pid_t), (void**) &process);
+    struct process* process;
+    if (hashmap_get(processes, &pid, sizeof(pid_t), (void**) &process)) {
+        PROCESS_REF(process);
+    }
 
     mutex_release(&processes_mutex);
     return process;
@@ -513,43 +515,49 @@ void process_stop_all_threads(void) {
 void process_zombify(void) {
     struct process* current_process = this_cpu()->scheduler.current_thread->process;
 
-    current_process->state = PROCESS_STATE_ZOMBIE;
-
-    leave_group(current_process);
+    PROCESS_REF(current_process);
 
     for (int i = 0; i < PROCESS_FD_COUNT; i++) {
         file_close(current_process, i);
     }
 
+    VFS_NODE_UNREF(current_process->cwd);
+    VFS_NODE_UNREF(current_process->root);
+
+    mutex_acquire(&current_process->mutex);
+
+    current_process->state = PROCESS_STATE_ZOMBIE;
+
     // Reparent dying process' children to init
 
-    spinlock_acquire(&current_process->child_list_lock);
     struct process* child = current_process->children;
-    spinlock_release(&current_process->child_list_lock);
 
     if (child) {
-        spinlock_acquire(&init_process->child_list_lock);
+        mutex_acquire(&init_process->mutex);
+
+        current_process->children = NULL;
 
         while (child) {
             struct process* next = child->sibling_next;
 
             child->parent = init_process;
+            child->sibling_next = NULL;
+
             SLIST_PUSH_FRONT(init_process->children, child, sibling_next);
 
             child = next;
         }
 
-
-        spinlock_release(&init_process->child_list_lock);
+        mutex_release(&init_process->mutex);
 
         wait_queue_wake_all(&init_process->child_wq);
     }
 
     wait_queue_wake_all(&current_process->parent->child_wq);
-    signal_send_process(current_process->parent, SIGCHLD);
 
-    VFS_NODE_UNREF(current_process->cwd);
-    VFS_NODE_UNREF(current_process->root);
+    mutex_release(&current_process->mutex);
+
+    signal_send_process(current_process->parent, SIGCHLD);
 
     vmm_context_destroy(current_process->vmm_context);
 }
@@ -640,7 +648,7 @@ void process_group_move(struct process_group* new_group, struct process* process
 }
 
 void process_group_unref(struct process_group* group) {
-    if (__atomic_sub_fetch(&group->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+    if (atomic_fetch_sub_explicit(&group->refcount, 1, memory_order_release) <= 1) {
         slab_cache_free(process_group_cache, group);
     }
 }
@@ -670,6 +678,8 @@ struct thread* thread_create_kernel(uintptr_t entry, void* arg) {
     thread->registers.rflags = 0x202;
     thread->registers.ss = KERNEL_DATA_SEGMENT;
     thread->registers.rsp = thread->kernel_stack;
+    
+    PROCESS_REF(kernel_process);
 
     // Insert into process' thread list
     spinlock_acquire(&kernel_process->thread_list_lock);
@@ -711,13 +721,14 @@ struct thread* thread_create_user(struct process* process, uintptr_t entry, uint
     ((uint16_t*) thread->fpu_context)[0] = DEFAULT_FCW;
     ((uint32_t*) thread->fpu_context)[6] = DEFAULT_MXCSR;
 
-    thread->fs_base = 0;
-    thread->gs_base = 0;
+    thread->fs_base = thread->gs_base = 0;
 
     // Signals
     spinlock_init(&thread->signal_lock);
     thread->pending_signals = thread->signal_mask = 0;
     thread->signal_stack.ss_flags = SS_DISABLE;
+
+    PROCESS_REF(process);
 
     // Insert into process' thread list
     spinlock_acquire(&process->thread_list_lock);
@@ -781,6 +792,8 @@ struct thread* thread_fork(struct process* process, struct thread* old_thread, s
 
     spinlock_release(&old_thread->signal_lock);
 
+    PROCESS_REF(process);
+
     // Insert into process' thread list
     spinlock_acquire(&process->thread_list_lock);
 
@@ -836,6 +849,7 @@ void process_init(void) {
 
     kernel_process->pid = next_pid++;
     kernel_process->state = PROCESS_STATE_RUNNING;
+    kernel_process->refcount = 1;
 
     klog("[process] initialized kernel process\n");
 }

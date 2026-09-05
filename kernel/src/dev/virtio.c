@@ -66,9 +66,12 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
 
     mmio_write16(&dev->common_config->queue_select, queue_number);
 
+    mfence();
+
     uint16_t notify_off = mmio_read16(&dev->common_config->queue_notify_offset);
 
     struct virtio_queue* queue = &dev->queues[queue_number];
+    queue->queue_number = queue_number;
     queue->size = mmio_read16(&dev->common_config->queue_size);
 
     spinlock_init(&queue->lock);
@@ -90,9 +93,7 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
     mmio_write64(&dev->common_config->queue_driver, available_paddr);
     mmio_write64(&dev->common_config->queue_device, used_paddr);
 
-    queue->notify =
-        dev->notify_begin +
-        ((uintptr_t)notify_off * dev->notify_offset_multiplier);
+    queue->notify = dev->notify_begin + ((uintptr_t)notify_off * dev->notify_offset_multiplier);
 
     if (irq_vector != 0xff) {
         mmio_write16(&dev->common_config->queue_msix_vector, queue_number);
@@ -106,6 +107,16 @@ bool virtio_queue_init(struct virtio_device* dev, uint16_t queue_number, uint8_t
     mfence();
 
     mmio_write16(&dev->common_config->queue_enable, 1);
+    klog("NET TX queue:\n");
+    klog("  size=%u\n",
+            mmio_read16(&dev->common_config->queue_size));
+    klog("  enable=%u\n",
+            mmio_read16(&dev->common_config->queue_enable));
+    klog("  msix=%u\n",
+            mmio_read16(&dev->common_config->queue_msix_vector));
+    klog("  notify_off=%u\n",
+            mmio_read16(&dev->common_config->queue_notify_offset));
+
     return true;
 }
 
@@ -117,7 +128,7 @@ uint16_t virtio_queue_insert(struct virtio_queue* queue, uint16_t descriptor) {
 
 void virtio_queue_notify(struct virtio_queue* queue) {
     mfence();
-    mmio_write32(queue->notify, 0);
+    mmio_write32(queue->notify, queue->queue_number);
 }
 
 static void virtio_init(struct pci_device* pci_dev) {
@@ -184,7 +195,7 @@ static void virtio_init(struct pci_device* pci_dev) {
         return;
     }
 
-    struct virtio_queue* queues = kmalloc(sizeof(struct virtio_queue) * mmio_read16(&dev->common_config->queue_count));
+    struct virtio_queue* queues = kmallocz(sizeof(struct virtio_queue) * mmio_read16(&dev->common_config->queue_count));
     if (unlikely(!queues)) {
         kpanic(NULL, false, "failed to allocate memory for VirtIO device queues");
     }

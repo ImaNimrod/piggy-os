@@ -210,10 +210,6 @@ static void internal_enqueue_unlocked(struct scheduler* sched, struct thread* th
         wrmsr(MSR_IA32_KERNEL_GS_BASE, next_thread->gs_base);
     }
 
-    if (r->cs == USER_CODE_SEGMENT) {
-        signal_handle_pending(r);
-    }
-
     this_cpu()->tss.rsp0 = next_thread->kernel_stack;
     context_switch(&next_thread->registers);
 }
@@ -296,6 +292,8 @@ int scheduler_sleep(struct thread* thread, const struct timespec* duration) {
     if (last) {
         process_zombify();
     }
+
+    PROCESS_UNREF(current_process);
 
     cli();
     context_call_and_switch(internal_thread_exit, NULL, (void*) (this_cpu()->scheduler_stack + KERNEL_STACK_SIZE));

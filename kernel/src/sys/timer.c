@@ -38,7 +38,7 @@ struct timespec timer_time_from_boot(void) {
     uint64_t ticks = this_cpu()->timer_driver->ticks(this_cpu()->timer_info) - this_cpu()->timer_base_ticks + this_cpu()->timer_tick_offset;
     uint64_t hz = this_cpu()->timer_info->hz;
     if (hz == 0) {
-        return (struct timespec) {0};
+        return (struct timespec) {};
     }
 
     time_t secs = ticks / hz;
@@ -149,9 +149,6 @@ void timer_early_percpu_init(void) {
     this_cpu()->timer_driver = early_driver;
     this_cpu()->timer_info = early_info;
     this_cpu()->timer_base_ticks = early_driver->ticks(early_info);
-
-    klog("[timer] CPU #%zu selected %s as early timer driver\n",
-            this_cpu()->cpu_number, early_driver->name);
 }
 
 void timer_percpu_init(void) {
@@ -187,7 +184,4 @@ void timer_percpu_init(void) {
     uint64_t old_ns = (delta_ticks * NS_PER_S) / old_info->hz;
 
     this_cpu()->timer_tick_offset = (old_ns * new_info->hz) / NS_PER_S;
-
-    klog("[timer] CPU #%zu switching to %s for timer driver\n",
-            this_cpu()->cpu_number, new_driver->name);
 }

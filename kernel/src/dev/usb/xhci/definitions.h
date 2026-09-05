@@ -108,6 +108,21 @@ struct event_ring_table_entry {
     uint32_t reserved;
 } __attribute__((packed));
 
+struct ep_context {
+} __attribute__((packed));
+
+struct input_context {
+    uint32_t d;
+    uint32_t a;
+    uint32_t reserved[5];
+    struct {
+        uint8_t configuration_value;
+        uint8_t interface_number;
+        uint8_t alt_setting;
+        uint8_t : 8;
+    } dw7;
+} __attribute__((packed));
+
 struct completion_waiter {
     uintptr_t submission_trb_paddr;
     struct trb* completion_trb;
@@ -156,6 +171,7 @@ struct xhci_controller {
 };
 
 struct xhci_device {
+    uint8_t port_id;
     uint8_t slot_id;
 
     uintptr_t device_context_paddr;

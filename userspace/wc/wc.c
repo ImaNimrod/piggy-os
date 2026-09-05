@@ -58,7 +58,10 @@ static int do_wc(const char* filename, int fd) {
     if (print_mode & PRINT_CHARS) {
         printf("%zu  ", c);
     }
-    puts(filename);
+
+    if (fd != STDIN_FILENO) {
+        puts(filename);
+    }
 
     total_chars += c;
     total_lines += l;

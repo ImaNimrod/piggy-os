@@ -59,6 +59,14 @@ static inline bool timespec_greater(const struct timespec* a, const struct times
     return false;
 }
 
+static inline bool timespec_validate(const struct timespec* ts) {
+    if (ts->tv_sec < 0 || ts->tv_nsec < 0 || ts->tv_nsec >= 1000000000L) {
+        return false;
+    }
+
+    return true;
+}
+
 struct timespec timer_time_from_boot(void);
 int timer_remove(struct timer_event* event);
 int timer_setup(struct timer_event* event, timer_callback_t callback, void* arg, const struct timespec* tp);

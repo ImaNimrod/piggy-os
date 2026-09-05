@@ -30,7 +30,7 @@ struct file {
     struct vfs_node* node;
     int flags;
     off_t offset;
-    atomic_size_t refcount;
+    atomic_int refcount;
 }; 
 
 struct file_descriptor {

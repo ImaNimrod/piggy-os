@@ -6,17 +6,16 @@
 #include <printf.h>
 #include <utils/list.h>
 #include <utils/log.h>
-#include <utils/spinlock.h>
 #include <utils/string.h>
 
 char hostname[HOST_NAME_MAX] = "piggy";
 
-static struct netif* netif_list;
-static spinlock_t netif_list_lock;
+int netif_count;
+struct netif* netif_list;
+spinlock_t netif_list_lock;
 
-static uint32_t lo_counter;
-static uint32_t eth_counter;
-static int32_t netif_counter;
+static uint32_t lo_count;
+static uint32_t eth_count;
 
 struct netif* netif_find(const char* name) {
     spinlock_acquire(&netif_list_lock);
@@ -37,14 +36,14 @@ void netif_register(struct netif* netif) {
 
     switch (netif->type) {
         case NETIF_TYPE_LO:
-            snprintf(netif->name, sizeof(netif->name), "lo%u", lo_counter++);
+            snprintf(netif->name, sizeof(netif->name), "lo%u", lo_count++);
             break;
         case NETIF_TYPE_ETH:
-            snprintf(netif->name, sizeof(netif->name), "eth%u", eth_counter++);
+            snprintf(netif->name, sizeof(netif->name), "eth%u", eth_count++);
             break;
     }
 
-    netif->index = netif_counter++;
+    netif->index = netif_count++;
 
     SLIST_PUSH_FRONT(netif_list, netif, next);
 

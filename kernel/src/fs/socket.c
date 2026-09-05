@@ -5,10 +5,16 @@
 #include <net/raw.h>
 #include <net/udp.h>
 #include <sys/timer.h>
+#include <utils/list.h> 
 #include <utils/macros.h> 
 #include <utils/usercopy.h> 
 
 #define ARPHRD_ETHER 1
+
+struct ifconf {
+    int ifc_len;
+    struct ifreq* ifc_req;
+};
 
 struct ifreq {
     char ifr_name[IFNAMSIZ];
@@ -22,6 +28,7 @@ struct ifreq {
         short ifr_flags;
         int ifr_ivalue;
         int ifr_mtu;
+        char _padding[24];
     };
 };
 
@@ -66,6 +73,82 @@ static int socket_ioctl(struct vfs_node* node, int request, void* argp) {
 
     switch (request) {
         case SIOCGIFCONF:
+            struct ifconf conf;
+
+            ret = USER_MEMCPY_MAYBE_FROM_USER(&conf, argp, sizeof(conf));
+            if (ret < 0) {
+                break;
+            }
+
+            size_t max_count = 0;
+
+            if (conf.ifc_req && conf.ifc_len > 0) {
+                max_count = (size_t)conf.ifc_len / sizeof(struct ifreq);
+            }
+
+            if (!conf.ifc_req) {
+                spinlock_acquire(&netif_list_lock);
+
+                size_t count = 0;
+
+                struct netif *iter;
+                SLIST_FOREACH(netif_list, iter, next) {
+                    count++;
+                }
+
+                spinlock_release(&netif_list_lock);
+
+                conf.ifc_len = count * sizeof(struct ifreq);
+
+                ret = USER_MEMCPY_MAYBE_TO_USER(argp, &conf, sizeof(conf));
+                break;
+            }
+
+            struct ifreq* reqs = kmalloc(max_count * sizeof(struct ifreq));
+
+            if (max_count != 0 && !reqs) {
+                ret = -ENOMEM;
+                break;
+            }
+
+            size_t count = 0;
+
+            spinlock_acquire(&netif_list_lock);
+
+            struct netif* iter;
+
+            SLIST_FOREACH(netif_list, iter, next) {
+                if (count >= max_count) {
+                    break;
+                }
+
+                struct ifreq* req = &reqs[count];
+                strncpy(req->ifr_name, iter->name, IFNAMSIZ - 1);
+                req->ifr_name[IFNAMSIZ - 1] = '\0';
+
+                struct sockaddr_in* sin = (struct sockaddr_in *)&req->ifr_addr;
+
+                sin->sin_family = AF_INET;
+                sin->sin_addr.s_addr = htonl(iter->ipv4_addr);
+
+                count++;
+            }
+
+            spinlock_release(&netif_list_lock);
+
+            if (count != 0) {
+                ret = USER_MEMCPY_MAYBE_TO_USER(conf.ifc_req, reqs, count * sizeof(struct ifreq));
+                if (ret < 0) {
+                    kfree(reqs);
+                    break;
+                }
+            }
+
+            conf.ifc_len = count * sizeof(struct ifreq);
+
+            ret = USER_MEMCPY_MAYBE_TO_USER(argp, &conf, sizeof(conf));
+
+            kfree(reqs);
             break;
         case SIOCGIFFLAGS:
         case SIOCSIFFLAGS:

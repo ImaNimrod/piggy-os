@@ -2,7 +2,7 @@ SYSROOT_DIR:=$(PWD)/sysroot
 TOOLCHAIN_DIR:=$(PWD)/toolchain
 
 EDK2_OVMF_URL:=https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
-LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.5.2/limine-binary.tar.xz
+LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.6.1/limine-binary.tar.xz
 
 EMU:=qemu-system-x86_64
 
@@ -14,6 +14,7 @@ EMUOPTS := -machine q35 \
 		   -serial stdio \
 		   -rtc base=utc \
 		   -no-reboot \
+		   -trace events=trace-events.txt \
 		   -bios edk2-ovmf/ovmf-code-x86_64.fd
 
 NPROC := $(patsubst -j%,%,$(filter -j%,$(MAKEFLAGS)))
@@ -93,7 +94,7 @@ initrd:
 	cd $(SYSROOT_DIR); tar -czf ../initrd.tar.gz *
 
 .NOTPARALLEL:
-piggy.iso: limine-binary/limine kernel libc userspace initrd
+piggy.iso: limine-binary/limine kernel userspace initrd
 	rm -rf iso_root
 	mkdir -p iso_root/boot
 	cp -v kernel/build/kernel.elf initrd.tar.gz iso_root/boot/

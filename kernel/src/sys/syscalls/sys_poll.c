@@ -39,6 +39,12 @@ void sys_poll(struct registers* r) {
             r->rax = ret;
             return;
         }
+
+        if (!timespec_validate(&ktimeout)) {
+            kfree(kfds);
+            r->rax = -EINVAL;
+            return;
+        }
     }
 
     spinlock_acquire(&current_thread->signal_lock);

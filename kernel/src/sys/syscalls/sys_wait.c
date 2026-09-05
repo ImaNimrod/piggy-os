@@ -10,8 +10,6 @@
 
 #define VALID_FLAGS (WNOHANG)
 
-// TODO: actually implement waiting on pgid now that process groups exist
-
 void sys_wait(struct registers* r) {
     pid_t pid = r->rdi;
     int* status = (int*) r->rsi;
@@ -25,75 +23,92 @@ void sys_wait(struct registers* r) {
         return;
     }
 
-    struct process* child = NULL;
 
-    if (pid == -1) {
-        for (;;) {
-            if (!current_process->children) {
+    bool check_pgid = false;
+
+    if (pid < -1 || pid == 0) {
+        check_pgid = true;
+        pid = -pid;
+    }
+
+    mutex_acquire(&current_process->mutex);
+
+    struct process* prev = NULL;
+    struct process* iter = current_process->children;
+    struct process* desired = NULL;
+
+    if (!iter) {
+        mutex_release(&current_process->mutex);
+        r->rax = -ECHILD;
+        return;
+    }
+
+    bool zombie = false;
+
+    for (;;) {
+        if (!iter) {
+            if (pid > 0 && !desired) {
+                mutex_release(&current_process->mutex);
                 r->rax = -ECHILD;
                 return;
             }
 
-            struct process* iter;
-            SLIST_FOREACH(current_process->children, iter, sibling_next) {
-                if (iter->state == PROCESS_STATE_ZOMBIE) {
-                    child = iter;
-                    goto end;
-                }
-            }
-
             if (flags & WNOHANG) {
-                r->rax = -EAGAIN;
+                mutex_release(&current_process->mutex);
+                r->rax = 0;
                 return;
             }
 
-            int ret = wait_queue_wait(&current_process->child_wq, true);
+            int ret = wait_queue_wait_mutex(&current_process->child_wq, &current_process->mutex, true);
             if (ret < 0) {
+                mutex_release(&current_process->mutex);
                 r->rax = ret;
                 return;
             }
-        }
-    } else if (pid > 0) {
-        struct process* iter;
-        SLIST_FOREACH(current_process->children, iter, sibling_next) {
-            if (iter->pid == pid) {
-                child = iter;
-                break;
-            }
+
+            prev = NULL;
+            iter = current_process->children;
+            desired = NULL;
+            continue;
         }
 
-        if (!child) {
-            r->rax = -ECHILD;
-            return;
+        if ((pid > 0 && iter->pid == pid) || pid == -1 || (check_pgid && ((pid == 0 && current_process->group->pgid == iter->group->pgid) || iter->group->pgid == pid))) {
+            desired = iter;
+            zombie = iter->state == PROCESS_STATE_ZOMBIE;
         }
 
-        if (child->state != PROCESS_STATE_ZOMBIE && (flags & WNOHANG)) {
-            r->rax = -EAGAIN;
-            return;
+        if (zombie) {
+            break;
         }
 
-        while (child->state != PROCESS_STATE_ZOMBIE) {
-            int ret = wait_queue_wait(&current_process->child_wq, true);
-            if (ret < 0) {
-                r->rax = ret;
-                return;
-            }
-        }
-    } else {
-        r->rax = -EINVAL;
-        return;
+        prev = iter;
+        iter = iter->sibling_next;
     }
 
-end:
+    pid_t child_pid = iter->pid;
+
     if (status) {
-        int ret;
-        if ((ret = user_memcpy_to_user(status, &child->exit_status, sizeof(int))) < 0) {
+        int ret = user_memcpy_to_user(status, &iter->exit_status, sizeof(*status));
+        if (ret < 0) {
+            mutex_release(&current_process->mutex);
             r->rax = ret;
             return;
         }
     }
 
-    r->rax = child->pid;
+    if (zombie) {
+        if (prev) {
+            prev->sibling_next = iter->sibling_next;
+        } else {
+            current_process->children = iter->sibling_next;
+        }
+    }
 
-    process_destroy(child);
+    mutex_release(&current_process->mutex);
+
+    if (zombie) {
+        PROCESS_UNREF(iter);
+    }
+
+    r->rax = child_pid;
 }

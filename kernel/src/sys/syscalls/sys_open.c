@@ -49,6 +49,8 @@ retry:
     struct vfs_node* node = NULL;
     struct file* file = NULL;
 
+    bool opened = false;
+
     ret = vfs_lookup(dirnode, kpath, 0, NULL, &node);
     if (ret == 0) {
         if ((flags & O_CREAT) && (flags & O_EXCL)) {
@@ -83,6 +85,8 @@ retry:
         if (ret < 0) {
             goto end;
         }
+
+        opened = true;
     }
 
     if (node->type == VFS_TYPE_REGULAR && (flags & O_TRUNC)) {
@@ -101,12 +105,6 @@ retry:
         goto end;
     }
 
-    int fd = file_insert(current_process, file, flags & O_CLOEXEC);
-    if (fd < 0) {
-        ret = -EMFILE;
-        goto end;
-    }
-
     if (flags & O_APPEND) {
         struct stat st;
 
@@ -121,13 +119,19 @@ retry:
         file->offset = st.st_size;
     }
 
+    int fd = file_insert(current_process, file, flags & O_CLOEXEC);
+    if (fd < 0) {
+        ret = -EMFILE;
+        goto end;
+    }
+
     ret = fd;
 
 end:
     r->rax = ret;
 
     if (node && ret < 0) {
-        if (node->ops->close) {
+        if (opened && node->ops->close) {
             node->ops->lock(node);
             node->ops->close(node, flags);
             node->ops->unlock(node);

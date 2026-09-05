@@ -71,12 +71,15 @@ struct virtio_queue_used {
 } __attribute__((packed));
 
 struct virtio_queue {
+    uint16_t queue_number;
     uint16_t size;
     uint16_t last_used;
+
     struct virtio_queue_descriptor* descriptors;
     struct virtio_queue_available* available;
     struct virtio_queue_used* used;
-    uint32_t* notify;
+    uint16_t* notify;
+
     spinlock_t lock;
 };
 
@@ -86,7 +89,7 @@ struct virtio_device {
     struct virtio_common_config* common_config;
     void* device_config;
 
-    uint32_t* notify_begin;
+    uint16_t* notify_begin;
     uint32_t notify_offset_multiplier;
 
     struct virtio_queue* queues;

@@ -11,7 +11,7 @@
 #include <sys/signal.h>
 #include <utils/log.h>
 #include <utils/macros.h>
-#include <utils/spinlock.h>
+#include <utils/mutex.h>
 #include <utils/string.h>
 #include <utils/usercopy.h> 
 #include <utils/wait_queue.h> 
@@ -133,9 +133,9 @@ static size_t input_buf_index;
 static bool input_buf_flushed;
 
 static struct wait_queue read_wq;
-static spinlock_t read_lock;
-static spinlock_t write_lock;
-static spinlock_t tty_lock;
+static mutex_t read_mutex;
+static mutex_t write_mutex;
+static mutex_t tty_mutex;
 
 static const char crnl[2] = { '\r', '\n' };
 
@@ -160,9 +160,9 @@ static inline void do_backspace(void) {
 }
 
 static void internal_write(const char* buf, size_t count) {
-    spinlock_acquire(&write_lock);
+    mutex_acquire(&write_mutex);
     flanterm_write(fb_context, buf, count);
-    spinlock_release(&write_lock);
+    mutex_release(&write_mutex);
 }
 
 static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int flags) {
@@ -172,16 +172,13 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
 
     ssize_t ret;
 
-    spinlock_acquire(&read_lock);
+    mutex_acquire(&read_mutex);
 
     while (input_buf_index == 0) {
-        spinlock_release(&read_lock);
-
-        if ((ret = wait_queue_wait(&read_wq, true)) < 0) {
+        if ((ret = wait_queue_wait_mutex(&read_wq, &read_mutex, true)) < 0) {
+            mutex_release(&read_mutex);
             return ret;
         }
-
-        spinlock_acquire(&read_lock);
     }
 
     size_t max_to_copy = MIN(count, input_buf_index);
@@ -196,14 +193,14 @@ static ssize_t tty_read(dev_t dev, void* buf, size_t count, off_t offset, int fl
     }
 
     if ((ret = USER_MEMCPY_MAYBE_TO_USER(buf, input_buf, to_copy)) < 0) {
-        spinlock_release(&read_lock);
+        mutex_release(&read_mutex);
         return ret;
     }
 
     memmove(input_buf, input_buf + to_copy, input_buf_index - to_copy);
     input_buf_index -= to_copy;
 
-    spinlock_release(&read_lock);
+    mutex_release(&read_mutex);
     return to_copy;
 }
 
@@ -243,7 +240,7 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
 
     int ret = 0;
 
-    spinlock_acquire(&tty_lock);
+    mutex_acquire(&tty_mutex);
 
     switch (request) {
         case TCGETS:
@@ -293,7 +290,7 @@ static int tty_ioctl(dev_t dev, int request, void* argp) {
             break;
     }
 
-    spinlock_release(&tty_lock);
+    mutex_release(&tty_mutex);
     return ret;
 }
 
@@ -303,7 +300,7 @@ static short tty_poll(dev_t dev, short events, struct poll_table* pt) {
     short revents = 0;
 
     if (events & POLLIN) {
-        spinlock_acquire(&read_lock);
+        mutex_acquire(&read_mutex);
 
         if (input_buf_index > 0) {
             revents |= POLLIN;
@@ -311,7 +308,7 @@ static short tty_poll(dev_t dev, short events, struct poll_table* pt) {
             poll_table_add(pt, &read_wq);
         }
 
-        spinlock_release(&read_lock);
+        mutex_release(&read_mutex);
     }
 
     if (events & POLLOUT) {
@@ -346,7 +343,7 @@ void tty_add_char(char c) {
         c = '\r';
     }
 
-    spinlock_acquire(&read_lock);
+    mutex_acquire(&read_mutex);
 
     bool force_echo = false;
     bool should_wake = false;
@@ -433,7 +430,7 @@ void tty_add_char(char c) {
     }
 
 end:
-    spinlock_release(&read_lock);
+    mutex_release(&read_mutex);
 
     if (should_wake) {
         wait_queue_wake_all(&read_wq);
@@ -451,9 +448,9 @@ void tty_init(void) {
     }
 
     wait_queue_init(&read_wq);
-    spinlock_init(&read_lock);
-    spinlock_init(&write_lock);
-    spinlock_init(&tty_lock);
+    mutex_init(&read_mutex);
+    mutex_init(&write_mutex);
+    mutex_init(&tty_mutex);
 
     termios.c_iflag = ICRNL | IXON;
     termios.c_oflag = OPOST | ONLCR;

@@ -197,6 +197,7 @@ kernel_sources = files(
   'src/sys/syscalls/sys_yield.c',
 
   'src/sys/elf.c',
+  'src/sys/futex.c',
   'src/sys/process.c',
   'src/sys/scheduler.c',
   'src/sys/signal.c',

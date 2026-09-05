@@ -19,7 +19,7 @@ void device_try_init(struct xhci_controller* controller, uint8_t port) {
     if (unlikely(device == NULL)) {
         kpanic(NULL, false, "failed to allocate memory for xHCI device");
     }
-
+    device->port_id = port;
     device->slot_id = (result.control >> 24) & 0xff;
 
     device->device_context_paddr = pmm_alloc_zero(1);

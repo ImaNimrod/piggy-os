@@ -46,6 +46,10 @@ void sys_pipe(struct registers* r) {
         goto error;
     }
 
+    node->ops->lock(node);
+    node->ops->open(node, O_RDONLY | (flags & ~O_CLOEXEC));
+    node->ops->unlock(node);
+
     ret = file_insert(current_process, read_half, flags & O_CLOEXEC);
     if (ret < 0) {
         r->rax = ret;
@@ -58,6 +62,10 @@ void sys_pipe(struct registers* r) {
         r->rax = -ENOMEM;
         goto error;
     }
+
+    node->ops->lock(node);
+    node->ops->open(node, O_WRONLY | (flags & ~O_CLOEXEC));
+    node->ops->unlock(node);
 
     ret = file_insert(current_process, write_half, flags & O_CLOEXEC);
     if (ret < 0) {

@@ -91,15 +91,21 @@ struct process_group {
     struct process* tail;
     mutex_t mutex;
 
-    atomic_size_t refcount;
+    atomic_int refcount;
 };
 
 struct process {
     char name[PROCESS_NAME_MAX];
     pid_t pid;
     process_state_t state;
-
     char** cmdline;
+
+    struct process* parent;
+    struct process* children;
+    struct process* sibling_next;
+    struct wait_queue child_wq;
+
+    mutex_t mutex;
 
     int exit_status;
     spinlock_t exiting;
@@ -107,37 +113,43 @@ struct process {
     vector_t* threads;
     spinlock_t thread_list_lock;
 
+    struct file_descriptor fds[PROCESS_FD_COUNT];
+    mutex_t fd_mutex;
+
     struct vfs_node* cwd;
     struct vfs_node* root;
     spinlock_t node_lock;
 
-    struct file_descriptor fds[PROCESS_FD_COUNT];
-    mutex_t fd_mutex;
-
     struct vmm_context* vmm_context;
-
-    struct sigaction signal_actions[NSIG - 1];
-    spinlock_t signal_actions_lock;
-
-    struct timespec time_used;
-
-    struct process* parent;
-
-    struct process* children;
-    struct process* sibling_next;
-    spinlock_t child_list_lock;
-
-    struct wait_queue child_wq;
 
     struct process_group* group;
     struct process* group_prev;
     struct process* group_next;
     mutex_t group_mutex;
 
+    struct sigaction signal_actions[NSIG - 1];
+    spinlock_t signal_actions_lock;
+
+    struct timespec time_used;
+
     // for global process list
     struct process* prev;
     struct process* next;
+
+    atomic_int refcount;
 };
+
+#define PROCESS_REF(proc) atomic_fetch_add_explicit(&(proc)->refcount, 1, memory_order_relaxed)
+#define PROCESS_UNREF(proc) do { \
+    mutex_acquire(&processes_mutex); \
+    if (atomic_fetch_sub_explicit(&(proc)->refcount, 1, memory_order_release) <= 1) { \
+        process_destroy(proc); \
+        (proc) = NULL; \
+    } \
+    mutex_release(&processes_mutex); \
+} while (0)
+
+extern mutex_t processes_mutex;
 
 extern struct process* kernel_process;
 extern struct process* init_process;

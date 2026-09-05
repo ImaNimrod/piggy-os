@@ -70,7 +70,7 @@ void isr_register_handler(uint8_t vector, isr_handler_t handler, void* arg) {
 }
 
 void isr_unregister_handler(uint8_t vector) {
-    isrs[vector] = (struct isr_table_entry) {0};
+    isrs[vector] = (struct isr_table_entry) {};
 }
 
 void isr_handler(struct registers* r) {

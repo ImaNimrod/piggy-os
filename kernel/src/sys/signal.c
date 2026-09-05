@@ -8,6 +8,8 @@
 #include <utils/usercopy.h>
 #include <utils/vector.h>
 
+#include <utils/log.h>
+
 enum {
     DEFAULT_ACTION_CONTINUE,
     DEFAULT_ACTION_IGNORE,
@@ -52,12 +54,12 @@ void signal_handle_pending(struct registers* r) {
     struct process* current_process = current_thread->process;
 
     for (;;) {
-        spinlock_acquire(&current_thread->signal_lock);
+        bool int_status = spinlock_acquire_irqsave(&current_thread->signal_lock);
 
         sigset_t old_mask = current_thread->signal_mask;
         sigset_t pending = current_thread->pending_signals & ~old_mask;
         if (pending == 0) {
-            spinlock_release(&current_thread->signal_lock);
+            spinlock_release_irqsave(&current_thread->signal_lock, int_status);
             return;
         }
 
@@ -69,11 +71,11 @@ void signal_handle_pending(struct registers* r) {
             old_mask = current_thread->return_signal_mask;
         }
 
-        spinlock_release(&current_thread->signal_lock);
+        spinlock_release_irqsave(&current_thread->signal_lock, int_status);
 
-        spinlock_acquire(&current_process->signal_actions_lock);
+        int_status = spinlock_acquire_irqsave(&current_process->signal_actions_lock);
         struct sigaction action = current_process->signal_actions[signal - 1];
-        spinlock_release(&current_process->signal_actions_lock);
+        spinlock_release_irqsave(&current_process->signal_actions_lock, int_status);
 
         if (action.sa_handler == SIG_IGN) {
             continue;
@@ -91,26 +93,26 @@ void signal_handle_pending(struct registers* r) {
             process_exit(PROCESS_EXITCODE(0, SIGSEGV));
         }
 
-        spinlock_acquire(&current_thread->signal_lock);
+        int_status = spinlock_acquire_irqsave(&current_thread->signal_lock);
 
         if (!(action.sa_flags & SA_NODEFER)) {
             current_thread->signal_mask |= (1ULL << (signal - 1));
         }
         current_thread->signal_mask |= (action.sa_mask & ~UNBLOCKABLE_SIGNALS);
 
-        spinlock_release(&current_thread->signal_lock);
+        spinlock_release_irqsave(&current_thread->signal_lock, int_status);
 
-        spinlock_acquire(&current_process->signal_actions_lock);
+        int_status = spinlock_acquire_irqsave(&current_process->signal_actions_lock);
         if (action.sa_flags & SA_RESETHAND) {
             current_process->signal_actions[signal - 1].sa_handler = SIG_DFL;
         }
-        spinlock_release(&current_process->signal_actions_lock);
+        spinlock_release_irqsave(&current_process->signal_actions_lock, int_status);
 
         uintptr_t frame_sp;
         if ((action.sa_flags & SA_ONSTACK) && !(current_thread->signal_stack.ss_flags & SS_DISABLE) && !signal_on_altstack(current_thread, r->rsp)) {
-            spinlock_acquire(&current_thread->signal_lock);
+            int_status = spinlock_acquire_irqsave(&current_thread->signal_lock);
             frame_sp = (uintptr_t) current_thread->signal_stack.ss_sp + current_thread->signal_stack.ss_size;
-            spinlock_release(&current_thread->signal_lock);
+            spinlock_release_irqsave(&current_thread->signal_lock, int_status);
         } else {
             frame_sp = r->rsp - 128;
         }
@@ -150,17 +152,17 @@ void signal_handle_pending(struct registers* r) {
 }
 
 bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
-    spinlock_acquire(&thread->signal_lock);
+    bool int_status = spinlock_acquire_irqsave(&thread->signal_lock);
 
     if (thread->signal_stack.ss_flags & SS_DISABLE) {
-        spinlock_release(&thread->signal_lock);
+        spinlock_release_irqsave(&thread->signal_lock, int_status);
         return false;
     }
 
     uintptr_t start = (uintptr_t) thread->signal_stack.ss_sp;
     uintptr_t end = start + thread->signal_stack.ss_size;
 
-    spinlock_release(&thread->signal_lock);
+    spinlock_release_irqsave(&thread->signal_lock, int_status);
 
     return sp >= start && sp < end;
 }
@@ -187,9 +189,9 @@ bool signal_on_altstack(struct thread* thread, uintptr_t sp) {
     this_cpu()->write_fs_base(frame.fs_base);
     wrmsr(MSR_IA32_KERNEL_GS_BASE, frame.gs_base);
 
-    spinlock_acquire(&current_thread->signal_lock);
+    bool int_status = spinlock_acquire_irqsave(&current_thread->signal_lock);
     current_thread->signal_mask = frame.saved_mask;
-    spinlock_release(&current_thread->signal_lock);
+    spinlock_release_irqsave(&current_thread->signal_lock, int_status);
 
     this_cpu()->tss.rsp0 = current_thread->kernel_stack;
     context_switch(r);
@@ -202,9 +204,9 @@ int signal_send_process(struct process* process, int signal) {
     for (size_t i = 0; i < vector_size(process->threads); i++) {
         struct thread* thread = *vector_get(process->threads, i);
 
-        spinlock_acquire(&thread->signal_lock);
+        bool int_status = spinlock_acquire_irqsave(&thread->signal_lock);
         bool unblocked = signal == SIGKILL || signal == SIGSTOP || !(thread->signal_mask & (1ULL << (signal - 1)));
-        spinlock_release(&thread->signal_lock);
+        spinlock_release_irqsave(&thread->signal_lock, int_status);
 
         if (unblocked) {
             int ret = signal_send_thread(thread, signal);
@@ -247,21 +249,21 @@ int signal_send_process_group(struct process_group* group, int signal) {
 int signal_send_thread(struct thread* thread, int signal) {
     struct process* process = thread->process;
 
-    spinlock_acquire(&process->signal_actions_lock);
+    bool int_status = spinlock_acquire_irqsave(&process->signal_actions_lock);
 
     if (signal != SIGKILL && signal != SIGSTOP) {
         struct sigaction* action = &process->signal_actions[signal - 1];
         if (action->sa_handler == SIG_IGN || (action->sa_handler == SIG_DFL && default_action(signal) == DEFAULT_ACTION_IGNORE)) {
-            spinlock_release(&process->signal_actions_lock);
+            spinlock_release_irqsave(&process->signal_actions_lock, int_status);
             return 0;
         }
     }
 
-    spinlock_release(&process->signal_actions_lock);
+    spinlock_release_irqsave(&process->signal_actions_lock, int_status);
 
-    spinlock_acquire(&thread->signal_lock);
+    int_status = spinlock_acquire_irqsave(&thread->signal_lock);
     thread->pending_signals |= (1ULL << (signal - 1));
-    spinlock_release(&thread->signal_lock);
+    spinlock_release_irqsave(&thread->signal_lock, int_status);
 
     scheduler_wakeup(thread, -EINTR);
     return 0;

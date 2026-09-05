@@ -4,6 +4,7 @@
 #include <net/eth.h>
 #include <net/ipv4.h>
 #include <stddef.h>
+#include <utils/spinlock.h>
 
 #define HOST_NAME_MAX 255
 
@@ -56,6 +57,9 @@ struct netif {
 };
 
 extern char hostname[HOST_NAME_MAX];
+extern int netif_count;
+extern struct netif* netif_list;
+extern spinlock_t netif_list_lock;
 
 struct netif* netif_find(const char* name);
 void netif_register(struct netif* netif);

@@ -194,6 +194,8 @@ void sys_procctl(struct registers* r) {
                     break;
             }
 
+            PROCESS_UNREF(process);
+
             ret = (ssize_t) actual_len;
             break;
         default:

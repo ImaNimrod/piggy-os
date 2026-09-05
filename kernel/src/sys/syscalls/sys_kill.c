@@ -6,14 +6,12 @@
 #include <utils/list.h>
 #include <utils/usercopy.h>
 
-#include <utils/log.h>
 static void signal_all_processes(struct process* process, int signal) {
     if (!process) {
         return;
     }
 
     if (process != init_process) {
-        klog("pid: %d\n", process->pid);
         signal_send_process(process, signal);
     }
 
@@ -44,10 +42,11 @@ void sys_kill(struct registers* r) {
 
         if (signal == 0) {
             r->rax = 0;
-            return;
+        } else {
+            r->rax = signal_send_process(target, signal);
         }
 
-        r->rax = signal_send_process(target, signal);
+        PROCESS_UNREF(target);
     } else if (pid == 0) {
         r->rax = signal_send_process_group(current_process->group, signal);
     }  else if (pid == -1) {

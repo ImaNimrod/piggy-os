@@ -24,6 +24,7 @@
 #include <mem/slab.h>
 #include <mem/vmm.h>
 #include <net/netif.h>
+#include <sys/futex.h>
 #include <sys/process.h>
 #include <sys/scheduler.h>
 #include <utils/cmdline.h>
@@ -118,6 +119,8 @@ uintptr_t __stack_chk_guard = 0x67ab1cf19aef1049;
     console_init();
     ps2_init();
     tty_init();
+
+    futex_init();
 
     vfs_mount(NULL, vfs_root, "/", "tmpfs");
 
