@@ -54,4 +54,6 @@ void cmdline_init(void) {
     if (unlikely(!cmdline)) {
         kpanic(NULL, false, "failed to allocate memory for kernel command line");
     }
+
+    klog("[cmdline] kernel command line is '%s'\n", cmdline);
 }

@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 202405L
+#define _GNU_SOURCE
 
 #include <arpa/inet.h>
 
@@ -17,7 +17,8 @@
 
 #include <config.h>
 
-#define _PATH_CONFIG "/etc/ntp.conf"
+#define _PATH_CONFIG    "/etc/ntp.conf"
+#define _PATH_LOG       "/var/log/ntpd.log"
 
 #define NTP_EPOCH       2208988800ULL
 #define NTP_INTERVAL    (11 * 60)

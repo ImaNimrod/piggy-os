@@ -19,6 +19,7 @@ typedef struct mutex mutex_t;
 
 void wait_queue_init(struct wait_queue* wq);
 void wait_queue_add(struct wait_queue* wq, struct wait_node* node);
+bool wait_queue_remove(struct wait_queue* wq, struct wait_node* node);
 int wait_queue_wait(struct wait_queue* wq, bool interruptable);
 int wait_queue_wait_mutex(struct wait_queue* wq, mutex_t* m, bool interruptable);
 void wait_queue_wake_all(struct wait_queue* wq);

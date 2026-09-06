@@ -21,6 +21,8 @@
 #define ICMP_ECHO_REPLY     0
 #define ICMP_ECHO_REQUEST   8
 
+#define DATA_LENGTH 64
+
 struct icmp_header {
     uint8_t type;
     uint8_t code;
@@ -149,7 +151,7 @@ int main(int argc, char* argv[]) {
 
     srand(time(NULL) ^ getpid());
 
-    uint16_t identifier = rand();
+    uint16_t identifier = (uint16_t) rand();
     uint16_t sequence = 1;
 
     size_t num_rx = 0;
@@ -169,17 +171,15 @@ int main(int argc, char* argv[]) {
         header->identifier = htons(identifier);
         header->sequence = htons(sequence++);
 
-        size_t packet_len = sizeof(struct icmp_header) + 5;
-
         header->checksum = 0;
-        header->checksum = checksum(packet, packet_len);
+        header->checksum = checksum(packet, DATA_LENGTH);
 
         struct timespec start;
         if (clock_gettime(CLOCK_MONOTONIC, &start) < 0) {
             err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
         }
 
-        ssize_t ret = sendto(fd, packet, packet_len, 0, (struct sockaddr*) result->ai_addr, result->ai_addrlen);
+        ssize_t ret = sendto(fd, packet, DATA_LENGTH, 0, (struct sockaddr*) result->ai_addr, result->ai_addrlen);
         if (ret < 0) {
             err(EXIT_FAILURE, "sendto");
         }
@@ -201,9 +201,21 @@ int main(int argc, char* argv[]) {
             }
 
             struct iphdr* iphdr = (void*) packet;
-            struct icmp_header* reply = (void*) (packet + (iphdr->ihl * 4));
+            if (iphdr->version != 4 || iphdr->ihl < 5) {
+                continue;
+            }
 
-            if (reply->type == ICMP_ECHO_REPLY && ntohs(reply->identifier) == identifier) {
+            size_t ip_header_len = iphdr->ihl * 4;
+            if (nrecv < (ssize_t) (ip_header_len + sizeof(struct icmp_header))) {
+                continue;
+            }
+
+            struct icmp_header* reply = (void*) (packet + ip_header_len);
+            if (checksum(reply, nrecv - ip_header_len) != 0) {
+                continue;
+            }
+
+            if (reply->type == ICMP_ECHO_REPLY && reply->code == 0 && ntohs(reply->identifier) == identifier) {
                 num_rx++;
 
                 if (audible) {
@@ -211,7 +223,7 @@ int main(int argc, char* argv[]) {
                 }
 
                 double ms = ((uint64_t) (end.tv_sec - start.tv_sec) * 1000000000ULL + (end.tv_nsec - start.tv_nsec)) / 1000000.0;
-                printf("%zd bytes from %s: icmp_seq=%u time=%.3f ms\n", nrecv, ip, ntohs(reply->sequence), ms);
+                printf("%zd bytes from %s: icmp_seq=%u time=%.3f ms\n", nrecv - ip_header_len, ip, ntohs(reply->sequence), ms);
                 break;
             }
         }

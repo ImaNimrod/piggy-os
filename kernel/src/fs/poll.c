@@ -43,6 +43,7 @@ int poll_table_add(struct poll_table* pt, struct wait_queue* wq) {
 int poll_table_wait(struct poll_table* pt, const struct timespec* timeout) {
     scheduler_prepare_wait(this_cpu()->scheduler.current_thread, true);
 
+    bool timer_created = false;
     struct timer_event event;
 
     if (timeout) {
@@ -50,6 +51,8 @@ int poll_table_wait(struct poll_table* pt, const struct timespec* timeout) {
         if (ret < 0) {
             return ret;
         }
+
+        timer_created = true;
     }
 
     for (size_t i = 0; i < vector_size(pt->entries); i++) {
@@ -59,7 +62,12 @@ int poll_table_wait(struct poll_table* pt, const struct timespec* timeout) {
 
     int ret = scheduler_yield();
 
-    if (timeout) {
+    for (size_t i = 0; i < vector_size(pt->entries); i++) {
+        struct poll_table_entry* entry = (struct poll_table_entry*) vector_get(pt->entries, i);
+        wait_queue_remove(entry->wq, &entry->node);
+    }
+
+    if (timer_created) {
         timer_remove(&event);
     }
 

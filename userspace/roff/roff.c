@@ -251,7 +251,7 @@ static void switch_font(struct roff_context* ctx, unsigned int font) {
     }
 }
 
-static int do_escape(struct roff_context * ctx, char *x) {
+static int do_escape(struct roff_context* ctx, char* x) {
     switch (x[1]) {
         case 'f':
             if (x[2] == 0) {

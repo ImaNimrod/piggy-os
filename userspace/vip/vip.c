@@ -109,7 +109,7 @@ static size_t gutter_width(struct editor_state* state) {
         lines /= 10;
     }
 
-    return ret + 1;
+    return ret + 2;
 }
 
 static bool handle_key(struct editor_state* state) {
@@ -326,19 +326,19 @@ static bool handle_key(struct editor_state* state) {
                     motion_word_forward(state);
                     break;
                 case 'a':
-                    motion_right(state);
                     editor_set_mode(state, MODE_INSERT);
+                    motion_right(state);
                     break;
                 case 'A':
-                    motion_line_end(state);
                     editor_set_mode(state, MODE_INSERT);
+                    motion_line_end(state);
                     break;
                 case 'i':
                     editor_set_mode(state, MODE_INSERT);
                     break;
                 case 'I':
-                    motion_line_start(state);
                     editor_set_mode(state, MODE_INSERT);
+                    motion_line_start(state);
                     break;
                 case 'o':
                     if (editor_insert_row(state, &EMPTY_ROW, state->cursor.y + 1)) {
@@ -486,7 +486,7 @@ static void update(struct editor_state* state) {
 
             char lbuf[32];
 
-            int length = snprintf(lbuf, sizeof(lbuf), " %*zu ", (int)(gutter - 1), filerow + 1);
+            int length = snprintf(lbuf, sizeof(lbuf), " %*zu ", (int) (gutter - 2), filerow + 1);
 
             if (filerow == state->cursor.y) {
                 ab_append(&out, "\033[93m", 5);
@@ -505,7 +505,7 @@ static void update(struct editor_state* state) {
             }
         } else {
             char lbuf[32];
-            int length = snprintf(lbuf, sizeof(lbuf), "%*s ", (int)(gutter - 1), "~");
+            int length = snprintf(lbuf, sizeof(lbuf), "%*s ", (int) (gutter - 1), "~");
 
             ab_append(&out, "\033[90m", 5);
             ab_append(&out, lbuf, length);
@@ -574,24 +574,25 @@ static void update(struct editor_state* state) {
         }
     }
 
-    int screen_y = (int)(state->cursor.y - state->row_offset) + 1;
+    int screen_y = (int) (state->cursor.y - state->row_offset) + 1;
+    int screen_x = (int) gutter + 1;
 
-    int screen_x = (int)(state->cursor.x - state->col_offset) + (int)gutter + 1;
+    if (state->cursor.x >= state->col_offset) {
+        screen_x += (int) (state->cursor.x - state->col_offset);
+    }
 
     if (screen_y < 1) {
         screen_y = 1;
     }
-
     if (screen_y > (int) text_height) {
         screen_y = (int) text_height;
     }
 
-    if (screen_x < 1) {
-        screen_x = 1;
+    if (screen_x < (int) gutter + 1) {
+        screen_x = (int) gutter + 1;
     }
-
-    if (screen_x > (int)state->winsize.ws_col) {
-        screen_x = (int)state->winsize.ws_col;
+    if (screen_x > (int) state->winsize.ws_col) {
+        screen_x = (int) state->winsize.ws_col;
     }
 
     length = snprintf(buf, sizeof(buf), "\033[%d;%dH", screen_y, screen_x);

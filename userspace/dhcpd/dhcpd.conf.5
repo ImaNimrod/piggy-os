@@ -1,4 +1,4 @@
-.TH DHCPD.CONF "5" "July 2026" "PiggyOS" "File Formats"
+.TH DHCPD.CONF "5" "September 2026" "PiggyOS" "File Formats"
 
 .SH NAME
 dhcpd.conf \- dhcpd configuration file
@@ -6,7 +6,50 @@ dhcpd.conf \- dhcpd configuration file
 .SH DESCRIPTION
 
 .PP
-TODO
+The dhcpd.conf configuration file is read at startup by the dhcpd(8) in order to specify what network interfaces should be configured, along with the details of that implementation.
+
+.PP
+The file format is similar to other \fBPiggyOS\fR configuration files. Comments begin with a '#' character and extend to the end of the line.
+Blank lines are ignored.
+Configuration commands consist of a keyword followed by a list of arguments seperated by whitespace.
+Configuration commands can be multiline and must be terminated with a semicolon ';'.
+Arguments can be text strings, or integers, or boolean truth values.
+Additionally, a configuration block can be specified by a '{' after a regular command.
+A configuration block may contain any number of configuration commands, and is terminated by a '}'.
+
+.PP
+The majority of configuration options are interface-specific, and should thus be specified inside of an interface command block.
+Here is the list of available per-interface command options:
+
+.TP
+request OPTION...
+Specifiy what OPTION(s) should be requested from the DHCP server. Available values are 'routers', 'subnet-mask', and 'dns'. 
+
+.TP
+retry COUNT
+Maximum number of retries before the interface is marked non-functional and DHCP configuration process is stopped.
+
+.PP
+Here is the list of general command options:
+
+.TP
+domain_name_server HOST...
+Specify the HOST(s) to be used as domain name servers. This will override the DNS servers returned by a DHCP server.
+
+.SH EXAMPLE
+
+# Example dhcpd configuration
+
+interface eth0 {
+    request subnet-mask routers dns;
+    retry 3;
+
+}
+
+domain_name_server 1.1.1.1 1.0.0.1
+
+.SH SEE ALSO
+\fBdhcpd\fR(8)
 
 .SH AUTHOR
 Written by nimrod.

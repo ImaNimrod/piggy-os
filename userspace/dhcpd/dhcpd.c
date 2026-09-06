@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <arpa/inet.h>
 
 #include <net/if.h>
@@ -10,6 +12,8 @@
 #include <sys/socket.h>
 
 #include <err.h>
+#include <errno.h>
+#include <poll.h>
 #include <resolv.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -38,8 +42,8 @@
 #define DHCP_OPTION_MESSAGE_TYPE    53
 #define DHCP_OPTION_SERVER_ID       54
 #define DHCP_OPTION_PARAM_LIST      55
-#define DHCP_OPTION_REBIND_TIME     59
 #define DHCP_OPTION_RENEWAL_TIME    58
+#define DHCP_OPTION_REBIND_TIME     59
 #define DHCP_OPTION_END             255
 
 #define MAGIC_COOKIE 0x63825363
@@ -82,17 +86,22 @@ struct dhcp_lease {
     uint32_t gateway;
     uint32_t server_id;
 
-    time_t lease_time;
-    time_t renewal_time;
+    uint32_t lease_seconds;
+    uint32_t renewal_seconds;
+    uint32_t rebind_seconds;
 
     uint32_t* dns;
     size_t dns_count;
+
+    struct timespec acquired;
 };
 
 enum dhcp_state {
     STATE_SELECTING,
     STATE_REQUESTING,
     STATE_BOUND,
+    STATE_RENEWING,
+    STATE_REBINDING,
     STATE_FAILED,
 };
 
@@ -100,10 +109,11 @@ struct dhcp_context {
     char interface_name[IFNAMSIZ];
     int request_options;
 
-    int sockfd;
-    enum dhcp_state state;
     size_t retries;
     size_t max_retries;
+
+    int sockfd;
+    enum dhcp_state state;
 
     uint8_t mac[6];
     uint32_t xid;
@@ -111,11 +121,46 @@ struct dhcp_context {
     struct dhcp_lease lease;
     struct dhcp_lease offer;
 
-    struct dhcp_context* next;
+    struct timespec deadline;
+
+    struct timespec renewal_deadline;
+    struct timespec rebind_deadline;
+    struct timespec expiry_deadline;
 };
 
 static config_t* config;
-static struct dhcp_context* context_list;
+
+static inline struct timespec timespec_add_seconds(struct timespec ts, uint32_t seconds) {
+    ts.tv_sec += seconds;
+    return ts;
+}
+
+static inline bool timespec_expired(struct timespec now, struct timespec deadline) {
+    return now.tv_sec > deadline.tv_sec || (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec);
+}
+
+static inline struct timespec timespec_sub(struct timespec a, struct timespec b) {
+    struct timespec result = {
+        .tv_sec = a.tv_sec - b.tv_sec,
+        .tv_nsec = a.tv_nsec - b.tv_nsec,
+    };
+
+    if (result.tv_nsec < 0) {
+        result.tv_sec--;
+        result.tv_nsec += 1000000000L;
+    }
+
+    if (result.tv_sec < 0) {
+        return (struct timespec) {};
+    }
+
+    return result;
+}
+
+static void send_discover(struct dhcp_context* ctx);
+static void send_rebind(struct dhcp_context* ctx);
+static void send_renew(struct dhcp_context* ctx);
+static void send_request(struct dhcp_context* ctx);
 
 static void apply_config(struct dhcp_context* ctx) {
     struct ifreq ifr = {};
@@ -182,6 +227,362 @@ static void apply_config(struct dhcp_context* ctx) {
     fclose(fp);
 }
 
+static void bind_lease(struct dhcp_context* ctx, struct dhcp_lease* lease) {
+    free(ctx->lease.dns);
+
+    ctx->lease = *lease;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ctx->lease.acquired) < 0) {
+        err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
+    }
+
+    // RFC deadline
+    if (ctx->lease.renewal_seconds == 0) {
+        ctx->lease.renewal_seconds = ctx->lease.lease_seconds / 2;
+    }
+    if (ctx->lease.rebind_seconds == 0) {
+        ctx->lease.rebind_seconds = (ctx->lease.lease_seconds * 7) / 8;
+    }
+
+    ctx->renewal_deadline = timespec_add_seconds( ctx->lease.acquired, ctx->lease.renewal_seconds);
+    ctx->rebind_deadline = timespec_add_seconds( ctx->lease.acquired, ctx->lease.rebind_seconds);
+    ctx->expiry_deadline = timespec_add_seconds( ctx->lease.acquired, ctx->lease.lease_seconds);
+
+    ctx->deadline = ctx->renewal_deadline;
+
+    ctx->state = STATE_BOUND;
+
+    apply_config(ctx);
+}
+
+static void build_pollfds(struct dhcp_context* contexts, struct pollfd* fds, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        fds[i] = (struct pollfd) {
+            .fd = contexts[i].sockfd,
+            .events = POLLIN,
+            .revents = 0,
+        };
+    }
+}
+
+static struct timespec calculate_timeout(struct dhcp_context* contexts, size_t count) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+        err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
+    }
+
+    bool have_deadline = false;
+
+    struct timespec earliest = {};
+
+    for (size_t i = 0; i < count; i++) {
+        struct dhcp_context* ctx = &contexts[i];
+        if (ctx->state == STATE_FAILED) {
+            continue;
+        }
+
+        if (!have_deadline || ctx->deadline.tv_sec < earliest.tv_sec || (ctx->deadline.tv_sec == earliest.tv_sec && ctx->deadline.tv_nsec < earliest.tv_nsec)) {
+            earliest = ctx->deadline;
+            have_deadline = true;
+        }
+    }
+
+    if (!have_deadline) {
+        return (struct timespec) { .tv_sec = 30 };
+    }
+
+    return timespec_sub(earliest, now);
+}
+
+static void process_timers(struct dhcp_context* contexts, size_t count) {
+    struct timespec now;
+    if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+        err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        struct dhcp_context* ctx = &contexts[i];
+
+        switch (ctx->state) {
+            case STATE_SELECTING:
+                if (!timespec_expired(now, ctx->deadline)) {
+                    break;
+                }
+
+                if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                    ctx->state = STATE_FAILED;
+                    break;
+                }
+
+                send_discover(ctx);
+                ctx->retries++;
+
+                ctx->deadline = now;
+                ctx->deadline.tv_sec += 1;
+                break;
+            case STATE_REQUESTING:
+                if (!timespec_expired(now, ctx->deadline)) {
+                    break;
+                }
+
+                if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                    ctx->state = STATE_FAILED;
+                    break;
+                }
+
+                send_request(ctx);
+                ctx->retries++;
+
+                ctx->deadline = now;
+                ctx->deadline.tv_sec += 1;
+                break;
+            case STATE_BOUND:
+                if (timespec_expired(now, ctx->expiry_deadline)) {
+                    ctx->retries = 0;
+                    ctx->state = STATE_SELECTING;
+                    ctx->xid = (uint32_t) rand();
+
+                    if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                        ctx->state = STATE_FAILED;
+                        break;
+                    }
+
+                    send_discover(ctx);
+                    ctx->retries++;
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                    break;
+                }
+
+                if (timespec_expired(now, ctx->renewal_deadline)) {
+                    ctx->retries = 0;
+                    ctx->state = STATE_RENEWING;
+                    ctx->xid = (uint32_t) rand();
+
+                    send_renew(ctx);
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                }
+
+                break;
+            case STATE_RENEWING:
+                if (timespec_expired(now, ctx->expiry_deadline)) {
+                    ctx->retries = 0;
+                    ctx->state = STATE_SELECTING;
+                    ctx->xid = (uint32_t) rand();
+
+                    if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                        ctx->state = STATE_FAILED;
+                        break;
+                    }
+
+                    send_discover(ctx);
+                    ctx->retries++;
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                    break;
+                }
+
+                if (timespec_expired(now, ctx->rebind_deadline)) {
+                    ctx->retries = 0;
+                    ctx->state = STATE_REBINDING;
+                    ctx->xid = (uint32_t) rand();
+
+                    send_rebind(ctx);
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                    break;
+                }
+
+                if (timespec_expired(now, ctx->deadline)) {
+                    if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                        ctx->state = STATE_FAILED;
+                        break;
+                    }
+
+                    send_renew(ctx);
+                    ctx->retries++;
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                }
+
+                break;
+            case STATE_REBINDING:
+                if (timespec_expired(now, ctx->expiry_deadline)) {
+                    ctx->retries = 0;
+                    ctx->state = STATE_SELECTING;
+                    ctx->xid = (uint32_t) rand();
+
+                    free(ctx->lease.dns);
+                    memset(&ctx->lease, 0, sizeof(ctx->lease));
+
+                    if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                        ctx->state = STATE_FAILED;
+                        break;
+                    }
+
+                    send_discover(ctx);
+                    ctx->retries++;
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                    break;
+                }
+
+                if (timespec_expired(now, ctx->deadline)) {
+                    if (ctx->max_retries && ctx->retries >= ctx->max_retries) {
+                        ctx->state = STATE_FAILED;
+                        break;
+                    }
+
+                    send_rebind(ctx);
+                    ctx->retries++;
+
+                    ctx->deadline = now;
+                    ctx->deadline.tv_sec += 1;
+                }
+
+                break;
+            case STATE_FAILED:
+                break;
+        }
+    }
+}
+
+static void receive(struct dhcp_context* ctx) {
+    uint8_t buf[1500];
+
+    struct sockaddr_in from;
+    socklen_t from_len = sizeof(from);
+
+    ssize_t n = recvfrom(ctx->sockfd, buf, sizeof(buf), 0, (struct sockaddr*) &from, &from_len);
+    if (n < 0) {
+        warn("recvfrom(%s)", ctx->interface_name);
+        return;
+    }
+
+    struct dhcp_packet* pkt = (void*) buf;
+    if (pkt->op != BOOTREPLY) {
+        return;
+    }
+
+    if (ntohl(pkt->xid) != ctx->xid) {
+        return;
+    }
+
+    uint8_t message_type = 0;
+
+    struct dhcp_lease lease = {};
+
+    if (ctx->state == STATE_RENEWING || ctx->state == STATE_REBINDING) {
+        lease = ctx->lease;
+        lease.dns = NULL;
+        lease.dns_count = 0;
+    }
+
+    uint8_t* opt = pkt->options;
+    uint8_t* end = buf + n;
+
+    while (opt < end && *opt != DHCP_OPTION_END) {
+        uint8_t code = *opt++;
+        if (code == 0) {
+            continue;
+        }
+
+        if (code == DHCP_OPTION_END) {
+            break;
+        }
+
+        uint8_t len  = *opt++;
+        if (opt + len > end) {
+            break;
+        }
+
+        switch (code) {
+            case DHCP_OPTION_MESSAGE_TYPE:
+                message_type = opt[0];
+                break;
+            case DHCP_OPTION_SUBNET_MASK:
+                if (len == 4) {
+                    memcpy(&lease.mask, opt, 4);
+                }
+                break;
+            case DHCP_OPTION_ROUTER:
+                if (len == 4) {
+                    memcpy(&lease.gateway, opt, 4);
+                }
+                break;
+            case DHCP_OPTION_IP_LEASE_TIME:
+                if (len == 4) {
+                    memcpy(&lease.lease_seconds, opt, 4);
+                }
+                lease.lease_seconds = ntohl(lease.lease_seconds);
+                break;
+            case DHCP_OPTION_RENEWAL_TIME:
+                if (len == 4) {
+                    memcpy(&lease.renewal_seconds, opt, 4);
+                }
+                lease.renewal_seconds = ntohl(lease.renewal_seconds);
+                break;
+            case DHCP_OPTION_REBIND_TIME:
+                if (len == 4) {
+                    memcpy(&lease.rebind_seconds, opt, 4);
+                }
+                lease.rebind_seconds = ntohl(lease.rebind_seconds);
+                break;
+            case DHCP_OPTION_DNS:
+                lease.dns_count = len / 4;
+
+                lease.dns = malloc(lease.dns_count * sizeof(uint32_t));
+                if (!lease.dns) {
+                    errx(EXIT_FAILURE, "malloc");
+                }
+
+                memcpy(lease.dns, opt, lease.dns_count * sizeof(uint32_t));
+                break;
+            case DHCP_OPTION_SERVER_ID:
+                if (len == 4) {
+                    memcpy(&lease.server_id, opt, 4);
+                }
+                break;
+        }
+
+        opt += len;
+    }
+
+    lease.ip = pkt->yiaddr;
+
+    if (message_type == DHCP_OFFER && ctx->state == STATE_SELECTING) {
+        ctx->offer = lease;
+        ctx->state = STATE_REQUESTING;
+
+        send_request(ctx);
+
+        struct timespec now;
+        if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+            err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
+        }
+
+        ctx->deadline = now;
+        ctx->deadline.tv_sec += 1;
+        return;
+    }
+
+    if (message_type == DHCP_ACK && (ctx->state == STATE_REQUESTING || ctx->state == STATE_RENEWING || ctx->state == STATE_REBINDING)) {
+        bind_lease(ctx, &lease);
+        return;
+    }
+
+    if (message_type == DHCP_NAK) {
+        ctx->state = STATE_SELECTING;
+    }
+}
+
 static void send_discover(struct dhcp_context* ctx) {
     struct dhcp_packet discover = {};
 
@@ -228,7 +629,7 @@ static void send_discover(struct dhcp_context* ctx) {
 
     *opt++ = DHCP_OPTION_END;
 
-    size_t len  = sizeof(discover) - sizeof(discover.options) + (opt - discover.options);
+    size_t len = sizeof(discover) - sizeof(discover.options) + (opt - discover.options);
 
     struct sockaddr_in dest = {
         .sin_family = AF_INET,
@@ -237,6 +638,72 @@ static void send_discover(struct dhcp_context* ctx) {
     };
 
     if (sendto(ctx->sockfd, &discover, len, 0, (struct sockaddr*) &dest, sizeof(dest)) < 0) {
+        err(EXIT_FAILURE, "sendto");
+    }
+}
+
+static void send_rebind(struct dhcp_context* ctx) {
+    struct dhcp_packet request = {};
+
+    request.op = BOOTREQUEST;
+    request.htype = 1;
+    request.hlen = 6;
+    request.xid = htonl(ctx->xid);
+    request.ciaddr = ctx->lease.ip;
+    request.magic = htonl(MAGIC_COOKIE);
+
+    memcpy(request.chaddr, ctx->mac, 6);
+
+    uint8_t* opt = request.options;
+
+    *opt++ = DHCP_OPTION_MESSAGE_TYPE;
+    *opt++ = 1;
+    *opt++ = DHCP_REQUEST;
+
+    *opt++ = DHCP_OPTION_END;
+
+    size_t len = sizeof(request) - sizeof(request.options) + (opt - request.options);
+
+    struct sockaddr_in dest = {
+        .sin_family = AF_INET,
+        .sin_port = htons(67),
+        .sin_addr.s_addr = INADDR_BROADCAST,
+    };
+
+    if (sendto(ctx->sockfd, &request, len, 0, (struct sockaddr*) &dest, sizeof(dest)) < 0) {
+        err(EXIT_FAILURE, "sendto");
+    }
+}
+
+static void send_renew(struct dhcp_context* ctx) {
+    struct dhcp_packet request = {};
+
+    request.op = BOOTREQUEST;
+    request.htype = 1;
+    request.hlen = 6;
+    request.xid = htonl(ctx->xid);
+    request.ciaddr = ctx->lease.ip;
+    request.magic = htonl(MAGIC_COOKIE);
+
+    memcpy(request.chaddr, ctx->mac, 6);
+
+    uint8_t* opt = request.options;
+
+    *opt++ = DHCP_OPTION_MESSAGE_TYPE;
+    *opt++ = 1;
+    *opt++ = DHCP_REQUEST;
+
+    *opt++ = DHCP_OPTION_END;
+
+    size_t len = sizeof(request) - sizeof(request.options) + (opt - request.options);
+
+    struct sockaddr_in dest = {
+        .sin_family = AF_INET,
+        .sin_port = htons(67),
+        .sin_addr.s_addr = ctx->lease.server_id,
+    };
+
+    if (sendto(ctx->sockfd, &request, len, 0, (struct sockaddr*) &dest, sizeof(dest)) < 0) {
         err(EXIT_FAILURE, "sendto");
     }
 }
@@ -318,21 +785,36 @@ int main(int argc, char* argv[]) {
         errx(EXIT_FAILURE, "failed to load config");
     }
 
+    size_t capacity = 2;
+    size_t interface_count = 0;
+
+    struct dhcp_context* contexts = malloc(sizeof(struct dhcp_context) * capacity);
+    if (!contexts) {
+        errx(EXIT_FAILURE, "malloc");
+    }
+
     config_iterator_t iter;
     config_iterator_init(&iter, &config->root, "interface");
 
     config_node_t* interface;
     while ((interface = config_iterator_next(&iter))) {
-        struct dhcp_context* ctx = calloc(1, sizeof(struct dhcp_context));
-        if (!ctx) {
-            err(EXIT_FAILURE, "calloc");
-        }
-
         const char* interface_name;
         if (config_value_get_string(interface, 0, &interface_name) < 0) {
             warnx("config: missing interface name");
             continue;
         }
+
+        if (interface_count == capacity) {
+            capacity *= 2;
+            contexts = reallocarray(contexts, capacity, sizeof(struct dhcp_context));
+            if (!contexts) {
+                err(EXIT_FAILURE, "reallocarray");
+            }
+        }
+
+        struct dhcp_context* ctx = &contexts[interface_count++];
+        memset(ctx, 0, sizeof(struct dhcp_context));
+
         strncpy(ctx->interface_name, interface_name, sizeof(ctx->interface_name));
         ctx->interface_name[IFNAMSIZ - 1] = '\0';
 
@@ -363,7 +845,7 @@ int main(int argc, char* argv[]) {
             warnx("config: failed to parse retry value");
         }
 
-        if (value < 0) {
+        if (value <= 0) {
             warnx("config: invalid retry value: %ld", value);
         }
 
@@ -398,116 +880,58 @@ int main(int argc, char* argv[]) {
         }
 
         ctx->xid = rand();
-
         ctx->state = STATE_SELECTING;
-
-        ctx->next = context_list;
-        context_list = ctx;
-    }
-
-    struct dhcp_context* ctx = context_list;
-    while (ctx) {
-        for (;;) {
-            if (ctx->max_retries != 0 && ctx->retries > ctx->max_retries) {
-                break;
-            }
-
-            if (ctx->state == STATE_SELECTING) {
-                send_discover(ctx);
-            } else if (ctx->state == STATE_REQUESTING) {
-                send_request(ctx);
-            }
-
-            uint8_t buf[1500];
-
-            struct sockaddr_in from;
-            socklen_t from_len = sizeof(from);
-
-            ssize_t n = recvfrom(ctx->sockfd, buf, sizeof(buf), 0, (struct sockaddr*) &from, &from_len);
-            if (n < 0) {
-                ctx->retries++;
-                continue;
-            }
-
-            struct dhcp_packet* pkt = (void*) buf;
-            if (pkt->op != BOOTREPLY) {
-                ctx->retries++;
-                continue;
-            }
-            if (ntohl(pkt->xid) != ctx->xid) {
-                ctx->retries++;
-                continue;
-            }
-
-            uint8_t message_type = 0;
-            struct dhcp_lease lease = {};
-
-            uint8_t* opt = pkt->options;
-            uint8_t* end = buf + n;
-
-            while (opt < end && *opt != DHCP_OPTION_END) {
-                uint8_t code = *opt++;
-                uint8_t len  = *opt++;
-
-                if (opt + len > end) {
-                    break;
-                }
-
-                switch (code) {
-                    case DHCP_OPTION_MESSAGE_TYPE:
-                        message_type = opt[0];
-                        break;
-                    case DHCP_OPTION_SUBNET_MASK:
-                        memcpy(&lease.mask, opt, 4);
-                        break;
-                    case DHCP_OPTION_ROUTER:
-                        memcpy(&lease.gateway, opt, 4);
-                        break;
-                    case DHCP_OPTION_DNS:
-                        lease.dns_count = len / 4;
-
-                        lease.dns = malloc(lease.dns_count * sizeof(uint32_t));
-                        if (!lease.dns) {
-                            errx(EXIT_FAILURE, "malloc");
-                        }
-
-                        memcpy(lease.dns, opt, lease.dns_count * sizeof(uint32_t));
-                        break;
-                    case DHCP_OPTION_SERVER_ID:
-                        memcpy(&lease.server_id, opt, 4);
-                        break;
-                }
-
-                opt += len;
-            }
-
-            lease.ip = pkt->yiaddr;
-
-            if (message_type == DHCP_OFFER && ctx->state == STATE_SELECTING) {
-                ctx->offer = lease;
-                ctx->state = STATE_REQUESTING;
-            }
-
-            if (message_type == DHCP_ACK && ctx->state == STATE_REQUESTING) {
-                ctx->lease = lease;
-                ctx->state = STATE_BOUND;
-
-                apply_config(ctx);
-                break;
-            }
-
-            if (message_type == DHCP_NAK) {
-                ctx->state = STATE_SELECTING;
-                ctx->retries++;
-            }
-        }
-
-        close(ctx->sockfd);
-
-        ctx = ctx->next;
     }
 
     config_free(config);
+
+    struct pollfd* fds = malloc(sizeof(struct pollfd) * interface_count);
+    if (!fds) {
+        errx(EXIT_FAILURE, "malloc");
+    }
+
+    for (size_t i = 0; i < interface_count; i++) {
+        struct dhcp_context* ctx = &contexts[i];
+
+        printf("%s discover\n", ctx->interface_name);
+        send_discover(ctx);
+
+        struct timespec now;
+        if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+            err(EXIT_FAILURE, "clock_gettime(CLOCK_MONOTONIC)");
+        }
+
+        ctx->deadline = now;
+        ctx->deadline.tv_sec += 1;
+    }
+
+    for (;;) {
+        build_pollfds(contexts, fds, interface_count);
+
+        struct timespec timeout = calculate_timeout(contexts, interface_count);
+
+        int ret = ppoll(fds, interface_count, &timeout, NULL);
+        if (ret < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+
+            err(EXIT_FAILURE, "ppoll");
+        }
+
+        for (size_t i = 0; i < interface_count; i++) {
+            if (!(fds[i].revents & POLLIN)) {
+                continue;
+            }
+
+            receive(&contexts[i]);
+        }
+
+        process_timers(contexts, interface_count);
+    }
+
+    free(fds);
+    free(contexts);
 
     return EXIT_SUCCESS;
 }

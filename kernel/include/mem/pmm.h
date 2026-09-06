@@ -5,6 +5,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+extern size_t total_pages;
+extern size_t free_pages;
+
 uintptr_t pmm_alloc(size_t page_count);
 uintptr_t pmm_alloc_zero(size_t page_count);
 void pmm_free(uintptr_t paddr, size_t page_count);

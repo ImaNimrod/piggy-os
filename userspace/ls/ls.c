@@ -407,6 +407,11 @@ static void usage(void) {
 int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
 
+    if (isatty(STDOUT_FILENO)) {
+        output = output_columns;
+        colors = true;
+    }
+
     int c;
     while ((c = getopt(argc, argv, "1ACFHLSUaflt")) != -1) {
         switch (c) {
@@ -456,11 +461,6 @@ int main(int argc, char* argv[]) {
 
     argc -= optind;
     argv += optind;
-
-    if (isatty(STDOUT_FILENO)) {
-        output = output_columns;
-        colors = true;
-    }
 
     int ret = EXIT_SUCCESS;
 

@@ -272,7 +272,7 @@ int main(int argc, char* argv[]) {
         if (print_all && have_winsize) {
             printf(" %u rows; %u columns;", winsize.ws_row, winsize.ws_col);
         }
-        
+
         fputs("\ncc:", stdout);
 
         for (size_t i = 0; i < SIZEOF_ARRAY(control_characters); i++) {

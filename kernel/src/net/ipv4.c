@@ -13,6 +13,8 @@
 #include <utils/mutex.h>
 #include <utils/string.h>
 
+#define IPV4_FLAG_MF (1 << 2)
+
 #define IPV4_VERSION 0x04
 #define IPV4_MAX_LEN 65535
 
@@ -127,8 +129,11 @@ void ipv4_handle(struct netif* netif, const void* buf) {
         return;
     }
 
+    if ((header->flags & IPV4_FLAG_MF) || (header->fragment_offset != 0)) {
+        return;
+    }
+
     if ((header->ttl - 1) == 0) {
-        // TODO: send ICMP error
         return;
     }
 
@@ -187,37 +192,51 @@ int ipv4_send(const void* buf, size_t len, ipv4_address_t destination, ipv4_prot
         netif = broadcast_netif;
     }
 
-    struct ipv4_header header = {
-        .ihl = 5,
-        .version = IPV4_VERSION,
-        .tos = 0,
-        .length = htons((uint16_t) total_len),
-        .identification = 0,
-        .flags = 0,
-        .fragment_offset = 0,
-        .ttl = 64,
-        .protocol = protocol,
-        .checksum = 0,
-        .source = htonl(netif->ipv4_addr),
-        .destination = htonl(destination),
-    };
+    size_t fragment_payload = netif->mtu - sizeof(struct ipv4_header);
+    fragment_payload &= ~7ULL;
 
-    header.checksum = inet_checksum(&header, sizeof(header));
+    size_t fragment_count = DIV_CEIL(len, fragment_payload);
 
-    struct packet packet;
-    if (!netif->alloc_packet(netif, &packet, total_len)) {
-        return -ENOMEM;
+    for (size_t i = 0; i < fragment_count; i++) {
+        size_t offset = i * fragment_payload;
+        size_t fragment_len = MIN(fragment_payload, len - offset);
+
+        struct packet packet;
+        if (!netif->alloc_packet(netif, &packet, sizeof(struct ipv4_header) + fragment_len)) {
+            return -ENOMEM;
+        }
+
+        struct ipv4_header header = {
+            .ihl = 5,
+            .version = IPV4_VERSION,
+            .tos = 0,
+            .length = htons((uint16_t) sizeof(struct ipv4_header) + fragment_len),
+            .identification = htons(atomic_fetch_add_explicit(&netif->ip_id_counter, 1, memory_order_relaxed)),
+            .flags = (i == fragment_count - 1) ? 0 : IPV4_FLAG_MF,
+            .fragment_offset = htons((uint16_t) ((i * fragment_payload) >> 3)),
+            .ttl = 64,
+            .protocol = protocol,
+            .checksum = 0,
+            .source = htonl(netif->ipv4_addr),
+            .destination = htonl(destination),
+        };
+
+        header.checksum = inet_checksum(&header, sizeof(header));
+
+        uint8_t* p = (uint8_t*) packet.buf + packet.offset;
+        memcpy(p, &header, sizeof(header));
+        memcpy(p + sizeof(header), (const void*) ((uintptr_t) buf + (i * fragment_payload)), fragment_len);
+
+        bool ret = netif->send_packet(netif, &packet, &mac, ETHERTYPE_IPV4);
+
+        netif->free_packet(netif, &packet);
+
+        if (!ret) {
+            return -EIO;
+        }
     }
 
-    uint8_t* p = (uint8_t*) packet.buf + packet.offset;
-    memcpy(p, &header, sizeof(header));
-    memcpy(p + sizeof(header), buf, len);
-
-    bool ret = netif->send_packet(netif, &packet, &mac, ETHERTYPE_IPV4);
-
-    netif->free_packet(netif, &packet);
-
-    return ret ? 0 : -EIO;
+    return 0;
 }
 
 void ipv4_init(void) {

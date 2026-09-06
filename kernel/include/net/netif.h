@@ -3,10 +3,11 @@
 
 #include <net/eth.h>
 #include <net/ipv4.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <utils/spinlock.h>
 
-#define HOST_NAME_MAX 255
+#define HOST_NAME_MAX 256
 
 #define IFNAMSIZ 16
 
@@ -45,6 +46,8 @@ struct netif {
     mac_address_t mac;
     ipv4_address_t ipv4_addr;
     ipv4_address_t ipv4_mask;
+
+    atomic_size_t ip_id_counter;
 
     void* device;
 

@@ -1,0 +1,35 @@
+.TH GETTY "1" "September 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+getty \- minimal getty implementation
+
+.SH SYNOPSIS
+.B getty
+[\fI\,TTY\/\fR]
+
+.SH DESCRIPTION
+
+.PP
+Configures a terminal TTY and runs the /usr/bin/sh command.
+
+.PP
+This command is really only intended to be run by \fBinit\fR(8).
+
+.PP
+With no TTY, use /dev/tty.
+
+.SH OPTIONS
+None.
+
+.SH SEE ALSO
+\fBinit\fR(8), \fBsh\fR(1)
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License MIT: The MIT License <https://mit-license.org/>.

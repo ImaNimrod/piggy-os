@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 202405L
+#define _GNU_SOURCE
 
 #include <sys/stat.h>
 

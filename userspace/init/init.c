@@ -10,19 +10,28 @@
 #include <fcntl.h>
 #include <paths.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <config.h>
 
 #define _PATH_CONFIG "/etc/rc.conf"
 
+#define SHUTDOWN_TIMEOUT 5
+
 enum restart {
     RESTART_NONE = 0,
     RESTART_ALWAYS,
     RESTART_FAILURE,
+};
+
+enum service_state {
+    SERVICE_STOPPED,
+    SERVICE_RUNNING,
 };
 
 struct service {
@@ -34,11 +43,15 @@ struct service {
     enum restart restart;
 
     pid_t pid;
+    enum service_state state;
 
     struct service* next;
 };
 
+static volatile sig_atomic_t powerctl_op;
+
 static struct service* service_list;
+static atomic_bool shutting_down;
 
 static inline enum restart restart_from_str(const char* str) {
     if (strcmp(str, "always") == 0) {
@@ -48,6 +61,67 @@ static inline enum restart restart_from_str(const char* str) {
     }
 
     return RESTART_NONE;
+}
+
+static inline bool should_restart(struct service* service, int status) {
+    if (service->restart == RESTART_NONE) {
+        return false;
+    }
+
+    if (service->restart == RESTART_ALWAYS) {
+        return true;
+    }
+
+    if (service->restart == RESTART_FAILURE) {
+        if (WIFSIGNALED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool start_service(struct service* service);
+
+static void exit_service(struct service* service, int status) {
+    printf("service %s exited", service->name);
+
+    if (WIFEXITED(status)) {
+        printf(" with status %d\n", WEXITSTATUS(status));
+    } else if (WIFSIGNALED(status)) {
+        printf(" from signal %d\n", WTERMSIG(status));
+    } else {
+        putchar('\n');
+    }
+
+    service->pid = -1;
+    service->state = SERVICE_STOPPED;
+
+    if (!atomic_load_explicit(&shutting_down, memory_order_acquire) && should_restart(service, status)) {
+        start_service(service);
+    }
+}
+
+static struct service* find_service(pid_t pid) {
+    for (struct service* service = service_list; service; service = service->next) {
+        if (service->pid == pid) {
+            return service;
+        }
+    }
+
+    return NULL;
+}
+
+static void kill_services(int signum) {
+    for (struct service* service = service_list; service; service = service->next) {
+        if (service->pid == SERVICE_RUNNING) {
+            if (kill(service->pid, signum) < 0) {
+                if (errno != ESRCH) {
+                    warn("kill %s", service->name);
+                }
+            }
+        }
+    }
 }
 
 static bool load_services(config_t* config, struct service** service_list) {
@@ -63,6 +137,11 @@ static bool load_services(config_t* config, struct service** service_list) {
             continue;
         }
 
+        config_node_t* disabled = config_find(node, "disabled");
+        if (disabled) {
+            continue;
+        }
+
         struct service* service = calloc(1, sizeof(struct service));
         if (!service) {
             return false;
@@ -74,10 +153,10 @@ static bool load_services(config_t* config, struct service** service_list) {
             return false;
         }
 
+
         config_node_t* command = config_find(node, "command");
 
         service->argc = config_value_count(command);
-
         service->argv = calloc(service->argc + 1, sizeof(char*));
         if (!service->argv) {
             free(service->name);
@@ -140,30 +219,30 @@ static bool mount_pseudofs(void) {
     return true;
 }
 
-static void restart_service(struct service* service, int status) {
-    if (service->restart == RESTART_NONE) {
-        return;
+static bool redirect_service_stdio(void) {
+    int fd = open(_PATH_DEVNULL, O_RDWR);
+    if (fd < 0) {
+        return false;
     }
 
-    bool failed = WIFSIGNALED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0);
-
-    if (service->restart == RESTART_ALWAYS || (service->restart == RESTART_FAILURE && failed)) {
-        pid_t pid = fork();
-        if (pid < 0) {
-            warn("fork");
-            return;
-        }
-
-        if (pid == 0) {
-            execv(service->argv[0], service->argv);
-            err(EXIT_FAILURE, "execv");
-        }
-
-        service->pid = pid;
-
-        printf("restarting service %s\n", service->name);
-        fflush(stdout);
+    if (dup2(fd, STDIN_FILENO) < 0) {
+        goto fail;
     }
+
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        goto fail;
+    }
+
+    if (dup2(fd, STDERR_FILENO) < 0) {
+        goto fail;
+    }
+
+    close(fd);
+    return true;
+
+fail:
+    close(fd);
+    return false;
 }
 
 static bool set_hostname(config_t* config) {
@@ -186,25 +265,14 @@ static bool set_hostname(config_t* config) {
     return true;
 }
 
-static void signal_handler(int signum);
-
-static bool setup_signals(void) {
-    struct sigaction sa;
-    sa.sa_flags = 0;
-    sa.sa_handler = signal_handler;
-    sigemptyset(&sa.sa_mask);
-
-    if (sigaction(SIGINT, &sa, NULL) < 0) {
-        warn("sigaction(SIGINT)");
-        return false;
+static bool services_running(void) {
+    for (struct service* service = service_list; service; service = service->next) {
+        if (service->pid >= 0) {
+            return true;
+        }
     }
 
-    if (sigaction(SIGUSR1, &sa, NULL) < 0) {
-        warn("sigaction(SIGUSR1)");
-        return false;
-    }
-
-    return true;
+    return false;
 }
 
 static bool setup_tempdir(void) {
@@ -220,69 +288,114 @@ static bool setup_tempdir(void) {
     return true;
 }
 
+static void shutdown_services(void) {
+    atomic_store_explicit(&shutting_down, true, memory_order_relaxed);
+
+    printf("stopping services\n");
+    fflush(stdout);
+
+    kill_services(SIGTERM);
+
+    struct timespec deadline;
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) < 0) {
+        warn("clock_gettime(CLOCK_MONOTONIC)");
+        kill_services(SIGKILL);
+    } else {
+        deadline.tv_sec += SHUTDOWN_TIMEOUT;
+
+        while (services_running()) {
+            int status;
+
+            pid_t pid = waitpid(-1, &status, 0);
+            if (pid >= 0) {
+                struct service* service = find_service(pid);
+                if (service) {
+                    exit_service(service, status);
+                }
+
+                continue;
+            }
+
+            if (errno == EINTR) {
+            } else if (errno == ECHILD) {
+                break;
+            } else {
+                warn("waitpid");
+                break;
+            }
+
+            struct timespec now;
+            if (clock_gettime(CLOCK_MONOTONIC, &now) < 0) {
+                warn("clock_gettime(CLOCK_MONOTONIC)");
+                break;
+            }
+
+            if (now.tv_sec > deadline.tv_sec || (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec)) {
+                break;
+            }
+        }
+
+        if (services_running()) {
+            printf("service shutdown timed out, sending SIGKILL\n");
+            fflush(stdout);
+
+            kill_services(SIGKILL);
+        }
+    }
+
+    while (services_running()) {
+        int status;
+
+        pid_t pid = waitpid(-1, &status, 0);
+        if (pid >= 0) {
+            struct service* service = find_service(pid);
+            if (service) {
+                exit_service(service, status);
+            }
+
+            continue;
+        }
+
+        if (errno == EINTR) {
+            continue;
+        } else if (errno == ECHILD) {
+            break;
+        }
+
+        warn("waitpid");
+        break;
+    }
+}
+
 static void signal_handler(int signum) {
-    int op = 0;
-
     if (signum == SIGINT) {
-        op = POWERCTL_REBOOT;
+        powerctl_op = POWERCTL_REBOOT;
     } else if (signum == SIGUSR1) {
-        op = POWERCTL_SHUTDOWN;
+        powerctl_op = POWERCTL_SHUTDOWN;
     }
-
-    sync();
-
-    powerctl(op);
 }
 
-static bool start_services(struct service* service_list) {
-    for (struct service* service = service_list; service; service = service->next) {
-        pid_t pid = fork();
-        if (pid < 0) {
-            warn("fork");
-            return false;
-        }
-
-        if (pid == 0) {
-            execv(service->argv[0], service->argv);
-            err(EXIT_FAILURE, "execv");
-        }
-
-        service->pid = pid;
-
-        printf("starting service %s (pid: %d)\n", service->name, service->pid);
+bool start_service(struct service* service) {
+    pid_t pid = fork();
+    if (pid < 0) {
+        warn("fork");
+        return false;
     }
 
+    if (pid == 0) {
+        if (!redirect_service_stdio()) {
+            _Exit(EXIT_FAILURE);
+        }
+
+        execv(service->argv[0], service->argv);
+        _Exit(EXIT_FAILURE);
+    }
+
+    service->pid = pid;
+    service->state = SERVICE_RUNNING;
+
+    printf("started service %s (pid: %d)\n", service->name, pid);
     return true;
-}
-
-static int switch_terminal(const char* tty) {
-    int rfd = open(tty, O_RDONLY);
-    if (rfd < 0) {
-        return -1;
-    }
-    int wfd = open(tty, O_WRONLY);
-    if (wfd < 0) {
-        return -1;
-    }
-
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-
-    if (dup2(rfd, STDIN_FILENO) < 0) {
-        return -1;
-    }
-    if (dup2(wfd, STDOUT_FILENO) < 0) {
-        return -1;
-    }
-    if (dup2(wfd, STDERR_FILENO) < 0) {
-        return -1;
-    }
-
-    close(rfd);
-    close(wfd);
-
-    return 0;
 }
 
 int main(void) {
@@ -303,8 +416,16 @@ int main(void) {
 
     config_free(config);
 
-    if (!setup_signals()) {
-        errx(EXIT_FAILURE, "failed to setup signal handlers");
+    struct sigaction sa;
+    sa.sa_flags = 0;
+    sa.sa_handler = signal_handler;
+    sigemptyset(&sa.sa_mask);
+
+    if (sigaction(SIGINT, &sa, NULL) < 0) {
+        err(EXIT_FAILURE, "sigaction(SIGINT)");
+    }
+    if (sigaction(SIGUSR1, &sa, NULL) < 0) {
+        err(EXIT_FAILURE, "sigaction(SIGUSR1)");
     }
 
     if (!mount_pseudofs()) {
@@ -315,50 +436,47 @@ int main(void) {
         errx(EXIT_FAILURE, "failed to initialize temporary directory");
     }
 
-    if (!start_services(service_list)) {
-        errx(EXIT_FAILURE, "failed to start services");
-    }
-
-    fflush(stdout);
-
     setenv("HOME", "/home", 1);
     setenv("PATH", "/usr/bin", 1);
     setenv("TERM", "linux", 1);
 
-    pid_t pid = fork();
-    if (pid < 0) {
-        err(EXIT_FAILURE, "fork failed");
-    } else if (pid == 0) {
-        if (switch_terminal(_PATH_TTY) < 0) {
-            err(EXIT_FAILURE, "failed to setup tty for shell");
+    printf("starting services...\n");
+    fflush(stdout);
+
+    for (struct service* service = service_list; service; service = service->next) {
+        if (!start_service(service)) {
+            printf("failed to start service %s", service->name);
         }
-
-        chdir("/home");
-
-        char* argv[] = { "/usr/bin/sh", NULL };
-
-        execv(argv[0], argv);
-        err(EXIT_FAILURE, "execve");
     }
 
     for (;;) {
-        pid_t pid;
-        int status;
+        if (powerctl_op) {
+            shutdown_services();
 
-        while ((pid = waitpid(-1, &status, 0)) >= 0) {
-            for (struct service* service = service_list; service; service = service->next) {
-                if (pid == service->pid) {
-                    restart_service(service, status);
-                }
-            }
+            sync();
+
+            powerctl(powerctl_op);
+            __builtin_unreachable();
         }
 
-        if (pid == -1) {
+        int status;
+
+        pid_t pid = waitpid(-1, &status, 0);
+        if (pid < 0) {
             if (errno == EINTR) {
                 continue;
             } else if (errno == ECHILD) {
                 pause();
+                continue;
             }
+
+            warn("waitpid");
+            continue;
+        }
+
+        struct service* service = find_service(pid);
+        if (service) {
+            exit_service(service, status);
         }
     }
 

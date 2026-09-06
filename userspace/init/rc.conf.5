@@ -1,4 +1,4 @@
-.TH RC.CONF "5" "July 2026" "PiggyOS" "File Formats"
+.TH RC.CONF "5" "September 2026" "PiggyOS" "File Formats"
 
 .SH NAME
 rc.conf \- init configuration file
@@ -6,7 +6,49 @@ rc.conf \- init configuration file
 .SH DESCRIPTION
 
 .PP
-TODO
+The rc.conf configuration file is read at startup by the init(8) in order to determine system configuration and what services should be started.
+
+.PP
+The file format is similar to other \fBPiggyOS\fR configuration files. Comments begin with a '#' character and extend to the end of the line.
+Blank lines are ignored.
+Configuration commands consist of a keyword followed by a list of arguments seperated by whitespace.
+Configuration commands can be multiline and must be terminated with a semicolon ';'.
+Arguments can be text strings, or integers, or boolean truth values.
+Additionally, a configuration block can be specified by a '{' after a regular command.
+A configuration block may contain any number of configuration commands, and is terminated by a '}'.
+
+.PP
+Here is the list of general command options:
+
+.TP
+hostname NAME
+Set the system hostname to NAME.
+
+.PP
+TODO: finish documenting service config options
+
+.SH EXAMPLE
+
+# Example rc.conf configuration
+
+
+hostname piggy;
+
+
+service dhcpd {
+    command /usr/bin/dhcpd;
+
+}
+
+
+service getty {
+    command /usr/bin/getty /dev/tty;
+    restart always;
+
+}
+
+.SH SEE ALSO
+\fBinit\fR(8)
 
 .SH AUTHOR
 Written by nimrod.
@@ -17,4 +59,3 @@ Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
 .SH COPYRIGHT
 Copyright \(co 2026 nimrod
 License MIT: The MIT License <https://mit-license.org/>.
-

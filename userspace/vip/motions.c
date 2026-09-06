@@ -65,7 +65,7 @@ void motion_left(struct editor_state* state) {
 }
 
 void motion_right(struct editor_state* state) {
-    if (state->cursor.x < state->rows[state->cursor.y].length - 1) {
+    if (state->cursor.x < state->rows[state->cursor.y].length - (state->mode == MODE_INSERT ? 0 : 1)) {
         state->cursor.x++;
     }
 }
@@ -133,7 +133,7 @@ void motion_line_end(struct editor_state* state) {
     if (row->length == 0) {
         state->cursor.x = 0;
     } else {
-        state->cursor.x = row->length - 1;
+        state->cursor.x = row->length - (state->mode == MODE_INSERT ? 0 : 1);
     }
 }
 

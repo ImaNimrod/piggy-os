@@ -9,10 +9,11 @@
 
 extern struct limine_memmap_request memmap_request;
 
+size_t total_pages;
+size_t free_pages;
+
 static uint64_t* pmm_bitmap;
 static spinlock_t pmm_lock;
-static size_t reserved_pages;
-static size_t usable_pages;
 static size_t highest_page_index;
 static size_t last_used_index;
 
@@ -55,7 +56,7 @@ static uintptr_t inner_alloc(size_t pages, uint64_t last_limit) {
         }
 
         last_used_index = start + pages;
-        usable_pages -= pages;
+        free_pages -= pages;
         return start * PAGE_SIZE_4KB;
     }
 
@@ -99,7 +100,7 @@ void pmm_free(uintptr_t paddr, size_t page_count) {
         BITMAP_CLEAR(pmm_bitmap, i);
     }
 
-    usable_pages += page_count;
+    free_pages += page_count;
 
     spinlock_release(&pmm_lock);
 }
@@ -125,6 +126,7 @@ void pmm_init(void) {
     klog("[pmm] parsing memory map:\n");
 
     uintptr_t highest_paddr = 0;
+    size_t reserved_pages = 0;
 
     for (size_t i = 0; i < memmap_response->entry_count; i++) {
         struct limine_memmap_entry* entry = memmap_response->entries[i];
@@ -134,15 +136,16 @@ void pmm_init(void) {
 
         size_t page_count = entry->length / PAGE_SIZE_4KB;
         if (entry->type == LIMINE_MEMMAP_USABLE) {
-            usable_pages += page_count;
-        } else {
-            reserved_pages += page_count;
+            free_pages += page_count;
         }
 
         uintptr_t end = entry->base + entry->length;
-        if (end > highest_paddr)
+        if (end > highest_paddr) {
             highest_paddr = end;
+        }
     }
+
+    total_pages = free_pages;
 
     highest_page_index = highest_paddr / PAGE_SIZE_4KB;
     size_t pmm_bitmap_size  = ALIGN_UP(DIV_CEIL(highest_page_index, 8), PAGE_SIZE_4KB);
@@ -182,6 +185,6 @@ void pmm_init(void) {
     spinlock_init(&pmm_lock);
 
     klog("[pmm] usable memory: %zuMiB | reserved memory: %zuMiB\n",
-            (usable_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);
+            (free_pages * PAGE_SIZE_4KB) >> 20, (reserved_pages * PAGE_SIZE_4KB) >> 20);
     klog("[pmm] initialized physical memory manager\n");
 }

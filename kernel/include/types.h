@@ -125,12 +125,14 @@ struct sockaddr_storage {
     long __force_alignment;
 };
 
-struct utsname {
-    char sysname[65];
-    char nodename[65];
-    char release[65];
-    char version[65];
-    char machine[65];
+struct sysinfo {
+    size_t total_mem_pages;
+    size_t free_mem_pages;
+    char sysname[64];
+    char hostname[256];
+    char release[64];
+    char version[64];
+    char machine[64];
 };
 
 #endif /* _KERNEL_TYPES_H */

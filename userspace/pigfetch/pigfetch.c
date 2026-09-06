@@ -1,10 +1,14 @@
-#include <sys/utsname.h>
+#include <piggy/sysinfo.h>
 
 #include <cpuid.h>
 #include <err.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#define PAGE_SIZE 4096
 
 #define SIZEOF_ARRAY(xs) (sizeof((xs)) / sizeof((xs)[0]))
 
@@ -71,23 +75,56 @@ error:
 }
 
 int main(void) {
-    struct utsname uts;
-    if (uname(&uts) < 0) {
-        err(EXIT_FAILURE, "uname");
+    struct sysinfo info;
+    if (sysinfo(&info) < 0) {
+        err(EXIT_FAILURE, "sysinfo");
     }
 
-    char line1[200], line2[200], line3[200];
-    snprintf(line1, sizeof(line1), "\033[1;34mOS\033[0m: %s %s", uts.sysname, uts.machine);
-    snprintf(line2, sizeof(line2), "\033[1;34mHost\033[0m: %s", uts.nodename);
-    snprintf(line3, sizeof(line3), "\033[1;34mKernel\033[0m: %s (%s)", uts.release, uts.version);
+    char line1[150], line2[32 + HOST_NAME_MAX], line3[150];
+    snprintf(line1, sizeof(line1), "\033[1;34mOS\033[0m: %s %s", info.sysname, info.machine);
+    snprintf(line2, sizeof(line2), "\033[1;34mHost\033[0m: %s", info.hostname);
+    snprintf(line3, sizeof(line3), "\033[1;34mKernel\033[0m: %s (%s)", info.release, info.version);
 
     char cpu[48];
     get_cpu_name(cpu, sizeof(cpu));
 
-    char line4[200];
+    char line4[64];
     snprintf(line4, sizeof(line4), "\033[1;34mCPU\033[0m: %s", cpu);
 
-    const char* text[] = { "pigfetch", "--------", line1, line2, line3, line4 };
+    size_t total_mem_mib = ((info.total_mem_pages * PAGE_SIZE) >> 20);
+    size_t used_mem_mib  = (((info.total_mem_pages - info.free_mem_pages) * PAGE_SIZE) >> 20);
+
+    char line5[64];
+    snprintf(line5, sizeof(line5), "\033[1;34mMemory\033[0m: %zuMiB / %zuMib",
+            used_mem_mib, total_mem_mib);
+
+    // Generate color palette, normal then bright
+    char line6[150];
+
+    char* ptr = line6;
+    for (int i = 0; i < 8; i++) {
+        ptr += snprintf(ptr, sizeof(line6) - (ptr - line6), "\033[%dm   \033[0m", 40 + i);
+    }
+
+    char line7[150];
+
+    ptr = line7;
+    for (int i = 0; i < 8; i++) {
+        ptr += snprintf(ptr, sizeof(line7) - (ptr - line7), "\033[%dm   \033[0m", 100 + i);
+    }
+
+    const char* text[] = {
+        "pigfetch",
+        "--------",
+        line1,
+        line2,
+        line3,
+        line4,
+        line5,
+        "", "",
+        line6,
+        line7,
+    };
 
     size_t logo_lines = SIZEOF_ARRAY(logo);
     size_t text_lines = SIZEOF_ARRAY(text);
@@ -101,7 +138,7 @@ int main(void) {
         if (i < logo_lines) {
             printf("\033[1;35m%s\033[0m", logo[i]);
         } else {
-            printf("         ");
+            printf("          ");
         }
 
         printf("  ");

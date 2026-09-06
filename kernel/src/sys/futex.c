@@ -76,11 +76,17 @@ int futex_wait(uintptr_t futex_paddr, uint32_t* addr, uint32_t value, const stru
         timer_created = true;
     }
 
+    mutex_release(&futex_map_mutex);
+
     ret = scheduler_yield();
+
+    wait_queue_remove(&futex->wq, &this_cpu()->scheduler.current_thread->wait_node);
 
     if (timer_created) {
         timer_remove(&event);
     }
+
+    mutex_acquire(&futex_map_mutex);
 
     futex->waiters--;
 
