@@ -1,0 +1,48 @@
+.TH CUT "1" "September 2026" "PiggyOS" "User Commands"
+
+.SH NAME
+cut \- remove sections from each line of a file
+
+.SH SYNOPSIS
+.B cut
+\fI\,OPTION\/\fR... [\fI\,FILE\/\fR]...
+
+.SH DESCRIPTION
+
+.PP
+Print selected parts of liens from each FILE to standard output.
+
+.PP
+With no FILE, or when FILE is \-, read standard input.
+
+.SH OPTIONS
+
+.TP
+.B \-b LIST
+select only these byte positions
+
+.TP
+.B \-d DELIMETER 
+use DELIMETER instead of TAB for field delimiter
+
+.TP
+.B \-f LIST
+select only these fields; also print any line that contains no delimiter character, unless -s option is specified
+
+.TP
+.B \-s
+do not print lines not containing delimiters
+
+.TP
+.B \-z
+line delimiter is NUL, not newline
+
+.SH AUTHOR
+Written by nimrod.
+
+.SH BUGS
+Report bugs to: <https://github.com/ImaNimrod/piggy-os/issues/>.
+
+.SH COPYRIGHT
+Copyright \(co 2026 nimrod
+License MIT: The MIT License <https://mit-license.org/>.

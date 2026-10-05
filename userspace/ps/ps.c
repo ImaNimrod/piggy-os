@@ -91,14 +91,14 @@ static void print_children(const struct process_list* list, pid_t parent_pid, co
 }
 
 static void print_normal(const struct process_list* list) {
-    printf("%-6s %-6s %-6s %-8s %s\n",
-            "PID", "PPID", "PGID", "STATE", "NAME");
+    printf("%-6s %-6s %-6s %-8s %-8s %s\n",
+            "PID", "PPID", "PGID", "STATE", "THREADS", "NAME");
 
     for (size_t i = 0; i < list->count; i++) {
         const struct procctl_status* p = &list->entries[i].status;
 
-        printf("%-6d %-6d %-6d %-8s %s\n",
-                p->pid, p->ppid, p->pgid, state_name(p->state), p->name);
+        printf("%-6d %-6d %-6d %-8s %-8zu %s\n",
+                p->pid, p->ppid, p->pgid, state_name(p->state), p->thread_count, p->name);
     }
 }
 

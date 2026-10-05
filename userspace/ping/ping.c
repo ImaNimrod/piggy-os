@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
 
     int error = getaddrinfo(hostname, NULL, &hints, &result);
     if (error) {
-        errx(EXIT_FAILURE, "failed to host '%s': %s", hostname, gai_strerror(error));
+        errx(EXIT_FAILURE, "failed to resolve host '%s': %s", hostname, gai_strerror(error));
     }
 
     if (signal(SIGINT, sigint_handler) == SIG_ERR) {

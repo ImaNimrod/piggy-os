@@ -2,7 +2,7 @@ SYSROOT_DIR:=$(PWD)/sysroot
 TOOLCHAIN_DIR:=$(PWD)/toolchain
 
 EDK2_OVMF_URL:=https://github.com/osdev0/edk2-ovmf-nightly/releases/latest/download/edk2-ovmf.tar.gz
-LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.7.0/limine-binary.tar.xz
+LIMINE_BINARY_URL:=https://github.com/Limine-Bootloader/Limine/releases/download/v12.9.1/limine-binary.tar.xz
 
 EMU:=qemu-system-x86_64
 

@@ -74,7 +74,7 @@ static bool find_in_row_forward(struct row* row, size_t start, const char* patte
         return false;
     }
 
-    *result = (char*)p - row->buf;
+    *result = (char*) p - row->buf;
     return true;
 }
 
